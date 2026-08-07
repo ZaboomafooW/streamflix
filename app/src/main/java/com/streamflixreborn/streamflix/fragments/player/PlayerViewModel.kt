@@ -9,6 +9,7 @@ import com.streamflixreborn.streamflix.models.Video
 import com.streamflixreborn.streamflix.utils.CustomTabHelper
 import com.streamflixreborn.streamflix.utils.EpisodeManager
 import com.streamflixreborn.streamflix.utils.OpenSubtitles
+import com.streamflixreborn.streamflix.utils.PlaybackTrackPreferences
 import com.streamflixreborn.streamflix.utils.UserPreferences
 import com.streamflixreborn.streamflix.utils.format
 import kotlinx.coroutines.Dispatchers
@@ -96,6 +97,7 @@ class PlayerViewModel(
 
     private fun getServers(videoType: Video.Type, id: String) = viewModelScope.launch(Dispatchers.IO) {
         Log.d("PlayerViewModel", "Inizio ricerca server per ID: $id")
+        PlaybackTrackPreferences.activate(videoType)
         lastVideoType = videoType
         lastId = id
         _state.emit(State.LoadingServers)
@@ -122,26 +124,63 @@ class PlayerViewModel(
             val video = UserPreferences.currentProvider!!.getVideo(server)
             if (video.source.isEmpty()) throw Exception("No source found")
 
-            // LOGICA SOTTOTITOLI GLOBALE: 
-            // Se il provider non ha già impostato un default (es. i "forced" in spagnolo),
-            // allora proviamo ad attivare l'ultimo sottotitolo usato dall'utente.
-            // MA: se siamo su un provider spagnolo e non ci sono forced, non dobbiamo attivare nulla.
-            val currentProviderLang = UserPreferences.currentProvider?.language ?: ""
-            val hasDefaultAlready = video.subtitles.any { it.default }
-
-            if (!hasDefaultAlready && currentProviderLang != "es") {
-                if (!(video.useServerSubtitleSetting && UserPreferences.serverAutoSubtitlesDisabled)) {
-                    video.subtitles
-                        .firstOrNull { it.label.startsWith(UserPreferences.subtitleName ?: "") }
-                        ?.default = true
-		}
-            }
+            applySubtitlePreference(video)
 
             Log.d("PlayerViewModel", "Estrazione video completata con successo")
             _state.emit(State.SuccessLoadingVideo(video, server))
         } catch (e: Exception) {
             Log.e("PlayerViewModel", "Errore estrazione video: ", e)
             _state.emit(State.FailedLoadingVideo(e, server))
+        }
+    }
+
+    private fun applySubtitlePreference(video: Video) {
+        val savedPreference = PlaybackTrackPreferences.preferredSubtitle()
+
+        if (savedPreference != null) {
+            if (savedPreference.disabled) {
+                video.subtitles.forEach { it.default = false }
+                return
+            }
+
+            val preferredTrack = savedPreference.track?.let { preference ->
+                video.subtitles.firstOrNull { subtitle ->
+                    PlaybackTrackPreferences.matchesVideoSubtitle(preference, subtitle.label)
+                }
+            }
+
+            // A manual preference always wins over a server/provider default. If the exact
+            // kind of track is missing, leave subtitles off instead of silently falling back
+            // to a forced track.
+            video.subtitles.forEach { subtitle ->
+                subtitle.default = subtitle === preferredTrack
+            }
+            return
+        }
+
+        val currentProviderLang = UserPreferences.currentProvider
+            ?.language
+            ?.substringBefore("-")
+            .orEmpty()
+        val hasDefaultAlready = video.subtitles.any { it.default }
+        val savedLegacyName = UserPreferences.subtitleName?.trim()?.takeIf { it.isNotEmpty() }
+
+        if (
+            !hasDefaultAlready &&
+            currentProviderLang != "es" &&
+            savedLegacyName != null &&
+            !(video.useServerSubtitleSetting && UserPreferences.serverAutoSubtitlesDisabled)
+        ) {
+            // Prefer an exact legacy match. Older versions stored only the first word of the
+            // label, so use a non-forced prefix match only as a migration fallback.
+            val preferredSubtitle = video.subtitles.firstOrNull {
+                it.label.equals(savedLegacyName, ignoreCase = true)
+            } ?: video.subtitles.firstOrNull {
+                it.label.startsWith(savedLegacyName, ignoreCase = true) &&
+                    !PlaybackTrackPreferences.isForcedLabel(it.label)
+            }
+
+            preferredSubtitle?.default = true
         }
     }
 
