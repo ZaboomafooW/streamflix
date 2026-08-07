@@ -8,6 +8,7 @@ import androidx.media3.common.Player
 import androidx.media3.ui.PlayerControlView
 import androidx.media3.ui.PlayerView
 import com.streamflixreborn.streamflix.R
+import com.streamflixreborn.streamflix.utils.PlaybackTrackPreferences
 import java.util.Locale
 
 class PlayerTvView @JvmOverloads constructor(
@@ -29,6 +30,19 @@ class PlayerTvView @JvmOverloads constructor(
     var onMediaNextClicked: (() -> Boolean)? = null
 
     private var zoomToast: Toast? = null
+    private var preferencePlayer: Player? = null
+    private var preferenceListener: Player.Listener? = null
+
+    override fun setPlayer(player: Player?) {
+        preferenceListener?.let { listener ->
+            preferencePlayer?.removeListener(listener)
+        }
+
+        super.setPlayer(player)
+
+        preferencePlayer = player
+        preferenceListener = player?.let(PlaybackTrackPreferences::bind)
+    }
 
     fun enterManualZoomMode() {
         player?.pause()
