@@ -1,0 +1,250 @@
+name: Verify Playback Source Error Hardening
+
+on:
+  push:
+    branches:
+      - fix/playback-source-errors
+
+permissions:
+  contents: write
+
+jobs:
+  harden:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+
+    steps:
+      - name: Checkout playback branch
+        uses: actions/checkout@v4
+        with:
+          ref: fix/playback-source-errors
+          fetch-depth: 0
+
+      - name: Apply guarded playback failure fixes
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+
+          def replace_kotlin_block(text: str, marker: str, replacement: str, start_at: int = 0):
+              start = text.find(marker, start_at)
+              if start < 0:
+                  raise SystemExit(f'Marker not found: {marker}')
+              brace = text.find('{', start)
+              if brace < 0:
+                  raise SystemExit(f'Opening brace not found: {marker}')
+              depth = 0
+              for i in range(brace, len(text)):
+                  if text[i] == '{':
+                      depth += 1
+                  elif text[i] == '}':
+                      depth -= 1
+                      if depth == 0:
+                          return text[:start] + replacement + text[i + 1:]
+              raise SystemExit(f'Unclosed block: {marker}')
+
+          vm_path = Path('app/src/main/java/com/streamflixreborn/streamflix/fragments/player/PlayerViewModel.kt')
+          vm = vm_path.read_text()
+          for needle in (
+              '    private var lastServer: Video.Server? = null\n\n',
+              '        lastServer = null\n',
+              '            lastServer = servers.last()\n',
+          ):
+              if vm.count(needle) != 1:
+                  raise SystemExit(f'Expected exactly one occurrence in PlayerViewModel: {needle!r}')
+              vm = vm.replace(needle, '', 1)
+
+          old_terminal = '''            if (server == lastServer) {
+                _state.emit(
+                    State.FailedLoadingServers(
+                        Exception(
+                            "Streaming sources were found, but none could be loaded. Please try another provider or again later.",
+                            e,
+                        )
+                    )
+                )
+            } else {
+                _state.emit(State.FailedLoadingVideo(e, server))
+            }
+'''
+          new_terminal = '''            _state.emit(State.FailedLoadingVideo(e, server))
+'''
+          if vm.count(old_terminal) != 1:
+              raise SystemExit('Expected terminal lastServer block exactly once in PlayerViewModel')
+          vm = vm.replace(old_terminal, new_terminal, 1)
+          vm_path.write_text(vm)
+
+          def harden_fragment(path_str: str, tag: str, helper_anchor: str):
+              path = Path(path_str)
+              text = path.read_text()
+
+              helper = '''
+    private fun nextServerAfter(server: Video.Server?): Video.Server? {
+        if (server == null) return null
+        val currentIndex = servers.indexOfFirst { it === server }
+        return if (currentIndex >= 0) servers.getOrNull(currentIndex + 1) else null
+    }
+
+    private fun showPlaybackSourcesFailed() {
+        Toast.makeText(
+            requireContext(),
+            getString(R.string.player_sources_failed_message),
+            Toast.LENGTH_LONG,
+        ).show()
+        findNavController().navigateUp()
+    }
+'''
+              if text.count(helper_anchor) != 1:
+                  raise SystemExit(f'Expected helper anchor once in {path.name}')
+              text = text.replace(helper_anchor, helper_anchor + helper, 1)
+
+              # SuccessLoadingServers can no longer contain an empty list because the
+              # ViewModel emits FailedLoadingServers for that case. Remove the stale,
+              # provider-name-based error branch that produced the misleading TMDB message.
+              success_marker = 'is PlayerViewModel.State.SuccessLoadingServers -> {'
+              success_start = text.find(success_marker)
+              if success_start < 0:
+                  raise SystemExit(f'SuccessLoadingServers not found in {path.name}')
+              metadata_marker = 'player.playlistMetadata = MediaMetadata.Builder()'
+              metadata_start = text.find(metadata_marker, success_start)
+              if metadata_start < 0:
+                  raise SystemExit(f'playlistMetadata not found in {path.name}')
+
+              provider_marker = 'val providerName = UserPreferences.currentProvider?.name ?: ""'
+              provider_start = text.find(provider_marker, success_start, metadata_start)
+              if provider_start < 0:
+                  raise SystemExit(f'Stale provider-specific empty-server block not found in {path.name}')
+
+              line_start = text.rfind('\n', success_start, provider_start) + 1
+              # Keep indentation immediately preceding player.playlistMetadata.
+              metadata_line_start = text.rfind('\n', success_start, metadata_start) + 1
+              text = text[:line_start] + text[metadata_line_start:]
+
+              failed_replacement = '''is PlayerViewModel.State.FailedLoadingVideo -> {
+                        val nextServer = nextServerAfter(state.server)
+                        if (nextServer != null) {
+                            viewModel.getVideo(nextServer)
+                        } else {
+                            showPlaybackSourcesFailed()
+                        }
+                    }'''
+              text = replace_kotlin_block(
+                  text,
+                  'is PlayerViewModel.State.FailedLoadingVideo -> {',
+                  failed_replacement,
+              )
+
+              error_replacement = f'''override fun onPlayerError(error: PlaybackException) {{
+                    super.onPlayerError(error)
+                    Log.e("{tag}", "onPlayerError: ", error)
+
+                    val nextServer = nextServerAfter(currentServer)
+                    if (nextServer != null) {{
+                        Log.i("{tag}", "Playback failed, trying next server: ${{nextServer.name}}")
+                        viewModel.getVideo(nextServer)
+                    }} else if (currentServer != null) {{
+                        showPlaybackSourcesFailed()
+                    }}
+                }}'''
+              text = replace_kotlin_block(
+                  text,
+                  'override fun onPlayerError(error: PlaybackException) {',
+                  error_replacement,
+              )
+
+              path.write_text(text)
+
+          harden_fragment(
+              'app/src/main/java/com/streamflixreborn/streamflix/fragments/player/PlayerMobileFragment.kt',
+              'PlayerMobileFragment',
+              '    private var nextEpisodeOverlayDismissed = false\n',
+          )
+          harden_fragment(
+              'app/src/main/java/com/streamflixreborn/streamflix/fragments/player/PlayerTvFragment.kt',
+              'PlayerTvFragment',
+              '    private var nextEpisodeOverlayDismissed = false\n',
+          )
+
+          strings_path = Path('app/src/main/res/values/strings.xml')
+          strings = strings_path.read_text()
+          anchor = '    <string name="player_retry_later_message">Video currently unavailable on this provider. Please try again later</string>\n'
+          addition = anchor + '    <string name="player_sources_failed_message">Streaming sources were found, but none could be loaded. Please try another provider or again later.</string>\n'
+          if strings.count(anchor) != 1:
+              raise SystemExit('Expected player_retry_later_message exactly once')
+          if 'name="player_sources_failed_message"' in strings:
+              raise SystemExit('player_sources_failed_message already exists')
+          strings = strings.replace(anchor, addition, 1)
+          strings_path.write_text(strings)
+          PY
+
+          git diff --check
+
+          # Guard the intended behavior before compiling.
+          ! grep -q 'lastServer' app/src/main/java/com/streamflixreborn/streamflix/fragments/player/PlayerViewModel.kt
+          grep -q 'indexOfFirst { it === server }' app/src/main/java/com/streamflixreborn/streamflix/fragments/player/PlayerMobileFragment.kt
+          grep -q 'indexOfFirst { it === server }' app/src/main/java/com/streamflixreborn/streamflix/fragments/player/PlayerTvFragment.kt
+          grep -q 'player_sources_failed_message' app/src/main/java/com/streamflixreborn/streamflix/fragments/player/PlayerMobileFragment.kt
+          grep -q 'player_sources_failed_message' app/src/main/java/com/streamflixreborn/streamflix/fragments/player/PlayerTvFragment.kt
+
+          git diff -- \
+            app/src/main/java/com/streamflixreborn/streamflix/fragments/player/PlayerViewModel.kt \
+            app/src/main/java/com/streamflixreborn/streamflix/fragments/player/PlayerMobileFragment.kt \
+            app/src/main/java/com/streamflixreborn/streamflix/fragments/player/PlayerTvFragment.kt \
+            app/src/main/res/values/strings.xml
+
+      - name: Set up JDK 17
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+
+      - name: Set up Android SDK
+        uses: android-actions/setup-android@v3
+
+      - name: Install required Android SDK components
+        run: |
+          yes | sdkmanager --licenses >/dev/null || true
+          sdkmanager "platforms;android-36" "ndk;26.1.10909125" "cmake;3.22.1"
+
+      - name: Create build properties
+        run: |
+          cat > local.properties <<'EOF'
+          APP_LAYOUT=mobile
+          TMDB_API_KEY=dummy-ci-key
+          SUBDL_API_KEY=dummy-ci-key
+          RABBITSTREAM_SOURCE_API=https://example.invalid/
+          EOF
+
+      - name: Generate native source from template
+        run: |
+          sed -e 's|{{UPROT_MSFI_API_BASE}}|https://example.invalid/msfi|g' \
+              -e 's|{{UPROT_MSE_API_BASE}}|https://example.invalid/mse|g' \
+              -e 's|{{UPROT_API_KEY}}|dummy-ci-key|g' \
+              app/src/main/cpp/native-lib.cpp.template > app/src/main/cpp/native-lib.cpp
+
+      - name: Make Gradle executable
+        run: chmod +x ./gradlew
+
+      - name: Run unit tests
+        run: ./gradlew testDebugUnitTest --stacktrace --no-daemon
+
+      - name: Build mobile debug APK
+        run: ./gradlew assembleDebug --stacktrace --no-daemon
+
+      - name: Build TV debug APK
+        run: |
+          sed -i 's/^APP_LAYOUT=.*/APP_LAYOUT=tv/' local.properties
+          ./gradlew clean assembleDebug --stacktrace --no-daemon
+
+      - name: Commit verified changes and remove temporary workflow
+        run: |
+          git config user.name github-actions[bot]
+          git config user.email 41898282+github-actions[bot]@users.noreply.github.com
+          rm .github/workflows/apply-playback-source-fix.yml
+          git add \
+            app/src/main/java/com/streamflixreborn/streamflix/fragments/player/PlayerViewModel.kt \
+            app/src/main/java/com/streamflixreborn/streamflix/fragments/player/PlayerMobileFragment.kt \
+            app/src/main/java/com/streamflixreborn/streamflix/fragments/player/PlayerTvFragment.kt \
+            app/src/main/res/values/strings.xml \
+            .github/workflows/apply-playback-source-fix.yml
+          git commit -m "fix playback source failure handling"
+          git push origin HEAD:fix/playback-source-errors
