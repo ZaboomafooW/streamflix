@@ -9,6 +9,7 @@ import com.streamflixreborn.streamflix.models.Video
 import com.streamflixreborn.streamflix.utils.CustomTabHelper
 import com.streamflixreborn.streamflix.utils.EpisodeManager
 import com.streamflixreborn.streamflix.utils.OpenSubtitles
+import com.streamflixreborn.streamflix.utils.PlaybackTrackPreferences
 import com.streamflixreborn.streamflix.utils.UserPreferences
 import com.streamflixreborn.streamflix.utils.format
 import kotlinx.coroutines.Dispatchers
@@ -33,6 +34,7 @@ class PlayerViewModel(
     private val _playPreviousOrNextEpisode = MutableSharedFlow<Video.Type.Episode>()
     val playPreviousOrNextEpisode: SharedFlow<Video.Type.Episode> = _playPreviousOrNextEpisode
     init {
+        PlaybackTrackPreferences.activate(videoType)
         getServers(videoType, id)
         getSubtitles(videoType)
     }
@@ -90,6 +92,7 @@ class PlayerViewModel(
         }
     }
     fun playEpisode(episode: Video.Type.Episode) {
+        PlaybackTrackPreferences.activate(episode)
         getServers(episode, episode.id)
         getSubtitles(episode)
     }
@@ -122,19 +125,28 @@ class PlayerViewModel(
             val video = UserPreferences.currentProvider!!.getVideo(server)
             if (video.source.isEmpty()) throw Exception("No source found")
 
-            // LOGICA SOTTOTITOLI GLOBALE: 
-            // Se il provider non ha già impostato un default (es. i "forced" in spagnolo),
-            // allora proviamo ad attivare l'ultimo sottotitolo usato dall'utente.
-            // MA: se siamo su un provider spagnolo e non ci sono forced, non dobbiamo attivare nulla.
+            // Preserve the legacy global subtitle preference without treating a
+            // missing preference as an empty-string match. Prefer an exact label
+            // so "English" does not accidentally select "English Forced".
             val currentProviderLang = UserPreferences.currentProvider?.language ?: ""
             val hasDefaultAlready = video.subtitles.any { it.default }
+            val savedSubtitleName = UserPreferences.subtitleName
+                ?.trim()
+                ?.takeIf { it.isNotEmpty() }
 
-            if (!hasDefaultAlready && currentProviderLang != "es") {
-                if (!(video.useServerSubtitleSetting && UserPreferences.serverAutoSubtitlesDisabled)) {
-                    video.subtitles
-                        .firstOrNull { it.label.startsWith(UserPreferences.subtitleName ?: "") }
-                        ?.default = true
-		}
+            if (
+                !hasDefaultAlready &&
+                currentProviderLang != "es" &&
+                savedSubtitleName != null &&
+                !(video.useServerSubtitleSetting && UserPreferences.serverAutoSubtitlesDisabled)
+            ) {
+                val preferredSubtitle = video.subtitles.firstOrNull {
+                    it.label.equals(savedSubtitleName, ignoreCase = true)
+                } ?: video.subtitles.firstOrNull {
+                    it.label.startsWith(savedSubtitleName, ignoreCase = true) &&
+                        !PlaybackTrackPreferences.isForcedLabel(it.label)
+                }
+                preferredSubtitle?.default = true
             }
 
             Log.d("PlayerViewModel", "Estrazione video completata con successo")
