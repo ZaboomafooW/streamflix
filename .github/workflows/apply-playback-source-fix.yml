@@ -1,18 +1,16 @@
 name: Apply Playback Source Fix
 
 on:
-  pull_request_target:
-    types: [edited]
+  push:
+    branches:
+      - main
 
 permissions:
   contents: write
 
 jobs:
   apply:
-    if: >-
-      github.event.pull_request.head.repo.full_name == github.repository &&
-      github.event.pull_request.head.ref == 'fix/playback-source-errors' &&
-      contains(github.event.pull_request.body || '', '<!-- apply-playback-source-fix -->')
+    if: github.event.head_commit.message == 'ci: run playback source applier'
     runs-on: ubuntu-latest
 
     steps:
