@@ -34,6 +34,8 @@ class PlayerTvView @JvmOverloads constructor(
     private var preferenceListener: Player.Listener? = null
 
     override fun setPlayer(player: Player?) {
+        if (player != null && preferencePlayer === player && preferenceListener != null) return
+
         preferenceListener?.let { listener ->
             preferencePlayer?.removeListener(listener)
         }
