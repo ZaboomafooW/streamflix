@@ -487,6 +487,10 @@ class TmdbProvider(override val language: String) : Provider {
             ),
             language = language
         ).let { tv ->
+            if (tv.adult) {
+                throw IllegalArgumentException("Adult content is hidden")
+            }
+
             TvShow(
                 id = tv.id.toString(),
                 title = tv.name,
