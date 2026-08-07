@@ -124,63 +124,35 @@ class PlayerViewModel(
             val video = UserPreferences.currentProvider!!.getVideo(server)
             if (video.source.isEmpty()) throw Exception("No source found")
 
-            applySubtitlePreference(video)
+            // If a provider has not already selected a subtitle, preserve the legacy
+            // global preference without treating a missing preference as an empty-string
+            // match. Prefer an exact label so "English" does not select "English Forced".
+            val currentProviderLang = UserPreferences.currentProvider?.language ?: ""
+            val hasDefaultAlready = video.subtitles.any { it.default }
+            val savedSubtitleName = UserPreferences.subtitleName
+                ?.trim()
+                ?.takeIf { it.isNotEmpty() }
+
+            if (
+                !hasDefaultAlready &&
+                currentProviderLang != "es" &&
+                savedSubtitleName != null &&
+                !(video.useServerSubtitleSetting && UserPreferences.serverAutoSubtitlesDisabled)
+            ) {
+                val preferredSubtitle = video.subtitles.firstOrNull {
+                    it.label.equals(savedSubtitleName, ignoreCase = true)
+                } ?: video.subtitles.firstOrNull {
+                    it.label.startsWith(savedSubtitleName, ignoreCase = true) &&
+                        !PlaybackTrackPreferences.isForcedLabel(it.label)
+                }
+                preferredSubtitle?.default = true
+            }
 
             Log.d("PlayerViewModel", "Estrazione video completata con successo")
             _state.emit(State.SuccessLoadingVideo(video, server))
         } catch (e: Exception) {
             Log.e("PlayerViewModel", "Errore estrazione video: ", e)
             _state.emit(State.FailedLoadingVideo(e, server))
-        }
-    }
-
-    private fun applySubtitlePreference(video: Video) {
-        val savedPreference = PlaybackTrackPreferences.preferredSubtitle()
-
-        if (savedPreference != null) {
-            if (savedPreference.disabled) {
-                video.subtitles.forEach { it.default = false }
-                return
-            }
-
-            val preferredTrack = savedPreference.track?.let { preference ->
-                video.subtitles.firstOrNull { subtitle ->
-                    PlaybackTrackPreferences.matchesVideoSubtitle(preference, subtitle.label)
-                }
-            }
-
-            // A manual preference always wins over a server/provider default. If the exact
-            // kind of track is missing, leave subtitles off instead of silently falling back
-            // to a forced track.
-            video.subtitles.forEach { subtitle ->
-                subtitle.default = subtitle === preferredTrack
-            }
-            return
-        }
-
-        val currentProviderLang = UserPreferences.currentProvider
-            ?.language
-            ?.substringBefore("-")
-            .orEmpty()
-        val hasDefaultAlready = video.subtitles.any { it.default }
-        val savedLegacyName = UserPreferences.subtitleName?.trim()?.takeIf { it.isNotEmpty() }
-
-        if (
-            !hasDefaultAlready &&
-            currentProviderLang != "es" &&
-            savedLegacyName != null &&
-            !(video.useServerSubtitleSetting && UserPreferences.serverAutoSubtitlesDisabled)
-        ) {
-            // Prefer an exact legacy match. Older versions stored only the first word of the
-            // label, so use a non-forced prefix match only as a migration fallback.
-            val preferredSubtitle = video.subtitles.firstOrNull {
-                it.label.equals(savedLegacyName, ignoreCase = true)
-            } ?: video.subtitles.firstOrNull {
-                it.label.startsWith(savedLegacyName, ignoreCase = true) &&
-                    !PlaybackTrackPreferences.isForcedLabel(it.label)
-            }
-
-            preferredSubtitle?.default = true
         }
     }
 
