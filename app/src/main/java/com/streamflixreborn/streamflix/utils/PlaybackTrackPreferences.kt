@@ -52,22 +52,115 @@ object PlaybackTrackPreferences {
     /**
      * Attaches provider-agnostic track persistence to a Media3 player.
      *
-     * Only explicit Media3 track overrides are saved, so extractor/provider
-     * defaults are not mistaken for user preferences. When a new video exposes
-     * tracks, a saved preference is restored if a compatible track exists.
+     * A saved choice is restored once when a new media source exposes that
+     * track type. Later track changes are treated as user interaction: explicit
+     * overrides are saved and a cleared override is left cleared, so choosing
+     * "Subtitles off" is not immediately undone by the persistence layer.
      */
     fun bind(player: Player): Player.Listener {
         val listener = object : Player.Listener {
-            private var applyingSavedPreference = false
+            private var mediaKey: String? = null
+            private var audioInitialized = false
+            private var subtitleInitialized = false
 
             override fun onTracksChanged(tracks: Tracks) {
                 if (currentScopeKey == null) return
 
-                if (!applyingSavedPreference) {
-                    saveExplicitOverrides(player, tracks)
+                val currentMediaKey = player.currentMediaItem
+                    ?.localConfiguration
+                    ?.uri
+                    ?.toString()
+                    ?: player.currentMediaItem?.mediaId
+
+                if (currentMediaKey != mediaKey) {
+                    mediaKey = currentMediaKey
+                    audioInitialized = false
+                    subtitleInitialized = false
                 }
 
-                applyingSavedPreference = applySavedPreferences(player, tracks)
+                val groups = tracks.groups
+                val parameters = player.trackSelectionParameters
+                val builder = parameters.buildUpon()
+                var changed = false
+
+                val audioGroups = groups.filter { it.type == C.TRACK_TYPE_AUDIO }
+                if (audioGroups.isNotEmpty()) {
+                    val currentAudio = findCurrentOverride(
+                        overrides = parameters.overrides.values,
+                        groups = audioGroups,
+                    )
+
+                    if (!audioInitialized) {
+                        if (currentAudio != null) {
+                            saveAudio(currentAudio.group.getTrackFormat(currentAudio.index))
+                        } else {
+                            preferredAudio()?.let { preference ->
+                                findBestTrack(audioGroups) { format ->
+                                    matchesAudio(
+                                        preference = preference,
+                                        language = format.language,
+                                        label = format.label,
+                                        name = format.label ?: format.language,
+                                    )
+                                }?.let { match ->
+                                    builder.setOverrideForType(
+                                        TrackSelectionOverride(
+                                            match.group.mediaTrackGroup,
+                                            listOf(match.index),
+                                        )
+                                    )
+                                    builder.setTrackTypeDisabled(C.TRACK_TYPE_AUDIO, false)
+                                    changed = true
+                                }
+                            }
+                        }
+                        audioInitialized = true
+                    } else if (currentAudio != null) {
+                        saveAudio(currentAudio.group.getTrackFormat(currentAudio.index))
+                    }
+                }
+
+                val subtitleGroups = groups.filter { it.type == C.TRACK_TYPE_TEXT }
+                if (subtitleGroups.isNotEmpty()) {
+                    val currentSubtitle = findCurrentOverride(
+                        overrides = parameters.overrides.values,
+                        groups = subtitleGroups,
+                    )
+
+                    if (!subtitleInitialized) {
+                        if (currentSubtitle != null) {
+                            saveSubtitle(currentSubtitle.group.getTrackFormat(currentSubtitle.index))
+                        } else {
+                            preferredSubtitle()?.let { preference ->
+                                findBestTrack(subtitleGroups) { format ->
+                                    matchesSubtitle(
+                                        preference = preference,
+                                        language = format.language,
+                                        label = format.label,
+                                        name = format.label ?: format.language,
+                                        forced = isForced(format),
+                                    )
+                                }?.let { match ->
+                                    builder.setOverrideForType(
+                                        TrackSelectionOverride(
+                                            match.group.mediaTrackGroup,
+                                            listOf(match.index),
+                                        )
+                                    )
+                                    builder.setTrackTypeDisabled(C.TRACK_TYPE_TEXT, false)
+                                    changed = true
+                                }
+                            }
+                        }
+                        subtitleInitialized = true
+                    } else if (currentSubtitle != null) {
+                        saveSubtitle(currentSubtitle.group.getTrackFormat(currentSubtitle.index))
+                    }
+                }
+
+                if (changed) {
+                    player.trackSelectionParameters = builder.build()
+                }
             }
         }
 
@@ -78,7 +171,7 @@ object PlaybackTrackPreferences {
         return listener
     }
 
-    fun preferredAudio(): TrackPreference? {
+    private fun preferredAudio(): TrackPreference? {
         val scope = currentScopeKey ?: return null
         val language = preferences.getString(key(scope, AUDIO_LANGUAGE), null)
         val label = preferences.getString(key(scope, AUDIO_LABEL), null)
@@ -87,7 +180,7 @@ object PlaybackTrackPreferences {
         return TrackPreference(language, label, name)
     }
 
-    fun preferredSubtitle(): TrackPreference? {
+    private fun preferredSubtitle(): TrackPreference? {
         val scope = currentScopeKey ?: return null
         val language = preferences.getString(key(scope, SUBTITLE_LANGUAGE), null)
         val label = preferences.getString(key(scope, SUBTITLE_LABEL), null)
@@ -99,25 +192,6 @@ object PlaybackTrackPreferences {
             name = name,
             forced = preferences.getBoolean(key(scope, SUBTITLE_FORCED), false),
         )
-    }
-
-    private fun saveExplicitOverrides(player: Player, tracks: Tracks) {
-        val overrides = player.trackSelectionParameters.overrides.values
-        val currentGroups = tracks.groups
-
-        overrides.forEach { override ->
-            val trackGroup = currentGroups.firstOrNull {
-                it.mediaTrackGroup == override.mediaTrackGroup
-            } ?: return@forEach
-            val trackIndex = override.trackIndices.firstOrNull() ?: return@forEach
-            if (trackIndex !in 0 until trackGroup.length) return@forEach
-
-            val format = trackGroup.getTrackFormat(trackIndex)
-            when (trackGroup.type) {
-                C.TRACK_TYPE_AUDIO -> saveAudio(format)
-                C.TRACK_TYPE_TEXT -> saveSubtitle(format)
-            }
-        }
     }
 
     private fun saveAudio(format: Format) {
@@ -139,86 +213,32 @@ object PlaybackTrackPreferences {
         }
     }
 
-    private fun applySavedPreferences(player: Player, tracks: Tracks): Boolean {
-        val parameters = player.trackSelectionParameters
-        val groups = tracks.groups
-        var changed = false
-        val builder = parameters.buildUpon()
-
-        if (!hasCurrentOverrideForType(parameters.overrides.values, groups, C.TRACK_TYPE_AUDIO)) {
-            preferredAudio()?.let { preference ->
-                findBestTrack(groups, C.TRACK_TYPE_AUDIO) { format ->
-                    matchesAudio(
-                        preference = preference,
-                        language = format.language,
-                        label = format.label,
-                        name = format.label ?: format.language,
-                    )
-                }?.let { match ->
-                    builder.setOverrideForType(
-                        TrackSelectionOverride(
-                            match.group.mediaTrackGroup,
-                            listOf(match.index),
-                        )
-                    )
-                    builder.setTrackTypeDisabled(C.TRACK_TYPE_AUDIO, false)
-                    changed = true
-                }
-            }
-        }
-
-        if (!hasCurrentOverrideForType(parameters.overrides.values, groups, C.TRACK_TYPE_TEXT)) {
-            preferredSubtitle()?.let { preference ->
-                findBestTrack(groups, C.TRACK_TYPE_TEXT) { format ->
-                    matchesSubtitle(
-                        preference = preference,
-                        language = format.language,
-                        label = format.label,
-                        name = format.label ?: format.language,
-                        forced = isForced(format),
-                    )
-                }?.let { match ->
-                    builder.setOverrideForType(
-                        TrackSelectionOverride(
-                            match.group.mediaTrackGroup,
-                            listOf(match.index),
-                        )
-                    )
-                    builder.setTrackTypeDisabled(C.TRACK_TYPE_TEXT, false)
-                    changed = true
-                }
-            }
-        }
-
-        if (changed) {
-            player.trackSelectionParameters = builder.build()
-        }
-        return changed
-    }
-
-    private fun hasCurrentOverrideForType(
-        overrides: Collection<TrackSelectionOverride>,
-        groups: List<Tracks.Group>,
-        trackType: Int,
-    ): Boolean {
-        return overrides.any { override ->
-            groups.any { group ->
-                group.type == trackType && group.mediaTrackGroup == override.mediaTrackGroup
-            }
-        }
-    }
-
     private data class TrackMatch(
         val group: Tracks.Group,
         val index: Int,
     )
 
+    private fun findCurrentOverride(
+        overrides: Collection<TrackSelectionOverride>,
+        groups: List<Tracks.Group>,
+    ): TrackMatch? {
+        overrides.forEach { override ->
+            val group = groups.firstOrNull {
+                it.mediaTrackGroup == override.mediaTrackGroup
+            } ?: return@forEach
+            val index = override.trackIndices.firstOrNull() ?: return@forEach
+            if (index in 0 until group.length) {
+                return TrackMatch(group, index)
+            }
+        }
+        return null
+    }
+
     private fun findBestTrack(
         groups: List<Tracks.Group>,
-        trackType: Int,
         predicate: (Format) -> Boolean,
     ): TrackMatch? {
-        groups.filter { it.type == trackType }.forEach { group ->
+        groups.forEach { group ->
             for (index in 0 until group.length) {
                 if (!group.isTrackSupported(index)) continue
                 if (predicate(group.getTrackFormat(index))) {
