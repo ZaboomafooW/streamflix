@@ -116,6 +116,7 @@ class TmdbProvider(override val language: String) : Provider {
                 async {
                     TMDb3.Discover.movie(
                         language = language,
+                        includeAdult = false,
                         withKeywords = TMDb3.Params.WithBuilder(TMDb3.Keyword.KeywordId.ANIME)
                             .or(TMDb3.Keyword.KeywordId.BASED_ON_ANIME),
                     )
@@ -123,6 +124,7 @@ class TmdbProvider(override val language: String) : Provider {
                 async {
                     TMDb3.Discover.tv(
                         language = language,
+                        includeAdult = false,
                         withKeywords = TMDb3.Params.WithBuilder(TMDb3.Keyword.KeywordId.ANIME)
                             .or(TMDb3.Keyword.KeywordId.BASED_ON_ANIME),
                     )
@@ -135,6 +137,7 @@ class TmdbProvider(override val language: String) : Provider {
                 async {
                     TMDb3.Discover.movie(
                         language = language,
+                        includeAdult = false,
                         watchRegion = watchRegion,
                         withWatchProviders = TMDb3.Params.WithBuilder(TMDb3.Provider.WatchProviderId.NETFLIX),
                     )
@@ -142,6 +145,7 @@ class TmdbProvider(override val language: String) : Provider {
                 async {
                     TMDb3.Discover.tv(
                         language = language,
+                        includeAdult = false,
                         withNetworks = TMDb3.Params.WithBuilder(TMDb3.Network.NetworkId.NETFLIX),
                     )
                 },
@@ -153,6 +157,7 @@ class TmdbProvider(override val language: String) : Provider {
                 async {
                     TMDb3.Discover.movie(
                         language = language,
+                        includeAdult = false,
                         watchRegion = watchRegion,
                         withWatchProviders = TMDb3.Params.WithBuilder(TMDb3.Provider.WatchProviderId.AMAZON_VIDEO),
                     )
@@ -160,6 +165,7 @@ class TmdbProvider(override val language: String) : Provider {
                 async {
                     TMDb3.Discover.tv(
                         language = language,
+                        includeAdult = false,
                         withNetworks = TMDb3.Params.WithBuilder(TMDb3.Network.NetworkId.AMAZON),
                     )
                 },
@@ -171,6 +177,7 @@ class TmdbProvider(override val language: String) : Provider {
                 async {
                     TMDb3.Discover.movie(
                         language = language,
+                        includeAdult = false,
                         watchRegion = watchRegion,
                         withWatchProviders = TMDb3.Params.WithBuilder(TMDb3.Provider.WatchProviderId.DISNEY_PLUS),
                     )
@@ -178,6 +185,7 @@ class TmdbProvider(override val language: String) : Provider {
                 async {
                     TMDb3.Discover.tv(
                         language = language,
+                        includeAdult = false,
                         withNetworks = TMDb3.Params.WithBuilder(TMDb3.Network.NetworkId.DISNEY_PLUS),
                     )
                 },
@@ -189,6 +197,7 @@ class TmdbProvider(override val language: String) : Provider {
                 async {
                     TMDb3.Discover.movie(
                         language = language,
+                        includeAdult = false,
                         watchRegion = watchRegion,
                         withWatchProviders = TMDb3.Params.WithBuilder(TMDb3.Provider.WatchProviderId.HULU),
                     )
@@ -196,6 +205,7 @@ class TmdbProvider(override val language: String) : Provider {
                 async {
                     TMDb3.Discover.tv(
                         language = language,
+                        includeAdult = false,
                         withNetworks = TMDb3.Params.WithBuilder(TMDb3.Network.NetworkId.HULU),
                     )
                 },
@@ -207,6 +217,7 @@ class TmdbProvider(override val language: String) : Provider {
                 async {
                     TMDb3.Discover.movie(
                         language = language,
+                        includeAdult = false,
                         watchRegion = watchRegion,
                         withWatchProviders = TMDb3.Params.WithBuilder(TMDb3.Provider.WatchProviderId.APPLE_TV_PLUS),
                     )
@@ -214,6 +225,7 @@ class TmdbProvider(override val language: String) : Provider {
                 async {
                     TMDb3.Discover.tv(
                         language = language,
+                        includeAdult = false,
                         withNetworks = TMDb3.Params.WithBuilder(TMDb3.Network.NetworkId.APPLE_TV),
                     )
                 },
@@ -225,6 +237,7 @@ class TmdbProvider(override val language: String) : Provider {
                 async {
                     TMDb3.Discover.tv(
                         language = language,
+                        includeAdult = false,
                         withNetworks = TMDb3.Params.WithBuilder(TMDb3.Network.NetworkId.HBO),
                         page = 1,
                     )
@@ -232,6 +245,7 @@ class TmdbProvider(override val language: String) : Provider {
                 async {
                     TMDb3.Discover.tv(
                         language = language,
+                        includeAdult = false,
                         withNetworks = TMDb3.Params.WithBuilder(TMDb3.Network.NetworkId.HBO),
                         page = 2,
                     )
@@ -239,18 +253,20 @@ class TmdbProvider(override val language: String) : Provider {
             ).flatMap { it.results }
         }
 
-        val trending = trendingDeferred.await()
+        // Filter/map once before slicing so adult entries cannot shrink Featured
+        // and the same trending records are not converted twice.
+        val trending = trendingDeferred.await().mapNotNull(mapMulti)
         categories.add(
             Category(
                 name = Category.FEATURED,
-                list = trending.safeSubList(0, 5).mapNotNull(mapMulti)
+                list = trending.safeSubList(0, 5)
             )
         )
 
         categories.add(
             Category(
                 name = getTranslation("Trending"),
-                list = trending.safeSubList(5, trending.size).mapNotNull(mapMulti)
+                list = trending.safeSubList(5, trending.size)
             )
         )
 
@@ -386,7 +402,12 @@ class TmdbProvider(override val language: String) : Provider {
             return genres
         }
 
-        return TMDb3.Search.multi(query, page = page, language = language)
+        return TMDb3.Search.multi(
+            query = query,
+            page = page,
+            language = language,
+            includeAdult = false,
+        )
             .results
             .mapNotNull { it.toCatalogShow() }
     }
@@ -552,13 +573,15 @@ class TmdbProvider(override val language: String) : Provider {
             shows = TMDb3.Discover.movie(
                 page = page,
                 withGenres = TMDb3.Params.WithBuilder(id),
-                language = language
+                language = language,
+                includeAdult = false,
             ).results.mapNotNull { it.toCatalogShow() as? Movie }
                 .mix(
                     TMDb3.Discover.tv(
                         page = page,
                         withGenres = TMDb3.Params.WithBuilder(id),
-                        language = language
+                        language = language,
+                        includeAdult = false,
                     ).results.mapNotNull { it.toCatalogShow() as? TvShow }
                 )
         )
