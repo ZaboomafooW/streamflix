@@ -72,7 +72,7 @@ object PlaybackTrackPreferences {
         }
 
         player.addListener(listener)
-        if (!player.currentTracks.isEmpty) {
+        if (!player.currentTracks.isEmpty()) {
             listener.onTracksChanged(player.currentTracks)
         }
         return listener
@@ -229,7 +229,7 @@ object PlaybackTrackPreferences {
         return null
     }
 
-    fun matchesAudio(
+    private fun matchesAudio(
         preference: TrackPreference,
         language: String?,
         label: String?,
@@ -245,7 +245,7 @@ object PlaybackTrackPreferences {
             preferredLanguage == candidateLanguage
     }
 
-    fun matchesSubtitle(
+    private fun matchesSubtitle(
         preference: TrackPreference,
         language: String?,
         label: String?,
