@@ -32,6 +32,9 @@ class PlayerViewModel(
 
     private val _playPreviousOrNextEpisode = MutableSharedFlow<Video.Type.Episode>()
     val playPreviousOrNextEpisode: SharedFlow<Video.Type.Episode> = _playPreviousOrNextEpisode
+
+    private var availableServers = emptyList<Video.Server>()
+
     init {
         getServers(videoType, id)
         getSubtitles(videoType)
@@ -98,10 +101,14 @@ class PlayerViewModel(
         Log.d("PlayerViewModel", "Inizio ricerca server per ID: $id")
         lastVideoType = videoType
         lastId = id
+        availableServers = emptyList()
         _state.emit(State.LoadingServers)
         try {
             val servers = UserPreferences.currentProvider!!.getServers(id, videoType)
-            if (servers.isEmpty()) throw Exception("No servers found")
+            if (servers.isEmpty()) {
+                throw Exception("No streaming servers found for this title.")
+            }
+            availableServers = servers
             
             // LOG POTENZIATO: Mostra tutti i server disponibili per il player
             Log.i("StreamFlixES", "[SERVERS LIST] -> Provider: ${UserPreferences.currentProvider!!.name}")
@@ -141,7 +148,19 @@ class PlayerViewModel(
             _state.emit(State.SuccessLoadingVideo(video, server))
         } catch (e: Exception) {
             Log.e("PlayerViewModel", "Errore estrazione video: ", e)
-            _state.emit(State.FailedLoadingVideo(e, server))
+
+            if (availableServers.lastOrNull() === server) {
+                _state.emit(
+                    State.FailedLoadingServers(
+                        Exception(
+                            "This streaming source could not be loaded. Please try another server, provider, or again later.",
+                            e,
+                        )
+                    )
+                )
+            } else {
+                _state.emit(State.FailedLoadingVideo(e, server))
+            }
         }
     }
 
