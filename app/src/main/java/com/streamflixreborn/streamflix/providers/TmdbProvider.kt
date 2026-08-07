@@ -24,6 +24,7 @@ import com.streamflixreborn.streamflix.models.Genre
 import com.streamflixreborn.streamflix.models.Movie
 import com.streamflixreborn.streamflix.models.People
 import com.streamflixreborn.streamflix.models.Season
+import com.streamflixreborn.streamflix.models.Show
 import com.streamflixreborn.streamflix.models.TvShow
 import com.streamflixreborn.streamflix.models.Video
 import com.streamflixreborn.streamflix.utils.TMDb3
@@ -49,34 +50,41 @@ class TmdbProvider(override val language: String) : Provider {
     override val logo =
         "https://upload.wikimedia.org/wikipedia/commons/thumb/8/89/Tmdb.new.logo.svg/1280px-Tmdb.new.logo.svg.png"
 
+    /**
+     * Converts TMDB browse/search items into Streamflix shows while honoring
+     * TMDB's explicit adult-content classification. Mature ratings such as R
+     * or TV-MA are not filtered here; only items with adult=true are hidden.
+     */
+    private fun TMDb3.MultiItem.toCatalogShow(): Show? = when (this) {
+        is TMDb3.Movie -> if (adult) null else Movie(
+            id = id.toString(),
+            title = title,
+            overview = overview,
+            released = releaseDate,
+            rating = voteAverage.toDouble(),
+            poster = posterPath?.w500,
+            banner = backdropPath?.original,
+        )
+
+        is TMDb3.Tv -> if (adult) null else TvShow(
+            id = id.toString(),
+            title = name,
+            overview = overview,
+            released = firstAirDate,
+            rating = voteAverage.toDouble(),
+            poster = posterPath?.w500,
+            banner = backdropPath?.original,
+        )
+
+        else -> null
+    }
+
     override suspend fun getHome(): List<Category> = coroutineScope {
         val categories = mutableListOf<Category>()
         val watchRegion = if (language == "en") "US" else language.uppercase()
 
         val mapMulti: (TMDb3.MultiItem) -> AppAdapter.Item? = { multi ->
-            when (multi) {
-                is TMDb3.Movie -> Movie(
-                    id = multi.id.toString(),
-                    title = multi.title,
-                    overview = multi.overview,
-                    released = multi.releaseDate,
-                    rating = multi.voteAverage.toDouble(),
-                    poster = multi.posterPath?.w500,
-                    banner = multi.backdropPath?.original,
-                )
-
-                is TMDb3.Tv -> TvShow(
-                    id = multi.id.toString(),
-                    title = multi.name,
-                    overview = multi.overview,
-                    released = multi.firstAirDate,
-                    rating = multi.voteAverage.toDouble(),
-                    poster = multi.posterPath?.w500,
-                    banner = multi.backdropPath?.original,
-                )
-
-                else -> null
-            }
+            multi.toCatalogShow()
         }
 
         val trendingDeferred = async {
@@ -378,65 +386,21 @@ class TmdbProvider(override val language: String) : Provider {
             return genres
         }
 
-        val results = TMDb3.Search.multi(query, page = page, language = language).results.mapNotNull { multi ->
-            when (multi) {
-                is TMDb3.Movie -> Movie(
-                    id = multi.id.toString(),
-                    title = multi.title,
-                    overview = multi.overview,
-                    released = multi.releaseDate,
-                    rating = multi.voteAverage.toDouble(),
-                    poster = multi.posterPath?.w500,
-                    banner = multi.backdropPath?.original,
-                )
-
-                is TMDb3.Tv -> TvShow(
-                    id = multi.id.toString(),
-                    title = multi.name,
-                    overview = multi.overview,
-                    released = multi.firstAirDate,
-                    rating = multi.voteAverage.toDouble(),
-                    poster = multi.posterPath?.w500,
-                    banner = multi.backdropPath?.original,
-                )
-
-                else -> null
-            }
-        }
-
-        return results
+        return TMDb3.Search.multi(query, page = page, language = language)
+            .results
+            .mapNotNull { it.toCatalogShow() }
     }
 
     override suspend fun getMovies(page: Int): List<Movie> {
-        val movies = TMDb3.MovieLists.popular(page = page, language = language).results.map { movie ->
-            Movie(
-                id = movie.id.toString(),
-                title = movie.title,
-                overview = movie.overview,
-                released = movie.releaseDate,
-                rating = movie.voteAverage.toDouble(),
-                poster = movie.posterPath?.w500,
-                banner = movie.backdropPath?.original,
-            )
-        }
-
-        return movies
+        return TMDb3.MovieLists.popular(page = page, language = language)
+            .results
+            .mapNotNull { it.toCatalogShow() as? Movie }
     }
 
     override suspend fun getTvShows(page: Int): List<TvShow> {
-        val tvShows = TMDb3.TvSeriesLists.popular(page = page, language = language).results.map { tv ->
-            TvShow(
-                id = tv.id.toString(),
-                title = tv.name,
-                overview = tv.overview,
-                released = tv.firstAirDate,
-                rating = tv.voteAverage.toDouble(),
-                poster = tv.posterPath?.w500,
-                banner = tv.backdropPath?.original,
-            )
-        }
-
-        return tvShows
+        return TMDb3.TvSeriesLists.popular(page = page, language = language)
+            .results
+            .mapNotNull { it.toCatalogShow() as? TvShow }
     }
 
     override suspend fun getMovie(id: String): Movie {
@@ -450,6 +414,10 @@ class TmdbProvider(override val language: String) : Provider {
             ),
             language = language
         ).let { movie ->
+            if (movie.adult) {
+                throw IllegalArgumentException("Adult content is hidden")
+            }
+
             Movie(
                 id = movie.id.toString(),
                 title = movie.title,
@@ -478,31 +446,9 @@ class TmdbProvider(override val language: String) : Provider {
                         image = cast.profilePath?.w500,
                     )
                 } ?: listOf(),
-                recommendations = movie.recommendations?.results?.mapNotNull { multi ->
-                    when (multi) {
-                        is TMDb3.Movie -> Movie(
-                            id = multi.id.toString(),
-                            title = multi.title,
-                            overview = multi.overview,
-                            released = multi.releaseDate,
-                            rating = multi.voteAverage.toDouble(),
-                            poster = multi.posterPath?.w500,
-                            banner = multi.backdropPath?.original,
-                        )
-
-                        is TMDb3.Tv -> TvShow(
-                            id = multi.id.toString(),
-                            title = multi.name,
-                            overview = multi.overview,
-                            released = multi.firstAirDate,
-                            rating = multi.voteAverage.toDouble(),
-                            poster = multi.posterPath?.w500,
-                            banner = multi.backdropPath?.original,
-                        )
-
-                        else -> null
-                    }
-                } ?: listOf(),
+                recommendations = movie.recommendations?.results
+                    ?.mapNotNull { it.toCatalogShow() }
+                    ?: listOf(),
             )
         }
 
@@ -555,31 +501,9 @@ class TmdbProvider(override val language: String) : Provider {
                         image = cast.profilePath?.w500,
                     )
                 } ?: listOf(),
-                recommendations = tv.recommendations?.results?.mapNotNull { multi ->
-                    when (multi) {
-                        is TMDb3.Movie -> Movie(
-                            id = multi.id.toString(),
-                            title = multi.title,
-                            overview = multi.overview,
-                            released = multi.releaseDate,
-                            rating = multi.voteAverage.toDouble(),
-                            poster = multi.posterPath?.w500,
-                            banner = multi.backdropPath?.original,
-                        )
-
-                        is TMDb3.Tv -> TvShow(
-                            id = multi.id.toString(),
-                            title = multi.name,
-                            overview = multi.overview,
-                            released = multi.firstAirDate,
-                            rating = multi.voteAverage.toDouble(),
-                            poster = multi.posterPath?.w500,
-                            banner = multi.backdropPath?.original,
-                        )
-
-                        else -> null
-                    }
-                } ?: listOf(),
+                recommendations = tv.recommendations?.results
+                    ?.mapNotNull { it.toCatalogShow() }
+                    ?: listOf(),
             )
         }
 
@@ -629,31 +553,14 @@ class TmdbProvider(override val language: String) : Provider {
                 page = page,
                 withGenres = TMDb3.Params.WithBuilder(id),
                 language = language
-            ).results.map { movie ->
-                Movie(
-                    id = movie.id.toString(),
-                    title = movie.title,
-                    overview = movie.overview,
-                    released = movie.releaseDate,
-                    rating = movie.voteAverage.toDouble(),
-                    poster = movie.posterPath?.w500,
-                    banner = movie.backdropPath?.original,
+            ).results.mapNotNull { it.toCatalogShow() as? Movie }
+                .mix(
+                    TMDb3.Discover.tv(
+                        page = page,
+                        withGenres = TMDb3.Params.WithBuilder(id),
+                        language = language
+                    ).results.mapNotNull { it.toCatalogShow() as? TvShow }
                 )
-            }.mix(TMDb3.Discover.tv(
-                page = page,
-                withGenres = TMDb3.Params.WithBuilder(id),
-                language = language
-            ).results.map { tv ->
-                TvShow(
-                    id = tv.id.toString(),
-                    title = tv.name,
-                    overview = tv.overview,
-                    released = tv.firstAirDate,
-                    rating = tv.voteAverage.toDouble(),
-                    poster = tv.posterPath?.w500,
-                    banner = tv.backdropPath?.original,
-                )
-            })
         )
 
         return genre
@@ -677,31 +584,7 @@ class TmdbProvider(override val language: String) : Provider {
                 deathday = person.deathday,
 
                 filmography = person.combinedCredits?.cast
-                    ?.mapNotNull { multi ->
-                        when (multi) {
-                            is TMDb3.Movie -> Movie(
-                                id = multi.id.toString(),
-                                title = multi.title,
-                                overview = multi.overview,
-                                released = multi.releaseDate,
-                                rating = multi.voteAverage.toDouble(),
-                                poster = multi.posterPath?.w500,
-                                banner = multi.backdropPath?.original,
-                            )
-
-                            is TMDb3.Tv -> TvShow(
-                                id = multi.id.toString(),
-                                title = multi.name,
-                                overview = multi.overview,
-                                released = multi.firstAirDate,
-                                rating = multi.voteAverage.toDouble(),
-                                poster = multi.posterPath?.w500,
-                                banner = multi.backdropPath?.original,
-                            )
-
-                        else -> null
-                    }
-                }
+                    ?.mapNotNull { it.toCatalogShow() }
                     ?.sortedBy {
                         when (it) {
                             is Movie -> it.released
