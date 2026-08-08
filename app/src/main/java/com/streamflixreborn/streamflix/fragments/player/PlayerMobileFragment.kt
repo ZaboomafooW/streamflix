@@ -132,6 +132,7 @@ class PlayerMobileFragment : Fragment() {
     private var currentVideo: Video? = null
     private var currentServer: Video.Server? = null
     private var listenerPlayer: ExoPlayer? = null
+    private var pendingPlaybackPositionMs: Long? = null
     private var playbackSourceRecoveryInProgress = false
     private var isIgnoringPip = false
     private var waitingForBypass = false
@@ -330,6 +331,13 @@ class PlayerMobileFragment : Fragment() {
                         showPlaybackUnavailable(state.error)
                     }
                     is PlayerViewModel.State.LoadingVideo -> {
+                        if (pendingPlaybackPositionMs == null) {
+                            val currentUri = player.currentMediaItem?.localConfiguration?.uri?.toString().orEmpty()
+                            if (currentUri.isNotBlank()) {
+                                pendingPlaybackPositionMs = player.currentPosition
+                            }
+                        }
+
                         player.setMediaItem(
                             MediaItem.Builder()
                                 .setUri("".toUri())
@@ -345,7 +353,9 @@ class PlayerMobileFragment : Fragment() {
                     is PlayerViewModel.State.SuccessLoadingVideo -> {
                         PlayerSettingsView.Settings.ExtraBuffering.init(state.video.extraBuffering)
                         PlayerSettingsView.Settings.SoftwareDecoder.init(false)
-                        displayVideo(state.video, state.server)
+                        val resumePosition = pendingPlaybackPositionMs
+                        pendingPlaybackPositionMs = null
+                        displayVideo(state.video, state.server, resumePosition)
                         playbackSourceRecoveryInProgress = false
                     }
 
@@ -542,6 +552,7 @@ class PlayerMobileFragment : Fragment() {
     private fun showPlaybackUnavailable(error: Exception? = null) {
         error?.let { Log.e("PlayerMobileFragment", "Playback unavailable", it) }
         playbackSourceRecoveryInProgress = false
+        pendingPlaybackPositionMs = null
         Toast.makeText(
             requireContext(),
             getString(R.string.player_retry_later_message),
@@ -879,7 +890,7 @@ class PlayerMobileFragment : Fragment() {
     }
 
 
-    private fun displayVideo(video: Video, server: Video.Server) {
+    private fun displayVideo(video: Video, server: Video.Server, startPositionMs: Long? = null) {
         currentVideo = video
         currentServer = server
         updatePlayerHeader()
@@ -902,7 +913,7 @@ class PlayerMobileFragment : Fragment() {
                 .build()
         }
 
-        val currentPosition = player.currentPosition
+        val currentPosition = startPositionMs ?: player.currentPosition
 
         httpDataSource.setDefaultRequestProperties(
             mapOf(
@@ -1120,7 +1131,9 @@ class PlayerMobileFragment : Fragment() {
             }
         })
 
-        if (currentPosition == 0L) {
+        if (startPositionMs != null) {
+            player.seekTo(startPositionMs)
+        } else if (currentPosition == 0L) {
             val videoType = args.videoType
             val provider = UserPreferences.currentProvider
             
