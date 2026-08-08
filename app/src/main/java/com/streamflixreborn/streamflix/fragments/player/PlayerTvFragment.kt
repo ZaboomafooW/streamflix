@@ -298,12 +298,8 @@ class PlayerTvFragment : Fragment() {
 
                             val bypassUrl = buildSerienStreamBypassUrl()
                             if (bypassUrl.isNullOrBlank()) {
-                                waitingForBypass = false
-                                Toast.makeText(
-                                    requireContext(),
-                                    "Unable to prepare TV bypass page.",
-                                    Toast.LENGTH_SHORT
-                                ).show()
+                                Log.e("PlayerTvFragment", "Unable to prepare SerienStream bypass URL")
+                                recoverFromBypassFailure(sToServer)
                                 return@collect
                             }
 
@@ -316,17 +312,17 @@ class PlayerTvFragment : Fragment() {
 
                             val actualPort = startWebSocketServer()
                             if (actualPort == -1) {
-                                clearBypassSession()
-                                Toast.makeText(
-                                    requireContext(),
-                                    "Unable to start TV bypass. Please try again.",
-                                    Toast.LENGTH_SHORT
-                                ).show()
+                                Log.e("PlayerTvFragment", "Unable to start SerienStream bypass server")
+                                recoverFromBypassFailure(sToServer)
                                 return@collect
                             }
 
                             val wsUrl = BypassWebSocketEndpointHelper.getAdvertisedWsUrl(actualPort)
-                                ?: return@collect
+                            if (wsUrl.isNullOrBlank()) {
+                                Log.e("PlayerTvFragment", "Unable to advertise SerienStream bypass endpoint")
+                                recoverFromBypassFailure(sToServer)
+                                return@collect
+                            }
 
                             val qrContent = "streamflix://resolve?ws=${Uri.encode(wsUrl)}&token=${Uri.encode(session.token)}"
 
@@ -337,8 +333,12 @@ class PlayerTvFragment : Fragment() {
                                     .toString()
                             )
                             requireActivity().runOnUiThread {
-                                showQrDialog(qrContent)
-                                Log.d("Bypass", "Advertised WS URL: $wsUrl")
+                                if (showQrDialog(qrContent, sToServer)) {
+                                    Log.d("Bypass", "Advertised WS URL: $wsUrl")
+                                } else {
+                                    Log.e("PlayerTvFragment", "Unable to generate SerienStream bypass QR code")
+                                    recoverFromBypassFailure(sToServer)
+                                }
                             }
 
                             return@collect
@@ -627,6 +627,29 @@ class PlayerTvFragment : Fragment() {
         sourceStatusToast?.cancel()
         sourceStatusToast = Toast.makeText(requireContext(), message, Toast.LENGTH_SHORT).also {
             it.show()
+        }
+    }
+
+    private fun recoverFromBypassFailure(server: Video.Server) {
+        clearBypassSession(dismissDialog = true)
+        servers.filter { isSerienStreamBypassUrl(it.id) }.forEach(failedServers::add)
+
+        val nextServer = nextUnfailedServerAfter(server)
+        if (nextServer != null) {
+            Log.w(
+                "PlayerTvFragment",
+                "SerienStream bypass unavailable, trying next server: ${nextServer.name}",
+            )
+            showSourceStatus(
+                getString(
+                    R.string.player_source_trying_next,
+                    server.name,
+                    nextServer.name,
+                )
+            )
+            viewModel.selectVideo(nextServer)
+        } else {
+            showPlaybackUnavailable(messageRes = R.string.player_sources_load_failed_message)
         }
     }
 
@@ -1804,7 +1827,7 @@ class PlayerTvFragment : Fragment() {
             }
         }
 
-    private fun showQrDialog(content: String) {
+    private fun showQrDialog(content: String, bypassServer: Video.Server): Boolean {
         val displayMetrics: DisplayMetrics = resources.displayMetrics
         val density = displayMetrics.density
         val dialogWidth = (displayMetrics.widthPixels * 0.72f).toInt()
@@ -1812,7 +1835,7 @@ class PlayerTvFragment : Fragment() {
             (dialogWidth - (density * 64).toInt()).coerceAtLeast((density * 240).toInt()),
             (displayMetrics.heightPixels * 0.45f).toInt().coerceAtLeast((density * 240).toInt()),
         )
-        val bitmap = QrUtils.generate(content, qrSize) ?: return
+        val bitmap = QrUtils.generate(content, qrSize) ?: return false
 
         val imageView = ImageView(requireContext()).apply {
             setImageBitmap(bitmap)
@@ -1868,12 +1891,13 @@ class PlayerTvFragment : Fragment() {
             .setCancelable(true)
             .setOnCancelListener {
                 Log.d("Bypass", "QR dialog cancelled")
-                clearBypassSession(dismissDialog = false)
+                recoverFromBypassFailure(bypassServer)
             }
             .create()
 
         qrDialog?.show()
         qrDialog?.window?.setLayout(dialogWidth, LinearLayout.LayoutParams.WRAP_CONTENT)
+        return true
     }
 
     private fun isSerienStreamBypassUrl(url: String): Boolean {

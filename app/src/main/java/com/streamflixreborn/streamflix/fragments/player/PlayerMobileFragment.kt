@@ -149,14 +149,19 @@ class PlayerMobileFragment : Fragment() {
             val cookies =
                 result.data?.getStringExtra(BypassWebViewActivity.EXTRA_COOKIE_HEADER)?.trim()
 
+            val bypassServer = servers.firstOrNull { isSerienStreamBypassUrl(it.id) }
             if (result.resultCode != android.app.Activity.RESULT_OK || cookies.isNullOrBlank()) {
-                waitingForBypass = false
+                if (bypassServer != null) {
+                    recoverFromBypassFailure(bypassServer)
+                } else {
+                    showPlaybackUnavailable(messageRes = R.string.player_sources_load_failed_message)
+                }
                 return@registerForActivityResult
             }
 
-            val bypassUrl = servers.firstOrNull { isSerienStreamBypassUrl(it.id) }?.id
+            val bypassUrl = bypassServer?.id
             if (bypassUrl.isNullOrBlank()) {
-                waitingForBypass = false
+                showPlaybackUnavailable(messageRes = R.string.player_sources_load_failed_message)
                 return@registerForActivityResult
             }
 
@@ -306,8 +311,8 @@ class PlayerMobileFragment : Fragment() {
                         if (sToServer != null && !waitingForBypass && !bypassDone) {
                             val bypassUrl = buildSerienStreamBypassUrl()
                             if (bypassUrl.isNullOrBlank()) {
-                                waitingForBypass = false
-                                Toast.makeText(requireContext(), "Unable to open s.to bypass page.", Toast.LENGTH_SHORT).show()
+                                Log.e("PlayerMobileFragment", "Unable to prepare SerienStream bypass URL")
+                                recoverFromBypassFailure(sToServer)
                                 return@collect
                             }
 
@@ -573,6 +578,29 @@ class PlayerMobileFragment : Fragment() {
         sourceStatusToast?.cancel()
         sourceStatusToast = Toast.makeText(requireContext(), message, Toast.LENGTH_SHORT).also {
             it.show()
+        }
+    }
+
+    private fun recoverFromBypassFailure(server: Video.Server) {
+        waitingForBypass = false
+        servers.filter { isSerienStreamBypassUrl(it.id) }.forEach(failedServers::add)
+
+        val nextServer = nextUnfailedServerAfter(server)
+        if (nextServer != null) {
+            Log.w(
+                "PlayerMobileFragment",
+                "SerienStream bypass unavailable, trying next server: ${nextServer.name}",
+            )
+            showSourceStatus(
+                getString(
+                    R.string.player_source_trying_next,
+                    server.name,
+                    nextServer.name,
+                )
+            )
+            viewModel.selectVideo(nextServer)
+        } else {
+            showPlaybackUnavailable(messageRes = R.string.player_sources_load_failed_message)
         }
     }
 
