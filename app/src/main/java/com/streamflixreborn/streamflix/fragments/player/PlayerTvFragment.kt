@@ -150,6 +150,7 @@ class PlayerTvFragment : Fragment() {
 
     private var currentVideo: Video? = null
     private var currentServer: Video.Server? = null
+    private var pendingPlaybackPositionMs: Long? = null
     private var waitingForBypass = false
     private var bypassDone = false
     private var activeBypassSession: BypassSession? = null
@@ -351,6 +352,13 @@ class PlayerTvFragment : Fragment() {
                             showPlaybackUnavailable(state.error)
                         }
                         is PlayerViewModel.State.LoadingVideo -> {
+                            if (pendingPlaybackPositionMs == null) {
+                                val currentUri = player.currentMediaItem?.localConfiguration?.uri?.toString().orEmpty()
+                                if (currentUri.isNotBlank()) {
+                                    pendingPlaybackPositionMs = player.currentPosition
+                                }
+                            }
+
                             player.setMediaItem(
                                 MediaItem.Builder()
                                     .setUri("".toUri())
@@ -366,7 +374,9 @@ class PlayerTvFragment : Fragment() {
                         is PlayerViewModel.State.SuccessLoadingVideo -> {
                             PlayerSettingsView.Settings.ExtraBuffering.init(state.video.extraBuffering)
                             PlayerSettingsView.Settings.SoftwareDecoder.init(false)
-                            displayVideo(state.video, state.server)
+                            val resumePosition = pendingPlaybackPositionMs
+                            pendingPlaybackPositionMs = null
+                            displayVideo(state.video, state.server, startPositionMs = resumePosition)
                         }
 
                         is PlayerViewModel.State.FailedLoadingVideo -> {
@@ -590,6 +600,7 @@ class PlayerTvFragment : Fragment() {
 
     private fun showPlaybackUnavailable(error: Exception? = null) {
         error?.let { Log.e("PlayerTvFragment", "Playback unavailable", it) }
+        pendingPlaybackPositionMs = null
         Toast.makeText(
             requireContext(),
             getString(R.string.player_retry_later_message),
