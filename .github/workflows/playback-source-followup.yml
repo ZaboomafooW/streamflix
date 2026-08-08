@@ -27,6 +27,18 @@ jobs:
         run: |
           cp .github/scripts/apply_playback_source_followup.py /tmp/apply_playback_source_followup.py
           python3 /tmp/apply_playback_source_followup.py
+          python3 - <<'PY'
+          from pathlib import Path
+          path = Path("app/src/main/java/com/streamflixreborn/streamflix/fragments/player/PlayerTvFragment.kt")
+          text = path.read_text()
+          old = "                                    pendingPlaybackPositionMs = player.currentPosition\n                                pendingPlaybackShouldPlay = player.playWhenReady\n"
+          new = "                                    pendingPlaybackPositionMs = player.currentPosition\n                                    pendingPlaybackShouldPlay = player.playWhenReady\n"
+          if text.count(old) != 1:
+              raise RuntimeError(f"expected one TV indentation fix, found {text.count(old)}")
+          path.write_text(text.replace(old, new, 1))
+          PY
+          git add app/src/main/java/com/streamflixreborn/streamflix/fragments/player/PlayerTvFragment.kt
+          git commit --amend --no-edit
 
       - name: Push staged source fixes
         run: git push origin HEAD:refs/heads/rebuild/playback-source-followup --force
