@@ -32,7 +32,7 @@ jobs:
           STATE_SUBJECT='fix: preserve playback state across source changes'
           LISTENER_SUBJECT='fix: avoid duplicate player listeners after source changes'
           SERIALIZE_SUBJECT='fix: serialize playback source recovery'
-          cp .github/scripts/split_playback_scope.py /tmp/split_playback_scope.py
+          cp .github/scripts/apply_source_listener_dedupe.py /tmp/apply_source_listener_dedupe.py
           cp .github/scripts/apply_source_recovery_serialization.py /tmp/apply_source_recovery_serialization.py
           cp .github/scripts/apply_behavior_position.py /tmp/apply_behavior_position.py
           cp .github/scripts/apply_behavior_play_state.py /tmp/apply_behavior_play_state.py
@@ -55,7 +55,7 @@ jobs:
                 echo "Separating: $subject ($sha)"
                 ;;
               "$LISTENER_SUBJECT")
-                python3 /tmp/split_playback_scope.py listener
+                python3 /tmp/apply_source_listener_dedupe.py
                 git add \
                   app/src/main/java/com/streamflixreborn/streamflix/fragments/player/PlayerMobileFragment.kt \
                   app/src/main/java/com/streamflixreborn/streamflix/fragments/player/PlayerTvFragment.kt
