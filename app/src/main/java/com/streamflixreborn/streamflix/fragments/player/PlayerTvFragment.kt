@@ -642,7 +642,7 @@ class PlayerTvFragment : Fragment() {
 
     private fun showPlaybackUnavailable(
         error: Exception? = null,
-        messageRes: Int = R.string.player_retry_later_message,
+        messageRes: Int = R.string.player_no_working_source_message,
     ) {
         error?.let { Log.e("PlayerTvFragment", "Playback unavailable", it) }
         sourceStatusToast?.cancel()
