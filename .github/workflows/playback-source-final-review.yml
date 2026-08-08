@@ -27,6 +27,7 @@ jobs:
         run: |
           set -euo pipefail
           cp .github/scripts/apply_source_final_review.py /tmp/apply_source_final_review.py
+          cp .github/scripts/apply_serienstream_domain_fix.py /tmp/apply_serienstream_domain_fix.py
           git switch -C rebuild/playback-source-final-review origin/fix/playback-source-errors
 
           python3 /tmp/apply_source_final_review.py bypass
@@ -36,12 +37,19 @@ jobs:
           git diff --check --cached
           git commit -m "fix: recover when SerienStream bypass cannot continue"
 
+          python3 /tmp/apply_serienstream_domain_fix.py
+          git add \
+            app/src/main/java/com/streamflixreborn/streamflix/fragments/player/PlayerMobileFragment.kt \
+            app/src/main/java/com/streamflixreborn/streamflix/fragments/player/PlayerTvFragment.kt
+          git diff --check --cached
+          git commit -m "fix: detect SerienStream bypass on the configured provider domain"
+
           python3 /tmp/apply_source_final_review.py wording
           git add app/src/main/res/values/strings.xml
           git diff --check --cached
           git commit -m "fix: avoid misclassifying empty playback source results"
 
-          test "$(git rev-list --count origin/fix/playback-source-errors..HEAD)" -eq 2
+          test "$(git rev-list --count origin/fix/playback-source-errors..HEAD)" -eq 3
           git diff --check origin/fix/playback-source-errors..HEAD
           ! git diff --name-only origin/fix/playback-source-errors..HEAD | grep -E '^\.github/'
           git push origin HEAD:refs/heads/rebuild/playback-source-final-review --force
