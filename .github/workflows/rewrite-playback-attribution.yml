@@ -1,0 +1,47 @@
+name: Rewrite playback attribution
+
+on:
+  pull_request:
+    branches:
+      - fix/playback-source-errors
+    paths:
+      - .github/workflows/rewrite-playback-attribution.yml
+
+permissions:
+  contents: write
+
+jobs:
+  rewrite:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout reviewed playback branch
+        uses: actions/checkout@v4
+        with:
+          ref: fix/playback-source-errors
+          fetch-depth: 0
+
+      - name: Create clean user-authored commit
+        run: |
+          set -euo pipefail
+          EXPECTED_HEAD=f92607c286999732096d362b1318bf99b9b18a50
+          ORIGINAL_FIX=f6ef5f2dcb453d7a8438ff22a2d65bc68c6d2c30
+
+          test "$(git rev-parse HEAD)" = "$EXPECTED_HEAD"
+          TARGET_TREE="$(git rev-parse HEAD^{tree})"
+
+          git reset --soft "$ORIGINAL_FIX"
+
+          git config user.name "ZaboomafooW"
+          git config user.email "239698314+ZaboomafooW@users.noreply.github.com"
+
+          GIT_AUTHOR_NAME="ZaboomafooW" \
+          GIT_AUTHOR_EMAIL="239698314+ZaboomafooW@users.noreply.github.com" \
+          GIT_COMMITTER_NAME="ZaboomafooW" \
+          GIT_COMMITTER_EMAIL="239698314+ZaboomafooW@users.noreply.github.com" \
+            git commit -m "fix playback source error handling"
+
+          test "$(git rev-parse HEAD^{tree})" = "$TARGET_TREE"
+          git show --no-patch --format='commit=%H author=%an <%ae> committer=%cn <%ce>' HEAD
+
+      - name: Push clean commit to staging branch
+        run: git push --force origin HEAD:refs/heads/clean/playback-source-errors
