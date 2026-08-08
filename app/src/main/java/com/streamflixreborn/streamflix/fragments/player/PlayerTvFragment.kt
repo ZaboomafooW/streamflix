@@ -343,8 +343,10 @@ class PlayerTvFragment : Fragment() {
                             })
                             .build()
                         binding.settings.setOnServerSelectedListener { server ->
-                            state.servers.find { server.id == it.id }
-                                ?.let(viewModel::selectVideo)
+                            val selectedServer = state.servers.firstOrNull {
+                                it.id == server.id && it.name == server.name
+                            } ?: state.servers.firstOrNull { it.id == server.id }
+                            selectedServer?.let(viewModel::selectVideo)
                         }
                         viewModel.selectVideo(state.servers.first())
 
