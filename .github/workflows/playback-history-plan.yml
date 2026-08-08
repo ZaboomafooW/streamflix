@@ -1,0 +1,25 @@
+name: Playback history plan
+
+on:
+  pull_request:
+    branches:
+      - fix/playback-source-errors
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  inspect:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - name: Print zero-context production diff
+        run: |
+          git diff --unified=0 4aaa3ac34b5ca20251176958d9437fdcc67569d6..fix/playback-source-errors -- \
+            app/src/main/java/com/streamflixreborn/streamflix/fragments/player/PlayerMobileFragment.kt \
+            app/src/main/java/com/streamflixreborn/streamflix/fragments/player/PlayerTvFragment.kt \
+            app/src/main/java/com/streamflixreborn/streamflix/fragments/player/PlayerViewModel.kt
