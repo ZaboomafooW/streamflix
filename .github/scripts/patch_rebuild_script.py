@@ -29,4 +29,11 @@ if text.count(old) != 1:
     raise RuntimeError(f'expected one displayVideo seek edit to patch, found {text.count(old)}')
 text = text.replace(old, new, 1)
 
+# Reset listener tracking specifically inside releasePlayer, not other stopProgressHandler calls.
+old = '''for path in (MOBILE, TV):\n    replace(path, "            stopProgressHandler()\\n" if path == TV else "        stopProgressHandler()\\n",\n            ("            stopProgressHandler()\\n            listenerPlayer = null\\n" if path == TV else "        stopProgressHandler()\\n        listenerPlayer = null\\n"))'''
+new = '''for path in (MOBILE, TV):\n    sub(\n        path,\n        r'^(?P<i>[ \\t]*)private fun releasePlayer\\(\\) \\{\\n(?P=i)    stopProgressHandler\\(\\)\\n',\n        lambda m: f'{m.group("i")}private fun releasePlayer() {{\\n{m.group("i")}    stopProgressHandler()\\n{m.group("i")}    listenerPlayer = null\\n',\n        flags=re.MULTILINE,\n    )'''
+if text.count(old) != 1:
+    raise RuntimeError(f'expected one releasePlayer edit to patch, found {text.count(old)}')
+text = text.replace(old, new, 1)
+
 path.write_text(text)
