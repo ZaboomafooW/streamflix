@@ -1,0 +1,170 @@
+name: Playback source style alignment
+
+on:
+  pull_request:
+    branches:
+      - fix/playback-source-errors
+
+permissions:
+  contents: write
+
+jobs:
+  stage:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Configure commit attribution
+        run: |
+          git config user.name "ZaboomafooW"
+          git config user.email "239698314+ZaboomafooW@users.noreply.github.com"
+
+      - name: Preserve upstream file ending
+        shell: bash
+        run: |
+          set -euo pipefail
+          git switch -C rebuild/playback-source-style-alignment origin/fix/playback-source-errors
+          python3 - <<'PY'
+          from pathlib import Path
+
+          path = Path('app/src/main/java/com/streamflixreborn/streamflix/fragments/player/PlayerViewModel.kt')
+          data = path.read_bytes()
+          if not data.endswith(b'\n'):
+              path.write_bytes(data + b'\n')
+          PY
+          git add app/src/main/java/com/streamflixreborn/streamflix/fragments/player/PlayerViewModel.kt
+          git diff --check --cached
+          git commit -m "style: preserve upstream PlayerViewModel file ending"
+          test "$(git rev-list --count origin/fix/playback-source-errors..HEAD)" -eq 1
+          git push origin HEAD:refs/heads/rebuild/playback-source-style-alignment --force
+
+  audit:
+    needs: stage
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout aligned branch
+        uses: actions/checkout@v4
+        with:
+          ref: rebuild/playback-source-style-alignment
+          fetch-depth: 0
+
+      - name: Check whitespace and line endings
+        shell: bash
+        run: |
+          set -euo pipefail
+          git diff --check origin/audit/playback-style-base..HEAD
+          python3 - <<'PY'
+          import subprocess
+
+          base = 'origin/audit/playback-style-base'
+          head = 'HEAD'
+          paths = [
+              'app/src/main/java/com/streamflixreborn/streamflix/fragments/player/PlayerMobileFragment.kt',
+              'app/src/main/java/com/streamflixreborn/streamflix/fragments/player/PlayerTvFragment.kt',
+              'app/src/main/java/com/streamflixreborn/streamflix/fragments/player/PlayerViewModel.kt',
+              'app/src/main/res/values/strings.xml',
+          ]
+
+          def blob(ref, path):
+              return subprocess.check_output(['git', 'show', f'{ref}:{path}'])
+
+          def stats(data):
+              crlf = data.count(b'\r\n')
+              lf_total = data.count(b'\n')
+              bare_lf = lf_total - crlf
+              bare_cr = data.count(b'\r') - crlf
+              return crlf, bare_lf, bare_cr, data.endswith(b'\n')
+
+          failed = False
+          for path in paths:
+              base_stats = stats(blob(base, path))
+              head_stats = stats(blob(head, path))
+              print(path)
+              print('  upstream:', base_stats)
+              print('  aligned: ', head_stats)
+
+              base_crlf_only = base_stats[0] > 0 and base_stats[1] == 0
+              head_crlf_only = head_stats[0] > 0 and head_stats[1] == 0
+              if base_crlf_only != head_crlf_only or base_stats[2] != head_stats[2] or base_stats[3] != head_stats[3]:
+                  failed = True
+
+          diff = subprocess.check_output([
+              'git', 'diff', '--unified=0',
+              'origin/audit/playback-style-base..HEAD',
+              '--', *paths,
+          ], text=True)
+          added_with_tabs = []
+          trailing = []
+          for line in diff.splitlines():
+              if not line.startswith('+') or line.startswith('+++'):
+                  continue
+              content = line[1:]
+              if '\t' in content:
+                  added_with_tabs.append(content)
+              if content.rstrip(' \t') != content:
+                  trailing.append(content)
+
+          print(f'Added lines containing tabs: {len(added_with_tabs)}')
+          print(f'Added lines with trailing whitespace: {len(trailing)}')
+          if trailing:
+              failed = True
+
+          if failed:
+              raise SystemExit(1)
+          PY
+
+  verify:
+    needs: stage
+    name: ${{ matrix.layout }} build and tests
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        layout: [mobile, tv]
+    steps:
+      - name: Checkout aligned branch
+        uses: actions/checkout@v4
+        with:
+          ref: rebuild/playback-source-style-alignment
+
+      - name: Set up Java 17
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+
+      - name: Set up Android SDK
+        uses: android-actions/setup-android@v3
+
+      - name: Install Android native toolchain
+        run: |
+          yes | sdkmanager --licenses >/dev/null || true
+          sdkmanager "platforms;android-36" "ndk;26.1.10909125" "cmake;3.22.1"
+
+      - name: Create local.properties
+        run: |
+          cat > local.properties <<EOF
+          sdk.dir=$ANDROID_HOME
+          APP_LAYOUT=${{ matrix.layout }}
+          TMDB_API_KEY=ci-placeholder
+          SUBDL_API_KEY=ci-placeholder
+          RABBITSTREAM_SOURCE_API=ci-placeholder
+          EOF
+
+      - name: Add CI-only native placeholder
+        run: |
+          cat > app/src/main/cpp/native-lib.cpp <<'EOF'
+          extern "C" int streamflix_ci_native_stub() { return 0; }
+          EOF
+
+      - name: Make Gradle wrapper executable
+        run: chmod +x gradlew
+
+      - name: Run unit tests
+        run: ./gradlew testDebugUnitTest --stacktrace
+
+      - name: Build debug APK
+        run: ./gradlew assembleDebug --stacktrace
