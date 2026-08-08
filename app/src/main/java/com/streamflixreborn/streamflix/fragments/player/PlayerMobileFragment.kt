@@ -539,12 +539,14 @@ class PlayerMobileFragment : Fragment() {
 
     private fun nextServerAfter(server: Video.Server?): Video.Server? {
         if (server == null) return null
-        val index = servers.indexOf(server)
+        val index = servers.indexOfFirst { it === server }
+            .takeIf { it >= 0 }
+            ?: servers.indexOf(server)
         return if (index >= 0) servers.getOrNull(index + 1) else null
     }
 
     private fun showPlaybackUnavailable(error: Exception? = null) {
-        error?.let { Log.e("PlayerMobileFragment", "Playback sources exhausted", it) }
+        error?.let { Log.e("PlayerMobileFragment", "Playback unavailable", it) }
         pendingPlaybackPositionMs = null
         Toast.makeText(
             requireContext(),
