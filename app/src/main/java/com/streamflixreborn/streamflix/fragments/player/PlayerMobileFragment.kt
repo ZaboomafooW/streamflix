@@ -314,7 +314,8 @@ class PlayerMobileFragment : Fragment() {
                                 })
                                 .build()
                             binding.settings.setOnServerSelectedListener { server ->
-                                viewModel.getVideo(state.servers.find { server.id == it.id }!!)
+                                state.servers.find { server.id == it.id }
+                                    ?.let(viewModel::getVideo)
                             }
                             viewModel.getVideo(state.servers.first())
                         }
