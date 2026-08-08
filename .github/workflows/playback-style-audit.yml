@@ -1,0 +1,105 @@
+name: Playback source style audit
+
+on:
+  push:
+    branches:
+      - ci/playback-style-audit
+
+jobs:
+  audit:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Check diff whitespace
+        run: git diff --check 4aaa3ac34b5ca20251176958d9437fdcc67569d6..fix/playback-source-errors
+
+      - name: Compare line endings with upstream
+        shell: bash
+        run: |
+          python3 - <<'PY'
+          import subprocess
+          from pathlib import Path
+
+          base = '4aaa3ac34b5ca20251176958d9437fdcc67569d6'
+          head = 'fix/playback-source-errors'
+          paths = [
+              'app/src/main/java/com/streamflixreborn/streamflix/fragments/player/PlayerMobileFragment.kt',
+              'app/src/main/java/com/streamflixreborn/streamflix/fragments/player/PlayerTvFragment.kt',
+              'app/src/main/java/com/streamflixreborn/streamflix/fragments/player/PlayerViewModel.kt',
+              'app/src/main/res/values/strings.xml',
+          ]
+
+          def blob(ref, path):
+              return subprocess.check_output(['git', 'show', f'{ref}:{path}'])
+
+          def stats(data):
+              crlf = data.count(b'\r\n')
+              lf_total = data.count(b'\n')
+              bare_lf = lf_total - crlf
+              bare_cr = data.count(b'\r') - crlf
+              return crlf, bare_lf, bare_cr, data.endswith(b'\n')
+
+          failed = False
+          for path in paths:
+              b = blob(base, path)
+              h = blob(head, path)
+              bs = stats(b)
+              hs = stats(h)
+              print(path)
+              print('  upstream:', bs)
+              print('  branch:  ', hs)
+              if (bs[0] and not bs[1]) != (hs[0] and not hs[1]):
+                  print('  ERROR: dominant EOL style changed')
+                  failed = True
+              if bs[2] != hs[2]:
+                  print('  ERROR: bare CR count changed')
+                  failed = True
+              if bs[3] != hs[3]:
+                  print('  ERROR: final newline presence changed')
+                  failed = True
+
+          if failed:
+              raise SystemExit(1)
+          PY
+
+      - name: Check added lines for tabs and trailing whitespace
+        shell: bash
+        run: |
+          python3 - <<'PY'
+          import subprocess
+
+          diff = subprocess.check_output([
+              'git', 'diff', '--unified=0',
+              '4aaa3ac34b5ca20251176958d9437fdcc67569d6..fix/playback-source-errors',
+              '--',
+              'app/src/main/java/com/streamflixreborn/streamflix/fragments/player/PlayerMobileFragment.kt',
+              'app/src/main/java/com/streamflixreborn/streamflix/fragments/player/PlayerTvFragment.kt',
+              'app/src/main/java/com/streamflixreborn/streamflix/fragments/player/PlayerViewModel.kt',
+              'app/src/main/res/values/strings.xml',
+          ], text=True)
+
+          tabs = []
+          trailing = []
+          for line in diff.splitlines():
+              if not line.startswith('+') or line.startswith('+++'):
+                  continue
+              content = line[1:]
+              if '\t' in content:
+                  tabs.append(content)
+              if content.rstrip(' \t') != content:
+                  trailing.append(content)
+
+          print(f'Added lines containing tabs: {len(tabs)}')
+          for line in tabs[:20]:
+              print(repr(line))
+          print(f'Added lines with trailing whitespace: {len(trailing)}')
+          for line in trailing[:20]:
+              print(repr(line))
+
+          if trailing:
+              raise SystemExit(1)
+          PY
