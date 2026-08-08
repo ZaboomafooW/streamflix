@@ -4,6 +4,9 @@ on:
   push:
     branches:
       - ci/playback-source-errors-review
+  pull_request:
+    branches:
+      - fix/playback-source-errors
   workflow_dispatch:
 
 permissions:
