@@ -150,6 +150,7 @@ class PlayerTvFragment : Fragment() {
 
     private var currentVideo: Video? = null
     private var currentServer: Video.Server? = null
+    private var listenerPlayer: ExoPlayer? = null
     private var waitingForBypass = false
     private var bypassDone = false
     private var activeBypassSession: BypassSession? = null
@@ -1125,7 +1126,9 @@ class PlayerTvFragment : Fragment() {
                 }
             }
 
-            player.addListener(object : Player.Listener {
+            val shouldAttachListener = listenerPlayer !== player
+            if (shouldAttachListener) listenerPlayer = player
+            if (shouldAttachListener) player.addListener(object : Player.Listener {
                 override fun onPlaybackStateChanged(playbackState: Int) {
                     super.onPlaybackStateChanged(playbackState)
 
@@ -1661,6 +1664,7 @@ class PlayerTvFragment : Fragment() {
 
         private fun releasePlayer() {
             stopProgressHandler()
+            listenerPlayer = null
             binding.pvPlayer.player = null
             binding.settings.player = null
             binding.settings.subtitleView = null
