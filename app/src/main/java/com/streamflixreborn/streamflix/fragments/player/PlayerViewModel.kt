@@ -22,6 +22,7 @@ import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharedFlow
 import kotlinx.coroutines.launch
 import com.streamflixreborn.streamflix.utils.SubDL
+import java.util.concurrent.ConcurrentHashMap
 import java.util.concurrent.atomic.AtomicReference
 
 class PlayerViewModel(
@@ -38,6 +39,7 @@ class PlayerViewModel(
     private val _playPreviousOrNextEpisode = MutableSharedFlow<Video.Type.Episode>()
     val playPreviousOrNextEpisode: SharedFlow<Video.Type.Episode> = _playPreviousOrNextEpisode
 
+    private val playbackRetryAttempted = ConcurrentHashMap.newKeySet<Video.Server>()
     private val activeServerLoad = AtomicReference<Job?>(null)
     private val activeVideoLoad = AtomicReference<Job?>(null)
 
@@ -108,6 +110,7 @@ class PlayerViewModel(
 
         val job = viewModelScope.launch(Dispatchers.IO, start = CoroutineStart.LAZY) {
             Log.d("PlayerViewModel", "Inizio ricerca server per ID: $id")
+            playbackRetryAttempted.clear()
             _state.emit(State.LoadingServers)
             try {
                 val servers = UserPreferences.currentProvider!!.getServers(id, videoType)
@@ -179,6 +182,18 @@ class PlayerViewModel(
         job.start()
         return job
     }
+
+    fun retryVideoAfterPlaybackError(server: Video.Server?): Boolean {
+        if (server == null || !playbackRetryAttempted.add(server)) return false
+        getVideo(server)
+        return true
+    }
+
+    fun selectVideo(server: Video.Server) {
+        playbackRetryAttempted.remove(server)
+        getVideo(server)
+    }
+
     fun getSubtitles(videoType: Video.Type) = viewModelScope.launch(Dispatchers.IO) {
         Log.d("PlayerViewModel", "Inizio ricerca sottotitoli")
         _subtitleState.emit(SubtitleState.Loading)
