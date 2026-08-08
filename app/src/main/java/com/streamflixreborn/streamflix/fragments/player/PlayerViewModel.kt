@@ -116,9 +116,8 @@ class PlayerViewModel(
                 val servers = UserPreferences.currentProvider!!.getServers(id, videoType)
                 ensureActive()
                 if (servers.isEmpty()) {
-                    val error = Exception("No streaming servers found for this title.")
-                    Log.w("PlayerViewModel", error.message.orEmpty())
-                    _state.emit(State.FailedLoadingServers(error))
+                    Log.w("PlayerViewModel", "No streaming servers found for this title.")
+                    _state.emit(State.NoServers)
                     return@launch
                 }
 
@@ -288,6 +287,7 @@ class PlayerViewModel(
 
     sealed class State {
         data object LoadingServers : State()
+        data object NoServers : State()
         data class SuccessLoadingServers(val servers: List<Video.Server>) : State()
         data class FailedLoadingServers(val error: Exception) : State()
         data class LoadingVideo(val server: Video.Server) : State()

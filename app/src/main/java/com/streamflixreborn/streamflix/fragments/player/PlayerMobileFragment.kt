@@ -336,8 +336,14 @@ class PlayerMobileFragment : Fragment() {
 
                     }
 
+                    PlayerViewModel.State.NoServers -> {
+                        showPlaybackUnavailable(messageRes = R.string.player_no_sources_message)
+                    }
                     is PlayerViewModel.State.FailedLoadingServers -> {
-                        showPlaybackUnavailable(state.error)
+                        showPlaybackUnavailable(
+                            state.error,
+                            R.string.player_sources_load_failed_message,
+                        )
                     }
                     is PlayerViewModel.State.LoadingVideo -> {
                         player.setMediaItem(
@@ -580,7 +586,10 @@ class PlayerMobileFragment : Fragment() {
         return true
     }
 
-    private fun showPlaybackUnavailable(error: Exception? = null) {
+    private fun showPlaybackUnavailable(
+        error: Exception? = null,
+        messageRes: Int = R.string.player_retry_later_message,
+    ) {
         error?.let { Log.e("PlayerMobileFragment", "Playback unavailable", it) }
         sourceStatusToast?.cancel()
         sourceStatusToast = null
@@ -588,7 +597,7 @@ class PlayerMobileFragment : Fragment() {
         playbackSourceRecoveryInProgress = false
         Toast.makeText(
             requireContext(),
-            getString(R.string.player_retry_later_message),
+            getString(messageRes),
             Toast.LENGTH_LONG,
         ).show()
         findNavController().navigateUp()
