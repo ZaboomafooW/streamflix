@@ -109,7 +109,6 @@ import kotlinx.coroutines.Job
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.withContext
 import org.json.JSONObject
-import java.util.Locale
 import java.util.UUID
 import com.streamflixreborn.streamflix.extractors.TokenManager
 
@@ -151,6 +150,8 @@ class PlayerTvFragment : Fragment() {
 
     private var currentVideo: Video? = null
     private var currentServer: Video.Server? = null
+    private var listenerPlayer: ExoPlayer? = null
+    private var playbackSourceRecoveryInProgress = false
     private var waitingForBypass = false
     private var bypassDone = false
     private var activeBypassSession: BypassSession? = null
@@ -332,32 +333,6 @@ class PlayerTvFragment : Fragment() {
                             return@collect
                         }
 
-
-
-                        val providerName = UserPreferences.currentProvider?.name ?: ""
-                        val isTmdb = providerName.contains("TMDb", ignoreCase = true)
-                        val isAD = providerName.contains("AfterDark", ignoreCase = true)
-
-                        if (servers.isEmpty()) {
-                            val message = if (isTmdb || isAD) {
-                                val langCode = providerName.substringAfter("(").substringBefore(")")
-                                val locale = Locale.forLanguageTag(langCode)
-                                val langDisplayName = locale.getDisplayLanguage(Locale.getDefault())
-                                    .replaceFirstChar { if (it.isLowerCase()) it.titlecase(Locale.getDefault()) else it.toString() }
-
-                                if (isTmdb) getString(
-                                    R.string.player_not_available_lang_message,
-                                    langDisplayName
-                                )
-                                else getString(R.string.player_retry_later_message)
-                            } else {
-                                "No servers found for this content."
-                            }
-                            Toast.makeText(requireContext(), message, Toast.LENGTH_LONG).show()
-                            findNavController().navigateUp()
-                            return@collect
-                        }
-
                         player.playlistMetadata = MediaMetadata.Builder()
                             .setTitle(state.toString())
                             .setMediaServers(state.servers.map {
@@ -368,20 +343,17 @@ class PlayerTvFragment : Fragment() {
                             })
                             .build()
                         binding.settings.setOnServerSelectedListener { server ->
-                            viewModel.getVideo(state.servers.find { server.id == it.id }!!)
+                            val selectedServer = state.servers.firstOrNull {
+                                it.id == server.id && it.name == server.name
+                            } ?: state.servers.firstOrNull { it.id == server.id }
+                            selectedServer?.let(viewModel::selectVideo)
                         }
-                        viewModel.getVideo(state.servers.first())
+                        viewModel.selectVideo(state.servers.first())
 
                     }
                         is PlayerViewModel.State.FailedLoadingServers -> {
-                            Toast.makeText(
-                                requireContext(),
-                                state.error.message ?: "",
-                                Toast.LENGTH_LONG
-                            ).show()
-                            findNavController().navigateUp()
+                            showPlaybackUnavailable(state.error)
                         }
-
                         is PlayerViewModel.State.LoadingVideo -> {
                             player.setMediaItem(
                                 MediaItem.Builder()
@@ -399,44 +371,15 @@ class PlayerTvFragment : Fragment() {
                             PlayerSettingsView.Settings.ExtraBuffering.init(state.video.extraBuffering)
                             PlayerSettingsView.Settings.SoftwareDecoder.init(false)
                             displayVideo(state.video, state.server)
+                            playbackSourceRecoveryInProgress = false
                         }
 
                         is PlayerViewModel.State.FailedLoadingVideo -> {
-                            val nextServer = servers.getOrNull(servers.indexOf(state.server) + 1)
+                            val nextServer = nextServerAfter(state.server)
                             if (nextServer != null) {
-                                viewModel.getVideo(nextServer)
+                                viewModel.selectVideo(nextServer)
                             } else {
-                                val providerName = UserPreferences.currentProvider?.name ?: ""
-                                val isTmdb = providerName.contains("TMDb", ignoreCase = true)
-                                val isAD = providerName.contains("AfterDark", ignoreCase = true)
-
-                                val message = if (isTmdb || isAD) {
-                                    val langCode =
-                                        providerName.substringAfter("(").substringBefore(")")
-                                    val locale = Locale.forLanguageTag(langCode)
-                                    val langDisplayName =
-                                        locale.getDisplayLanguage(Locale.getDefault())
-                                            .replaceFirstChar {
-                                                if (it.isLowerCase()) it.titlecase(
-                                                    Locale.getDefault()
-                                                ) else it.toString()
-                                            }
-
-                                    if (isTmdb) getString(
-                                        R.string.player_not_available_lang_message,
-                                        langDisplayName
-                                    )
-                                    else getString(R.string.player_retry_later_message)
-                                } else {
-                                    "All servers failed to load the video."
-                                }
-
-                                Toast.makeText(
-                                    requireContext(),
-                                    message,
-                                    Toast.LENGTH_LONG
-                                ).show()
-                                findNavController().navigateUp()
+                                showPlaybackUnavailable(state.error)
                             }
                         }
                     }
@@ -640,6 +583,25 @@ class PlayerTvFragment : Fragment() {
         }
 
         else -> false
+    }
+
+    private fun nextServerAfter(server: Video.Server?): Video.Server? {
+        if (server == null) return null
+        val index = servers.indexOfFirst { it === server }
+            .takeIf { it >= 0 }
+            ?: servers.indexOf(server)
+        return if (index >= 0) servers.getOrNull(index + 1) else null
+    }
+
+    private fun showPlaybackUnavailable(error: Exception? = null) {
+        error?.let { Log.e("PlayerTvFragment", "Playback unavailable", it) }
+        playbackSourceRecoveryInProgress = false
+        Toast.makeText(
+            requireContext(),
+            getString(R.string.player_retry_later_message),
+            Toast.LENGTH_LONG,
+        ).show()
+        findNavController().navigateUp()
     }
 
     private fun handleMediaPrevious(): Boolean {
@@ -1015,12 +977,7 @@ class PlayerTvFragment : Fragment() {
             }
         }
 
-        private fun displayVideo(
-            video: Video,
-            server: Video.Server,
-            startPositionMs: Long? = null,
-            shouldPlay: Boolean = true,
-        ) {
+        private fun displayVideo(video: Video, server: Video.Server) {
             currentVideo = video
             currentServer = server
             updatePlayerHeader()
@@ -1041,7 +998,7 @@ class PlayerTvFragment : Fragment() {
                     .build()
             }
 
-            val currentPosition = startPositionMs ?: player.currentPosition
+            val currentPosition = player.currentPosition
 
             httpDataSource.setDefaultRequestProperties(
                 mapOf(
@@ -1169,7 +1126,9 @@ class PlayerTvFragment : Fragment() {
                 }
             }
 
-            player.addListener(object : Player.Listener {
+            val shouldAttachListener = listenerPlayer !== player
+            if (shouldAttachListener) listenerPlayer = player
+            if (shouldAttachListener) player.addListener(object : Player.Listener {
                 override fun onPlaybackStateChanged(playbackState: Int) {
                     super.onPlaybackStateChanged(playbackState)
 
@@ -1291,17 +1250,28 @@ class PlayerTvFragment : Fragment() {
                     super.onPlayerError(error)
                     Log.e("PlayerTvFragment", "onPlayerError: ", error)
 
-                    val nextServer = servers.getOrNull(servers.indexOf(currentServer) + 1)
+                    if (playbackSourceRecoveryInProgress) {
+                        Log.d("PlayerTvFragment", "Ignoring duplicate playback error during source recovery")
+                        return
+                    }
+                    playbackSourceRecoveryInProgress = true
+
+                    if (viewModel.retryVideoAfterPlaybackError(currentServer)) {
+                        Log.i("PlayerTvFragment", "Playback failed, retrying current server once")
+                        return
+                    }
+
+                    val nextServer = nextServerAfter(currentServer)
                     if (nextServer != null) {
                         Log.i("PlayerTvFragment", "Playback failed, trying next server: ${nextServer.name}")
-                        viewModel.getVideo(nextServer)
+                        viewModel.selectVideo(nextServer)
+                    } else {
+                        showPlaybackUnavailable()
                     }
                 }
             })
 
-            if (startPositionMs != null) {
-                player.seekTo(startPositionMs)
-            } else if (currentPosition == 0L) {
+            if (currentPosition == 0L) {
                 val videoType = args.videoType
                 val provider = UserPreferences.currentProvider
                 
@@ -1333,7 +1303,7 @@ class PlayerTvFragment : Fragment() {
             }
 
             player.prepare()
-            player.playWhenReady = shouldPlay
+            player.play()
         }
 
 
@@ -1705,6 +1675,7 @@ class PlayerTvFragment : Fragment() {
 
         private fun releasePlayer() {
             stopProgressHandler()
+            listenerPlayer = null
             binding.pvPlayer.player = null
             binding.settings.player = null
             binding.settings.subtitleView = null
