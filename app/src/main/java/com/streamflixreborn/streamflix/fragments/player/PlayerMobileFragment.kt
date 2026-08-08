@@ -317,9 +317,9 @@ class PlayerMobileFragment : Fragment() {
                                 .build()
                             binding.settings.setOnServerSelectedListener { server ->
                                 state.servers.find { server.id == it.id }
-                                    ?.let(viewModel::getVideo)
+                                    ?.let(viewModel::selectVideo)
                             }
-                            viewModel.getVideo(state.servers.first())
+                            viewModel.selectVideo(state.servers.first())
                         }
 
                     }
@@ -358,7 +358,7 @@ class PlayerMobileFragment : Fragment() {
                     is PlayerViewModel.State.FailedLoadingVideo -> {
                         val nextServer = nextServerAfter(state.server)
                         if (nextServer != null) {
-                            viewModel.getVideo(nextServer)
+                            viewModel.selectVideo(nextServer)
                         } else {
                             showPlaybackUnavailable(state.error)
                         }
@@ -1104,11 +1104,18 @@ class PlayerMobileFragment : Fragment() {
             override fun onPlayerError(error: PlaybackException) {
                 super.onPlayerError(error)
                 Log.e("PlayerMobileFragment", "onPlayerError: ", error)
-                
+
+                if (viewModel.retryVideoAfterPlaybackError(currentServer)) {
+                    Log.i("PlayerMobileFragment", "Playback failed, retrying current server once")
+                    return
+                }
+
                 val nextServer = nextServerAfter(currentServer)
                 if (nextServer != null) {
                     Log.i("PlayerMobileFragment", "Playback failed, trying next server: ${nextServer.name}")
-                    viewModel.getVideo(nextServer)
+                    viewModel.selectVideo(nextServer)
+                } else {
+                    showPlaybackUnavailable()
                 }
             }
         })
