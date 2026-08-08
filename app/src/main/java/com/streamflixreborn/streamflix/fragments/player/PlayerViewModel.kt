@@ -157,7 +157,7 @@ class PlayerViewModel(
             try {
                 val video = UserPreferences.currentProvider!!.getVideo(server)
                 ensureActive()
-                if (video.source.isEmpty()) throw Exception("No source found")
+                if (video.source.isBlank()) throw Exception("No playable source returned by ${server.name}.")
 
                 // LOGICA SOTTOTITOLI GLOBALE:
                 // Se il provider non ha già impostato un default (es. i "forced" in spagnolo),
