@@ -11,9 +11,6 @@ permissions:
 jobs:
   stage:
     runs-on: ubuntu-latest
-    outputs:
-      source_sha: ${{ steps.refs.outputs.source_sha }}
-      behavior_sha: ${{ steps.refs.outputs.behavior_sha }}
     steps:
       - name: Checkout
         uses: actions/checkout@v4
@@ -25,8 +22,7 @@ jobs:
           git config user.name "ZaboomafooW"
           git config user.email "239698314+ZaboomafooW@users.noreply.github.com"
 
-      - name: Rebuild source-only history one bug per commit
-        id: rebuild
+      - name: Rebuild scoped histories
         shell: bash
         run: |
           set -euo pipefail
@@ -34,6 +30,8 @@ jobs:
           BACKUP=origin/backup/playback-source-before-scope-split
           POSITION_SUBJECT='fix: preserve playback position during source recovery'
           STATE_SUBJECT='fix: preserve playback state across source changes'
+          LISTENER_SUBJECT='fix: avoid duplicate player listeners after source changes'
+          cp .github/scripts/split_playback_scope.py /tmp/split_playback_scope.py
 
           mapfile -t commits < <(git rev-list --reverse "$BASE..$BACKUP")
           position_sha=''
@@ -51,6 +49,14 @@ jobs:
               "$STATE_SUBJECT")
                 state_sha="$sha"
                 echo "Separating: $subject ($sha)"
+                ;;
+              "$LISTENER_SUBJECT")
+                python3 /tmp/split_playback_scope.py listener
+                git add \
+                  app/src/main/java/com/streamflixreborn/streamflix/fragments/player/PlayerMobileFragment.kt \
+                  app/src/main/java/com/streamflixreborn/streamflix/fragments/player/PlayerTvFragment.kt
+                git commit -C "$sha"
+                kept=$((kept + 1))
                 ;;
               *)
                 git cherry-pick "$sha"
@@ -78,85 +84,41 @@ jobs:
           source_sha="$(git rev-parse HEAD)"
 
           git switch -C rebuild/playback-behavior-improvements "$source_sha"
-          git cherry-pick "$position_sha"
-          git cherry-pick "$state_sha"
+          python3 /tmp/split_playback_scope.py position
+          git add \
+            app/src/main/java/com/streamflixreborn/streamflix/fragments/player/PlayerMobileFragment.kt \
+            app/src/main/java/com/streamflixreborn/streamflix/fragments/player/PlayerTvFragment.kt
+          git commit -C "$position_sha"
+          python3 /tmp/split_playback_scope.py state
+          git add \
+            app/src/main/java/com/streamflixreborn/streamflix/fragments/player/PlayerMobileFragment.kt \
+            app/src/main/java/com/streamflixreborn/streamflix/fragments/player/PlayerTvFragment.kt
+          git commit -C "$state_sha"
+
           test "$(git rev-list --count "$source_sha..HEAD")" -eq 2
           git diff --check "$source_sha..HEAD"
           echo 'Behavior commits:'
           git log --reverse --oneline "$source_sha..HEAD"
-          git push origin HEAD:refs/heads/rebuild/playback-behavior-improvements --force
           behavior_sha="$(git rev-parse HEAD)"
 
-          # Re-applying the separated fixes should reproduce the preserved pre-split tree.
+          # The split branches together must reproduce the preserved pre-split tree exactly.
           git diff --exit-code "$BACKUP" "$behavior_sha"
+          git push origin HEAD:refs/heads/rebuild/playback-behavior-improvements --force
 
-          echo "source_sha=$source_sha" >> "$GITHUB_OUTPUT"
-          echo "behavior_sha=$behavior_sha" >> "$GITHUB_OUTPUT"
-
-      - name: Record staged refs
-        id: refs
-        run: |
-          echo "source_sha=$(git rev-parse origin/rebuild/playback-source-scoped-history)" >> "$GITHUB_OUTPUT"
-          echo "behavior_sha=$(git rev-parse origin/rebuild/playback-behavior-improvements)" >> "$GITHUB_OUTPUT"
-
-  verify-source:
+  verify:
     needs: stage
-    name: source-only ${{ matrix.layout }} build and tests
+    name: ${{ matrix.target }} ${{ matrix.layout }} build and tests
     runs-on: ubuntu-latest
     strategy:
       fail-fast: false
       matrix:
+        target: [source, behavior]
         layout: [mobile, tv]
     steps:
-      - name: Checkout source-only branch
+      - name: Checkout staged branch
         uses: actions/checkout@v4
         with:
-          ref: rebuild/playback-source-scoped-history
-      - name: Set up Java 17
-        uses: actions/setup-java@v4
-        with:
-          distribution: temurin
-          java-version: '17'
-      - name: Set up Android SDK
-        uses: android-actions/setup-android@v3
-      - name: Install Android native toolchain
-        run: |
-          yes | sdkmanager --licenses >/dev/null || true
-          sdkmanager "platforms;android-36" "ndk;26.1.10909125" "cmake;3.22.1"
-      - name: Create local.properties
-        run: |
-          cat > local.properties <<EOF
-          sdk.dir=$ANDROID_HOME
-          APP_LAYOUT=${{ matrix.layout }}
-          TMDB_API_KEY=ci-placeholder
-          SUBDL_API_KEY=ci-placeholder
-          RABBITSTREAM_SOURCE_API=ci-placeholder
-          EOF
-      - name: Add CI-only native placeholder
-        run: |
-          cat > app/src/main/cpp/native-lib.cpp <<'EOF'
-          extern "C" int streamflix_ci_native_stub() { return 0; }
-          EOF
-      - name: Make Gradle wrapper executable
-        run: chmod +x gradlew
-      - name: Run unit tests
-        run: ./gradlew testDebugUnitTest --stacktrace
-      - name: Build debug APK
-        run: ./gradlew assembleDebug --stacktrace
-
-  verify-behavior:
-    needs: stage
-    name: behavior ${{ matrix.layout }} build and tests
-    runs-on: ubuntu-latest
-    strategy:
-      fail-fast: false
-      matrix:
-        layout: [mobile, tv]
-    steps:
-      - name: Checkout behavior branch
-        uses: actions/checkout@v4
-        with:
-          ref: rebuild/playback-behavior-improvements
+          ref: ${{ matrix.target == 'source' && 'rebuild/playback-source-scoped-history' || 'rebuild/playback-behavior-improvements' }}
       - name: Set up Java 17
         uses: actions/setup-java@v4
         with:
