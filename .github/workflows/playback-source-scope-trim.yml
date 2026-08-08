@@ -1,0 +1,93 @@
+name: Playback source scope trim
+
+on:
+  pull_request:
+    branches:
+      - fix/playback-source-errors
+
+permissions:
+  contents: write
+
+jobs:
+  stage:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Configure commit attribution
+        run: |
+          git config user.name "ZaboomafooW"
+          git config user.email "239698314+ZaboomafooW@users.noreply.github.com"
+
+      - name: Rebuild scoped playback-source commit
+        run: |
+          cp .github/scripts/trim_playback_source_scope.py /tmp/trim_playback_source_scope.py
+          git switch -C rebuild/playback-source-scoped origin/fix/playback-source-errors
+          python3 /tmp/trim_playback_source_scope.py
+          git reset --soft 4aaa3ac34b5ca20251176958d9437fdcc67569d6
+          git add -A
+          changed="$(git diff --cached --name-only)"
+          expected=$'app/src/main/java/com/streamflixreborn/streamflix/fragments/player/PlayerMobileFragment.kt\napp/src/main/java/com/streamflixreborn/streamflix/fragments/player/PlayerTvFragment.kt\napp/src/main/java/com/streamflixreborn/streamflix/fragments/player/PlayerViewModel.kt'
+          test "$changed" = "$expected"
+          git diff --cached --check
+          git commit -m "fix: improve playback source failure handling"
+
+      - name: Push staged scoped branch
+        run: git push origin HEAD:refs/heads/rebuild/playback-source-scoped --force
+
+  verify:
+    needs: stage
+    name: ${{ matrix.layout }} build and tests
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        layout: [mobile, tv]
+
+    steps:
+      - name: Checkout scoped playback-source branch
+        uses: actions/checkout@v4
+        with:
+          ref: rebuild/playback-source-scoped
+
+      - name: Set up Java 17
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+
+      - name: Set up Android SDK
+        uses: android-actions/setup-android@v3
+
+      - name: Install Android native toolchain
+        run: |
+          yes | sdkmanager --licenses >/dev/null || true
+          sdkmanager "platforms;android-36" "ndk;26.1.10909125" "cmake;3.22.1"
+
+      - name: Create local.properties
+        run: |
+          cat > local.properties <<EOF
+          sdk.dir=$ANDROID_HOME
+          APP_LAYOUT=${{ matrix.layout }}
+          TMDB_API_KEY=ci-placeholder
+          SUBDL_API_KEY=ci-placeholder
+          RABBITSTREAM_SOURCE_API=ci-placeholder
+          EOF
+
+      - name: Add CI-only native placeholder
+        run: |
+          cat > app/src/main/cpp/native-lib.cpp <<'EOF'
+          extern "C" int streamflix_ci_native_stub() { return 0; }
+          EOF
+
+      - name: Make Gradle wrapper executable
+        run: chmod +x gradlew
+
+      - name: Run unit tests
+        run: ./gradlew testDebugUnitTest --stacktrace
+
+      - name: Build debug APK
+        run: ./gradlew assembleDebug --stacktrace
