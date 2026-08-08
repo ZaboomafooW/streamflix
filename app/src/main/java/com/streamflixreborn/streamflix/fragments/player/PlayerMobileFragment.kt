@@ -133,6 +133,7 @@ class PlayerMobileFragment : Fragment() {
     private var currentServer: Video.Server? = null
     private var listenerPlayer: ExoPlayer? = null
     private var pendingPlaybackPositionMs: Long? = null
+    private var playbackSourceRecoveryInProgress = false
     private var isIgnoringPip = false
     private var waitingForBypass = false
     private var bypassDone = false
@@ -355,6 +356,7 @@ class PlayerMobileFragment : Fragment() {
                         val resumePosition = pendingPlaybackPositionMs
                         pendingPlaybackPositionMs = null
                         displayVideo(state.video, state.server, resumePosition)
+                        playbackSourceRecoveryInProgress = false
                     }
 
                     is PlayerViewModel.State.FailedLoadingVideo -> {
@@ -549,6 +551,7 @@ class PlayerMobileFragment : Fragment() {
 
     private fun showPlaybackUnavailable(error: Exception? = null) {
         error?.let { Log.e("PlayerMobileFragment", "Playback unavailable", it) }
+        playbackSourceRecoveryInProgress = false
         pendingPlaybackPositionMs = null
         Toast.makeText(
             requireContext(),
@@ -1106,6 +1109,12 @@ class PlayerMobileFragment : Fragment() {
             override fun onPlayerError(error: PlaybackException) {
                 super.onPlayerError(error)
                 Log.e("PlayerMobileFragment", "onPlayerError: ", error)
+
+                if (playbackSourceRecoveryInProgress) {
+                    Log.d("PlayerMobileFragment", "Ignoring duplicate playback error during source recovery")
+                    return
+                }
+                playbackSourceRecoveryInProgress = true
 
                 if (viewModel.retryVideoAfterPlaybackError(currentServer)) {
                     Log.i("PlayerMobileFragment", "Playback failed, retrying current server once")
