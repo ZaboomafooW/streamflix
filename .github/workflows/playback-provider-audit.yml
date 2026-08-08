@@ -1,0 +1,167 @@
+name: Playback provider source audit
+
+on:
+  pull_request:
+    branches:
+      - fix/playback-source-errors
+
+permissions:
+  contents: write
+
+jobs:
+  audit:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Audit every provider playback path
+        shell: bash
+        run: |
+          set -euo pipefail
+          cat > /tmp/audit_provider_sources.py <<'PY'
+          from pathlib import Path
+          import re
+
+          ROOT = Path('app/src/main/java/com/streamflixreborn/streamflix')
+          PROVIDERS = ROOT / 'providers'
+          OUT = Path('/tmp/provider-playback-audit.txt')
+
+          def extract_function(text: str, marker: str):
+              start = text.find(marker)
+              if start < 0:
+                  return None
+              brace = text.find('{', start)
+              if brace < 0:
+                  # expression-bodied function
+                  end = text.find('\n', start)
+                  return text[start:end if end >= 0 else len(text)]
+              depth = 0
+              i = brace
+              in_string = False
+              escaped = False
+              while i < len(text):
+                  c = text[i]
+                  if in_string:
+                      if escaped:
+                          escaped = False
+                      elif c == '\\':
+                          escaped = True
+                      elif c == '"':
+                          in_string = False
+                  else:
+                      if c == '"':
+                          in_string = True
+                      elif c == '{':
+                          depth += 1
+                      elif c == '}':
+                          depth -= 1
+                          if depth == 0:
+                              return text[start:i+1]
+                  i += 1
+              return text[start:]
+
+          def compact_flags(body: str | None, kind: str):
+              if not body:
+                  return ['MISSING']
+              flags = []
+              if 'return emptyList()' in body or 'return listOf()' in body:
+                  flags.append('can-return-empty')
+              if 'throw ' in body or 'throw Exception' in body:
+                  flags.append('throws')
+              if 'catch (' in body or 'catch(' in body:
+                  flags.append('catches')
+              if kind == 'servers':
+                  if re.search(r'return\s+listOf\s*\(\s*Video\.Server', body):
+                      flags.append('single-fixed-server')
+                  if '.distinctBy' in body:
+                      flags.append('deduplicates')
+                  if 'server.video' in body or '.video =' in body:
+                      flags.append('preloads-video')
+                  if 'src =' in body:
+                      flags.append('stores-src')
+              else:
+                  if 'Extractor.extract' in body:
+                      flags.append('extractor')
+                  if re.search(r'return\s+Video\s*\(', body) or 'Video(source' in body:
+                      flags.append('direct-video')
+                  if 'server.video' in body:
+                      flags.append('cached-server-video')
+                  if 'server.src' in body:
+                      flags.append('uses-server-src')
+              return flags or ['plain']
+
+          files = sorted(PROVIDERS.rglob('*.kt'))
+          entries = []
+          for path in files:
+              text = path.read_text(errors='replace')
+              gs = extract_function(text, 'override suspend fun getServers')
+              gv = extract_function(text, 'override suspend fun getVideo')
+              if gs or gv:
+                  entries.append((path, gs, gv))
+
+          provider_contract = (PROVIDERS / 'Provider.kt').read_text(errors='replace')
+          listed = re.findall(r'^\s*([A-Za-z0-9_]+(?:\([^\n]+\))?)\s+to ProviderSupport', provider_contract, re.M)
+
+          lines = []
+          lines.append('PLAYBACK PROVIDER AUDIT')
+          lines.append('=======================')
+          lines.append(f'Provider files with getServers/getVideo implementations: {len(entries)}')
+          lines.append(f'Provider registrations in Provider.providers: {len(listed)}')
+          lines.append('')
+          lines.append('REGISTERED PROVIDERS')
+          lines.append('--------------------')
+          lines.extend(listed)
+          lines.append('')
+          lines.append('IMPLEMENTATION SUMMARY')
+          lines.append('----------------------')
+          for path, gs, gv in entries:
+              rel = path.relative_to(ROOT)
+              lines.append(f'{rel}: servers={",".join(compact_flags(gs, "servers"))}; video={",".join(compact_flags(gv, "video"))}')
+          lines.append('')
+          lines.append('FULL SOURCE FUNCTIONS')
+          lines.append('---------------------')
+          for path, gs, gv in entries:
+              rel = path.relative_to(ROOT)
+              lines.append('')
+              lines.append(f'### {rel}')
+              lines.append('--- getServers ---')
+              lines.append(gs or '<missing>')
+              lines.append('--- getVideo ---')
+              lines.append(gv or '<missing>')
+
+          lines.append('')
+          lines.append('LANGUAGE/CATALOG ERROR REFERENCES')
+          lines.append('---------------------------------')
+          needles = ['player_not_available_it_message', 'player_not_available_lang_message', 'player_retry_later_message']
+          for path in sorted(ROOT.rglob('*.kt')):
+              text = path.read_text(errors='replace')
+              for n in needles:
+                  for i, line in enumerate(text.splitlines(), 1):
+                      if n in line:
+                          lines.append(f'{path.relative_to(ROOT)}:{i}: {line.strip()}')
+
+          lines.append('')
+          lines.append('SERVER VIDEO CACHE REFERENCES')
+          lines.append('-----------------------------')
+          for path in sorted(ROOT.rglob('*.kt')):
+              text = path.read_text(errors='replace')
+              for i, line in enumerate(text.splitlines(), 1):
+                  if 'server.video' in line or '.video =' in line:
+                      lines.append(f'{path.relative_to(ROOT)}:{i}: {line.strip()}')
+
+          OUT.write_text('\n'.join(lines))
+          print(f'Wrote {OUT} with {len(lines)} logical lines')
+          PY
+
+          python3 /tmp/audit_provider_sources.py
+          git switch -C rebuild/playback-provider-audit origin/fix/playback-source-errors
+          mkdir -p .github/audit
+          cp /tmp/provider-playback-audit.txt .github/audit/provider-playback-audit.txt
+          git config user.name "ZaboomafooW"
+          git config user.email "239698314+ZaboomafooW@users.noreply.github.com"
+          git add .github/audit/provider-playback-audit.txt
+          git commit -m "audit: inventory provider playback source paths"
+          git push origin HEAD:refs/heads/rebuild/playback-provider-audit --force
