@@ -4,6 +4,9 @@ on:
   push:
     branches:
       - ci/tv-playback-source-test-apk
+  pull_request:
+    branches:
+      - fix/playback-source-errors
 
 jobs:
   build:
