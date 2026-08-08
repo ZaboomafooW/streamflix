@@ -110,6 +110,6 @@ replace_once(
 replace_once(
     STRINGS,
     """    <string name="player_retry_later_message">Video currently unavailable on this provider. Please try again later</string>\n""",
-    """    <string name="player_retry_later_message">Video currently unavailable on this provider. Please try again later</string>\n    <string name="player_source_trying">Trying %1$s...</string>\n    <string name="player_source_retrying">%1$s didn\'t work. Retrying...</string>\n    <string name="player_source_trying_next">%1$s didn\'t work. Trying %2$s...</string>\n    <string name="player_source_restoring">Other sources didn\'t work. Returning to %1$s...</string>\n    <string name="player_source_unknown">Current source</string>\n""",
+    """    <string name="player_retry_later_message">Video currently unavailable on this provider. Please try again later</string>\n    <string name="player_source_trying">Trying %1$s...</string>\n    <string name="player_source_retrying">%1$s failed. Retrying...</string>\n    <string name="player_source_trying_next">%1$s failed. Trying %2$s...</string>\n    <string name="player_source_restoring">Other sources failed. Returning to %1$s...</string>\n    <string name="player_source_unknown">Current source</string>\n""",
     "source status strings",
 )
