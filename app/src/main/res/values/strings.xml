@@ -119,6 +119,7 @@
     <string name="player_no_sources_message">No playback sources are available for this title.</string>
     <string name="player_sources_load_failed_message">Unable to load playback sources. Please try again.</string>
     <string name="player_no_working_source_message">No working playback source is currently available.</string>
+    <string name="player_sources_loading_message">Finding playback sources...</string>
     <string name="player_source_trying">Trying %1$s...</string>
     <string name="player_source_retrying">%1$s failed. Retrying...</string>
     <string name="player_source_trying_next">%1$s failed. Trying %2$s...</string>

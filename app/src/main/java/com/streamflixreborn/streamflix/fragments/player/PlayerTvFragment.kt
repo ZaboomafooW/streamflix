@@ -283,8 +283,11 @@ class PlayerTvFragment : Fragment() {
                         lastWorkingServer = null
                         restoringLastWorkingServer = false
                         failedServers.clear()
+                        showSourceStatus(getString(R.string.player_sources_loading_message))
                     }
                     is PlayerViewModel.State.SuccessLoadingServers -> {
+                        sourceStatusToast?.cancel()
+                        sourceStatusToast = null
                         servers = state.servers
 
                         val sToServer = servers.firstOrNull {
@@ -361,7 +364,10 @@ class PlayerTvFragment : Fragment() {
                                 viewModel.selectVideo(it)
                             }
                         }
-                        viewModel.selectVideo(state.servers.first())
+                        state.servers.first().let { firstServer ->
+                            showSourceStatus(getString(R.string.player_source_trying, firstServer.name))
+                            viewModel.selectVideo(firstServer)
+                        }
 
                     }
                         PlayerViewModel.State.NoServers -> {
