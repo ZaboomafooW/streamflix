@@ -133,6 +133,7 @@ class PlayerMobileFragment : Fragment() {
     private var currentServer: Video.Server? = null
     private var listenerPlayer: ExoPlayer? = null
     private var pendingPlaybackPositionMs: Long? = null
+    private var pendingPlaybackShouldPlay: Boolean? = null
     private var playbackSourceRecoveryInProgress = false
     private var isIgnoringPip = false
     private var waitingForBypass = false
@@ -335,6 +336,7 @@ class PlayerMobileFragment : Fragment() {
                             val currentUri = player.currentMediaItem?.localConfiguration?.uri?.toString().orEmpty()
                             if (currentUri.isNotBlank()) {
                                 pendingPlaybackPositionMs = player.currentPosition
+                                pendingPlaybackShouldPlay = player.playWhenReady
                             }
                         }
 
@@ -354,8 +356,10 @@ class PlayerMobileFragment : Fragment() {
                         PlayerSettingsView.Settings.ExtraBuffering.init(state.video.extraBuffering)
                         PlayerSettingsView.Settings.SoftwareDecoder.init(false)
                         val resumePosition = pendingPlaybackPositionMs
+                        val shouldPlay = pendingPlaybackShouldPlay ?: true
                         pendingPlaybackPositionMs = null
-                        displayVideo(state.video, state.server, resumePosition)
+                        pendingPlaybackShouldPlay = null
+                        displayVideo(state.video, state.server, resumePosition, shouldPlay)
                         playbackSourceRecoveryInProgress = false
                     }
 
@@ -553,6 +557,7 @@ class PlayerMobileFragment : Fragment() {
         error?.let { Log.e("PlayerMobileFragment", "Playback unavailable", it) }
         playbackSourceRecoveryInProgress = false
         pendingPlaybackPositionMs = null
+        pendingPlaybackShouldPlay = null
         Toast.makeText(
             requireContext(),
             getString(R.string.player_retry_later_message),
@@ -890,7 +895,12 @@ class PlayerMobileFragment : Fragment() {
     }
 
 
-    private fun displayVideo(video: Video, server: Video.Server, startPositionMs: Long? = null) {
+    private fun displayVideo(
+        video: Video,
+        server: Video.Server,
+        startPositionMs: Long? = null,
+        shouldPlay: Boolean = true,
+    ) {
         currentVideo = video
         currentServer = server
         updatePlayerHeader()
@@ -1165,7 +1175,7 @@ class PlayerMobileFragment : Fragment() {
         }
 
         player.prepare()
-        player.play()
+        player.playWhenReady = shouldPlay
     }
 
     private fun enterPIPMode() {
