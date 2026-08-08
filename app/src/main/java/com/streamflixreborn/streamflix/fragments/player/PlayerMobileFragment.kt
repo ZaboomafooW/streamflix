@@ -128,6 +128,7 @@ class PlayerMobileFragment : Fragment() {
 
     private var servers = listOf<Video.Server>()
     private var zoomToast: Toast? = null
+    private var sourceStatusToast: Toast? = null
 
     private var currentVideo: Video? = null
     private var currentServer: Video.Server? = null
@@ -326,6 +327,7 @@ class PlayerMobileFragment : Fragment() {
                                 } ?: state.servers.firstOrNull { it.id == server.id }
                                 selectedServer?.let {
                                     restoringLastWorkingServer = false
+                                    showSourceStatus(getString(R.string.player_source_trying, it.name))
                                     viewModel.selectVideo(it)
                                 }
                             }
@@ -364,6 +366,13 @@ class PlayerMobileFragment : Fragment() {
                         } else {
                             val nextServer = nextServerAfter(state.server)
                             if (nextServer != null) {
+                                showSourceStatus(
+                                    getString(
+                                        R.string.player_source_trying_next,
+                                        state.server.name,
+                                        nextServer.name,
+                                    )
+                                )
                                 viewModel.selectVideo(nextServer)
                             } else if (!restoreLastWorkingSource(state.server)) {
                                 showPlaybackUnavailable(state.error)
@@ -544,6 +553,13 @@ class PlayerMobileFragment : Fragment() {
         else -> false
     }
 
+    private fun showSourceStatus(message: String) {
+        sourceStatusToast?.cancel()
+        sourceStatusToast = Toast.makeText(requireContext(), message, Toast.LENGTH_SHORT).also {
+            it.show()
+        }
+    }
+
     private fun nextServerAfter(server: Video.Server?): Video.Server? {
         if (server == null) return null
         val index = servers.indexOfFirst { it === server }
@@ -559,12 +575,15 @@ class PlayerMobileFragment : Fragment() {
         if (restoringLastWorkingServer || isFailedServer) return false
 
         restoringLastWorkingServer = true
+        showSourceStatus(getString(R.string.player_source_restoring, workingServer.name))
         viewModel.selectVideo(workingServer)
         return true
     }
 
     private fun showPlaybackUnavailable(error: Exception? = null) {
         error?.let { Log.e("PlayerMobileFragment", "Playback unavailable", it) }
+        sourceStatusToast?.cancel()
+        sourceStatusToast = null
         restoringLastWorkingServer = false
         playbackSourceRecoveryInProgress = false
         Toast.makeText(
@@ -1042,6 +1061,8 @@ class PlayerMobileFragment : Fragment() {
                 if (isPlaying) {
                     currentServer?.let { lastWorkingServer = it }
                     restoringLastWorkingServer = false
+                    sourceStatusToast?.cancel()
+                    sourceStatusToast = null
                     startProgressHandler()
                 } else {
                     stopProgressHandler()
@@ -1140,12 +1161,22 @@ class PlayerMobileFragment : Fragment() {
 
                 if (viewModel.retryVideoAfterPlaybackError(currentServer)) {
                     Log.i("PlayerMobileFragment", "Playback failed, retrying current server once")
+                    currentServer?.let {
+                        showSourceStatus(getString(R.string.player_source_retrying, it.name))
+                    }
                     return
                 }
 
                 val nextServer = nextServerAfter(currentServer)
                 if (nextServer != null) {
                     Log.i("PlayerMobileFragment", "Playback failed, trying next server: ${nextServer.name}")
+                    showSourceStatus(
+                        getString(
+                            R.string.player_source_trying_next,
+                            currentServer?.name ?: getString(R.string.player_source_unknown),
+                            nextServer.name,
+                        )
+                    )
                     viewModel.selectVideo(nextServer)
                 } else if (!restoreLastWorkingSource(currentServer)) {
                     showPlaybackUnavailable()
