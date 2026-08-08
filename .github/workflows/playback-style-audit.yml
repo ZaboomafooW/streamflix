@@ -15,7 +15,7 @@ jobs:
           fetch-depth: 0
 
       - name: Check diff whitespace
-        run: git diff --check 4aaa3ac34b5ca20251176958d9437fdcc67569d6..fix/playback-source-errors
+        run: git diff --check origin/audit/playback-style-base..origin/fix/playback-source-errors
 
       - name: Compare line endings with upstream
         shell: bash
@@ -23,8 +23,8 @@ jobs:
           python3 - <<'PY'
           import subprocess
 
-          base = '4aaa3ac34b5ca20251176958d9437fdcc67569d6'
-          head = 'fix/playback-source-errors'
+          base = 'origin/audit/playback-style-base'
+          head = 'origin/fix/playback-source-errors'
           paths = [
               'app/src/main/java/com/streamflixreborn/streamflix/fragments/player/PlayerMobileFragment.kt',
               'app/src/main/java/com/streamflixreborn/streamflix/fragments/player/PlayerTvFragment.kt',
@@ -74,7 +74,7 @@ jobs:
 
           diff = subprocess.check_output([
               'git', 'diff', '--unified=0',
-              '4aaa3ac34b5ca20251176958d9437fdcc67569d6..fix/playback-source-errors',
+              'origin/audit/playback-style-base..origin/fix/playback-source-errors',
               '--',
               'app/src/main/java/com/streamflixreborn/streamflix/fragments/player/PlayerMobileFragment.kt',
               'app/src/main/java/com/streamflixreborn/streamflix/fragments/player/PlayerTvFragment.kt',
