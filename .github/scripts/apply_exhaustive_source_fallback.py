@@ -1,4 +1,5 @@
 from pathlib import Path
+import re
 
 MOBILE = Path("app/src/main/java/com/streamflixreborn/streamflix/fragments/player/PlayerMobileFragment.kt")
 TV = Path("app/src/main/java/com/streamflixreborn/streamflix/fragments/player/PlayerTvFragment.kt")
@@ -10,6 +11,17 @@ def replace_once(path: Path, old: str, new: str, label: str) -> None:
     if count != 1:
         raise RuntimeError(f"{label}: expected one match, found {count}")
     path.write_text(text.replace(old, new, 1))
+
+
+def regex_replace_once(path: Path, pattern: str, replacement, label: str) -> None:
+    text = path.read_text()
+    compiled = re.compile(pattern, re.M)
+    matches = list(compiled.finditer(text))
+    if len(matches) != 1:
+        raise RuntimeError(f"{label}: expected one match, found {len(matches)}")
+    match = matches[0]
+    new = replacement(match) if callable(replacement) else replacement
+    path.write_text(text[:match.start()] + new + text[match.end():])
 
 
 for path in (MOBILE, TV):
@@ -41,31 +53,31 @@ for path in (MOBILE, TV):
         f"{path.name} reset failed servers on discovery",
     )
 
-    replace_once(
+    regex_replace_once(
         path,
-        '''selectedServer?.let {
-                                    restoringLastWorkingServer = false
-                                    showSourceStatus(getString(R.string.player_source_trying, it.name))
-                                    viewModel.selectVideo(it)
-                                }''',
-        '''selectedServer?.let {
-                                    failedServers.clear()
-                                    restoringLastWorkingServer = false
-                                    showSourceStatus(getString(R.string.player_source_trying, it.name))
-                                    viewModel.selectVideo(it)
-                                }''',
+        r'(?m)^(?P<indent>\s*)selectedServer\?\.let \{\n'
+        r'(?P=indent)\s+restoringLastWorkingServer = false\n'
+        r'(?P=indent)\s+showSourceStatus\(getString\(R\.string\.player_source_trying, it\.name\)\)\n'
+        r'(?P=indent)\s+viewModel\.selectVideo\(it\)\n'
+        r'(?P=indent)\}',
+        lambda m: (
+            f"{m.group('indent')}selectedServer?.let {{\n"
+            f"{m.group('indent')}    failedServers.clear()\n"
+            f"{m.group('indent')}    restoringLastWorkingServer = false\n"
+            f"{m.group('indent')}    showSourceStatus(getString(R.string.player_source_trying, it.name))\n"
+            f"{m.group('indent')}    viewModel.selectVideo(it)\n"
+            f"{m.group('indent')}}}"
+        ),
         f"{path.name} reset failed servers on manual selection",
     )
 
-    replace_once(
+    regex_replace_once(
         path,
-        '''                        } else {
-                            val nextServer = nextServerAfter(state.server)
-''',
-        '''                        } else {
-                            failedServers.add(state.server)
-                            val nextServer = nextUnfailedServerAfter(state.server)
-''',
+        r'(?m)^(?P<indent>\s*)val nextServer = nextServerAfter\(state\.server\)$',
+        lambda m: (
+            f"{m.group('indent')}failedServers.add(state.server)\n"
+            f"{m.group('indent')}val nextServer = nextUnfailedServerAfter(state.server)"
+        ),
         f"{path.name} mark extraction failure",
     )
 
@@ -131,24 +143,24 @@ for path in (MOBILE, TV):
         f"{path.name} clear failed servers on terminal failure",
     )
 
-    replace_once(
+    regex_replace_once(
         path,
-        '''                    currentServer?.let { lastWorkingServer = it }
-                    restoringLastWorkingServer = false
-''',
-        '''                    currentServer?.let { lastWorkingServer = it }
-                    restoringLastWorkingServer = false
-                    failedServers.clear()
-''',
+        r'(?m)^(?P<indent>\s*)currentServer\?\.let \{ lastWorkingServer = it \}\n'
+        r'(?P=indent)restoringLastWorkingServer = false$',
+        lambda m: (
+            f"{m.group('indent')}currentServer?.let {{ lastWorkingServer = it }}\n"
+            f"{m.group('indent')}restoringLastWorkingServer = false\n"
+            f"{m.group('indent')}failedServers.clear()"
+        ),
         f"{path.name} clear failed servers after playback starts",
     )
 
-    replace_once(
+    regex_replace_once(
         path,
-        '''                val nextServer = nextServerAfter(currentServer)
-''',
-        '''                currentServer?.let(failedServers::add)
-                val nextServer = nextUnfailedServerAfter(currentServer)
-''',
+        r'(?m)^(?P<indent>\s*)val nextServer = nextServerAfter\(currentServer\)$',
+        lambda m: (
+            f"{m.group('indent')}currentServer?.let(failedServers::add)\n"
+            f"{m.group('indent')}val nextServer = nextUnfailedServerAfter(currentServer)"
+        ),
         f"{path.name} runtime fallback tracks failed server",
     )
