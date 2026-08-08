@@ -1,0 +1,140 @@
+name: Playback source error contract
+
+on:
+  pull_request:
+    branches:
+      - fix/playback-source-errors
+
+permissions:
+  contents: write
+
+jobs:
+  stage:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Configure commit attribution
+        run: |
+          git config user.name "ZaboomafooW"
+          git config user.email "239698314+ZaboomafooW@users.noreply.github.com"
+
+      - name: Build provider-agnostic source error commits
+        shell: bash
+        run: |
+          set -euo pipefail
+          cp .github/scripts/apply_source_discovery_errors.py /tmp/apply_source_discovery_errors.py
+          cp .github/scripts/apply_source_exhaustion_error.py /tmp/apply_source_exhaustion_error.py
+          cp .github/scripts/apply_exhaustive_source_fallback.py /tmp/apply_exhaustive_source_fallback.py
+
+          git switch -C rebuild/playback-source-error-contract origin/fix/playback-source-errors
+
+          python3 /tmp/apply_source_discovery_errors.py
+          git add \
+            app/src/main/java/com/streamflixreborn/streamflix/fragments/player/PlayerViewModel.kt \
+            app/src/main/java/com/streamflixreborn/streamflix/fragments/player/PlayerMobileFragment.kt \
+            app/src/main/java/com/streamflixreborn/streamflix/fragments/player/PlayerTvFragment.kt \
+            app/src/main/res/values/strings.xml
+          git diff --check --cached
+          git commit -m "fix: distinguish missing sources from source discovery errors"
+
+          python3 /tmp/apply_source_exhaustion_error.py
+          git add \
+            app/src/main/java/com/streamflixreborn/streamflix/fragments/player/PlayerMobileFragment.kt \
+            app/src/main/java/com/streamflixreborn/streamflix/fragments/player/PlayerTvFragment.kt \
+            app/src/main/res/values/strings.xml
+          git diff --check --cached
+          git commit -m "fix: report exhausted playback sources separately"
+
+          python3 /tmp/apply_exhaustive_source_fallback.py
+          git add \
+            app/src/main/java/com/streamflixreborn/streamflix/fragments/player/PlayerMobileFragment.kt \
+            app/src/main/java/com/streamflixreborn/streamflix/fragments/player/PlayerTvFragment.kt
+          git diff --check --cached
+          git commit -m "fix: try every unfailed server before ending source recovery"
+
+          test "$(git rev-list --count origin/fix/playback-source-errors..HEAD)" -eq 3
+          git diff --check origin/fix/playback-source-errors..HEAD
+
+          if grep -R "player_not_available_" \
+            app/src/main/java/com/streamflixreborn/streamflix/fragments/player; then
+            echo "Language/catalog errors must not be referenced by playback source code"
+            exit 1
+          fi
+
+          python3 - <<'PY'
+          from pathlib import Path
+          root = Path('app/src/main/java/com/streamflixreborn/streamflix')
+          direct = []
+          for path in root.rglob('*.kt'):
+              if 'providers' in path.parts or 'extractors' in path.parts:
+                  continue
+              for number, line in enumerate(path.read_text(errors='replace').splitlines(), 1):
+                  if 'Extractor.extract(' in line:
+                      direct.append(f'{path}:{number}: {line.strip()}')
+          if direct:
+              raise SystemExit('Playback extractor bypass outside provider boundary:\n' + '\n'.join(direct))
+
+          vm = root / 'fragments/player/PlayerViewModel.kt'
+          text = vm.read_text()
+          assert 'currentProvider!!.getServers(id, videoType)' in text
+          assert 'currentProvider!!.getVideo(server)' in text
+          PY
+
+          git push origin HEAD:refs/heads/rebuild/playback-source-error-contract --force
+
+  verify:
+    needs: stage
+    name: ${{ matrix.layout }} build and tests
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        layout: [mobile, tv]
+    steps:
+      - name: Checkout staged branch
+        uses: actions/checkout@v4
+        with:
+          ref: rebuild/playback-source-error-contract
+
+      - name: Set up Java 17
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+
+      - name: Set up Android SDK
+        uses: android-actions/setup-android@v3
+
+      - name: Install Android native toolchain
+        run: |
+          yes | sdkmanager --licenses >/dev/null || true
+          sdkmanager "platforms;android-36" "ndk;26.1.10909125" "cmake;3.22.1"
+
+      - name: Create local.properties
+        run: |
+          cat > local.properties <<EOF
+          sdk.dir=$ANDROID_HOME
+          APP_LAYOUT=${{ matrix.layout }}
+          TMDB_API_KEY=ci-placeholder
+          SUBDL_API_KEY=ci-placeholder
+          RABBITSTREAM_SOURCE_API=ci-placeholder
+          EOF
+
+      - name: Add CI-only native placeholder
+        run: |
+          cat > app/src/main/cpp/native-lib.cpp <<'EOF'
+          extern "C" int streamflix_ci_native_stub() { return 0; }
+          EOF
+
+      - name: Make Gradle wrapper executable
+        run: chmod +x gradlew
+
+      - name: Run unit tests
+        run: ./gradlew testDebugUnitTest --stacktrace
+
+      - name: Build debug APK
+        run: ./gradlew assembleDebug --stacktrace
