@@ -152,6 +152,7 @@ class PlayerTvFragment : Fragment() {
     private var currentServer: Video.Server? = null
     private var listenerPlayer: ExoPlayer? = null
     private var pendingPlaybackPositionMs: Long? = null
+    private var pendingPlaybackShouldPlay: Boolean? = null
     private var playbackSourceRecoveryInProgress = false
     private var waitingForBypass = false
     private var bypassDone = false
@@ -360,6 +361,7 @@ class PlayerTvFragment : Fragment() {
                                 val currentUri = player.currentMediaItem?.localConfiguration?.uri?.toString().orEmpty()
                                 if (currentUri.isNotBlank()) {
                                     pendingPlaybackPositionMs = player.currentPosition
+                                    pendingPlaybackShouldPlay = player.playWhenReady
                                 }
                             }
 
@@ -379,8 +381,15 @@ class PlayerTvFragment : Fragment() {
                             PlayerSettingsView.Settings.ExtraBuffering.init(state.video.extraBuffering)
                             PlayerSettingsView.Settings.SoftwareDecoder.init(false)
                             val resumePosition = pendingPlaybackPositionMs
+                            val shouldPlay = pendingPlaybackShouldPlay ?: true
                             pendingPlaybackPositionMs = null
-                            displayVideo(state.video, state.server, startPositionMs = resumePosition)
+                            pendingPlaybackShouldPlay = null
+                            displayVideo(
+                                video = state.video,
+                                server = state.server,
+                                startPositionMs = resumePosition,
+                                shouldPlay = shouldPlay,
+                            )
                             playbackSourceRecoveryInProgress = false
                         }
 
@@ -607,6 +616,7 @@ class PlayerTvFragment : Fragment() {
         error?.let { Log.e("PlayerTvFragment", "Playback unavailable", it) }
         playbackSourceRecoveryInProgress = false
         pendingPlaybackPositionMs = null
+        pendingPlaybackShouldPlay = null
         Toast.makeText(
             requireContext(),
             getString(R.string.player_retry_later_message),
