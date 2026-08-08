@@ -1901,8 +1901,14 @@ class PlayerTvFragment : Fragment() {
     }
 
     private fun isSerienStreamBypassUrl(url: String): Boolean {
+        if (UserPreferences.currentProvider != SerienStreamProvider) return false
+        val configuredHost = runCatching {
+            Uri.parse(SerienStreamProvider.baseUrl).host
+        }.getOrNull()
+        if (configuredHost.isNullOrBlank()) return false
+
         return runCatching {
-            Uri.parse(url).host.equals("serienstream.to", ignoreCase = true)
+            Uri.parse(url).host.equals(configuredHost, ignoreCase = true)
         }.getOrDefault(false)
     }
 
