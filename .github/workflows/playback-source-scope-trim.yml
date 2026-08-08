@@ -1,4 +1,4 @@
-name: Playback source scope trim
+name: Playback source scope split
 
 on:
   pull_request:
@@ -11,6 +11,9 @@ permissions:
 jobs:
   stage:
     runs-on: ubuntu-latest
+    outputs:
+      source_sha: ${{ steps.refs.outputs.source_sha }}
+      behavior_sha: ${{ steps.refs.outputs.behavior_sha }}
     steps:
       - name: Checkout
         uses: actions/checkout@v4
@@ -22,51 +25,104 @@ jobs:
           git config user.name "ZaboomafooW"
           git config user.email "239698314+ZaboomafooW@users.noreply.github.com"
 
-      - name: Rebuild scoped playback-source commit
+      - name: Rebuild source-only history one bug per commit
+        id: rebuild
+        shell: bash
         run: |
-          cp .github/scripts/trim_playback_source_scope.py /tmp/trim_playback_source_scope.py
-          git switch -C rebuild/playback-source-scoped origin/fix/playback-source-errors
-          python3 /tmp/trim_playback_source_scope.py
-          git reset --soft 4aaa3ac34b5ca20251176958d9437fdcc67569d6
-          git add -A
-          changed="$(git diff --cached --name-only)"
-          expected=$'app/src/main/java/com/streamflixreborn/streamflix/fragments/player/PlayerMobileFragment.kt\napp/src/main/java/com/streamflixreborn/streamflix/fragments/player/PlayerTvFragment.kt\napp/src/main/java/com/streamflixreborn/streamflix/fragments/player/PlayerViewModel.kt'
-          test "$changed" = "$expected"
-          git diff --cached --check
-          git commit -m "fix: improve playback source failure handling"
+          set -euo pipefail
+          BASE=4aaa3ac34b5ca20251176958d9437fdcc67569d6
+          BACKUP=origin/backup/playback-source-before-scope-split
+          POSITION_SUBJECT='fix: preserve playback position during source recovery'
+          STATE_SUBJECT='fix: preserve playback state across source changes'
 
-      - name: Push staged scoped branch
-        run: git push origin HEAD:refs/heads/rebuild/playback-source-scoped --force
+          mapfile -t commits < <(git rev-list --reverse "$BASE..$BACKUP")
+          position_sha=''
+          state_sha=''
 
-  verify:
+          git switch -C rebuild/playback-source-scoped-history "$BASE"
+          kept=0
+          for sha in "${commits[@]}"; do
+            subject="$(git show -s --format=%s "$sha")"
+            case "$subject" in
+              "$POSITION_SUBJECT")
+                position_sha="$sha"
+                echo "Separating: $subject ($sha)"
+                ;;
+              "$STATE_SUBJECT")
+                state_sha="$sha"
+                echo "Separating: $subject ($sha)"
+                ;;
+              *)
+                git cherry-pick "$sha"
+                kept=$((kept + 1))
+                ;;
+            esac
+          done
+
+          test -n "$position_sha"
+          test -n "$state_sha"
+          test "$kept" -eq 10
+          test "$(git rev-list --count "$BASE..HEAD")" -eq 10
+          test "$(git diff --name-only "$BASE..HEAD" | wc -l)" -eq 3
+          git diff --check "$BASE..HEAD"
+          if grep -R -n -E 'pendingPlaybackPositionMs|pendingPlaybackShouldPlay' \
+            app/src/main/java/com/streamflixreborn/streamflix/fragments/player/PlayerMobileFragment.kt \
+            app/src/main/java/com/streamflixreborn/streamflix/fragments/player/PlayerTvFragment.kt; then
+            echo 'Continuity-only state leaked into source branch.' >&2
+            exit 1
+          fi
+
+          echo 'Source-only commits:'
+          git log --reverse --oneline "$BASE..HEAD"
+          git push origin HEAD:refs/heads/rebuild/playback-source-scoped-history --force
+          source_sha="$(git rev-parse HEAD)"
+
+          git switch -C rebuild/playback-behavior-improvements "$source_sha"
+          git cherry-pick "$position_sha"
+          git cherry-pick "$state_sha"
+          test "$(git rev-list --count "$source_sha..HEAD")" -eq 2
+          git diff --check "$source_sha..HEAD"
+          echo 'Behavior commits:'
+          git log --reverse --oneline "$source_sha..HEAD"
+          git push origin HEAD:refs/heads/rebuild/playback-behavior-improvements --force
+          behavior_sha="$(git rev-parse HEAD)"
+
+          # Re-applying the separated fixes should reproduce the preserved pre-split tree.
+          git diff --exit-code "$BACKUP" "$behavior_sha"
+
+          echo "source_sha=$source_sha" >> "$GITHUB_OUTPUT"
+          echo "behavior_sha=$behavior_sha" >> "$GITHUB_OUTPUT"
+
+      - name: Record staged refs
+        id: refs
+        run: |
+          echo "source_sha=$(git rev-parse origin/rebuild/playback-source-scoped-history)" >> "$GITHUB_OUTPUT"
+          echo "behavior_sha=$(git rev-parse origin/rebuild/playback-behavior-improvements)" >> "$GITHUB_OUTPUT"
+
+  verify-source:
     needs: stage
-    name: ${{ matrix.layout }} build and tests
+    name: source-only ${{ matrix.layout }} build and tests
     runs-on: ubuntu-latest
     strategy:
       fail-fast: false
       matrix:
         layout: [mobile, tv]
-
     steps:
-      - name: Checkout scoped playback-source branch
+      - name: Checkout source-only branch
         uses: actions/checkout@v4
         with:
-          ref: rebuild/playback-source-scoped
-
+          ref: rebuild/playback-source-scoped-history
       - name: Set up Java 17
         uses: actions/setup-java@v4
         with:
           distribution: temurin
           java-version: '17'
-
       - name: Set up Android SDK
         uses: android-actions/setup-android@v3
-
       - name: Install Android native toolchain
         run: |
           yes | sdkmanager --licenses >/dev/null || true
           sdkmanager "platforms;android-36" "ndk;26.1.10909125" "cmake;3.22.1"
-
       - name: Create local.properties
         run: |
           cat > local.properties <<EOF
@@ -76,18 +132,59 @@ jobs:
           SUBDL_API_KEY=ci-placeholder
           RABBITSTREAM_SOURCE_API=ci-placeholder
           EOF
-
       - name: Add CI-only native placeholder
         run: |
           cat > app/src/main/cpp/native-lib.cpp <<'EOF'
           extern "C" int streamflix_ci_native_stub() { return 0; }
           EOF
-
       - name: Make Gradle wrapper executable
         run: chmod +x gradlew
-
       - name: Run unit tests
         run: ./gradlew testDebugUnitTest --stacktrace
+      - name: Build debug APK
+        run: ./gradlew assembleDebug --stacktrace
 
+  verify-behavior:
+    needs: stage
+    name: behavior ${{ matrix.layout }} build and tests
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        layout: [mobile, tv]
+    steps:
+      - name: Checkout behavior branch
+        uses: actions/checkout@v4
+        with:
+          ref: rebuild/playback-behavior-improvements
+      - name: Set up Java 17
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+      - name: Set up Android SDK
+        uses: android-actions/setup-android@v3
+      - name: Install Android native toolchain
+        run: |
+          yes | sdkmanager --licenses >/dev/null || true
+          sdkmanager "platforms;android-36" "ndk;26.1.10909125" "cmake;3.22.1"
+      - name: Create local.properties
+        run: |
+          cat > local.properties <<EOF
+          sdk.dir=$ANDROID_HOME
+          APP_LAYOUT=${{ matrix.layout }}
+          TMDB_API_KEY=ci-placeholder
+          SUBDL_API_KEY=ci-placeholder
+          RABBITSTREAM_SOURCE_API=ci-placeholder
+          EOF
+      - name: Add CI-only native placeholder
+        run: |
+          cat > app/src/main/cpp/native-lib.cpp <<'EOF'
+          extern "C" int streamflix_ci_native_stub() { return 0; }
+          EOF
+      - name: Make Gradle wrapper executable
+        run: chmod +x gradlew
+      - name: Run unit tests
+        run: ./gradlew testDebugUnitTest --stacktrace
       - name: Build debug APK
         run: ./gradlew assembleDebug --stacktrace
