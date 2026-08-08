@@ -29,6 +29,7 @@ jobs:
         run: |
           python3 .github/scripts/patch_rebuild_script.py
           python3 .github/scripts/patch_rebuild_spacing.py
+          python3 .github/scripts/patch_rebuild_scope.py
           cp .github/scripts/rebuild_playback_history.py /tmp/rebuild_playback_history.py
           git checkout -- .github/scripts/rebuild_playback_history.py
           python3 /tmp/rebuild_playback_history.py
