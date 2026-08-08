@@ -1,0 +1,4169 @@
+PLAYBACK PROVIDER AUDIT
+=======================
+Provider files with getServers/getVideo implementations: 67
+Provider registrations in Provider.providers: 63
+
+REGISTERED PROVIDERS
+--------------------
+SflixProvider
+SerienStreamProvider
+StreamingCommunityProvider("it")
+StreamingCommunityProvider("en")
+AnimeWorldProvider
+MkissaProvider
+AniWorldProvider
+RidomoviesProvider
+AnikotoProvider
+WiflixProvider
+MStreamProvider
+FrenchAnimeProvider
+FilmPalastProvider
+PoseidonHD2Provider
+CuevanaEuProvider
+LatanimeProvider
+DoramasflixProvider
+CineCalidadProvider
+SeriesFlixProvider
+FlixLatamProvider
+LaCartoonsProvider
+AnimefenixProvider
+AnimeFlvProvider
+AnimeAv1Provider
+AnimeOnlineNinjaProvider
+SoloLatinoProvider
+Cine24hProvider
+PelisplustoProvider
+PelisflixHdProvider
+CableVisionHDProvider
+Altadefinizione01Provider
+GuardaFlixProvider
+CB01Provider
+AnimeUnityProvider
+AnimeSaturnProvider
+FrenchStreamProvider
+GuardaSerieProvider
+EinschaltenProvider
+HDFilmeProvider
+MEGAKinoProvider
+FilmyOnlineCcProvider
+ZeriunProvider
+TvporinternetHDProvider
+FrembedProvider
+KidrazProvider
+FrenchMangaProvider
+IptvOrgProvider
+IptvSpainProvider
+TvLibrefutbolProvider
+PelotaLibreTvHdProvider
+PlutoTvMxProvider
+PlutoTvArProvider
+PlutoTvDeProvider
+PlutoTvEsProvider
+PlutoTvFrProvider
+PlutoTvItProvider
+PlutoTvUsProvider
+CineCityProvider
+VavooProvider("de")
+VavooProvider("it")
+VavooProvider("fr")
+VavooProvider("es")
+VavooProvider("pl")
+
+IMPLEMENTATION SUMMARY
+----------------------
+providers/AfterDarkProvider.kt: servers=plain; video=cached-server-video
+providers/Altadefinizione01Provider.kt: servers=throws,catches,single-fixed-server,stores-src; video=extractor,uses-server-src
+providers/AniWorldProvider.kt: servers=stores-src; video=extractor,uses-server-src
+providers/AnikotoProvider.kt: servers=can-return-empty; video=throws,extractor
+providers/AnimeAv1Provider.kt: servers=can-return-empty,catches,deduplicates; video=extractor
+providers/AnimeBumProvider.kt: servers=can-return-empty,catches; video=throws,extractor
+providers/AnimeFlvProvider.kt: servers=can-return-empty,catches; video=extractor
+providers/AnimeOnlineNinjaProvider.kt: servers=can-return-empty,stores-src; video=extractor,uses-server-src
+providers/AnimeSaturnProvider.kt: servers=catches,stores-src; video=direct-video,uses-server-src
+providers/AnimeUnityProvider.kt: servers=can-return-empty,catches,stores-src; video=uses-server-src
+providers/AnimeWorldProvider.kt: servers=plain; video=extractor,direct-video
+providers/AnimefenixProvider.kt: servers=can-return-empty,catches; video=extractor
+providers/AnyMovieProvider.kt: servers=stores-src; video=extractor,uses-server-src
+providers/CB01Provider.kt: servers=can-return-empty,catches,stores-src; video=extractor,uses-server-src
+providers/CableVisionHDProvider.kt: servers=deduplicates; video=catches,direct-video
+providers/Cine24hProvider.kt: servers=catches,stores-src; video=extractor,uses-server-src
+providers/CineCalidadProvider.kt: servers=catches; video=extractor
+providers/CineCityProvider.kt: servers=can-return-empty,single-fixed-server; video=catches,direct-video
+providers/CuevanaEuProvider.kt: servers=can-return-empty,catches,deduplicates; video=catches,extractor
+providers/DoramasflixProvider.kt: servers=can-return-empty,catches,deduplicates; video=extractor
+providers/EinschaltenProvider.kt: servers=can-return-empty,stores-src; video=uses-server-src
+providers/FilmPalastProvider.kt: servers=stores-src; video=extractor,uses-server-src
+providers/FilmyOnlineCcProvider.kt: servers=can-return-empty,stores-src; video=extractor
+providers/FlixLatamProvider.kt: servers=catches,deduplicates,stores-src; video=throws,extractor
+providers/FrembedProvider.kt: servers=plain; video=extractor,cached-server-video,uses-server-src
+providers/FrenchAnimeProvider.kt: servers=can-return-empty,stores-src; video=extractor,uses-server-src
+providers/FrenchMangaProvider.kt: servers=catches,stores-src; video=extractor,uses-server-src
+providers/FrenchStreamProvider.kt: servers=catches,stores-src; video=extractor,uses-server-src
+providers/GuardaFlixProvider.kt: servers=catches,stores-src; video=extractor,uses-server-src
+providers/GuardaSerieProvider.kt: servers=catches,stores-src; video=extractor,uses-server-src
+providers/HDFilmeProvider.kt: servers=can-return-empty,throws,deduplicates,stores-src; video=extractor,uses-server-src
+providers/HiAnimeProvider.kt: servers=plain; video=extractor
+providers/IptvOrgProvider.kt: servers=can-return-empty,single-fixed-server; video=direct-video
+providers/IptvSpainProvider.kt: servers=can-return-empty,single-fixed-server; video=direct-video
+providers/KidrazProvider.kt: servers=throws,single-fixed-server,stores-src; video=extractor,uses-server-src
+providers/LaCartoonsProvider.kt: servers=catches,stores-src; video=extractor,uses-server-src
+providers/LatanimeProvider.kt: servers=catches; video=extractor
+providers/MEGAKinoProvider.kt: servers=plain; video=extractor
+providers/MStreamProvider.kt: servers=catches,stores-src; video=extractor,uses-server-src
+providers/MkissaProvider.kt: servers=stores-src; video=throws,extractor,direct-video,uses-server-src
+providers/OtakufrProvider.kt: servers=stores-src; video=throws,extractor,uses-server-src
+providers/PelisflixHdProvider.kt: servers=deduplicates,stores-src; video=extractor,uses-server-src
+providers/PelisplustoProvider.kt: servers=can-return-empty,throws,catches,stores-src; video=extractor,uses-server-src
+providers/PelotaLibreTvHdProvider.kt: servers=can-return-empty,catches; video=catches,direct-video
+providers/PlutoTvArProvider.kt: servers=can-return-empty,single-fixed-server; video=direct-video
+providers/PlutoTvDeProvider.kt: servers=can-return-empty,single-fixed-server; video=direct-video
+providers/PlutoTvEsProvider.kt: servers=can-return-empty,single-fixed-server; video=direct-video
+providers/PlutoTvFrProvider.kt: servers=can-return-empty,single-fixed-server; video=direct-video
+providers/PlutoTvItProvider.kt: servers=can-return-empty,single-fixed-server; video=direct-video
+providers/PlutoTvMxProvider.kt: servers=can-return-empty,single-fixed-server; video=direct-video
+providers/PlutoTvUsProvider.kt: servers=can-return-empty,single-fixed-server; video=direct-video
+providers/PoseidonHD2Provider.kt: servers=can-return-empty,catches,stores-src; video=extractor,uses-server-src
+providers/RidomoviesProvider.kt: servers=stores-src; video=extractor,uses-server-src
+providers/SerienStreamProvider.kt: servers=catches; video=extractor
+providers/SeriesFlixProvider.kt: servers=deduplicates,stores-src; video=extractor,uses-server-src
+providers/SflixProvider.kt: servers=throws; video=extractor
+providers/SoloLatinoProvider.kt: servers=catches,deduplicates; video=extractor
+providers/StreamingCommunityProvider.kt: servers=can-return-empty,single-fixed-server,stores-src; video=throws,catches,uses-server-src
+providers/StreamingItaProvider.kt: servers=throws,catches,stores-src; video=extractor
+providers/SuperStreamProvider.kt: servers=plain; video=throws,cached-server-video
+providers/TmdbProvider.kt: servers=catches,deduplicates; video=extractor,cached-server-video,uses-server-src
+providers/TvLibrefutbolProvider.kt: servers=deduplicates; video=catches,direct-video
+providers/TvporinternetHDProvider.kt: servers=deduplicates; video=catches,direct-video
+providers/UnJourUnFilmProvider.kt: servers=stores-src; video=extractor,uses-server-src
+providers/VavooProvider.kt: servers=single-fixed-server; video=throws,direct-video
+providers/WiflixProvider.kt: servers=stores-src; video=extractor,uses-server-src
+providers/ZeriunProvider.kt: servers=deduplicates; video=throws,extractor
+
+FULL SOURCE FUNCTIONS
+---------------------
+
+### providers/AfterDarkProvider.kt
+--- getServers ---
+override suspend fun getServers(id: String, videoType: Video.Type): List<Video.Server> {
+        return AfterDarkExtractor(baseUrl).servers(videoType)
+    }
+--- getVideo ---
+override suspend fun getVideo(server: Video.Server): Video {
+        return server.video!!
+    }
+
+### providers/Altadefinizione01Provider.kt
+--- getServers ---
+override suspend fun getServers(id: String, videoType: Video.Type): List<Video.Server> {
+        if (videoType is Video.Type.Episode) {
+            return try {
+                val showUrl = id.substringBefore('#')
+                val sPart = id.substringAfter('#', "") // format s{season}e{ep}
+                val seasonNum = sPart.substringAfter('s').substringBefore('e').toIntOrNull() ?: 0
+                val epNum = sPart.substringAfter('e').toIntOrNull() ?: 0
+                val doc = service.getPage(showUrl)
+                val results = mutableListOf<Video.Server>()
+
+                try {
+                    val pane = doc.selectFirst("#season-$seasonNum")
+                    val epAnchor = pane?.select("ul > li > a[allowfullscreen][data-link]")
+                        ?.firstOrNull { a ->
+                            val numAttr = a.attr("data-num")
+                            val n = numAttr.substringAfter('x').toIntOrNull() ?: a.text().trim().toIntOrNull() ?: -1
+                            n == epNum
+                        }
+                    
+                    val mirrors = epAnchor?.parent()?.select(".mirrors a[data-link]") ?: emptyList()
+                    mirrors
+                        .filterNot { m -> m.text().contains("4K", true) }
+                        .mapNotNull { m ->
+                            val link = m.attr("data-link").trim()
+                            if (link.isBlank()) return@mapNotNull null
+                            val normalized = when {
+                                link.startsWith("//") -> "https:$link"
+                                link.startsWith("http") -> link
+                                else -> link
+                            }
+                            val name = m.text().trim().ifBlank { "Server" }
+                            Video.Server(id = normalized, name = name, src = normalized)
+                        }.forEach { results.add(it) }
+                } catch (_: Exception) {}
+
+                val vidxgoIframe = doc.selectFirst("iframe#vidxgo-player")
+                if (vidxgoIframe != null) {
+                    val scripts = doc.select("script")
+                    val imdbId = scripts.firstNotNullOfOrNull { script ->
+                        Regex("var\\s+imdb\\s*=\\s*['\"]tt(\\d+)['\"]").find(script.html())?.groupValues?.get(1)
+                    }
+                    if (imdbId != null) {
+                        val vidxgoUrl = "https://v.vidxgo.co/t/$imdbId/$seasonNum/$epNum"
+                        results.add(
+                            Video.Server(
+                                id = vidxgoUrl,
+                                name = "VidxGo",
+                                src = vidxgoUrl
+                            )
+                        )
+                    }
+                }
+                results
+            } catch (_: Exception) { emptyList() }
+        }
+
+        val doc = try { service.getPage(id) } catch (e: Exception) { null } ?: throw Exception("Failed to load page")
+        
+        val guardahdIframe = doc.selectFirst("iframe[src*='guardahd.stream']")
+        if (guardahdIframe != null) {
+            val iframeSrc = guardahdIframe.attr("src")
+            val embedUrl = normalizeUrl(iframeSrc)
+            try {
+                val embedDoc = service.getPage(embedUrl)
+                val servers = embedDoc.select("ul._player-mirrors li[data-link]")
+                    .filterNot { li -> li.hasClass("fullhd") || li.text().contains("4K", true) }
+                    .mapNotNull { li ->
+                        val dataLink = li.attr("data-link").trim()
+                        if (dataLink.isBlank()) return@mapNotNull null
+                        val normalized = when {
+                            dataLink.startsWith("//") -> "https:$dataLink"
+                            dataLink.startsWith("http") -> dataLink
+                            else -> "https://$dataLink"
+                        }
+                        val nameText = li.ownText().ifBlank { li.text() }.trim()
+                        val name = nameText.ifBlank { "Server" }
+                        Video.Server(id = normalized, name = name, src = normalized)
+                    }
+                    .filter { it.src.isNotBlank() }
+                if (servers.isNotEmpty()) return servers
+            } catch (e: Exception) {
+                Log.e("Altadefinizione01", "Error fetching guardahd servers: ${e.message}")
+            }
+        }
+
+        val vidxgoIframe = doc.selectFirst("iframe#vidxgo-player-film")
+        if (vidxgoIframe != null) {
+            val scripts = doc.select("script")
+            val imdbId = scripts.firstNotNullOfOrNull { script ->
+                Regex("var\\s+imdb\\s*=\\s*['\"]tt(\\d+)['\"]").find(script.html())?.groupValues?.get(1)
+            }
+            if (imdbId != null) {
+                val vidxgoUrl = "https://v.vidxgo.co/$imdbId"
+                return listOf(
+                    Video.Server(
+                        id = vidxgoUrl,
+                        name = "VidxGo",
+                        src = vidxgoUrl
+                    )
+                )
+            }
+        }
+
+        throw Exception("Embed iframe not found")
+    }
+--- getVideo ---
+override suspend fun getVideo(server: Video.Server): Video {
+        return Extractor.extract(server.src)
+    }
+
+### providers/AniWorldProvider.kt
+--- getServers ---
+override suspend fun getServers(id: String, videoType: Video.Type): List<Video.Server> {
+        val (tvShowId, seasonId, episodeId) = id.split("/")
+
+        val document = service.getEpisode(tvShowId, seasonId, episodeId)
+
+        val servers = document.select("div.hosterSiteVideo > ul > li").mapNotNull {
+            val redirectUrl = it.selectFirst("a")
+                ?.attr("href")?.let { href -> URL + href }
+                ?: return@mapNotNull null
+
+            val name = it.selectFirst("h4")
+                ?.text()?.let { name ->
+                    name + when (it.attr("data-lang-key")) {
+                        "1" -> " - DUB"
+                        "2" -> " - SUB English"
+                        "3" -> " - SUB"
+                        else -> ""
+                    }
+                }
+                ?: ""
+
+            Video.Server(
+                id = name,
+                name = name,
+                src = redirectUrl,
+            )
+        }
+
+        return servers
+    }
+--- getVideo ---
+override suspend fun getVideo(server: Video.Server): Video {
+        val response = service.getRedirectLink(server.src)
+            .let { response -> response.raw() as okhttp3.Response }
+        val videoUrl = response.request.url
+
+        val link = when (server.name) {
+            "VOE" -> "https://voe.sx${videoUrl.encodedPath}"
+            else -> videoUrl.toString()
+        }
+
+        return Extractor.extract(link)
+    }
+
+### providers/AnikotoProvider.kt
+--- getServers ---
+override suspend fun getServers(id: String, videoType: Video.Type): List<Video.Server> {
+        val (episodeToken, referer) = when (videoType) {
+            is Video.Type.Movie -> {
+                val document = service.getPage(id.toAbsoluteUrl())
+                val firstEpisodeId = getEpisodesBySeason(id.toAbsoluteUrl()).firstOrNull()?.id.orEmpty()
+                firstEpisodeId.substringBefore("|") to firstEpisodeId.substringAfter("|", id.toAbsoluteUrl())
+            }
+            is Video.Type.Episode -> id.substringBefore("|") to id.substringAfter("|", baseUrl)
+        }
+
+        if (episodeToken.isBlank()) return emptyList()
+
+        val response = service.getServers(episodeToken, referer = referer)
+        val document = Jsoup.parse(response.result.orEmpty())
+
+        return document.select(".servers .type").flatMap { type ->
+            val typeName = type.attr("data-type").uppercase()
+            type.select("li[data-link-id]").mapNotNull {
+                val linkId = it.attr("data-link-id").ifBlank { return@mapNotNull null }
+                Video.Server(
+                    id = "$linkId|$referer",
+                    name = listOf(it.text().trim(), typeName)
+                        .filter { part -> part.isNotBlank() }
+                        .joinToString(" - "),
+                )
+            }
+        }
+    }
+--- getVideo ---
+override suspend fun getVideo(server: Video.Server): Video {
+        val linkId = server.id.substringBefore("|")
+        val referer = server.id.substringAfter("|", baseUrl)
+        val link = service.getServerLink(linkId, referer = referer).result?.url
+            ?: throw Exception("Anikoto server did not return a stream page")
+        return Extractor.extract(link.toAbsoluteUrl(), server)
+    }
+
+### providers/AnimeAv1Provider.kt
+--- getServers ---
+override suspend fun getServers(id: String, videoType: Video.Type): List<Video.Server> {
+        return try {
+            val url = "$baseUrl/media/$id"
+            val jsonUrl = "$url/__data.json"
+
+            val response = service.getRaw(jsonUrl)
+            val jsonText = response.body()?.string() ?: return emptyList()
+
+            val servers = mutableListOf<Video.Server>()
+
+            val root = JSONObject(jsonText)
+            val nodes = root.getJSONArray("nodes")
+
+            // Nodo donde vive episode
+            val episodeNode = (0 until nodes.length())
+                .mapNotNull(nodes::optJSONObject)
+                .firstOrNull { node ->
+                    val first = node.optJSONArray("data")?.optJSONObject(0)
+                    first != null &&
+                            first.has("media") &&
+                            first.has("episode") &&
+                            first.has("embeds")
+                } ?: error("Episode data node not found")
+            val dataArray = episodeNode.getJSONArray("data")
+
+            val episodeObj = dataArray.getJSONObject(0)
+            val embedsIndex = episodeObj.getInt("embeds")
+
+            val embeds = dataArray.getJSONObject(embedsIndex)
+
+            val subIndex = embeds.optInt("SUB", -1)
+            val dubIndex = embeds.optInt("DUB", -1)
+
+            fun resolveList(index: Int): JSONArray? {
+                return if (index >= 0) dataArray.optJSONArray(index) else null
+            }
+
+            fun resolveServer(objIndex: Int): Pair<String, String>? {
+                return try {
+                    val obj = dataArray.getJSONObject(objIndex)
+                    val serverName = dataArray.getString(obj.getInt("server"))
+                    val url = dataArray.getString(obj.getInt("url"))
+                    serverName to url
+                } catch (e: Exception) {
+                    null
+                }
+            }
+
+            fun extractFromIndex(index: Int, type: String) {
+                val list = resolveList(index) ?: return
+
+                for (i in 0 until list.length()) {
+                    val objIndex = list.optInt(i, -1)
+                    if (objIndex == -1) continue
+
+                    val result = resolveServer(objIndex) ?: continue
+                    val (name, videoUrl) = result
+
+                    // Omitir servidores que no funcionan correctamente (Mega y MP4Upload)
+                    if (name.contains("Mega", ignoreCase = true)) {
+                        continue
+                    }
+
+                    if (videoUrl.startsWith("http")) {
+                        servers.add(
+                            Video.Server(
+                                id = videoUrl,
+                                name = "$name ($type)"
+                            )
+                        )
+                    }
+                }
+            }
+
+            extractFromIndex(subIndex, "SUB")
+            extractFromIndex(dubIndex, "DUB")
+
+            servers.distinctBy { it.id }
+
+        } catch (e: Exception) {
+            emptyList()
+        }
+    }
+--- getVideo ---
+override suspend fun getVideo(server: Video.Server): Video {
+        return Extractor.extract(server.id, server)
+    }
+
+### providers/AnimeBumProvider.kt
+--- getServers ---
+override suspend fun getServers(id: String, videoType: Video.Type): List<Video.Server> {
+        return try {
+            val url = when (videoType) {
+                is Video.Type.Movie -> {
+                    val moviePage = service.getPage(id)
+                    moviePage.selectFirst("ul.list-episodies li a")?.attr("href") ?: id
+                }
+                is Video.Type.Episode -> id
+            }
+
+            val document = service.getPage(url)
+            val scriptContent = document.selectFirst("script:containsData(var video = [])")?.data() ?: return emptyList()
+
+            val iframeRegex = """video\[\d+\]\s*=\s*['"]<iframe[^>]+src=["']([^"']+)["']""".toRegex()
+            iframeRegex.findAll(scriptContent).mapNotNull { matchResult ->
+                var videoUrl = matchResult.groupValues[1]
+                if (videoUrl.startsWith("//")) {
+                    videoUrl = "https:$videoUrl"
+                }
+
+                val serverName = when {
+                    videoUrl.contains("/players/hime/p/embed.php") -> "Pcloud"
+                    videoUrl.contains("/embed.php?ver=") -> "Amazon Drive"
+                    else -> try {
+                        videoUrl.toHttpUrl().host
+                            .replaceFirst("www.", "")
+                            .substringBefore(".")
+                            .replaceFirstChar { it.titlecase() }
+                    } catch (e: Exception) {
+                        "Servidor"
+                    }
+                }
+
+                Video.Server(id = videoUrl, name = serverName)
+            }.toList()
+        } catch (e: Exception) {
+            emptyList()
+        }
+    }
+--- getVideo ---
+override suspend fun getVideo(server: Video.Server): Video {
+        val videoUrl = when {
+            server.id.contains("/players/hime/p/embed.php") -> {
+                val embedDocument = service.getPage(server.id)
+                val embedScript = embedDocument.select("script").find {
+                    it.data().contains("var shareId")
+                }?.data() ?: throw Exception("No se pudo obtener shareId")
+
+                val codeMatch = Regex("""var shareId\s*=\s*["']([^"']+)["']""").find(embedScript)
+                val code = codeMatch?.groupValues?.get(1) ?: throw Exception("shareId no encontrado")
+
+                "https://u.pcloud.link/publink/show?code=$code"
+            }
+            server.id.contains("/embed.php?ver=") -> {
+                val embedDocument = service.getPage(server.id)
+                val embedScript = embedDocument.select("script").find {
+                    it.data().contains("var shareId")
+                }?.data() ?: throw Exception("No se pudo obtener shareId de Amazon")
+
+                val codeMatch = Regex("""var shareId\s*=\s*["']([^"']+)["']""").find(embedScript)
+                val shareId = codeMatch?.groupValues?.get(1) ?: throw Exception("shareId no encontrado para Amazon Drive")
+
+                "https://www.amazon.com/drive/v1/shares/$shareId"
+            }
+            else -> server.id
+        }
+
+        return Extractor.extract(videoUrl, server)
+    }
+
+### providers/AnimeFlvProvider.kt
+--- getServers ---
+override suspend fun getServers(id: String, videoType: Video.Type): List<Video.Server> {
+        return try {
+            val url = when (videoType) {
+                is Video.Type.Movie -> {
+                    val movieDetailsPage = service.getPage("$baseUrl/anime/$id")
+                    val script = movieDetailsPage.selectFirst("script:containsData(var episodes =)")?.data() ?: return emptyList()
+                    val animeInfoJson = Regex("""var\s+anime_info\s*=\s*(\[[^\]]+])""").find(script)?.groupValues?.get(1)
+                    val animeUri = animeInfoJson?.let { json.decodeFromString<List<String>>(it).getOrNull(2) } ?: ""
+                    "$baseUrl/ver/$animeUri-1"
+                }
+                is Video.Type.Episode -> "$baseUrl/$id"
+            }
+
+            val document = service.getPage(url)
+            val script = document.selectFirst("script:containsData(var videos = {)")?.data() ?: return emptyList()
+            val jsonString = script.substringAfter("var videos =").substringBefore(";").trim()
+            val serverModel = json.decodeFromString<ServerModel>(jsonString)
+
+            serverModel.sub.mapNotNull { sub ->
+                if (sub.code.isNotBlank()) {
+                    Video.Server(
+                        id = sub.code,
+                        name = sub.title ?: "Servidor Desconocido"
+                    )
+                } else {
+                    null
+                }
+            }
+        } catch (e: Exception) {
+            emptyList()
+        }
+    }
+--- getVideo ---
+override suspend fun getVideo(server: Video.Server): Video {
+        return Extractor.extract(server.id, server)
+    }
+
+### providers/AnimeOnlineNinjaProvider.kt
+--- getServers ---
+override suspend fun getServers(id: String, videoType: Video.Type): List<Video.Server> {
+        val pageUrl = when (videoType) {
+            is Video.Type.Movie -> toAbsoluteUrl(id, "/pelicula/")
+            is Video.Type.Episode -> toAbsoluteUrl(id, "/episodio/")
+        }
+
+        val document = runCatching { getDocument(pageUrl) }.getOrNull()
+        val postId = resolvePostId(pageUrl, document, videoType)
+            ?: return emptyList()
+
+        val type = when (videoType) {
+            is Video.Type.Movie -> "movie"
+            is Video.Type.Episode -> "tv"
+        }
+
+        val collected = linkedMapOf<String, Video.Server>()
+        for (source in 1..5) {
+            val apiUrl = "$baseUrl/wp-json/dooplayer/v1/post/$postId?type=$type&source=$source"
+            val json = runCatching { fetchJson(apiUrl) }.getOrNull() ?: continue
+            val embedUrl = json.optString("embed_url").trim()
+            if (embedUrl.isBlank() || !embedUrl.startsWith("http")) continue
+
+            val servers = runCatching { resolveServers(embedUrl, source) }.getOrDefault(emptyList())
+            if (servers.isEmpty()) {
+                collected.putIfAbsent(
+                    embedUrl,
+                    Video.Server(
+                        id = embedUrl,
+                        name = hostLabel(embedUrl, source),
+                        src = embedUrl
+                    )
+                )
+            } else {
+                servers.forEach { server ->
+                    collected.putIfAbsent(server.id, server)
+                }
+            }
+        }
+
+        return prioritizeServers(collected.values.toList())
+    }
+--- getVideo ---
+override suspend fun getVideo(server: Video.Server): Video {
+        return Extractor.extract(server.src.ifBlank { server.id }, server)
+    }
+
+### providers/AnimeSaturnProvider.kt
+--- getServers ---
+override suspend fun getServers(id: String, videoType: Video.Type): List<Video.Server> {
+        return try {
+            val response = service.getEpisodeByUrl(id)
+            val document = Jsoup.parse(response.string())
+            
+            val servers = mutableListOf<Video.Server>()
+            
+            val streamingLink = document.selectFirst("a[href*='watch?file=']")
+            if (streamingLink != null) {
+                val watchUrl = streamingLink.attr("href")
+                
+                val videoResponse = service.getEpisodeByUrl(watchUrl)
+                val videoDocument = Jsoup.parse(videoResponse.string())
+                
+                val videoSource = videoDocument.selectFirst("source[type='video/mp4']")
+                val videoUrl = videoSource?.attr("src")
+                
+                if (videoUrl != null) {
+                    servers.add(
+                        Video.Server(
+                            id = videoUrl,
+                            name = "AnimeSaturn",
+                            src = videoUrl
+                        )
+                    )
+                } else {
+                    val scriptTags = videoDocument.select("script[type*=javascript]")
+                    for (script in scriptTags) {
+                        val scriptData = script.data()
+                        if ("jwplayer" in scriptData && "file" in scriptData) {
+                            val fileRegex = Regex("""file\s*:\s*["']([^"']+)["']""")
+                            val match = fileRegex.find(scriptData)
+                            if (match != null) {
+                                val fileUrl = match.groupValues[1]
+                                servers.add(
+                                    Video.Server(
+                                        id = fileUrl,
+                                        name = "AnimeSaturn",
+                                        src = fileUrl
+                                    )
+                                )
+                                break
+                            }
+                        }
+                    }
+                }
+            }
+            
+            servers
+        } catch (e: Exception) {
+            emptyList()
+        }
+    }
+
+    override suspend fun getPeople(id: String, page: Int): People {
+        return People(id = id, name = "Person $id") // TODO: Implement people functionality
+    }
+
+    override suspend fun getVideo(server: Video.Server): Video {
+        return Video(
+            source = server.src
+        )
+    }
+
+}
+
+--- getVideo ---
+override suspend fun getVideo(server: Video.Server): Video {
+        return Video(
+            source = server.src
+        )
+    }
+
+### providers/AnimeUnityProvider.kt
+--- getServers ---
+override suspend fun getServers(id: String, videoType: Video.Type): List<Video.Server> {
+        return try {
+            
+            val episodeNumber = if (videoType is Video.Type.Episode) {
+                videoType.number
+            } else {
+                1
+            }
+            
+            val animeIdFull = if (id.contains("/")) {
+                id.split("/")[0]
+            } else {
+                id
+            }
+            val animeIdClean = animeIdFull.split("-")[0]
+            
+            val document = service.getAnime(animeIdFull)
+            val videoPlayer = document.selectFirst("video-player")
+            if (videoPlayer == null) {
+                return emptyList()
+            }
+            
+            val episodesCount = videoPlayer.attr("episodes_count").toIntOrNull() ?: 0
+            
+            var embedUrl = ""
+            
+            val isMovie = videoType !is Video.Type.Episode
+            
+            if (isMovie || episodeNumber == 1) {
+                embedUrl = videoPlayer.attr("embed_url")
+            } else {
+                val targetEpisode = if (episodesCount <= 120) {
+                    val episodesData = videoPlayer.attr("episodes")
+                    if (episodesData.isEmpty()) {
+                        return emptyList()
+                    }
+                    
+                    val decodedEpisodes = java.net.URLDecoder.decode(episodesData, "UTF-8")
+                    val episodesJson = org.json.JSONArray(decodedEpisodes)
+                    
+                    var foundEpisode: org.json.JSONObject? = null
+                    for (i in 0 until episodesJson.length()) {
+                        val episode = episodesJson.getJSONObject(i)
+                        val episodeNumberStr = episode.optString("number", "")
+                        
+                        val episodeMatches = if (episodeNumberStr.contains("-")) {
+                            val firstNumber = episodeNumberStr.split("-")[0].toIntOrNull() ?: 0
+                            firstNumber == episodeNumber
+                        } else {
+                            episode.optInt("number", 0) == episodeNumber
+                        }
+                        
+                        if (episodeMatches) {
+                            foundEpisode = episode
+                            break
+                        }
+                    }
+                    foundEpisode
+                } else {
+                    val foundEpisode = findEpisodeInPaginatedData(animeIdClean, episodeNumber, episodesCount)
+                    foundEpisode
+                }
+                
+                if (targetEpisode == null) {
+                    return emptyList()
+                }
+                
+                val episodeId = targetEpisode.optString("id", "")
+                if (episodeId.isEmpty()) {
+                    return emptyList()
+                }
+                
+                val embedDocument = service.getEmbedUrl(episodeId)
+                embedUrl = embedDocument.text().trim()
+            }
+            
+            if (embedUrl.isNotEmpty()) {
+                listOf(Video.Server(
+                    id = id,
+                    name = "Vixcloud",
+                    src = embedUrl
+                ))
+            } else {
+                emptyList()
+            }
+            
+        } catch (e: Exception) {
+            emptyList()
+        }
+    }
+--- getVideo ---
+override suspend fun getVideo(server: Video.Server): Video {
+        return VixcloudExtractor().extract(server.src)
+    }
+
+### providers/AnimeWorldProvider.kt
+--- getServers ---
+override suspend fun getServers(id: String, videoType: Video.Type): List<Video.Server> {
+        val split = id.split("/")
+        val showId = split[0]
+        val document = withSslFallback { it.getDetails(showId) }
+
+        // episode main id
+        val episodeId = when (videoType) {
+            is Video.Type.Movie -> {
+                val awServer = document.select("#animeId > div.widget-body > div[data-id=\"9\"] a")
+                                .firstOrNull()?.attr("data-episode-id") ?: ""
+
+                if (awServer != "")
+                    awServer
+                else {
+                    // streamtape as backup
+                    document.select("#animeId > div.widget-body > div[data-id=\"8\"] a")
+                        .firstOrNull()?.attr("data-episode-id") ?: ""
+                }
+            }
+            is Video.Type.Episode -> if (split.size > 1) split[1] else ""
+        }
+
+        return document.select("#animeId div.widget-body div.server").map {
+            Video.Server (
+                id = it.selectFirst("a[data-episode-id=\"$episodeId\"]")?.attr("data-id") ?: "",
+                name = when (it.attr("data-id")) {
+                    "9" -> "AnimeWorld Server"
+                    "8" -> "Streamtape"
+                    else -> ""
+                }
+            )
+        }.filter { it.id.isNotEmpty() }
+    }
+--- getVideo ---
+override suspend fun getVideo(server: Video.Server): Video {
+        val link = withSslFallback { it.getLink(server.id, 0) }
+
+        if (server.name == "Streamtape")
+            return Extractor.extract(link.grabber.substringBeforeLast("/"))
+
+        return Video(
+            source = link.grabber,
+            subtitles = listOf()
+        )
+    }
+
+### providers/AnimefenixProvider.kt
+--- getServers ---
+override suspend fun getServers(id: String, videoType: Video.Type): List<Video.Server> {
+        return try {
+            val url = if (videoType is Video.Type.Movie) {
+                val moviePage = service.getPage(id)
+                moviePage.selectFirst(".divide-y li > a")?.attr("href") ?: id
+            } else {
+                id
+            }
+
+            val document = service.getPage(url)
+            val script = document.selectFirst("script:containsData(var tabsArray)") ?: return emptyList()
+
+            val names = document.select(".episode-page__servers-list li a").map { a ->
+                a.select("span").last()?.text()?.trim().orEmpty()
+            }
+
+            val urls = script.data()
+                .substringAfter("<iframe").split("src='")
+                .drop(1)
+                .map { it.substringBefore("'").substringAfter("redirect.php?id=").trim() }
+
+            val count = minOf(urls.size, names.size)
+            val servers = (0 until count).mapNotNull { i ->
+                val name = names[i].ifBlank { return@mapNotNull null }
+                val urlValue = urls[i]
+                Video.Server(id = urlValue, name = name)
+            }
+
+            servers
+        } catch (e: Exception) {
+            emptyList()
+        }
+    }
+--- getVideo ---
+override suspend fun getVideo(server: Video.Server): Video {
+        return Extractor.extract(server.id, server)
+    }
+
+### providers/AnyMovieProvider.kt
+--- getServers ---
+override suspend fun getServers(id: String, videoType: Video.Type): List<Video.Server> {
+        val document = when (videoType) {
+            is Video.Type.Movie -> service.getMovie(id)
+            is Video.Type.Episode -> service.getEpisode(id)
+        }
+
+        val servers = document.select("aside.options li").mapIndexed { index, it ->
+            Video.Server(
+                id = it.attr("data-id"),
+                name = it.selectFirst("span.option")?.text() ?: "",
+                src = document.selectFirst("div.player div.fg${index + 1}")
+                    ?.selectFirst("iframe")
+                    ?.attr("src")
+                    ?: "",
+            )
+        }
+
+        return servers
+    }
+--- getVideo ---
+override suspend fun getVideo(server: Video.Server): Video {
+        val link = if (server.src.contains("trembed")) {
+            service.getLink(server.src)
+                .selectFirst("body iframe")
+                ?.attr("src")
+                ?: ""
+        } else {
+            server.src
+        }
+
+        return Extractor.extract(link)
+    }
+
+### providers/CB01Provider.kt
+--- getServers ---
+override suspend fun getServers(id: String, videoType: Video.Type): List<Video.Server> {
+        return when (videoType) {
+            is Video.Type.Movie -> {
+                val doc = service.getPage(id)
+
+                val servers3D = mutableListOf<Video.Server>()
+                val hdServers = mutableListOf<Video.Server>()
+                val sdServers = mutableListOf<Video.Server>()
+                var includeLinks = false
+                var inHdSection = false
+                var in3dSection = false
+
+                for (tbl in doc.select("table.tableinside, table.cbtable")) {
+                    val heading = tbl.selectFirst("u > strong")?.text()?.trim()?.lowercase()
+                    if (heading != null) {
+                        includeLinks = heading.startsWith("streaming")
+                        inHdSection = heading.startsWith("streaming hd")
+                        in3dSection = heading.startsWith("streaming 3d")
+                        if (heading.startsWith("download")) includeLinks = false
+                        continue
+                    }
+
+                    if (!includeLinks || !tbl.hasClass("tableinside")) continue
+
+                    for (a in tbl.select("a[href]")) {
+                        val href = a.attr("href").trim()
+                        if (href.isBlank()) continue
+                        val baseName = a.text().trim().ifBlank { "Server" }
+                        val normalized = href
+                        val lowerName = baseName.lowercase()
+                        if (!lowerName.contains("mixdrop") && !lowerName.contains("maxstream")) continue
+                        if (lowerName.contains("maxstream") && !normalized.contains("uprot.net", ignoreCase = true) && !normalized.contains("stayonline.pro", ignoreCase = true)) continue
+
+                        fun addServer(finalUrl: String) {
+                            val labeled = when {
+                                in3dSection && !baseName.endsWith("3D", true) -> "$baseName 3D"
+                                inHdSection && !baseName.endsWith("HD", true) -> "$baseName HD"
+                                else -> baseName
+                            }
+                            val server = Video.Server(id = finalUrl, name = labeled, src = finalUrl)
+                            when {
+                                in3dSection -> servers3D.add(server)
+                                inHdSection -> hdServers.add(server)
+                                else -> sdServers.add(server)
+                            }
+                        }
+
+                        if (normalized.contains("stayonline.pro", ignoreCase = true)) {
+                            val stayId = Regex("/l/([A-Za-z0-9]+)/?").find(normalized)?.groupValues?.getOrNull(1)
+                            if (!stayId.isNullOrBlank()) {
+                                try {
+                                    val resp = stayService.postAjax(
+                                        url = "https://stayonline.pro/ajax/linkEmbedView.php",
+                                        id = stayId,
+                                        ref = "",
+                                        userAgent = DEFAULT_USER_AGENT,
+                                        referer = "https://stayonline.pro/"
+                                    )
+                                    val body = resp.body()?.string().orEmpty()
+                                    val stayUrl = try {
+                                        val json = JSONObject(body)
+                                        if (json.optString("status").equals("success", ignoreCase = true)) {
+                                            json.optJSONObject("data")?.optString("value")?.takeIf { it.isNotBlank() }
+                                        } else null
+                                    } catch (_: Exception) { null }
+
+                                    if (!stayUrl.isNullOrBlank()) {
+                                        if (lowerName.contains("mixdrop")) {
+                                            addServer(stayUrl)
+                                        } else if (lowerName.contains("maxstream")) {
+                                            val finalMaxstream = resolveMaxstreamUrl(stayUrl, isStayOnline = true)
+                                            if (!finalMaxstream.isNullOrBlank()) {
+                                                addServer(finalMaxstream)
+                                            }
+                                        }
+                                    }
+                                } catch (_: Exception) { }
+                            }
+                        } else if (normalized.contains("uprot.net", ignoreCase = true)) {
+                            val finalMaxstream = resolveMaxstreamUrl(normalized, isStayOnline = false)
+                            if (!finalMaxstream.isNullOrBlank()) {
+                                addServer(finalMaxstream)
+                            }
+                        } else {
+                            addServer(normalized)
+                        }
+                    }
+                }
+
+                hdServers + sdServers + servers3D
+            }
+            is Video.Type.Episode -> {
+                if (id.contains("#epUrl=")) {
+                    val watchUrl = id.substringAfter("#epUrl=")
+                    val servers = mutableListOf<Video.Server>()
+                    val finalMaxstream = resolveMaxstreamUrl(watchUrl, isStayOnline = watchUrl.contains("stayonline.pro"))
+                    if (!finalMaxstream.isNullOrBlank()) {
+                        servers.add(Video.Server(id = finalMaxstream, name = "Maxstream", src = finalMaxstream))
+                    } else {
+                        servers.add(Video.Server(id = watchUrl, name = "Maxstream", src = watchUrl))
+                    }
+                    return servers
+                }
+
+                val showId = id.substringBefore("#s")
+                val part = id.substringAfter("#s")
+                val seasonNum = part.substringBefore("-e").toIntOrNull() ?: return emptyList()
+                val episodeNum = part.substringAfter("-e").toIntOrNull() ?: return emptyList()
+
+                val doc = service.getPage(showId)
+                val wrap = doc.select("div.sp-wrap").firstOrNull { w ->
+                    val head = w.selectFirst("div.sp-head")?.text()?.trim().orEmpty()
+                    head.contains(Regex("STAGIONE\\s+$seasonNum", RegexOption.IGNORE_CASE))
+                } ?: return emptyList()
+                val body = wrap.selectFirst("div.sp-body") ?: return emptyList()
+
+                val line = body.select("p").firstOrNull { para ->
+                    val text = para.text().trim()
+                    Regex("(\\d+)[x×](\\d+)").find(text)?.groupValues?.getOrNull(2)?.toIntOrNull() == episodeNum
+                } ?: return emptyList()
+
+                val servers = mutableListOf<Video.Server>()
+                for (a in line.select("a[href]")) {
+                    val href = a.attr("href").trim()
+                    val name = a.text().trim().lowercase()
+                    if (href.isBlank() || (!name.contains("mixdrop") && !name.contains("maxstream"))) continue
+
+                    if (href.contains("stayonline.pro", ignoreCase = true)) {
+                        val stayId = Regex("/l/([A-Za-z0-9]+)/?").find(href)?.groupValues?.getOrNull(1)
+                        if (!stayId.isNullOrBlank()) {
+                            try {
+                                val resp = stayService.postAjax(
+                                    url = "https://stayonline.pro/ajax/linkEmbedView.php",
+                                    id = stayId,
+                                    ref = "",
+                                    userAgent = DEFAULT_USER_AGENT,
+                                    referer = "https://stayonline.pro/"
+                                )
+                                val body = resp.body()?.string().orEmpty()
+                                val targetUrl = try {
+                                    val json = JSONObject(body)
+                                    if (json.optString("status").equals("success", ignoreCase = true)) {
+                                        json.optJSONObject("data")?.optString("value")?.takeIf { it.isNotBlank() }
+                                    } else null
+                                } catch (_: Exception) { null }
+
+                                if (!targetUrl.isNullOrBlank()) {
+                                    if (name.contains("mixdrop")) {
+                                        servers.add(Video.Server(id = targetUrl, name = "Mixdrop", src = targetUrl))
+                                    } else if (name.contains("maxstream")) {
+                                        val finalMaxstream = resolveMaxstreamUrl(targetUrl, isStayOnline = true)
+                                        if (!finalMaxstream.isNullOrBlank()) {
+                                            servers.add(Video.Server(id = finalMaxstream, name = "Maxstream", src = finalMaxstream))
+                                        }
+                                    }
+                                }
+                            } catch (_: Exception) { }
+                        }
+                    } else if (name.contains("maxstream") || href.contains("uprot.net", ignoreCase = true)) {
+                        val finalMaxstream = resolveMaxstreamUrl(href, isStayOnline = false)
+                        if (!finalMaxstream.isNullOrBlank()) {
+                            servers.add(Video.Server(id = finalMaxstream, name = "Maxstream", src = finalMaxstream))
+                        }
+                    } else {
+                        servers.add(Video.Server(id = href, name = if (name.contains("mixdrop")) "Mixdrop" else "Server", src = href))
+                    }
+                }
+
+                servers
+            }
+        }
+    }
+--- getVideo ---
+override suspend fun getVideo(server: Video.Server): Video {
+        return Extractor.extract(server.src, server)
+    }
+
+### providers/CableVisionHDProvider.kt
+--- getServers ---
+override suspend fun getServers(id: String, videoType: Video.Type): List<Video.Server> = try {
+        val doc = service.getPage(id)
+        val servers = mutableListOf<Video.Server>()
+
+        doc.select("a").forEach { link ->
+            val text = link.text().trim()
+            val href = link.attr("abs:href").ifEmpty { link.attr("href") }
+            if (href.isNotEmpty() && (text.contains("Opción", true) || text.contains("Servidor", true) || text.contains("FHD", true))) {
+                val finalUrl = if (href.startsWith("http")) href else "$baseUrl/${href.removePrefix("/")}"
+                servers.add(Video.Server(finalUrl, text))
+            }
+        }
+
+        if (servers.isEmpty() && doc.select("iframe").isNotEmpty()) {
+            servers.add(Video.Server(id, "Reproductor Automático"))
+        }
+
+        servers.distinctBy { it.id }
+    }
+--- getVideo ---
+override suspend fun getVideo(server: Video.Server): Video {
+        var currentUrl = server.id
+        var currentReferer = baseUrl
+        var depth = 0
+
+        val patterns = listOf(
+            Regex("""["'](https?://[^"']+\.m3u8[^"']*)["']"""),
+            Regex("""source\s*:\s*["']([^"']+)["']"""),
+            Regex("""file\s*:\s*["']([^"']+)["']"""),
+            Regex("""var\s+src\s*=\s*["']([^"']+)["']"""),
+            Regex("""["'](https?://[^"']+\.mp4[^"']*)["']"""),
+            Regex("""src\s*:\s*["']([^"']+)["']""")
+        )
+
+        while (depth < 6) {
+            depth++
+            try {
+                val doc = service.getPage(currentUrl, currentReferer)
+                val html = doc.html()
+
+                for (pattern in patterns) {
+                    pattern.find(html)?.let { match ->
+                        val foundUrl = match.groupValues[1].replace("\\/", "/")
+                        if (foundUrl.startsWith("http")) {
+                            return Video(foundUrl, headers = mapOf("Referer" to currentUrl, "User-Agent" to USER_AGENT))
+                        }
+                    }
+                }
+
+                doc.select("script").forEach { script ->
+                    val scriptData = script.data()
+                    if (scriptData.contains("eval(function")) {
+                        val unpacked = JsUnpacker(scriptData).unpack() ?: ""
+                        for (pattern in patterns) {
+                            pattern.find(unpacked)?.let { match ->
+                                val foundUrl = match.groupValues[1].replace("\\/", "/")
+                                if (foundUrl.startsWith("http")) {
+                                    return Video(foundUrl, headers = mapOf("Referer" to currentUrl, "User-Agent" to USER_AGENT))
+                                }
+                            }
+                        }
+                    }
+                }
+
+                if (html.contains("const decodedURL") || html.contains("atob(")) {
+                    doc.select("script").forEach { s ->
+                        val data = s.data()
+                        if (data.contains("atob(")) {
+                            try {
+                                val enc = data.substringAfter("atob(\"").substringBefore("\")")
+                                var dec = String(Base64.decode(enc, Base64.DEFAULT))
+                                repeat(2) {
+                                    if (dec.contains("atob(")) {
+                                        val innerEnc = dec.substringAfter("atob(\"").substringBefore("\")")
+                                        dec = String(Base64.decode(innerEnc, Base64.DEFAULT))
+                                    } else if (!dec.startsWith("http")) {
+                                        try { dec = String(Base64.decode(dec, Base64.DEFAULT)) } catch (_: Exception) {}
+                                    }
+                                }
+                                if (dec.startsWith("http")) {
+                                    return Video(dec, headers = mapOf("Referer" to currentUrl, "User-Agent" to USER_AGENT))
+                                }
+                            } catch (_: Exception) {}
+                        }
+                    }
+                }
+
+                val iframes = doc.select("iframe")
+                val nextIframe = iframes.firstOrNull { it.attr("src").isNotEmpty() }?.attr("src")
+                    ?: iframes.firstOrNull { it.attr("data-src").isNotEmpty() }?.attr("data-src") ?: ""
+
+                if (nextIframe.isNotEmpty() && nextIframe != currentUrl) {
+                    currentReferer = currentUrl
+                    currentUrl = if (nextIframe.startsWith("http")) nextIframe else "$baseUrl/${nextIframe.removePrefix("/")}"
+                } else {
+                    break
+                }
+            } catch (e: Exception) { break }
+        }
+        return Video("", emptyList())
+    }
+
+### providers/Cine24hProvider.kt
+--- getServers ---
+override suspend fun getServers(id: String, videoType: Video.Type): List<Video.Server> = try {
+        val fullUrl = if (id.startsWith("http")) id else if (videoType is Video.Type.Movie) "$baseUrl/peliculas/$id" else "$baseUrl/series/$id"
+        val doc = getDocument(fullUrl)
+        val serverElements = doc.select("ul.optnslst li[data-src], .optnslst li")
+        
+        coroutineScope {
+            serverElements.map { el ->
+                async {
+                    val info = el.selectFirst("button")?.text()?.replace(el.selectFirst(".nmopt")?.text() ?: "", "")?.trim() ?: ""
+                    val dataSrc = el.attr("data-src")
+                    val decoded = if (dataSrc.isNotEmpty()) {
+                        try { String(Base64.decode(dataSrc, Base64.DEFAULT)) } catch(_:Exception) { "" }
+                    } else ""
+                    if (decoded.isBlank()) return@async null
+                    
+                    try {
+                        val finalUrl = getIframeOptimized(decoded) ?: return@async null
+                        Video.Server(
+                            id = finalUrl, 
+                            name = "${finalUrl.toHttpUrl().host.replace("www.", "").substringBefore(".")} ($info)", 
+                            src = finalUrl
+                        )
+                    } catch (_: Exception) { null }
+                }
+            }.mapNotNull { it.await() }
+        }
+    }
+--- getVideo ---
+override suspend fun getVideo(server: Video.Server): Video = Extractor.extract(server.src, server)
+
+### providers/CineCalidadProvider.kt
+--- getServers ---
+override suspend fun getServers(id: String, videoType: Video.Type): List<Video.Server> {
+        return try {
+            val document = service.getPage(id)
+
+            document.select("#playeroptionsul li[data-option]")
+                .filterNot { element ->
+                    // Exclude trailer option
+                    element.hasClass("dooplay_player_option_trailer") || 
+                    element.text().contains("trailer", ignoreCase = true)
+                }
+                .map { element ->
+                    val serverUrl = element.attr("data-option")
+                    val serverName = element.text()
+
+                    Video.Server(
+                        id = serverUrl,
+                        name = "$serverName [LAT]"
+                    )
+                }
+        } catch (e: Exception) {
+            emptyList()
+        }
+    }
+--- getVideo ---
+override suspend fun getVideo(server: Video.Server): Video {
+        return Extractor.extract(server.id, server)
+    }
+
+### providers/CineCityProvider.kt
+--- getServers ---
+override suspend fun getServers(id: String, videoType: Video.Type): List<Video.Server> {
+        if (id == "creador-info" || id == "apoyo-nando") return emptyList()
+        return listOf(Video.Server(id = id, name = "CineCity Stream"))
+    }
+--- getVideo ---
+override suspend fun getVideo(server: Video.Server): Video {
+        val (url, _, _) = decodeId(server.id)
+        val meta = getMetadataFromId(server.id)
+
+        Log.d(TAG, "🎬 Solicitando Reproducción: $url")
+
+        val videoHeaders = mutableMapOf<String, String>()
+        meta["ua"]?.let { videoHeaders["User-Agent"] = it }
+        meta["referer"]?.let { videoHeaders["Referer"] = it }
+
+        return try {
+            val checkRequest = Request.Builder()
+                .url(url)
+                .apply { videoHeaders.forEach { (k, v) -> addHeader(k, v) } }
+                .build()
+
+            val response = client.newCall(checkRequest).execute()
+            var isAlive = response.isSuccessful
+
+
+            if (isAlive) {
+                val contentType = response.header("Content-Type") ?: ""
+                if (contentType.contains("text/html", ignoreCase = true)) {
+                    isAlive = false
+                    Log.e(TAG, "🔴 Falso Positivo: El servidor devolvió una página web (HTML), no un video.")
+                } else if (url.contains(".mpd") || url.contains(".m3u8")) {
+                    // Aumentamos la visión a 15KB para escanear en profundidad sin descargar todo el archivo
+                    val peekBody = response.peekBody(15360).string()
+
+                    if (url.contains(".mpd")) {
+                        if (!peekBody.contains("<MPD", ignoreCase = true)) {
+                            isAlive = false
+                            Log.e(TAG, "🔴 MPD Falso: No contiene etiqueta XML.")
+                        } else if (peekBody.contains("ContentProtection", ignoreCase = true) || peekBody.contains("cenc:pssh", ignoreCase = true)) {
+                            // ☠️ AQUÍ ATRAPAMOS AL CULPABLE DE TUS CRASHES
+                            isAlive = false
+                            Log.e(TAG, "🔴 ALERTA DRM: MPD Encriptado detectado. ExoPlayer crashearía sin llaves. ¡Activando Salvavidas!")
+                        }
+                    } else if (url.contains(".m3u8") && !peekBody.contains("#EXTM3U", ignoreCase = true)) {
+                        isAlive = false
+                        Log.e(TAG, "🔴 M3U8 Falso: No contiene la cabecera válida.")
+                    }
+                }
+            }
+            response.close()
+
+            if (isAlive) {
+                Log.d(TAG, "🟢 Explorador OK. Limpio de DRM. Enviando al reproductor.")
+                Video(
+                    source = url,
+                    subtitles = emptyList(),
+                    headers = if (videoHeaders.isNotEmpty()) videoHeaders else null
+                )
+            } else {
+                Log.e(TAG, "🔴 Canal Muerto o Encriptado. ¡Activando Video Salvavidas!")
+                Video(source = FALLBACK_VIDEO_URL, subtitles = emptyList())
+            }
+        } catch (e: Exception) {
+            Log.e(TAG, "🔴 Timeout de Red o Error Grave. ¡Activando Video Salvavidas! Detalle: ${e.message}")
+            Video(source = FALLBACK_VIDEO_URL, subtitles = emptyList())
+        }
+    }
+
+### providers/CuevanaEuProvider.kt
+--- getServers ---
+override suspend fun getServers(id: String, videoType: Video.Type): List<Video.Server> {
+        return try {
+            val postId = when (videoType) {
+                is Video.Type.Movie -> getFastApi<FastApiSinglePost>(
+                    path = "/single/movies",
+                    params = mapOf(
+                        "slug" to extractSlug(id),
+                        "postType" to "movies",
+                    )
+                )?._id
+                is Video.Type.Episode -> {
+                    val directEpisode = getFastApi<FastApiEpisodeSingleData>(
+                        path = "/single/episodes",
+                        params = mapOf(
+                            "slug" to extractSlug(id),
+                            "postType" to "episodes",
+                        )
+                    )?.episode?._id
+
+                    directEpisode ?: run {
+                        val tvShowSlug = extractSlug(videoType.tvShow.id)
+                        val showPostType = getCuevanaShowPostType(videoType.tvShow.id)
+                        val tvShow = getFastApi<FastApiSinglePost>(
+                            path = "/single/$showPostType",
+                            params = mapOf(
+                                "slug" to tvShowSlug,
+                                "postType" to showPostType,
+                            )
+                        )
+                        val episode = tvShow?._id?.let { tvShowPostId ->
+                            getFastApi<FastApiEpisodeListData>(
+                                path = "/single/episodes/list",
+                                params = mapOf(
+                                    "_id" to tvShowPostId.toString(),
+                                    "season" to videoType.season.number.toString(),
+                                    "page" to "1",
+                                    "postsPerPage" to "100",
+                                )
+                            )?.posts?.firstOrNull {
+                                it.season_number == videoType.season.number && it.episode_number == videoType.number
+                            }
+                        }
+                        episode?._id
+                    }
+                }
+            } ?: return emptyList()
+
+            val playerData = getFastApi<FastApiPlayerData>(
+                path = "/player",
+                params = mapOf(
+                    "postId" to postId.toString(),
+                    "demo" to "0",
+                )
+            ) ?: return emptyList()
+
+            playerData.embeds
+                .map { entry ->
+                    Video.Server(
+                        id = entry.url,
+                        name = buildCuevanaServerName(entry)
+                    )
+                }
+                .distinctBy { it.id }
+        } catch (e: Exception) {
+            Log.e(TAG, "getServers error: ${e.message}", e)
+            emptyList()
+        }
+    }
+--- getVideo ---
+override suspend fun getVideo(server: Video.Server): Video {
+        var finalUrl = server.id
+        if (finalUrl.contains("/player.php?")) {
+            try {
+                val html = withContext(Dispatchers.IO) {
+                    client.newCall(Request.Builder().url(finalUrl).build()).execute().use { it.body?.string() }
+                } ?: ""
+                val iframeUrl = Regex("""<iframe[^>]+src="([^"]+)"""", RegexOption.IGNORE_CASE)
+                    .find(html)
+                    ?.groupValues
+                    ?.getOrNull(1)
+                if (!iframeUrl.isNullOrBlank()) {
+                    finalUrl = iframeUrl
+                }
+            } catch (e: Exception) {
+                Log.e(TAG, "getVideo iframe unwrap error: ${e.message}")
+            }
+        }
+        if (finalUrl.contains("app.mysync.mov/stream/")) {
+            try {
+                val html = withContext(Dispatchers.IO) {
+                    client.newCall(Request.Builder().url(finalUrl).build()).execute().use { it.body?.string() }
+                } ?: ""
+                val redirectUrl = html.substringAfter("window.location.replace(\"", "").substringBefore("\"")
+                if (redirectUrl.isNotEmpty()) {
+                    finalUrl = redirectUrl
+                }
+            } catch (e: Exception) {
+                Log.e(TAG, "getVideo redirect error: ${e.message}")
+            }
+        }
+        return Extractor.extract(finalUrl, server)
+    }
+
+### providers/DoramasflixProvider.kt
+--- getServers ---
+override suspend fun getServers(id: String, videoType: Video.Type): List<Video.Server> {
+        try {
+            val url = when (videoType) {
+                is Video.Type.Movie -> "$baseUrl/$id"
+                is Video.Type.Episode -> "$baseUrl/episodios/$id"
+            }
+
+            val document = serviceHtml.getPage(url)
+            val script = document.selectFirst("script#__NEXT_DATA__")?.data()
+                ?: return emptyList()
+
+            val jsonObject = JsonParser.parseString(script).asJsonObject
+            val apolloState = jsonObject.getAsJsonObject("props")
+                .getAsJsonObject("pageProps")
+                .getAsJsonObject("apolloState")
+
+            val mediaData = apolloState.entrySet().firstOrNull { (key, _) ->
+                key.startsWith("Episode:") || key.startsWith("Movie:")
+            }?.value?.asJsonObject
+
+            val linksOnline = mediaData?.getAsJsonObject("links_online")?.getAsJsonArray("json")
+
+            if (linksOnline != null && linksOnline.size() > 0) {
+                return linksOnline.mapNotNull { serverElement ->
+                    val serverObject = serverElement.asJsonObject
+                    val serverUrl = serverObject.get("link")?.asString ?: return@mapNotNull null
+                    val lang = serverObject.get("lang")?.asString?.getLang() ?: ""
+                    val serverName = URL(serverUrl).host.split(".").first { it != "www" }.replaceFirstChar { it.titlecase(Locale.ROOT) }
+
+                    val finalUrl = getRealLink(serverUrl)
+                    Video.Server(id = finalUrl, name = "$serverName $lang".trim())
+                }
+            }
+
+            val problems = apolloState.entrySet()
+                .filter { (key, _) -> key.startsWith("ROOT_QUERY.listProblems") }
+                .map { it.value }
+
+            return problems.mapNotNull { problemElement ->
+                val serverData = problemElement.asJsonObject
+                    .getAsJsonObject("server")
+                    ?.getAsJsonObject("json")
+
+                val serverUrl = serverData?.get("link")?.asString ?: return@mapNotNull null
+                val lang = serverData.get("lang")?.asString?.getLang() ?: ""
+                val serverName = URL(serverUrl).host.split(".").first { it != "www" }.replaceFirstChar { it.titlecase(Locale.ROOT) }
+
+                val finalUrl = getRealLink(serverUrl)
+                Video.Server(id = finalUrl, name = "$serverName $lang".trim())
+            }.distinctBy { it.id }
+
+        } catch (e: Exception) {
+            return emptyList()
+        }
+    }
+--- getVideo ---
+override suspend fun getVideo(server: Video.Server): Video = Extractor.extract(server.id, server)
+    override val logo: String = "https://doramasflix.in/img/logo.png"
+
+    override suspend fun getGenre(id: String, page: Int): Genre {
+        val list: List<Show> = when (id) {
+            "peliculas" -> getMovies(page)
+            "variedades" -> {
+                val query = """
+                    {"operationName":"listDoramas","variables":{"page":$page,"sort":"CREATEDAT_DESC","perPage":32,"filter":{"isTVShow":true}},"query":"query listDoramas(${'$'}page: Int, ${'$'}perPage: Int, ${'$'}sort: SortFindManyDoramaInput, ${'$'}filter: FilterFindManyDoramaInput) {\n  paginationDorama(page: ${'$'}page, perPage: ${'$'}perPage, sort: ${'$'}sort, filter: ${'$'}filter) {\n    items {\n      _id\n      name\n      name_es\n      slug\n      poster_path\n      poster\n      __typename\n    }\n  }\n}\n"}
+                """.trimIndent()
+                val body = query.toRequestBody("application/json".toMediaType())
+                val response = service.getApiResponse(body)
+                response.data?.paginationDorama?.items?.map {
+                    TvShow(
+                        id = it.slug,
+                        title = "${it.name} (${it.nameEs ?: ""})".trim(),
+                        poster = getPosterUrl(it.posterPath ?: it.poster)
+                    )
+                } ?: emptyList()
+            }
+            else -> getTvShows(page)
+        }
+        return Genre(id = id, name = id.replaceFirstChar { it.uppercase() }, shows = list)
+    }
+
+### providers/EinschaltenProvider.kt
+--- getServers ---
+override suspend fun getServers(id: String, videoType: Video.Type): List<Video.Server> {
+        return when (videoType) {
+            is Video.Type.Movie -> {
+                val responseBody = service.getWatch(id)
+                val body = responseBody.string()
+                val json = JSONObject(body)
+                val streamUrl = json.optString("streamUrl", "").trim()
+
+                if (streamUrl.isBlank()) {
+                    return emptyList()
+                }
+
+                listOf(
+                    Video.Server(
+                        id = streamUrl,
+                        name = "DoodStream",
+                        src = streamUrl
+                    )
+                )
+            }
+            is Video.Type.Episode -> {
+                emptyList()
+            }
+        }
+    }
+--- getVideo ---
+override suspend fun getVideo(server: Video.Server): Video {
+        return DoodLaExtractor().extract(server.src)
+    }
+
+### providers/FilmPalastProvider.kt
+--- getServers ---
+override suspend fun getServers(id: String, videoType: Video.Type): List<Video.Server> {
+        val relativeId = BASE_URL + "stream/" + id;
+        val document = service.getMoviePage(relativeId)
+        val servers = mutableListOf<Video.Server>()
+
+        val serverBlocks = document.select("ul.currentStreamLinks")
+        val keywords = listOf("bigwarp", "vinovo")
+        for (block in serverBlocks) {
+            val name = block.selectFirst("li.hostBg p.hostName")?.text()?.trim() ?: "Unbekannt"
+            var linkElement = block.selectFirst("a[href]")
+            var url = linkElement?.attr("href")?.trim()
+            if (linkElement == null){
+                linkElement = block.selectFirst("a[data-player-url]")
+                url = linkElement?.attr("data-player-url")?.trim();
+            }
+
+
+            if (!url.isNullOrEmpty()) {
+                val displayName = if (keywords.none { name.lowercase().contains(it) }) {
+                    name
+                } else {
+                    "$name (VLC Only)"
+                }
+                servers.add(
+                    Video.Server(
+                        id = name.split(" ")[0],
+                        name = displayName,
+                        src = url
+                    )
+                )
+            }
+        }
+
+        return servers
+    }
+--- getVideo ---
+override suspend fun getVideo(server: Video.Server): Video {
+        val response = service.getRedirectLink(server.src)
+            .let { response -> response.raw() as okhttp3.Response }
+
+
+        val videoUrl = response.request.url
+        val link = when (server.name) {
+            "VOE" -> {
+                val baseUrl = "https://voe.sx"
+                val path = videoUrl.encodedPath.trimStart('/')
+                "$baseUrl/e/$path?"
+            }
+
+            else -> videoUrl.toString()
+        }
+        return Extractor.extract(link, server)
+    }
+
+### providers/FilmyOnlineCcProvider.kt
+--- getServers ---
+override suspend fun getServers(id: String, videoType: Video.Type): List<Video.Server> {
+        val watchId = when (videoType) {
+            is Video.Type.Movie -> parseEncodedId(id).primaryVideoId
+            is Video.Type.Episode -> id.toIntOrNull()
+        } ?: return emptyList()
+
+        val watchPage = fetchApiJson("$baseUrl/api/v1/watch/$watchId")
+        val collected = linkedMapOf<String, Video.Server>()
+        val videos = watchPage.optJSONArray("videos").orEmptyJsonArray()
+        for (index in 0 until videos.length()) {
+            val video = videos.optJSONObject(index) ?: continue
+            val source = video.optString("src").ifBlank { continue }
+            val serverName = buildString {
+                append(video.optString("quality").ifBlank { "default" }.uppercase())
+                val lang = video.optString("language").ifBlank { null }
+                if (lang != null) append(" [$lang]")
+            }
+            collected.putIfAbsent(source, Video.Server(id = source, name = serverName, src = source))
+        }
+        if (collected.isEmpty()) {
+            watchPage.optJSONObject("video")?.optString("src")?.takeIf { it.isNotBlank() }?.let { source ->
+                collected[source] = Video.Server(id = source, name = "default", src = source)
+            }
+        }
+        return collected.values.toList()
+    }
+--- getVideo ---
+override suspend fun getVideo(server: Video.Server): Video {
+        return Extractor.extract(server.id, server)
+    }
+
+### providers/FlixLatamProvider.kt
+--- getServers ---
+override suspend fun getServers(id: String, videoType: Video.Type): List<Video.Server> {
+        val servers = mutableListOf<Video.Server>()
+        try {
+            val url = "$baseUrl/$id/"
+            val page = service.getPage(url, baseUrl)
+
+            page.select("div.pframe iframe").forEach { iframe ->
+                var src = iframe.attr("src")
+                if (src.isNotEmpty()) {
+                    // Resolve relative main iframe URLs
+                    if (src.startsWith("//")) {
+                        src = "https:$src"
+                    } else if (src.startsWith("/")) {
+                        src = "$baseUrl$src"
+                    } else if (!src.startsWith("http")) {
+                        src = "$baseUrl/$src"
+                    }
+                    servers.addAll(processIframe(src))
+                }
+            }
+        } catch (e: Exception) {
+            Log.e("FlixLatamProvider", "Error en getServers: ${e.message}", e)
+        }
+        return servers.distinctBy { it.id }
+    }
+--- getVideo ---
+override suspend fun getVideo(server: Video.Server): Video = Extractor.extract(server.id)
+
+    override suspend fun getPeople(id: String, page: Int): People {
+        throw Exception("Esta función no está disponible en FlixLatam")
+    }
+
+### providers/FrembedProvider.kt
+--- getServers ---
+override suspend fun getServers(id: String, videoType: Video.Type): List<Video.Server> {
+        return FrembedExtractor(baseUrl).servers(videoType)
+    }
+--- getVideo ---
+override suspend fun getVideo(server: Video.Server): Video {
+        return when {
+            server.video != null -> server.video!!
+            else -> Extractor.extract(server.src)
+        }
+    }
+
+### providers/FrenchAnimeProvider.kt
+--- getServers ---
+override suspend fun getServers(id: String, videoType: Video.Type): List<Video.Server> {
+        val episodeId = when (videoType) {
+            is Video.Type.Movie -> id
+            is Video.Type.Episode -> id.substringBeforeLast("_")
+        }
+
+        val document = service.getTvShow(episodeId)
+
+        val epsText = document.selectFirst("div.eps")?.text() ?: return emptyList()
+        val episodeLines = epsText.split(" ")
+        val idSuffix = id.substringAfterLast("_")
+        val servers = episodeLines.firstNotNullOfOrNull { line ->
+            val parts = line.split("!")
+            if (parts.size == 2 && (parts[0] == idSuffix || videoType is Video.Type.Movie)) {
+                parts[1].split(",").filter { it.isNotEmpty() && it.startsWith("http") }
+                    .mapIndexed { index, source ->
+                        Video.Server(
+                            id = index.toString(),
+                            name = source.extractUrlDomain(),
+                            src = source
+                        )
+                    }
+            } else {
+                null
+            }
+        } ?: emptyList()
+
+        return servers
+    }
+--- getVideo ---
+override suspend fun getVideo(server: Video.Server): Video {
+        val video = Extractor.extract(server.src)
+
+        return video
+    }
+
+### providers/FrenchMangaProvider.kt
+--- getServers ---
+override suspend fun getServers(id: String, videoType: Video.Type): List<Video.Server> {
+        initializeService()
+
+        val servers = when (videoType) {
+            is Video.Type.Episode -> {
+                val (tvShowId, tvShowNumber) = id.split("/")
+                val episodesData = try {
+                    service.getEpisodesData(tvShowId)
+                } catch (e: Exception) {
+                    null
+                }
+                val tvShowServers = mutableListOf<Video.Server>()
+
+                episodesData?.vf?.get(tvShowNumber)?.forEach { (provider, url) ->
+                    tvShowServers.add(Video.Server(
+                        id = "vf$provider",
+                        name = provider.replaceFirstChar { it.uppercase() }+" (VF)",
+                        src = url
+                    ))
+                }
+                episodesData?.vostfr?.get(tvShowNumber)?.forEach { (provider, url) ->
+                    tvShowServers.add(Video.Server(
+                        id = "vostfr$provider",
+                        name = provider.replaceFirstChar { it.uppercase() }+" (VOSTFR)",
+                        src = url
+                    ))
+                }
+                episodesData?.vo?.get(tvShowNumber)?.forEach { (provider, url) ->
+                    tvShowServers.add(Video.Server(
+                        id = "vo$provider",
+                        name = provider.replaceFirstChar { it.uppercase() }+" (VO)",
+                        src = url
+                    ))
+                }
+                tvShowServers
+            }
+            is Video.Type.Movie -> {
+                val movieServers = mutableListOf<Video.Server>()
+                val episodesData = try {
+                    service.getEpisodesData(id)
+                } catch (e: Exception) {
+                    null
+                }
+
+                val counts = mutableMapOf<String, Int>()
+
+                fun addServers(map: Map<String, Map<String, String>>?, lang: String) {
+                    map?.values?.forEach { servers ->
+                        servers.forEach { (provider, url) ->
+                            val key = "${provider}_$lang"
+                            val count = counts.getOrDefault(key, 0) + 1
+                            counts[key] = count
+                            val suffix = if (count > 1) " $count" else ""
+                            
+                            movieServers.add(Video.Server(
+                                id = "${lang.lowercase()}${provider}$count",
+                                name = provider.replaceFirstChar { it.uppercase() }+" ($lang)$suffix",
+                                src = url
+                            ))
+                        }
+                    }
+                }
+
+                addServers(episodesData?.vf, "VF")
+                addServers(episodesData?.vostfr, "VOSTFR")
+                addServers(episodesData?.vo, "VO")
+                
+                movieServers
+            }
+        }
+
+        return servers
+    }
+--- getVideo ---
+override suspend fun getVideo(server: Video.Server): Video {
+        val video = Extractor.extract(server.src)
+        if (video.subtitles.isNotEmpty()) {
+            if (!server.name.contains("VOSTFR")) {
+                // Disable subtitles when not watching in VOSTFR
+                return video.copy(
+                    subtitles = emptyList()
+                )
+            } else {
+                // otherwise select the initial subtitle
+                video.subtitles.forEach {
+                    if (it.initialDefault) {
+                        it.default = true
+                    }
+                }
+            }
+        }
+
+        return video
+    }
+
+### providers/FrenchStreamProvider.kt
+--- getServers ---
+override suspend fun getServers(id: String, videoType: Video.Type): List<Video.Server> {
+        initializeService()
+
+        val servers = when (videoType) {
+            is Video.Type.Episode -> {
+                val (tvShowId, tvShowNumber) = id.split("/")
+                val episodesData = try {
+                    service.getEpisodesData(tvShowId)
+                } catch (e: Exception) {
+                    null
+                }
+                val tvShowServers = mutableListOf<Video.Server>()
+
+                episodesData?.vf?.get(tvShowNumber)?.forEach { (provider, url) ->
+                    tvShowServers.add(Video.Server(
+                        id = "vf$provider",
+                        name = provider.replaceFirstChar { it.uppercase() }+" (VF)",
+                        src = url
+                    ))
+                }
+                episodesData?.vostfr?.get(tvShowNumber)?.forEach { (provider, url) ->
+                    tvShowServers.add(Video.Server(
+                        id = "vostfr$provider",
+                        name = provider.replaceFirstChar { it.uppercase() }+" (VOSTFR)",
+                        src = url
+                    ))
+                }
+                episodesData?.vo?.get(tvShowNumber)?.forEach { (provider, url) ->
+                    tvShowServers.add(Video.Server(
+                        id = "vo$provider",
+                        name = provider.replaceFirstChar { it.uppercase() }+" (VO)",
+                        src = url
+                    ))
+                }
+                tvShowServers
+            }
+
+            is Video.Type.Movie -> {
+                val itemId = id.substringAfter("newsid=")
+                val filmData = try {
+                    service.getFilmData(itemId)
+                } catch (e: Exception) {
+                    null
+                }
+                var serverIndex = 0
+
+                val labels = mapOf(
+                    "vff" to "TrueFrench",
+                    "vfq" to "French",
+                    "vostfr" to "VOSTFR",
+                    "vo" to "VO"
+                )
+
+                val movieServers = mutableListOf<Video.Server>()
+
+                if (filmData?.players != null) {
+                    val langOrder = listOf("vff", "vfq", "vostfr", "vo")
+
+                    filmData.players.forEach { (provider, langMap) ->
+
+                        val seenUrlsForProvider = mutableSetOf<String>()
+                        val defaultUrl = langMap["default"]
+
+                        langMap.entries
+                            .filter { it.key != "default" }
+                            .sortedBy { langOrder.indexOf(it.key).let { i -> if (i == -1) Int.MAX_VALUE else i } }
+                            .forEach { (lang, url) ->
+
+                                if (url.startsWith("http") || url.isNotBlank()) {
+
+                                    if (seenUrlsForProvider.add(url) && !ignoreSource(provider, url)) {
+
+                                        val langLabel = labels[lang] ?: lang
+                                        val displayName =
+                                            provider.replaceFirstChar { it.uppercase() } +
+                                                    if (langLabel.isNotBlank()) " ($langLabel)" else ""
+
+                                        movieServers.add(
+                                            Video.Server(
+                                                id = "vid${serverIndex++}",
+                                                name = displayName,
+                                                src = url
+                                            )
+                                        )
+                                    }
+                                }
+                            }
+
+                        // only add the "default" URL if it is not already present
+                        if (!defaultUrl.isNullOrBlank()
+                            && defaultUrl !in seenUrlsForProvider
+                            && !ignoreSource(provider, defaultUrl)
+                        ) {
+                            movieServers.add(
+                                Video.Server(
+                                    id = "vid${serverIndex++}",
+                                    name = provider.replaceFirstChar { it.uppercase() },
+                                    src = defaultUrl
+                                )
+                            )
+                        }
+                    }
+                }
+
+                movieServers
+            }
+        }
+
+        return servers
+    }
+--- getVideo ---
+override suspend fun getVideo(server: Video.Server): Video {
+        val finalUrl = if (server.src.contains("kokoflix.lol", ignoreCase = true) || server.src.contains("kakaflix.lol", ignoreCase = true) || server.src.contains("newPlayer.php", ignoreCase = true)) {
+            val response = service.getRedirectLink(server.src, baseUrl)
+                .let { response -> response.raw() as okhttp3.Response }
+            response.request.url.toString()
+        } else {
+            server.src
+        }
+
+        val video = Extractor.extract(finalUrl)
+
+        return video
+    }
+
+### providers/GuardaFlixProvider.kt
+--- getServers ---
+override suspend fun getServers(id: String, videoType: Video.Type): List<Video.Server> {
+        val doc = service.getPage(id)
+
+        return doc.select("#aa-options div[id^=options-]").mapIndexedNotNull { index, optionDiv ->
+            val rawIframe = optionDiv.selectFirst("iframe[data-src]")?.attr("data-src")
+                ?: optionDiv.selectFirst("iframe")?.attr("src")
+                ?: return@mapIndexedNotNull null
+
+            val firstUrl = rawIframe.trim()
+            try {
+                val embedDoc = service.getPage(firstUrl)
+                val finalIframe = embedDoc.selectFirst(".Video iframe[src]")?.attr("src")?.trim()
+                val finalUrl = finalIframe?.takeIf { it.isNotBlank() } ?: return@mapIndexedNotNull null
+
+                val hostName = finalUrl.toHttpUrl().host
+                    .replaceFirst("www.", "")
+                    .substringBefore(".")
+                    .replaceFirstChar { char -> if (char.isLowerCase()) char.titlecase() else char.toString() }
+
+                val serverName = "Opzione ${index + 1} - $hostName"
+
+                Video.Server(
+                    id = finalUrl,
+                    name = serverName,
+                    src = finalUrl
+                )
+            } catch (_: Exception) {
+                null
+            }
+        }
+    }
+--- getVideo ---
+override suspend fun getVideo(server: Video.Server): Video {
+        return Extractor.extract(server.src, server)
+    }
+
+### providers/GuardaSerieProvider.kt
+--- getServers ---
+override suspend fun getServers(id: String, videoType: Video.Type): List<Video.Server> {
+        val doc = getDocument(id)
+
+        // Same logic for both Movies and Episodes as they share the HTML structure
+        return doc.select("div#player2 div[id^=tab]").mapIndexedNotNull { index, tabDiv ->
+            val iframe = tabDiv.selectFirst("div.movieplay iframe")
+            val iframeSrc = iframe?.attr("data-src")?.takeIf { it.isNotBlank() }
+                ?: iframe?.attr("src")?.takeIf { it.isNotBlank() }
+                ?: return@mapIndexedNotNull null
+
+            val finalUrl = iframeSrc.trim()
+
+            try {
+                val hostName = finalUrl.toHttpUrl().host
+                    .replaceFirst("www.", "")
+                    .substringBefore(".")
+                    .replaceFirstChar { char ->
+                        if (char.isLowerCase()) char.titlecase() else char.toString()
+                    }
+                
+                val serverName = "Server ${index + 1} - $hostName"
+
+                Video.Server(
+                    id = finalUrl,
+                    name = serverName,
+                    src = finalUrl
+                )
+            } catch (_: Exception) {
+                null
+            }
+        }
+    }
+--- getVideo ---
+override suspend fun getVideo(server: Video.Server): Video {
+        return Extractor.extract(server.src, server)
+    }
+
+### providers/HDFilmeProvider.kt
+--- getServers ---
+override suspend fun getServers(id: String, videoType: Video.Type): List<Video.Server> {
+        val doc = service.getPage(id)
+        
+        if (videoType is Video.Type.Episode) {
+            val showUrl = id.substringBefore('#')
+            val episodePart = id.substringAfter('#', "")
+            val seasonNum = episodePart.substringAfter('s').substringBefore('e').toIntOrNull() ?: return emptyList()
+            val epNum = episodePart.substringAfter('e').toIntOrNull() ?: return emptyList()
+            
+            val showDoc = service.getPage(showUrl)
+            val servers = mutableListOf<Video.Server>()
+            
+            showDoc.select("div#se-accordion div.su-spoiler").forEach { spoiler ->
+                val seasonTitle = spoiler.selectFirst("div.su-spoiler-title")?.text()?.trim() ?: return@forEach
+                val seasonNumberMatch = Regex("Staffel\\s+(\\d+)").find(seasonTitle)
+                val currentSeasonNum = seasonNumberMatch?.groupValues?.get(1)?.toIntOrNull() ?: return@forEach
+                
+                if (currentSeasonNum == seasonNum) {
+                    val content = spoiler.selectFirst("div.su-spoiler-content") ?: return@forEach
+                    
+                    val episodeRegex = Regex("""${seasonNum}x${epNum}\s+Episode\s+\d+""")
+                    val lines = content.html().split("<br>")
+                    
+                    lines.forEach { line ->
+                        if (episodeRegex.find(line) != null) {
+                            val linkElements = Jsoup.parse(line).select("a[href]")
+                            linkElements.forEach { link ->
+                                val serverName = link.text().trim()
+                                val serverUrl = link.attr("href").trim()
+                                
+                                if (!serverUrl.contains("/engine/player.php") && 
+                                    !serverName.contains("Player HD", ignoreCase = true) &&
+                                    !serverName.contains("4K", ignoreCase = true) &&
+                                    serverUrl.isNotBlank()) {
+                                    
+                                    val normalized = when {
+                                        serverUrl.startsWith("http") -> serverUrl
+                                        serverUrl.startsWith("//") -> "https:$serverUrl"
+                                        else -> serverUrl
+                                    }
+                                    
+                                    servers.add(
+                                        Video.Server(
+                                            id = normalized,
+                                            name = serverName.ifBlank { "Server" },
+                                            src = normalized
+                                        )
+                                    )
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+            
+            return servers.distinctBy { it.src }
+        }
+        
+        val iframeSrc = doc.selectFirst("iframe[src*='meinecloud.click']")?.attr("src")
+            ?: throw Exception("Embed iframe not found")
+        
+        val embedUrl = normalizeUrl(iframeSrc)
+        val embedDoc = service.getPage(embedUrl)
+        
+        return embedDoc.select("ul._player-mirrors li[data-link]")
+            .filterNot { li -> 
+                li.hasClass("fullhd") || li.text().contains("4K Server", ignoreCase = true)
+            }
+            .mapNotNull { li ->
+                val dataLink = li.attr("data-link").trim()
+                if (dataLink.isBlank()) return@mapNotNull null
+                
+                val normalized = when {
+                    dataLink.startsWith("//") -> "https:$dataLink"
+                    dataLink.startsWith("http") -> dataLink
+                    else -> "https://$dataLink"
+                }
+                
+                val nameText = li.ownText().ifBlank { li.text() }.trim()
+                val name = nameText.ifBlank { "Server" }
+                
+                Video.Server(id = normalized, name = name, src = normalized)
+            }
+            .filter { it.src.isNotBlank() }
+    }
+--- getVideo ---
+override suspend fun getVideo(server: Video.Server): Video {
+        return Extractor.extract(server.src)
+    }
+
+### providers/HiAnimeProvider.kt
+--- getServers ---
+override suspend fun getServers(id: String, videoType: Video.Type): List<Video.Server> {
+        val episodeId = when (videoType) {
+            is Video.Type.Movie -> {
+                val response = service.getTvShowEpisodes(tvShowId = id.substringAfterLast("-"))
+
+                Jsoup.parse(response.html).select("div.ss-list > a[href].ssl-item.ep-item")
+                    .firstOrNull()
+                    ?.let {
+                        it.selectFirst("a")
+                            ?.attr("href")?.substringAfterLast("=")
+                    } ?: ""
+            }
+            is Video.Type.Episode -> id
+        }
+
+        val servers = Jsoup.parse(service.getServers(episodeId).html)
+            .select("div.server-item[data-type][data-id]")
+            .map {
+                Video.Server(
+                    id = it.attr("data-id"),
+                    name = "${it.text().trim()} - ${it.attr("data-type").uppercase()}",
+                )
+            }
+
+        return servers
+    }
+--- getVideo ---
+override suspend fun getVideo(server: Video.Server): Video {
+        val link = service.getLink(server.id)
+
+        return Extractor.extract(link.link)
+    }
+
+### providers/IptvOrgProvider.kt
+--- getServers ---
+override suspend fun getServers(id: String, videoType: Video.Type): List<Video.Server> {
+        if (id == "creador-info" || id == "apoyo-nando") return emptyList()
+        return listOf(Video.Server(id = id, name = "IPTV Direct"))
+    }
+--- getVideo ---
+override suspend fun getVideo(server: Video.Server): Video {
+        val (url, _, _) = decodeId(server.id)
+        val customUA = getUAFromId(server.id)
+        Log.d(TAG, "🎬 Play: $url | UA: $customUA")
+        return Video(source = url, subtitles = emptyList())
+    }
+
+### providers/IptvSpainProvider.kt
+--- getServers ---
+override suspend fun getServers(id: String, videoType: Video.Type): List<Video.Server> {
+        if (id == "creador-info" || id == "apoyo-nando") return emptyList()
+        return listOf(Video.Server(id = id, name = "Stream Directo"))
+    }
+--- getVideo ---
+override suspend fun getVideo(server: Video.Server): Video {
+        val (url, _, _) = decodeId(server.id)
+        val meta = getMetadataFromId(server.id)
+
+        Log.d(TAG, "🎬 Play: $url")
+        meta["ua"]?.let { Log.d(TAG, "🛡️ Header UA: $it") }
+        meta["referer"]?.let { Log.d(TAG, "🛡️ Header Referer: $it") }
+
+        return Video(source = url, subtitles = emptyList())
+    }
+
+### providers/KidrazProvider.kt
+--- getServers ---
+override suspend fun getServers(id: String, videoType: Video.Type): List<Video.Server> {
+        initializeService()
+        val document = service.loadPage(id)
+
+        val url = document.selectFirst("iframe")?.attr("src")
+        if (url == null) throw Exception("Video unavailable")
+        val urlobj = url.toHttpUrl()
+
+        return listOf(Video.Server(
+            id = urlobj.host,
+            name = urlobj.host.replace(".com", ""),
+            src = url))
+    }
+--- getVideo ---
+override suspend fun getVideo(server: Video.Server): Video {
+        val video = Extractor.extract(server.src)
+
+        return video
+    }
+
+### providers/LaCartoonsProvider.kt
+--- getServers ---
+override suspend fun getServers(id: String, videoType: Video.Type): List<Video.Server> {
+        val url = if (id.startsWith("http")) id else "$baseUrl$id"
+        val doc = service.getPage(url)
+        val iframe = doc.selectFirst("iframe[src]")?.attr("src").orEmpty()
+        val finalUrl = if (iframe.startsWith("http")) iframe else "$iframe"
+        return listOfNotNull(
+            if (finalUrl.isNotBlank()) {
+                try {
+                    val serverName = finalUrl.toHttpUrl().host
+                        .replaceFirst("www.", "")
+                        .substringBefore(".")
+                        .replaceFirstChar { char -> if (char.isLowerCase()) char.titlecase() else char.toString() }
+                    
+                    Video.Server(
+                        id = finalUrl,
+                        name = serverName,
+                        src = finalUrl
+                    )
+                } catch (e: Exception) {
+                    null
+                }
+            } else null
+        )
+    }
+--- getVideo ---
+override suspend fun getVideo(server: Video.Server): Video {
+        return Extractor.extract(server.src, server)
+    }
+
+### providers/LatanimeProvider.kt
+--- getServers ---
+override suspend fun getServers(id: String, videoType: Video.Type): List<Video.Server> {
+        return try {
+            val document = service.getPage(id)
+            document.select("li#play-video > a.play-video").map {
+                val serverName = it.ownText().trim()
+                val encodedUrl = it.attr("data-player")
+                val decodedUrl = String(Base64.decode(encodedUrl, Base64.DEFAULT))
+                Video.Server(
+                    id = decodedUrl,
+                    name = serverName
+                )
+            }
+        } catch (e: Exception) {
+            emptyList()
+        }
+    }
+--- getVideo ---
+override suspend fun getVideo(server: Video.Server): Video {
+        return Extractor.extract(server.id, server)
+    }
+
+### providers/MEGAKinoProvider.kt
+--- getServers ---
+override suspend fun getServers(id: String, videoType: Video.Type): List<Video.Server> {
+        ensureToken()
+        val servers = mutableListOf<Video.Server>()
+
+        if (videoType is Video.Type.Movie) {
+            val url = "$baseUrl$id"
+            val document = service.getDocument(url)
+            
+            val tabNames = document.select("div.tabs-block__select span").map { it.text() }
+            val contents = document.select("div.tabs-block__content")
+            
+            contents.forEachIndexed { index, content ->
+                val iframe = content.selectFirst("iframe")
+                val serverSrc = iframe?.attr("data-src")?.takeIf { it.isNotEmpty() } 
+                    ?: iframe?.attr("src")
+                
+                if (!serverSrc.isNullOrEmpty()) {
+                    val serverName = tabNames.getOrNull(index)?.takeIf { it.isNotBlank() } ?: "Server ${index + 1}"
+                    servers.add(
+                        Video.Server(
+                            id = serverSrc,
+                            name = serverName
+                        )
+                    )
+                }
+            }
+        } else if (videoType is Video.Type.Episode) {
+            val parts = id.split("|")
+            if (parts.size >= 2) {
+                val pageUrl = parts[0]
+                val epId = parts[1]
+                val url = "$baseUrl$pageUrl"
+                
+                val document = service.getDocument(url)
+                
+                val select = document.select("select#$epId")
+                select.select("option").forEach { option ->
+                    val serverUrl = option.attr("value")
+                    val serverName = option.text()
+                    
+                    if (serverUrl.isNotEmpty()) {
+                         servers.add(
+                            Video.Server(
+                                id = serverUrl,
+                                name = serverName
+                            )
+                        )
+                    }
+                }
+            }
+        }
+        return servers
+    }
+--- getVideo ---
+override suspend fun getVideo(server: Video.Server): Video {
+        return Extractor.extract(server.id)
+    }
+
+### providers/MStreamProvider.kt
+--- getServers ---
+override suspend fun getServers(id: String, videoType: Video.Type): List<Server> {
+        val isShow = id.contains("_")
+        var document: ResponseBody
+        if (isShow) {
+            val idSplit = id.split("_")
+            val titleId = idSplit[0]
+            val seasonNumber = if (idSplit.size > 1) idSplit[1] else ""
+            val episodeNumber = if (idSplit.size > 1) idSplit[2] else ""
+            document = getService().getEpisodeStreams(titleId, seasonNumber, episodeNumber)
+            val json = JSONObject(document.string())
+            return json.getJSONObject("episode").getJSONArray("videos").map {
+                val src = it?.optString("src").orEmpty()
+                val resolveUrl = it?.optString("playback_resolve_url").orEmpty()
+                // Skip entries with no playable URL
+                if (src.isBlank() && resolveUrl.isBlank()) return@map null
+                // Skip entries locked behind a paywall
+                if (it?.optBoolean("premium_locked", false) == true) return@map null
+
+                val finalSrc = if (src.isNotBlank()) src else "${currentBaseUrl()}api/v1/$resolveUrl"
+                val name = if (src.isNotBlank()) {
+                    try { URL(src).host } catch (e: Exception) { "Server" } + " ( " + it?.getString("name") + ")"
+                } else {
+                    it?.optString("name") ?: "Premium"
+                }
+
+                Server(
+                    id = it?.getString("id") ?: "",
+                    name = name,
+                    src = finalSrc
+                )
+            }.filterNotNull()
+        } else {
+            val idSplit = id.split("#")
+            val watchId = idSplit[1]
+            document = getService().getStreams(watchId)
+            val json = JSONObject(document.string())
+            return json.getJSONArray("alternative_videos").map {
+                val src = it?.optString("src").orEmpty()
+                val resolveUrl = it?.optString("playback_resolve_url").orEmpty()
+                // Skip entries with no playable URL
+                if (src.isBlank() && resolveUrl.isBlank()) return@map null
+                // Skip entries locked behind a paywall
+                if (it?.optBoolean("premium_locked", false) == true) return@map null
+
+                val finalSrc = if (src.isNotBlank()) src else "${currentBaseUrl()}api/v1/$resolveUrl"
+                val name = if (src.isNotBlank()) {
+                    try { URL(src).host } catch (e: Exception) { "Server" } + " ( " + it?.getString("name") + ")"
+                } else {
+                    it?.optString("name").orEmpty()
+                }
+
+                Server(
+                    id = it?.getString("id") ?: "",
+                    name = name,
+                    src = finalSrc
+                )
+            }.filterNotNull()
+        }
+    }
+--- getVideo ---
+override suspend fun getVideo(server: Server): Video {
+        val link = server.src
+        return Extractor.extract(link)
+    }
+
+### providers/MkissaProvider.kt
+--- getServers ---
+override suspend fun getServers(id: String, videoType: Video.Type): List<Video.Server> {
+        val parts = id.split("|")
+        val showId = parts.firstOrNull()?.removePrefix("movie:").orEmpty()
+        val episode = parts.getOrNull(1) ?: "1"
+        val requestedTranslation = parts.getOrNull(2)
+
+        val detail = showJson(showId)
+        val available = detail.optJSONObject("availableEpisodes")
+        return translationTypes
+            .filter { translation ->
+                requestedTranslation == null || requestedTranslation == translation
+            }
+            .filter { translation ->
+                (available?.optInt(translation, 0) ?: if (translation == "sub") 1 else 0) > 0
+            }
+            .flatMap { translation ->
+                val sources = getSourceEntries(showId = showId, episode = episode, translation = translation)
+                sources.map { sourceObject ->
+                    val sourceName = sourceObject.stringOrNull("sourceName") ?: "MKissa"
+                    val sourceUrl = sourceObject.sourceUrl()
+                    Video.Server(
+                        id = sourceUrl,
+                        name = "$sourceName ${translation.uppercase()}".trim(),
+                        src = sourceUrl
+                    )
+                }
+            }
+    }
+--- getVideo ---
+override suspend fun getVideo(server: Video.Server): Video {
+        val source = resolveSourceUrl(server.src.ifBlank { server.id })
+            ?: throw Exception("Selected MKissa source could not be resolved")
+
+        if (source.contains(".m3u8", ignoreCase = true) || source.contains(".mp4", ignoreCase = true)) {
+            return Video(
+                source = source,
+                headers = directPlaybackHeaders()
+            )
+        }
+
+        return Extractor.extract(source, server)
+    }
+
+### providers/OtakufrProvider.kt
+--- getServers ---
+override suspend fun getServers(id: String, videoType: Video.Type): List<Video.Server> {
+        val document = service.getEpisode(id)
+
+        val servers = document.select("div#nav-tab a").map {
+            Video.Server(
+                id = it.id(),
+                name = it.text(),
+                src = document.selectFirst("div#${it.attr("aria-controls")} iframe")
+                    ?.attr("src")
+                    ?: "",
+            )
+        }
+
+        return servers
+    }
+--- getVideo ---
+override suspend fun getVideo(server: Video.Server): Video {
+        val link = if (server.src.contains("parisanime.com")) {
+            val doc = service.getParisanime(server.src)
+
+            doc.selectFirst("div[data-url]")
+                ?.attr("data-url")
+                ?.let {
+                    when {
+                        it.startsWith("//") -> "https:$it"
+                        else -> it
+                    }
+                }
+                ?: throw Exception("Can't retrieve data-url")
+        } else {
+            server.src
+        }
+
+        val video = Extractor.extract(link)
+
+        return video
+    }
+
+### providers/PelisflixHdProvider.kt
+--- getServers ---
+override suspend fun getServers(id: String, videoType: Video.Type): List<Video.Server> {
+        val document = service.getPage(normalizeUrl(id))
+
+        return document.select("#player li[data-server]").mapIndexedNotNull { index, item ->
+            val encoded = item.attr("data-server")
+            if (encoded.isBlank()) {
+                return@mapIndexedNotNull null
+            }
+
+            val decoded = runCatching { String(Base64.decode(encoded, Base64.DEFAULT)).trim() }.getOrNull()
+                ?: return@mapIndexedNotNull null
+
+            Video.Server(
+                id = decoded,
+                name = item.selectFirst("span")?.text()?.trim().orEmpty().ifBlank { "Opción ${index + 1}" },
+                src = decoded
+            )
+        }.distinctBy { it.src }
+    }
+--- getVideo ---
+override suspend fun getVideo(server: Video.Server): Video {
+        return Extractor.extract(server.src, server)
+    }
+
+### providers/PelisplustoProvider.kt
+--- getServers ---
+override suspend fun getServers(id: String, videoType: Video.Type): List<Video.Server> {
+        val url = when (videoType) {
+            is Video.Type.Movie -> "$baseUrl/pelicula/${videoType.id}"
+            is Video.Type.Episode -> {
+                val showId = videoType.tvShow.id
+                val season = videoType.season.number
+                val episode = videoType.number
+                val basePath = if (showId.startsWith("anime/")) "$baseUrl/$showId" else "$baseUrl/serie/$showId"
+                "$basePath/season/$season/episode/$episode"
+            }
+        }
+
+        try {
+            val document = service.getPage(url)
+            val serverElements = document.select(".bg-tabs ul li")
+
+            val servers = mutableListOf<Video.Server>()
+            for (li in serverElements) {
+                try {
+                    val serverName = li.text().replace(" Reproducir", "")
+                    val dataServer = li.attr("data-server")
+                    if (dataServer.isEmpty()) continue
+
+                    val decodedUrl = String(Base64.decode(dataServer, Base64.DEFAULT))
+
+                    val finalUrl = if (!decodedUrl.contains("https://")) {
+                        val reEncoded = String(Base64.encode(dataServer.toByteArray(), Base64.DEFAULT)).trim()
+                        val playerUrl = "$baseUrl/player/$reEncoded"
+                        val playerDoc = service.getPage(playerUrl)
+
+                        playerDoc.selectFirst("script:containsData(window.onload)")?.data()
+                            ?.let { Regex("""(https?://[^\s'"]+)""").find(it)?.groupValues?.get(1) }
+                    } else {
+                        decodedUrl
+                    }
+
+                    if (!finalUrl.isNullOrEmpty()) {
+                        servers.add(Video.Server(id = finalUrl, name = "$serverName [LAT]", src = finalUrl))
+                    }
+                } catch (e: Exception) {
+                    Log.e(TAG, "Fallo procesando un servidor individual: ${e.message}")
+                }
+                delay(4000L)
+            }
+            return servers
+
+        } catch (e: Exception) {
+            Log.e(TAG, "Fallo crítico en getServers: ${e.message}")
+            return emptyList()
+        }
+    }
+
+    override suspend fun getVideo(server: Video.Server): Video {
+        return Extractor.extract(server.src, server)
+    }
+
+    override suspend fun getPeople(id: String, page: Int): People {
+        throw Exception("Not yet implemented")
+    }
+}
+
+--- getVideo ---
+override suspend fun getVideo(server: Video.Server): Video {
+        return Extractor.extract(server.src, server)
+    }
+
+### providers/PelotaLibreTvHdProvider.kt
+--- getServers ---
+override suspend fun getServers(id: String, videoType: Video.Type): List<Video.Server> {
+        val servers = mutableListOf<Video.Server>()
+
+        // Bloqueamos la búsqueda de servidores si hacen clic en las opciones de soporte
+        if (id == "creador-info" || id == "apoyo-info") return emptyList()
+
+        // Atajo directo de la Agenda
+        if (id.contains("eventos.html?r=")) {
+            try {
+                val encodedParam = id.substringAfter("r=").substringBefore("&")
+                val decodedUrl = String(Base64.decode(encodedParam, Base64.DEFAULT))
+                servers.add(Video.Server(id = decodedUrl, name = "Reproductor Agenda"))
+                return servers
+            } catch(e: Exception) { Log.e(TAG, "Error decodificando atajo: ${e.message}") }
+        }
+
+        // Si el ID ya es un link de reproductor externo directo
+        if (id.contains("latamplay") || id.contains("streamtpday") || id.contains("streamx741") || id.contains("zonalive.click")) {
+            servers.add(Video.Server(id = id, name = "Reproductor Directo"))
+            return servers
+        }
+
+        // Búsqueda para Canales 24/7
+        try {
+            val doc = api.getHtml(id)
+            val iframeSrc = doc.selectFirst("iframe#embedIframe, .preframe iframe, .subiframe iframe")?.attr("src")
+
+            if (!iframeSrc.isNullOrEmpty()) {
+                val url = if (iframeSrc.startsWith("http")) iframeSrc
+                else if (iframeSrc.startsWith("//")) "https:$iframeSrc"
+                else "$baseUrl/${iframeSrc.removePrefix("/")}"
+
+                servers.add(Video.Server(id = url, name = "Reproductor Principal"))
+            }
+        } catch (e: Exception) {
+            Log.e(TAG, "Error al obtener servidor: ${e.message}")
+        }
+
+        return servers
+    }
+--- getVideo ---
+override suspend fun getVideo(server: Video.Server): Video {
+        var currentUrl = server.id
+        var currentReferer = baseUrl
+        val maxDepth = 10
+        var depth = 0
+
+        // Filtro Anti-Trampas
+        val isDecoy: (String) -> Boolean = { link ->
+            link.contains("amagi.tv") || link.contains("lovetvchannels") ||
+                    link.contains("channel02secure") || link.contains("redirect=true") ||
+                    link.contains("grupoz.cl") || link.contains("retroplus") ||
+                    link.contains("frequency.stream")
+        }
+
+        while (depth < maxDepth) {
+            depth++
+            try {
+                // Hack de redirección manual
+                if (currentUrl.contains("latamplay") && currentUrl.contains("/channel/")) {
+                    val streamName = currentUrl.substringAfter("channel/").substringBefore("?").removeSuffix(".php")
+                    currentReferer = currentUrl
+                    currentUrl = "https://streamtpday1.xyz/global1.php?stream=$streamName"
+                    continue
+                }
+
+                val request = Request.Builder()
+                    .url(currentUrl)
+                    .header("Referer", currentReferer)
+                    .build()
+
+                val response = client.newCall(request).execute()
+                val htmlCrudo = response.body?.string() ?: ""
+                val cleanHtml = htmlCrudo.replace("\\/", "/")
+                var htmlParaAnalizar = cleanHtml
+
+                val currentUri = try { currentUrl.toHttpUrl() } catch (e: Exception) { null }
+                val channelId = currentUri?.queryParameter("id") ?: currentUri?.queryParameter("channel") ?: currentUri?.queryParameter("stream") ?: ""
+                val hostSeguro = currentUri?.host ?: "ontve.click"
+                val origin = currentUri?.let { "https://${it.host}" } ?: baseUrl
+
+                // 1. Enrutador Javascript
+                if (channelId.isNotEmpty()) {
+                    val iframeBlocks = """(?:id|channel|stream)\s*===\s*["']([^"']+)["']\)\s*\{[^}]*src=["']([^"']+)["']""".toRegex().findAll(cleanHtml)
+                    val match = iframeBlocks.firstOrNull { it.groupValues[1] == channelId }
+                    if (match != null) {
+                        val decodedIframe = match.groupValues[2]
+                        currentReferer = currentUrl
+                        currentUrl = if (decodedIframe.startsWith("http")) decodedIframe
+                        else if (decodedIframe.startsWith("//")) "https:$decodedIframe"
+                        else "https://$hostSeguro/${decodedIframe.removePrefix("/")}"
+                        continue
+                    }
+
+                    val configBlocks = """["']([^"']+)["']\s*:\s*\{[^}]*url:\s*["']([^"']+)["']""".toRegex().findAll(cleanHtml)
+                    val configMatch = configBlocks.firstOrNull { it.groupValues[1] == channelId }
+                    if (configMatch != null) {
+                        val decodedUrl = configMatch.groupValues[2]
+                        currentReferer = currentUrl
+                        currentUrl = if (decodedUrl.startsWith("http")) decodedUrl
+                        else if (decodedUrl.startsWith("//")) "https:$decodedUrl"
+                        else "https://$hostSeguro/${decodedUrl.removePrefix("/")}"
+                        continue
+                    }
+                }
+
+                // 2. Desofuscador Matemático P2P
+                val pairRegex = """\[\s*(\d+)\s*,\s*["']([^"']+)["']\s*\]""".toRegex()
+                val pairsMatches = pairRegex.findAll(htmlParaAnalizar).toList()
+
+                if (pairsMatches.size > 10) {
+                    val pairs = pairsMatches.map { Pair(it.groupValues[1].toInt(), it.groupValues[2]) }.sortedBy { it.first }
+                    val firstPair = pairs.firstOrNull { it.first == 0 }
+
+                    if (firstPair != null) {
+                        try {
+                            val decodedB64 = String(Base64.decode(firstPair.second, Base64.DEFAULT))
+                            val numberOnly = decodedB64.replace(Regex("\\D"), "").toLongOrNull()
+
+                            if (numberOnly != null) {
+                                val possibleKs = listOf(numberOnly - 104L, numberOnly - 115L, numberOnly - 47L)
+
+                                for (k in possibleKs) {
+                                    val playbackUrlBuilder = StringBuilder()
+                                    for (pair in pairs) {
+                                        val d64 = String(Base64.decode(pair.second, Base64.DEFAULT))
+                                        val num = d64.replace(Regex("\\D"), "").toLongOrNull()
+                                        if (num != null) {
+                                            val charCode = num - k
+                                            playbackUrlBuilder.append(charCode.toInt().toChar())
+                                        }
+                                    }
+
+                                    val finalUrl = playbackUrlBuilder.toString()
+                                    if (finalUrl.isNotEmpty() && (finalUrl.startsWith("http") || finalUrl.startsWith("//")) && (finalUrl.contains(".m3u8") || finalUrl.contains(".mpd"))) {
+                                        val validUrl = if (finalUrl.startsWith("//")) "https:$finalUrl" else finalUrl
+                                        Log.d(TAG, "M3U8 Decodificado exitosamente.")
+                                        return Video(validUrl, emptyList(), mapOf("Referer" to currentUrl, "User-Agent" to USER_AGENT, "Origin" to origin))
+                                    }
+                                }
+                            }
+                        } catch (_: Exception) {}
+                    }
+                }
+
+                // 3. Enlaces Directos M3U8
+                val m3u8Regex = """(https?://[^"'\s]+\.(?:m3u8|mpd)[^"'\s]*)""".toRegex()
+                val relativeRegex = """(?:source|file|src)\s*:\s*["']([^"']+\.(?:m3u8|mpd)[^"']*)["']""".toRegex()
+
+                val allMatches = m3u8Regex.findAll(cleanHtml).map { it.groupValues[1] }.toList() +
+                        relativeRegex.findAll(cleanHtml).map { it.groupValues[1] }.toList()
+
+                val validM3u8 = allMatches.firstOrNull { !isDecoy(it) }
+                if (validM3u8 != null) {
+                    val finalUrl = if (validM3u8.startsWith("http")) validM3u8 else "https://$hostSeguro/${validM3u8.removePrefix("/")}"
+                    Log.d(TAG, "M3U8 Encontrado directamente.")
+                    return Video(finalUrl, emptyList(), mapOf("Referer" to currentUrl, "User-Agent" to USER_AGENT, "Origin" to origin))
+                }
+
+                // 4. JS Ofuscado (eval)
+                if (cleanHtml.contains("eval(function(p,a,c,k,e,d)")) {
+                    val unpackedJS = JsUnpacker(cleanHtml).unpack()
+                    if (!unpackedJS.isNullOrEmpty()) {
+                        htmlParaAnalizar += unpackedJS
+                        val unpackedMatches = m3u8Regex.findAll(unpackedJS).map { it.groupValues[1] }.toList()
+                        val validUnpackedM3u8 = unpackedMatches.firstOrNull { !isDecoy(it) }
+                        if (validUnpackedM3u8 != null) {
+                            Log.d(TAG, "M3U8 Encontrado en JS.")
+                            return Video(validUnpackedM3u8, emptyList(), mapOf("Referer" to currentUrl, "User-Agent" to USER_AGENT, "Origin" to origin))
+                        }
+                    }
+                }
+
+                // 5. Base64 Puro
+                val base64HttpRegex = """["'](aHR0c[a-zA-Z0-9=]+)["']""".toRegex()
+                val b64Matches = base64HttpRegex.findAll(htmlParaAnalizar)
+                for (match in b64Matches) {
+                    try {
+                        val decoded = String(Base64.decode(match.groupValues[1], Base64.DEFAULT))
+                        if (decoded.contains(".m3u8") && !isDecoy(decoded)) {
+                            return Video(decoded, emptyList(), mapOf("Referer" to currentUrl, "User-Agent" to USER_AGENT, "Origin" to origin))
+                        }
+                    } catch (_: Exception) {}
+                }
+
+                // 6. Iframes en Base64
+                val atobRegex = """atob\(['"]([^"']+)['"]\)""".toRegex()
+                val atobMatches = atobRegex.findAll(htmlParaAnalizar)
+                var foundHiddenIframe = false
+
+                for (match in atobMatches) {
+                    try {
+                        val decoded = String(Base64.decode(match.groupValues[1], Base64.DEFAULT))
+                        val decodedIframe = Jsoup.parse(decoded).selectFirst("iframe")?.attr("src") ?: if (decoded.startsWith("http")) decoded else ""
+
+                        if (decodedIframe.isNotEmpty() && !isDecoy(decodedIframe)) {
+                            currentReferer = currentUrl
+                            currentUrl = if (decodedIframe.startsWith("http")) decodedIframe
+                            else if (decodedIframe.startsWith("//")) "https:$decodedIframe"
+                            else "https://$hostSeguro/${decodedIframe.removePrefix("/")}"
+                            foundHiddenIframe = true
+                            break
+                        }
+                    } catch (_: Exception) {}
+                }
+                if (foundHiddenIframe) continue
+
+                // 7. Iframes HTML normales
+                val doc = Jsoup.parse(htmlParaAnalizar)
+                val iframes = doc.select("iframe")
+                val nextIframe = iframes.firstOrNull {
+                    val src = it.attr("src").ifEmpty { it.attr("data-src") }
+                    src.isNotEmpty() && !src.contains("chatango") && !src.contains("monetag")
+                }?.let { it.attr("src").ifEmpty { it.attr("data-src") } } ?: ""
+
+                if (nextIframe.isNotEmpty() && nextIframe != currentUrl && !isDecoy(nextIframe)) {
+                    currentReferer = currentUrl
+                    currentUrl = if (nextIframe.startsWith("http")) nextIframe
+                    else if (nextIframe.startsWith("//")) "https:$nextIframe"
+                    else "https://$hostSeguro/${nextIframe.removePrefix("/")}"
+                    continue
+                }
+
+                // 8. Redirecciones JS
+                val windowLocationRegex = """(?:window\.location\.replace|window\.location\.href)\s*=\s*['"]([^"']+)['"]""".toRegex()
+                val locMatch = windowLocationRegex.find(htmlParaAnalizar)
+                if (locMatch != null && !isDecoy(locMatch.groupValues[1])) {
+                    val redirectUrl = locMatch.groupValues[1]
+                    currentReferer = currentUrl
+                    currentUrl = if (redirectUrl.startsWith("http")) redirectUrl
+                    else if (redirectUrl.startsWith("//")) "https:$redirectUrl"
+                    else "https://$hostSeguro/${redirectUrl.removePrefix("/")}"
+                    continue
+                }
+
+                break
+            } catch (e: Exception) {
+                Log.e(TAG, "Error en rastreo: ${e.message}")
+                break
+            }
+        }
+
+        return Video("", emptyList())
+    }
+
+    private fun getInfoItem(id: String): TvShow {
+        val t = if(id == "creador-info") "Reportar problemas" else "Apoya al Proveedor"
+        val p = if(id == "creador-info") "https://i.ibb.co/dsknGBHT/Imagen-de-Whats-App-2025-09-06-a-las-19-00-50-e8e5bcaa.jpg" else "https://i.ibb.co/B5gKLkqS/nuevo-formato-2-K-202604112205.jpg"
+        return TvShow(
+            id = id,
+            title = t,
+            poster = p,
+            banner = p,
+            overview = if(id == "creador-info") "@NandoGT" else "Apoya el proyecto.",
+            providerName = name
+        )
+    }
+}
+
+### providers/PlutoTvArProvider.kt
+--- getServers ---
+override suspend fun getServers(id: String, videoType: Video.Type): List<Video.Server> {
+        if (id == "creador-info" || id == "apoyo-nando") return emptyList()
+        return listOf(Video.Server(id = id, name = "Stream Directo"))
+    }
+--- getVideo ---
+override suspend fun getVideo(server: Video.Server): Video {
+        val (url, _, _) = decodeId(server.id)
+        val meta = getMetadataFromId(server.id)
+
+        Log.d(TAG, "🎬 Reproduciendo: $url")
+        meta["ua"]?.let { Log.d(TAG, "🛡️ Header UA detectado en M3U: $it") }
+        meta["referer"]?.let { Log.d(TAG, "🛡️ Header Referer detectado en M3U: $it") }
+
+        return Video(source = url, subtitles = emptyList())
+    }
+
+### providers/PlutoTvDeProvider.kt
+--- getServers ---
+override suspend fun getServers(id: String, videoType: Video.Type): List<Video.Server> {
+        if (id == "creador-info" || id == "apoyo-nando") return emptyList()
+        return listOf(Video.Server(id = id, name = "Stream Directo"))
+    }
+--- getVideo ---
+override suspend fun getVideo(server: Video.Server): Video {
+        val (url, _, _) = decodeId(server.id)
+        val meta = getMetadataFromId(server.id)
+
+        Log.d(TAG, "🎬 Reproduciendo: $url")
+        meta["ua"]?.let { Log.d(TAG, "🛡️ Header UA detectado en M3U: $it") }
+        meta["referer"]?.let { Log.d(TAG, "🛡️ Header Referer detectado en M3U: $it") }
+
+        return Video(source = url, subtitles = emptyList())
+    }
+
+### providers/PlutoTvEsProvider.kt
+--- getServers ---
+override suspend fun getServers(id: String, videoType: Video.Type): List<Video.Server> {
+        if (id == "creador-info" || id == "apoyo-nando") return emptyList()
+        return listOf(Video.Server(id = id, name = "Stream Directo"))
+    }
+--- getVideo ---
+override suspend fun getVideo(server: Video.Server): Video {
+        val (url, _, _) = decodeId(server.id)
+        val meta = getMetadataFromId(server.id)
+
+        Log.d(TAG, "🎬 Reproduciendo: $url")
+        meta["ua"]?.let { Log.d(TAG, "🛡️ Header UA detectado en M3U: $it") }
+        meta["referer"]?.let { Log.d(TAG, "🛡️ Header Referer detectado en M3U: $it") }
+
+        return Video(source = url, subtitles = emptyList())
+    }
+
+### providers/PlutoTvFrProvider.kt
+--- getServers ---
+override suspend fun getServers(id: String, videoType: Video.Type): List<Video.Server> {
+        if (id == "creador-info" || id == "apoyo-nando") return emptyList()
+        return listOf(Video.Server(id = id, name = "Stream Directo"))
+    }
+--- getVideo ---
+override suspend fun getVideo(server: Video.Server): Video {
+        val (url, _, _) = decodeId(server.id)
+        val meta = getMetadataFromId(server.id)
+
+        Log.d(TAG, "🎬 Reproduciendo: $url")
+        meta["ua"]?.let { Log.d(TAG, "🛡️ Header UA detectado en M3U: $it") }
+        meta["referer"]?.let { Log.d(TAG, "🛡️ Header Referer detectado en M3U: $it") }
+
+        return Video(source = url, subtitles = emptyList())
+    }
+
+### providers/PlutoTvItProvider.kt
+--- getServers ---
+override suspend fun getServers(id: String, videoType: Video.Type): List<Video.Server> {
+        if (id == "creador-info" || id == "apoyo-nando") return emptyList()
+        return listOf(Video.Server(id = id, name = "Stream Directo"))
+    }
+--- getVideo ---
+override suspend fun getVideo(server: Video.Server): Video {
+        val (url, _, _) = decodeId(server.id)
+        val meta = getMetadataFromId(server.id)
+
+        Log.d(TAG, "🎬 Reproduciendo: $url")
+        meta["ua"]?.let { Log.d(TAG, "🛡️ Header UA detectado en M3U: $it") }
+        meta["referer"]?.let { Log.d(TAG, "🛡️ Header Referer detectado en M3U: $it") }
+
+        return Video(source = url, subtitles = emptyList())
+    }
+
+### providers/PlutoTvMxProvider.kt
+--- getServers ---
+override suspend fun getServers(id: String, videoType: Video.Type): List<Video.Server> {
+        if (id == "creador-info" || id == "apoyo-nando") return emptyList()
+        return listOf(Video.Server(id = id, name = "Stream Directo"))
+    }
+--- getVideo ---
+override suspend fun getVideo(server: Video.Server): Video {
+        val (url, _, _) = decodeId(server.id)
+        val meta = getMetadataFromId(server.id)
+
+        Log.d(TAG, "🎬 Reproduciendo: $url")
+        meta["ua"]?.let { Log.d(TAG, "🛡️ Header UA detectado en M3U: $it") }
+        meta["referer"]?.let { Log.d(TAG, "🛡️ Header Referer detectado en M3U: $it") }
+
+        return Video(source = url, subtitles = emptyList())
+    }
+
+### providers/PlutoTvUsProvider.kt
+--- getServers ---
+override suspend fun getServers(id: String, videoType: Video.Type): List<Video.Server> {
+        if (id == "creador-info" || id == "apoyo-nando") return emptyList()
+        return listOf(Video.Server(id = id, name = "Stream Directo"))
+    }
+--- getVideo ---
+override suspend fun getVideo(server: Video.Server): Video {
+        val (url, _, _) = decodeId(server.id)
+        val meta = getMetadataFromId(server.id)
+
+        Log.d(TAG, "🎬 Reproduciendo: $url")
+        meta["ua"]?.let { Log.d(TAG, "🛡️ Header UA detectado en M3U: $it") }
+        meta["referer"]?.let { Log.d(TAG, "🛡️ Header Referer detectado en M3U: $it") }
+
+        return Video(source = url, subtitles = emptyList())
+    }
+
+### providers/PoseidonHD2Provider.kt
+--- getServers ---
+override suspend fun getServers(id: String, videoType: Video.Type): List<Video.Server> {
+        val url = when (videoType) {
+            is Video.Type.Movie -> "${baseUrl.trimEnd('/')}/pelicula/$id"
+            is Video.Type.Episode -> {
+                if (id.contains("/episodio/")) {
+                    "${baseUrl.trimEnd('/')}/serie/$id"
+                } else {
+                    "${baseUrl.trimEnd('/')}/serie/$id/temporada/${videoType.season.number}/episodio/${videoType.number}"
+                }
+            }
+        }
+        val document = getDocument(url)
+        val jsonData = document.selectFirst("script#__NEXT_DATA__")?.data() ?: return emptyList()
+        val json = JSONObject(jsonData).getJSONObject("props").getJSONObject("pageProps")
+        
+        val videoObj = when (videoType) {
+            is Video.Type.Movie -> json.optJSONObject("thisMovie")?.optJSONObject("videos")
+            is Video.Type.Episode -> {
+                (json.optJSONObject("episode") ?: json.optJSONObject("thisEpisode"))?.optJSONObject("videos")
+            }
+        } ?: return emptyList()
+
+        val servers = mutableListOf<Video.Server>()
+        val languages = mapOf("latino" to "[LAT]", "spanish" to "[CAST]", "english" to "[SUB]")
+        
+        coroutineScope {
+            val deferredServers = mutableListOf<Deferred<Video.Server?>>()
+            for ((langKey, tag) in languages) {
+                val array = videoObj.optJSONArray(langKey) ?: continue
+                for (i in 0 until array.length()) {
+                    val obj = array.getJSONObject(i)
+                    val cyberlocker = obj.optString("cyberlocker")
+                    val embedUrl = obj.optString("result")
+                    
+                    deferredServers.add(async {
+                        try {
+                            // Resolve the bridge URL to the real embed URL
+                            val realUrl = resolvePlayerUrl(embedUrl) ?: embedUrl
+                            if (realUrl.isEmpty()) return@async null
+                            
+                            Video.Server(
+                                id = realUrl,
+                                name = "$cyberlocker $tag".trim(),
+                                src = realUrl
+                            )
+                        } catch (e: Exception) {
+                            Log.e(TAG, "Error resolving player URL: $embedUrl", e)
+                            null
+                        }
+                    })
+                }
+            }
+            servers.addAll(deferredServers.awaitAll().filterNotNull())
+        }
+        return servers
+    }
+--- getVideo ---
+override suspend fun getVideo(server: Video.Server): Video {
+        var finalUrl = server.src
+
+        if (finalUrl.contains("voe.sx") || server.name.contains("VOE", ignoreCase = true)) {
+            val path = finalUrl.toUri().path?.trimStart('/') ?: ""
+            if (!path.startsWith("e/")) {
+                finalUrl = "https://voe.sx/e/$path"
+            }
+        }
+
+        return Extractor.extract(finalUrl, server)
+    }
+
+### providers/RidomoviesProvider.kt
+--- getServers ---
+override suspend fun getServers(id: String, videoType: Video.Type): List<Video.Server> {
+        val response = when (videoType) {
+            is Video.Type.Episode -> service.getEpisodeVideos(id)
+            is Video.Type.Movie -> service.getMovieVideos(id)
+        }
+
+        val servers = response.data.mapNotNull {
+            Video.Server(
+                id = it.id,
+                name = it.quality,
+                src = Jsoup.parse(it.url).selectFirst("iframe")
+                    ?.attr("data-src")
+                    ?: return@mapNotNull null,
+            )
+        }
+
+        return servers
+    }
+--- getVideo ---
+override suspend fun getVideo(server: Video.Server): Video {
+        return Extractor.extract(server.src)
+    }
+
+### providers/SerienStreamProvider.kt
+--- getServers ---
+override suspend fun getServers(id: String, videoType: Video.Type): List<Video.Server> {
+        val servers = mutableListOf<Video.Server>()
+        val linkWithSplitData = id.split("/")
+        val showName = linkWithSplitData[0]
+        val seasonNumber = linkWithSplitData[1]
+        val episodeNumber = linkWithSplitData[2]
+        val document = getService().getTvShowEpisodeServers(showName, seasonNumber, episodeNumber)
+
+        val elements = document.select("button.link-box")
+        for (element in elements) {
+            val serverName = element.attr("data-provider-name")
+            val language = element.attr("data-language-label")
+            val href = element.attr("data-play-url")
+            
+            if (href.isEmpty()) continue
+
+            try {
+                val redirectUrl = currentBaseUrl() + href.removePrefix("/")
+
+                val serverAfterRedirect = try {
+                    getService().getRedirectLink(redirectUrl)
+                } catch (exception: Exception) {
+                    val unsafeOkHttpClient = SerienStreamService.buildUnsafe(currentBaseUrl())
+                    unsafeOkHttpClient.getRedirectLink(redirectUrl)
+                }
+                val videoUrl = (serverAfterRedirect.raw() as okhttp3.Response).request.url
+                val videoUrlString = videoUrl.toString()
+                
+                servers.add(
+                    Video.Server(
+                        id = videoUrlString,
+                        name = "$serverName ($language)"
+                    )
+                )
+            } catch (e: Exception) {
+                Log.e("SerienStreamProvider", "Failed to process server '$serverName' with URL '$href'")
+            }
+        }
+        return servers
+
+    }
+--- getVideo ---
+override suspend fun getVideo(server: Video.Server): Video {
+        val link = server.id
+        return Extractor.extract(link)
+    }
+
+### providers/SeriesFlixProvider.kt
+--- getServers ---
+override suspend fun getServers(id: String, videoType: Video.Type): List<Video.Server> {
+        val document = service.getPage(id)
+        val servers = mutableListOf<Video.Server>()
+
+        document.select(".optns-bx .drpdn").forEach { group ->
+            val languageLabel = normalizeLanguageLabel(
+                group.selectFirst("button.bstd")?.text().orEmpty()
+            )
+
+            group.select(".Button.sgty[data-url]").forEachIndexed { index, serverButton ->
+                val decodedUrl = decodeBase64Url(serverButton.attr("data-url")) ?: return@forEachIndexed
+                val playableUrl = unwrapPlayableUrl(decodedUrl)
+                val hostLabel = extractHostLabel(playableUrl)
+
+                servers.add(
+                    Video.Server(
+                        id = playableUrl,
+                        name = buildServerLabel(languageLabel, hostLabel, index + 1),
+                        src = playableUrl
+                    )
+                )
+            }
+        }
+
+        return servers.distinctBy { it.id }
+    }
+--- getVideo ---
+override suspend fun getVideo(server: Video.Server): Video {
+        return Extractor.extract(server.src, server)
+    }
+
+### providers/SflixProvider.kt
+--- getServers ---
+override suspend fun getServers(id: String, videoType: Video.Type): List<Video.Server> {
+        val servers = when (videoType) {
+            is Video.Type.Movie -> service.getMovieServers(id.toNumericalId())
+            is Video.Type.Episode -> service.getEpisodeServers(id)
+        }.select("a")
+            .map {
+                Video.Server(
+                    id = it.attr("data-id"),
+                    name = it.selectFirst("span")?.text()?.trim() ?: "",
+                )
+            }
+
+        if (servers.isEmpty()) throw Exception("No links found")
+
+        return servers
+    }
+--- getVideo ---
+override suspend fun getVideo(server: Video.Server): Video {
+        val link = service.getLink(server.id)
+
+        return Extractor.extract(link.link, server)
+    }
+
+### providers/SoloLatinoProvider.kt
+--- getServers ---
+override suspend fun getServers(id: String, videoType: Video.Type): List<Video.Server> {
+        return try {
+            val doc = service.getPage(id)
+            val allServers = mutableListOf<Video.Server>()
+            
+            val serverBtns = doc.select("button.server-btn")
+            for (btn in serverBtns) {
+                val serverUrl = btn.attr("data-server-url")
+                val playerId = btn.attr("data-player-id")
+                val playerModel = btn.attr("data-player-model")
+                val playerToken = btn.attr("data-player-token")
+                
+                if (playerToken.isNotEmpty()) {
+                    withContext(Dispatchers.IO) {
+                        try {
+                            val payload = JSONObject().put("t", playerToken)
+                            val requestBody = payload.toString().toRequestBody("application/json".toMediaType())
+                            
+                            var requestBuilder = Request.Builder()
+                                .url("$baseUrl/api/player-url")
+                                .post(requestBody)
+                                .header("Referer", id)
+                                .header("X-Requested-With", "XMLHttpRequest")
+                                .header("Content-Type", "application/json")
+                                .header("Accept", "application/json")
+                            
+                            fun addXsrfHeader(builder: Request.Builder) {
+                                val cookies = client.cookieJar.loadForRequest(baseUrl.toHttpUrl())
+                                val xsrfCookie = cookies.firstOrNull { it.name == "XSRF-TOKEN" }?.value
+                                if (xsrfCookie != null) {
+                                    val decoded = java.net.URLDecoder.decode(xsrfCookie, "UTF-8")
+                                    builder.header("X-XSRF-TOKEN", decoded)
+                                }
+                            }
+                            
+                            addXsrfHeader(requestBuilder)
+                            var response = client.newCall(requestBuilder.build()).execute()
+                            
+                            if (response.code == 419 || response.code == 403) {
+                                response.close()
+                                // Fetch CSRF cookie
+                                val csrfReq = Request.Builder()
+                                    .url("$baseUrl/sanctum/csrf-cookie")
+                                    .build()
+                                client.newCall(csrfReq).execute().close()
+                                
+                                // Rebuild request and add new XSRF header
+                                requestBuilder = Request.Builder()
+                                    .url("$baseUrl/api/player-url")
+                                    .post(requestBody)
+                                    .header("Referer", id)
+                                    .header("X-Requested-With", "XMLHttpRequest")
+                                    .header("Content-Type", "application/json")
+                                    .header("Accept", "application/json")
+                                addXsrfHeader(requestBuilder)
+                                response = client.newCall(requestBuilder.build()).execute()
+                            }
+                            
+                            val jsonText = response.body?.string() ?: ""
+                            response.close()
+                            
+                            val jsonObject = JSONObject(jsonText)
+                            val resolvedUrl = jsonObject.optString("url")
+                            if (resolvedUrl.isNotEmpty()) {
+                                val nested = processIframe(resolvedUrl, id)
+                                allServers.addAll(nested)
+                            }
+                        } catch (e: Exception) {
+                            // Ignore single network errors
+                        }
+                    }
+                } else if (serverUrl.isNotEmpty()) {
+                    val nested = processIframe(serverUrl, id)
+                    allServers.addAll(nested)
+                } else if (playerId.isNotEmpty() && playerModel.isNotEmpty()) {
+                    withContext(Dispatchers.IO) {
+                        try {
+                            val request = Request.Builder()
+                                .url("$baseUrl/api/player-url/$playerModel/$playerId")
+                                .header("Referer", id)
+                                .header("X-Requested-With", "XMLHttpRequest")
+                                .build()
+                            val response = client.newCall(request).execute()
+                            val jsonText = response.body?.string() ?: ""
+                            val jsonObject = JSONObject(jsonText)
+                            val resolvedUrl = jsonObject.optString("url")
+                            if (resolvedUrl.isNotEmpty()) {
+                                val nested = processIframe(resolvedUrl, id)
+                                allServers.addAll(nested)
+                            }
+                        } catch (e: Exception) {
+                            // Ignore single network errors
+                        }
+                    }
+                }
+            }
+            
+            allServers.distinctBy { it.id }
+        } catch (e: Exception) {
+            emptyList()
+        }
+    }
+--- getVideo ---
+override suspend fun getVideo(server: Video.Server): Video {
+        return Extractor.extract(server.id, server)
+    }
+
+### providers/StreamingCommunityProvider.kt
+--- getServers ---
+override suspend fun getServers(id: String, videoType: Video.Type): List<Video.Server> {
+        Log.i("StreamFlixES", "[PROV] -> StreamingCommunity: getServers for $id")
+        val base = "https://$domain/"
+        
+        val isEpisode = videoType is Video.Type.Episode || id.contains("?episode_id=")
+        val iframeUrl = if (isEpisode) {
+            base + "$LANG/iframe/" + id.substringBefore("?") + "?episode_id=" + id.substringAfter("episode_id=").substringBefore("&") + "&next_episode=1" + "&language=$LANG"
+        } else {
+            base + "$LANG/iframe/" + id.substringBefore("-") + "?language=$LANG"
+        }
+        
+        Log.d(TAG, "Fetching iframe from: $iframeUrl")
+        val document = StreamingCommunityService.fetchDocumentWithRedirectsAndSslFallback(iframeUrl, base, language)
+        val src = document.selectFirst("iframe")?.attr("src") ?: ""
+
+        if (src.isEmpty()) {
+            Log.e(TAG, "No iframe found in /iframe/ endpoint")
+            return listOf()
+        }
+
+        Log.i("StreamFlixES", "[PROV] -> Found Vixcloud src: $src")
+        return listOf(Video.Server(id = id, name = "Vixcloud", src = src))
+    }
+--- getVideo ---
+override suspend fun getVideo(server: Video.Server): Video {
+        Log.i("StreamFlixES", "[SERVER] -> StreamingCommunity: Using ${server.name} (Src: ${server.src})")
+        
+        val base = "https://$domain/"
+        val isEpisode = server.id.contains("?episode_id=")
+        val iframeUrl = if (isEpisode) {
+            base + "$LANG/iframe/" + server.id.substringBefore("?") + "?episode_id=" + server.id.substringAfter("episode_id=").substringBefore("&") + "&next_episode=1" + "&language=$LANG"
+        } else {
+            base + "$LANG/iframe/" + server.id.substringBefore("-") + "?language=$LANG"
+        }
+
+        return try {
+            VixcloudExtractor(language, customReferer = iframeUrl).extract(server.src)
+        } catch (e: Exception) {
+            val isGone = e.message?.contains("410") == true
+            if (isGone) {
+                Log.w(TAG, "Vixcloud token probably expired (410), retrying by re-fetching iframe...")
+                val document = StreamingCommunityService.fetchDocumentWithRedirectsAndSslFallback(iframeUrl, base, language)
+                val newSrc = document.selectFirst("iframe")?.attr("src") ?: throw e
+                VixcloudExtractor(language, customReferer = iframeUrl).extract(newSrc)
+            } else {
+                throw e
+            }
+        }
+    }
+
+### providers/StreamingItaProvider.kt
+--- getServers ---
+override suspend fun getServers(id: String, videoType: Video.Type): List<Video.Server> {
+        return try {
+            val document = service.getPage(id)
+            val postId = document.select("[data-post]").firstOrNull()?.attr("data-post")
+                ?: document.select("#report-video").attr("data-post").ifBlank { null }
+                ?: throw Exception("Post id not found")
+            
+            val contentType = document.select("[data-type]").firstOrNull()?.attr("data-type")
+                ?: document.select("#report-video").attr("data-type").ifBlank { "movie" }
+                ?: "movie"
+
+            // First: Server1
+            val embedUrl1 = requestEmbedUrl(postId, nume = "1", type = contentType)
+            val finalUrl1 = followRedirect(embedUrl1)
+
+            val host1 = runCatching { finalUrl1.toHttpUrlOrNull()?.host }
+                .getOrNull()?.replaceFirst("www.", "")?.substringBefore('.')
+                ?.replaceFirstChar { if (it.isLowerCase()) it.titlecase() else it.toString() }
+                ?: "Server"
+
+            val resultServers = mutableListOf(
+                Video.Server(
+                    id = finalUrl1,
+                    name = host1,
+                    src = finalUrl1
+                )
+            )
+
+            // Then: Server2 (mirrors), if present
+            val availableServers = document.select("[data-nume]").mapNotNull { 
+                it.attr("data-nume").toIntOrNull() 
+            }.toSet()
+            val hasServer2 = availableServers.contains(2)
+            if (hasServer2) {
+                val serversFromMirrors = runCatching {
+                    val embedUrl2 = requestEmbedUrl(postId, nume = "2", type = contentType)
+                    val mirrorsPageUrl = followRedirect(embedUrl2)
+                    val mirrorsHtml = httpGet(mirrorsPageUrl, referer = id)
+                    val mirrorsDoc = Jsoup.parse(mirrorsHtml, mirrorsPageUrl)
+
+                    mirrorsDoc.select("ul._player-mirrors li[data-link]")
+                        .filterNot { li -> li.hasClass("fullhd") || li.text().contains("4K", true) }
+                        .mapNotNull { li ->
+                            val dataLink = li.attr("data-link").trim()
+                            if (dataLink.isBlank()) return@mapNotNull null
+                            val normalized = when {
+                                dataLink.startsWith("//") -> "https:$dataLink"
+                                dataLink.startsWith("http") -> dataLink
+                                else -> "https://$dataLink"
+                            }
+                            val nameText = li.ownText().ifBlank { li.text() }.trim()
+                            val name = nameText.ifBlank {
+                                normalized.toHttpUrlOrNull()?.host?.substringBefore('.')
+                                    ?.replaceFirstChar { c -> if (c.isLowerCase()) c.titlecase() else c.toString() }
+                                    ?: "Server"
+                            }
+                            Video.Server(
+                                id = normalized,
+                                name = name,
+                                src = normalized
+                            )
+                        }
+                        // deduplicate by src, prefer the entry whose name contains "hd"
+                        .groupBy { it.src }
+                        .map { (_, list) ->
+                            list.maxByOrNull { server ->
+                                val n = server.name.lowercase()
+                                if ("hd" in n) 2 else 1
+                            }!!
+                        }
+                }.getOrDefault(emptyList())
+
+                if (serversFromMirrors.isNotEmpty()) resultServers.addAll(serversFromMirrors)
+            }
+
+            resultServers
+        } catch (e: Exception) {
+            emptyList()
+        }
+    }
+--- getVideo ---
+override suspend fun getVideo(server: Video.Server): Video {
+        return Extractor.extract(server.id, server)
+    }
+
+### providers/SuperStreamProvider.kt
+--- getServers ---
+override suspend fun getServers(id: String, videoType: Video.Type): List<Video.Server> {
+        val sources = when (videoType) {
+            is Video.Type.Movie -> {
+                service.getMovieSourceById(
+                    queryApi(
+                        mapOf(
+                            "childmode" to "1",
+                            "uid" to "",
+                            "app_version" to "11.5",
+                            "appid" to appId,
+                            "module" to "Movie_downloadurl_v3",
+                            "channel" to "Website",
+                            "mid" to id,
+                            "lang" to "",
+                            "expired_date" to "${getExpiryDate()}",
+                            "platform" to "android",
+                            "oss" to "1",
+                            "group" to "",
+                        )
+                    )
+                ).data
+            }
+
+            is Video.Type.Episode -> {
+                service.getEpisodeSources(
+                    queryApi(
+                        mapOf(
+                            "childmode" to "1",
+                            "app_version" to "11.5",
+                            "module" to "TV_downloadurl_v3",
+                            "channel" to "Website",
+                            "episode" to "${videoType.number}",
+                            "expired_date" to "${getExpiryDate()}",
+                            "platform" to "android",
+                            "tid" to id,
+                            "oss" to "1",
+                            "uid" to "",
+                            "appid" to appId,
+                            "season" to "${videoType.season.number}",
+                            "lang" to "en",
+                            "group" to "",
+                        )
+                    )
+                ).data
+            }
+        }
+
+        val fid = sources.list.firstOrNull { it.fid != null }?.fid ?: 0
+
+        val subtitles = when (videoType) {
+            is Video.Type.Movie -> {
+                service.getMovieSubtitlesById(
+                    queryApi(
+                        mapOf(
+                            "childmode" to "1",
+                            "fid" to fid.toString(),
+                            "uid" to "",
+                            "app_version" to "11.5",
+                            "appid" to appId,
+                            "module" to "Movie_srt_list_v2",
+                            "channel" to "Website",
+                            "mid" to id,
+                            "lang" to "en",
+                            "expired_date" to "${getExpiryDate()}",
+                            "platform" to "android",
+                        )
+                    )
+                ).data
+            }
+
+            is Video.Type.Episode -> {
+                service.getEpisodeSubtitles(
+                    queryApi(
+                        mapOf(
+                            "childmode" to "1",
+                            "fid" to "$fid",
+                            "app_version" to "11.5",
+                            "module" to "TV_srt_list_v2",
+                            "channel" to "Website",
+                            "episode" to "${videoType.number}",
+                            "expired_date" to "${getExpiryDate()}",
+                            "platform" to "android",
+                            "tid" to id,
+                            "uid" to "",
+                            "appid" to appId,
+                            "season" to "${videoType.season.number}",
+                            "lang" to "en",
+                        )
+                    )
+                ).data
+            }
+        }
+
+        return sources.list
+            .filter { it.path?.isNotEmpty() ?: false }
+            .mapIndexed { index, link ->
+                Video.Server(
+                    id = index.toString(),
+                    name = "${link.quality} • ${link.size}",
+                ).apply {
+                    video = Video(
+                        source = link.path ?: "",
+                        subtitles = subtitles.list.flatMap {
+                            it.subtitles
+                                .filter { subtitle -> subtitle.filePath?.isNotEmpty() ?: false }
+                                .map { subtitle ->
+                                    Video.Subtitle(
+                                        label = subtitle.language ?: "",
+                                        file = subtitle.filePath ?: "",
+                                    )
+                                }
+                        }
+                    )
+                }
+            }
+    }
+--- getVideo ---
+override suspend fun getVideo(server: Video.Server): Video {
+        return server.video ?: throw Exception("No source found")
+    }
+
+### providers/TmdbProvider.kt
+--- getServers ---
+override suspend fun getServers(id: String, videoType: Video.Type): List<Video.Server> {
+        val servers = mutableListOf<Video.Server>()
+        val lang = language.lowercase().substringBefore("-")
+
+        Log.d("TmdbProvider", "getServers: lang=$language, simplifiedLang=$lang")
+
+        when (lang) {
+            "it" -> {
+                // Se la lingua è italiano, includiamo solo i server noti per l'italiano.
+                servers.add(VixSrcExtractor().server(videoType))
+            }
+            "de" -> {
+                // Solo server tedeschi
+                servers.addAll(0, MoflixExtractor().servers(videoType))
+                if (videoType is Video.Type.Movie) {
+                    servers.add(EinschaltenExtractor().server(videoType))
+                }
+                VideasyExtractor().server(videoType, language)?.let { servers.add(it) }
+            }
+            "fr" -> {
+                // Solo server francesi
+                servers.addAll(FrembedExtractor(UserPreferences.getProviderCache(FrembedProvider, UserPreferences.PROVIDER_URL)).servers(videoType))
+                servers.addAll(AfterDarkExtractor(UserPreferences.getProviderCache(AfterDarkProvider, UserPreferences.PROVIDER_URL)).servers(videoType))
+            }
+            "es" -> {
+                // TMDB Spagnolo: Utilizza ESCLUSIVAMENTE server certificati con audio spagnolo ([LAT] o [CAST])
+                
+                val targetTitle = when (videoType) {
+                    is Video.Type.Movie -> videoType.title
+                    is Video.Type.Episode -> videoType.tvShow.title
+                }
+                
+                Log.i("StreamFlixES", "[SEARCH START] -> Target: $targetTitle (${if (videoType is Video.Type.Movie) "Movie" else "TV Show"})")
+
+                // Funzione di matching rigorosa per i titoli e tipo
+                fun isMatch(item: AppAdapter.Item, target: String): Boolean {
+                    val isCorrectType = if (videoType is Video.Type.Movie) item is Movie else item is TvShow
+                    if (!isCorrectType) return false
+
+                    val itemTitle = if (item is Movie) item.title else (item as TvShow).title
+                    val nItem = itemTitle.lowercase().replace(Regex("[^a-z0-9]"), "")
+                    val nTarget = target.lowercase().replace(Regex("[^a-z0-9]"), "")
+                    
+                    // Match esatto (normalizzato) ha la priorità
+                    if (nItem == nTarget) return true
+                    
+                    // Match parziale se contenuto e differenza lunghezza minima
+                    if (nItem.contains(nTarget) || nTarget.contains(nItem)) {
+                        val diff = Math.abs(nItem.length - nTarget.length)
+                        if (diff <= 5) return true
+                    }
+                    
+                    // Match per parole (almeno una deve corrispondere esattamente se il target è corto, o tutte se lungo)
+                    val cleanWords: (String) -> Set<String> = { s ->
+                        s.lowercase()
+                            .replace(Regex("[^a-z0-9 ]"), " ")
+                            .split(Regex("\\s+"))
+                            .filter { it.length > 2 }
+                            .toSet()
+                    }
+                    val nItemWords = cleanWords(itemTitle)
+                    val nTargetWords = cleanWords(target)
+                    
+                    if (nItemWords.isEmpty() || nTargetWords.isEmpty()) return false
+                    
+                    // Se il target ha solo una parola importante, deve esserci
+                    if (nTargetWords.size == 1) return nItemWords.contains(nTargetWords.first())
+                    
+                    // Altrimenti tutte le parole del target devono essere presenti nell'item
+                    return nItemWords.containsAll(nTargetWords) || nTargetWords.containsAll(nItemWords)
+                }
+
+                coroutineScope {
+                    val providers = listOf(CuevanaEuProvider, PelisplustoProvider, SoloLatinoProvider, CineCalidadProvider, PoseidonHD2Provider)
+                    val deferred = providers.map { provider ->
+                        async {
+                            try {
+                                val searchResults = provider.search(targetTitle, 1)
+                                val bestMatch = searchResults.firstOrNull { isMatch(it, targetTitle) }
+                                val id = if (bestMatch is Movie) bestMatch.id else (bestMatch as? TvShow)?.id
+                                
+                                if (id != null) {
+                                    val matchTitle = if (bestMatch is Movie) bestMatch.title else (bestMatch as? TvShow)?.title
+                                    Log.i("StreamFlixES", "[MATCH FOUND] -> Provider: ${provider.name}, Matched: '$matchTitle', ID: $id")
+                                    
+                                    val allServers = provider.getServers(id, videoType)
+                                    val filtered = allServers.filter { s ->
+                                        val n = s.name.uppercase()
+                                        n.contains("[LAT]") || n.contains("[CAST]") || n.contains("[CAS]") || n.contains("[ES]") ||
+                                        n.contains("(LAT)") || n.contains("(ESP)") || n.contains("LATINO") || n.contains("CASTELLANO")
+                                    }
+                                    Log.i("StreamFlixES", "[SERVERS OK] -> ${provider.name}: ${filtered.size}/${allServers.size} servers kept")
+                                    filtered
+                                } else {
+                                    Log.d("StreamFlixES", "[NO MATCH] -> ${provider.name} did not find a valid match for '$targetTitle'")
+                                    emptyList()
+                                }
+                            } catch (e: Exception) { 
+                                Log.e("StreamFlixES", "[PROVIDER ERROR] -> ${provider.name}: ${e.message}")
+                                emptyList() 
+                            }
+                        }
+                    }
+                    servers.addAll(deferred.awaitAll().flatten())
+                }
+            }
+            else -> {
+                // Per inglese (en) o altre lingue non specifiche, usiamo i server globali
+                servers.addAll(listOf(
+                    VixSrcExtractor().server(videoType),
+                    TwoEmbedExtractor().server(videoType),
+                    VidsrcNetExtractor().server(videoType),
+                    VidLinkExtractor().server(videoType),
+                    VidsrcRuExtractor().server(videoType),
+                    VidflixExtractor().server(videoType),
+                ))
+
+                if (videoType is Video.Type.Movie) {
+                    servers.add(2, MoviesapiExtractor().server(videoType))
+                }
+
+                servers.addAll(VidrockExtractor().servers(videoType))
+                servers.addAll(VidzeeExtractor().servers(videoType))
+                servers.addAll(PrimeSrcExtractor().servers(videoType))
+
+                if (language == "en") {
+                    servers.addAll(1, VideasyExtractor().servers(videoType, language))
+                }
+            }
+        }
+
+        // ORDINE PRIORITÀ FINALE: Portiamo i server con audio Spagnolo e Filemoon in cima
+        val finalServers = if (language.startsWith("es")) {
+            servers.sortedByDescending { server ->
+                val n = server.name.uppercase()
+                when {
+                    // Filemoon e tag audio spagnoli hanno la massima priorità
+                    n.contains("FILEMOON") -> 110
+                    n.contains("[CAS]") || n.contains("[LAT]") || n.contains("[ES]") || n.contains("SPAIN") || n.contains("[CAST]") ||
+                    n.contains("LATINO") || n.contains("SPANISH") || n.contains("CASTELLANO") || n.contains("(LAT)") || n.contains("(ESP)") -> 100
+                    
+                    // Altri aggregatori multi-lingua
+                    n.contains("VIDSRC") || n.contains("VIDLINK") -> 80
+                    
+                    // Sottotitoli o inglese
+                    n.contains("[EN]") || n.contains("[SUB]") || n.contains("(EN)") || n.contains("(SUB)") -> 50
+                    
+                    else -> 0
+                }
+            }
+        } else {
+            servers
+        }
+
+        Log.i("StreamFlixES", "[SERVERS LIST] -> Found ${finalServers.size} servers: ${finalServers.joinToString { it.name }}")
+        return finalServers.distinctBy { it.id }
+    }
+--- getVideo ---
+override suspend fun getVideo(server: Video.Server): Video {
+        val url = server.src.ifEmpty { server.id }
+        Log.i("StreamFlixES", "[SERVER] -> Using: ${server.name} (URL: $url)")
+        
+        val video = when {
+            server.video != null -> server.video!!
+            else -> Extractor.extract(url, server)
+        }
+
+        // LOGICA SOTTOTITOLI FORZATI: Se siamo in spagnolo, attiviamo solo i forced di default
+        if (language.startsWith("es")) {
+            var forcedFound = false
+            video.subtitles.forEach { sub ->
+                val label = sub.label.lowercase()
+                val isSpanish = label.contains("spanish") || label.contains("español") || 
+                                label.contains("espanol") || label.contains("castellano") || 
+                                label.contains(" lat ")
+                val isForced = label.contains("forced") || label.contains("forzati") || label.contains("forzato")
+
+                if (isSpanish && isForced) {
+                    sub.default = true
+                    forcedFound = true
+                    Log.i("StreamFlixES", "[SUBTITLE] -> TMDb (es): Selected FORCED subtitle: ${sub.label}")
+                } else {
+                    sub.default = false
+                }
+            }
+            
+            if (!forcedFound) {
+                video.subtitles.forEach { it.default = false }
+                Log.i("StreamFlixES", "[SUBTITLE] -> TMDb (es): No forced subs found, keeping them OFF")
+            }
+        }
+        
+        Log.i("StreamFlixES", "[VIDEO] -> Final source: ${video.source}")
+        return video
+    }
+
+### providers/TvLibrefutbolProvider.kt
+--- getServers ---
+override suspend fun getServers(id: String, videoType: Video.Type): List<Video.Server> = try {
+        val doc = service.getPage(id)
+        val servers = mutableListOf<Video.Server>()
+
+        doc.select("a").forEach { link ->
+            val text = link.text().trim()
+            val href = link.attr("abs:href").ifEmpty { link.attr("href") }
+            if (href.isNotEmpty() && (text.contains("Opción", true) || text.contains("Servidor", true) || text.contains("FHD", true))) {
+                val finalUrl = if (href.startsWith("http")) href else "$baseUrl/${href.removePrefix("/")}"
+                servers.add(Video.Server(finalUrl, text))
+            }
+        }
+
+        if (servers.isEmpty() && doc.select("iframe").isNotEmpty()) {
+            servers.add(Video.Server(id, "Reproductor Automático"))
+        }
+
+        servers.distinctBy { it.id }
+    }
+--- getVideo ---
+override suspend fun getVideo(server: Video.Server): Video {
+        var currentUrl = server.id
+        var currentReferer = baseUrl
+        var depth = 0
+
+        val patterns = listOf(
+            Regex("""["'](https?://[^"']+\.m3u8[^"']*)["']"""),
+            Regex("""source\s*:\s*["']([^"']+)["']"""),
+            Regex("""file\s*:\s*["']([^"']+)["']"""),
+            Regex("""var\s+src\s*=\s*["']([^"']+)["']"""),
+            Regex("""["'](https?://[^"']+\.mp4[^"']*)["']"""),
+            Regex("""src\s*:\s*["']([^"']+)["']""")
+        )
+
+        while (depth < 6) {
+            depth++
+            try {
+                val doc = service.getPage(currentUrl, currentReferer)
+                val html = doc.html()
+
+                for (pattern in patterns) {
+                    pattern.find(html)?.let { match ->
+                        val foundUrl = match.groupValues[1].replace("\\/", "/")
+                        if (foundUrl.startsWith("http")) {
+                            return Video(foundUrl, headers = mapOf("Referer" to currentUrl, "User-Agent" to USER_AGENT))
+                        }
+                    }
+                }
+
+                doc.select("script").forEach { script ->
+                    val scriptData = script.data()
+                    if (scriptData.contains("eval(function")) {
+                        val unpacked = JsUnpacker(scriptData).unpack() ?: ""
+                        for (pattern in patterns) {
+                            pattern.find(unpacked)?.let { match ->
+                                val foundUrl = match.groupValues[1].replace("\\/", "/")
+                                if (foundUrl.startsWith("http")) {
+                                    return Video(foundUrl, headers = mapOf("Referer" to currentUrl, "User-Agent" to USER_AGENT))
+                                }
+                            }
+                        }
+                    }
+                }
+
+                if (html.contains("const decodedURL") || html.contains("atob(")) {
+                    doc.select("script").forEach { s ->
+                        val data = s.data()
+                        if (data.contains("atob(")) {
+                            try {
+                                val enc = data.substringAfter("atob(\"").substringBefore("\")")
+                                var dec = String(Base64.decode(enc, Base64.DEFAULT))
+                                repeat(2) {
+                                    if (dec.contains("atob(")) {
+                                        val innerEnc = dec.substringAfter("atob(\"").substringBefore("\")")
+                                        dec = String(Base64.decode(innerEnc, Base64.DEFAULT))
+                                    } else if (!dec.startsWith("http")) {
+                                        try { dec = String(Base64.decode(dec, Base64.DEFAULT)) } catch (_: Exception) {}
+                                    }
+                                }
+                                if (dec.startsWith("http")) {
+                                    return Video(dec, headers = mapOf("Referer" to currentUrl, "User-Agent" to USER_AGENT))
+                                }
+                            } catch (_: Exception) {}
+                        }
+                    }
+                }
+
+                val iframes = doc.select("iframe")
+                val nextIframe = iframes.firstOrNull { it.attr("src").isNotEmpty() }?.attr("src")
+                    ?: iframes.firstOrNull { it.attr("data-src").isNotEmpty() }?.attr("data-src") ?: ""
+
+                if (nextIframe.isNotEmpty() && nextIframe != currentUrl) {
+                    currentReferer = currentUrl
+                    currentUrl = if (nextIframe.startsWith("http")) nextIframe else "$baseUrl/${nextIframe.removePrefix("/")}"
+                } else {
+                    break
+                }
+            } catch (e: Exception) { break }
+        }
+        return Video("", emptyList())
+    }
+
+### providers/TvporinternetHDProvider.kt
+--- getServers ---
+override suspend fun getServers(id: String, videoType: Video.Type): List<Video.Server> = try {
+        val doc = service.getPage(id)
+        val servers = mutableListOf<Video.Server>()
+
+        doc.select("a").forEach { link ->
+            val text = link.text().trim()
+            val href = link.attr("abs:href").ifEmpty { link.attr("href") }
+            if (href.isNotEmpty() && (text.contains("Opción", true) || text.contains("Servidor", true) || text.contains("FHD", true))) {
+                val finalUrl = if (href.startsWith("http")) href else "$baseUrl/${href.removePrefix("/")}"
+                servers.add(Video.Server(finalUrl, text))
+            }
+        }
+
+        if (servers.isEmpty() && doc.select("iframe").isNotEmpty()) {
+            servers.add(Video.Server(id, "Reproductor Automático"))
+        }
+
+        servers.distinctBy { it.id }
+    }
+--- getVideo ---
+override suspend fun getVideo(server: Video.Server): Video {
+        var currentUrl = server.id
+        var currentReferer = baseUrl
+        var depth = 0
+
+        val patterns = listOf(
+            Regex("""["'](https?://[^"']+\.m3u8[^"']*)["']"""),
+            Regex("""source\s*:\s*["']([^"']+)["']"""),
+            Regex("""file\s*:\s*["']([^"']+)["']"""),
+            Regex("""var\s+src\s*=\s*["']([^"']+)["']"""),
+            Regex("""["'](https?://[^"']+\.mp4[^"']*)["']"""),
+            Regex("""src\s*:\s*["']([^"']+)["']""")
+        )
+
+        while (depth < 6) {
+            depth++
+            try {
+                val doc = service.getPage(currentUrl, currentReferer)
+                val html = doc.html()
+
+                for (pattern in patterns) {
+                    pattern.find(html)?.let { match ->
+                        val foundUrl = match.groupValues[1].replace("\\/", "/")
+                        if (foundUrl.startsWith("http")) {
+                            return Video(foundUrl, headers = mapOf("Referer" to currentUrl, "User-Agent" to USER_AGENT))
+                        }
+                    }
+                }
+
+                doc.select("script").forEach { script ->
+                    val scriptData = script.data()
+                    if (scriptData.contains("eval(function")) {
+                        val unpacked = JsUnpacker(scriptData).unpack() ?: ""
+                        for (pattern in patterns) {
+                            pattern.find(unpacked)?.let { match ->
+                                val foundUrl = match.groupValues[1].replace("\\/", "/")
+                                if (foundUrl.startsWith("http")) {
+                                    return Video(foundUrl, headers = mapOf("Referer" to currentUrl, "User-Agent" to USER_AGENT))
+                                }
+                            }
+                        }
+                    }
+                }
+
+                if (html.contains("const decodedURL") || html.contains("atob(")) {
+                    doc.select("script").forEach { s ->
+                        val data = s.data()
+                        if (data.contains("atob(")) {
+                            try {
+                                val enc = data.substringAfter("atob(\"").substringBefore("\")")
+                                var dec = String(Base64.decode(enc, Base64.DEFAULT))
+                                repeat(2) {
+                                    if (dec.contains("atob(")) {
+                                        val innerEnc = dec.substringAfter("atob(\"").substringBefore("\")")
+                                        dec = String(Base64.decode(innerEnc, Base64.DEFAULT))
+                                    } else if (!dec.startsWith("http")) {
+                                        try { dec = String(Base64.decode(dec, Base64.DEFAULT)) } catch (_: Exception) {}
+                                    }
+                                }
+                                if (dec.startsWith("http")) {
+                                    return Video(dec, headers = mapOf("Referer" to currentUrl, "User-Agent" to USER_AGENT))
+                                }
+                            } catch (_: Exception) {}
+                        }
+                    }
+                }
+
+                val iframes = doc.select("iframe")
+                val nextIframe = iframes.firstOrNull { it.attr("src").isNotEmpty() }?.attr("src")
+                    ?: iframes.firstOrNull { it.attr("data-src").isNotEmpty() }?.attr("data-src") ?: ""
+
+                if (nextIframe.isNotEmpty() && nextIframe != currentUrl) {
+                    currentReferer = currentUrl
+                    currentUrl = if (nextIframe.startsWith("http")) nextIframe else "$baseUrl/${nextIframe.removePrefix("/")}"
+                } else {
+                    break
+                }
+            } catch (e: Exception) { break }
+        }
+        return Video("", emptyList())
+    }
+
+### providers/UnJourUnFilmProvider.kt
+--- getServers ---
+override suspend fun getServers(id: String, videoType: Video.Type): List<Video.Server> {
+        initializeService()
+
+        val apivoirfilm = ApiVoirFilmExtractor()
+        val onregadeou = OnRegardeOuExtractor()
+        var apiUrl = ""
+        var onregardeUrl = ""
+
+        val servers = when (videoType) {
+            is Video.Type.Episode -> {
+                val document = service.getEpisode(id)
+
+                document.selectFirst("ul#playeroptionsul")?.select("li.dooplay_player_option")
+                    ?.mapIndexedNotNull { idx, it ->
+                        val nume = it.attr("data-nume")
+                        val post = it.attr("data-post")
+                        val link = service.getServers(num=nume, post=post, type="tv")
+
+                        if (link.embed_url.isNullOrEmpty() ||
+                            ignoreSource("", link.embed_url))
+                            return@mapIndexedNotNull null
+
+                        if (link.embed_url.startsWith(apivoirfilm.mainUrl)) {
+                            apiUrl = link.embed_url
+                            return@mapIndexedNotNull null
+                        }
+                        if (link.embed_url.startsWith(onregadeou.mainUrl)) {
+                            onregardeUrl = link.embed_url
+                            return@mapIndexedNotNull null
+                        }
+
+                        val title = it.selectFirst("span.title")?.text()?:"Server $idx"
+
+                            Video.Server(
+                            id = "srv$idx",
+                            name = title,
+                            src = link.embed_url
+                        )}
+                    ?: emptyList()
+
+            }
+
+            is Video.Type.Movie -> {
+                val document = service.getMovie(id)
+
+                document.selectFirst("ul#playeroptionsul")?.select("li.dooplay_player_option")
+                    ?.mapIndexedNotNull { idx, it ->
+                        val nume = it.attr("data-nume")
+                        val post = it.attr("data-post")
+                        val link = service.getServers(num=nume, post=post)
+
+                        if (link.embed_url.isNullOrEmpty() ||
+                            ignoreSource("", link.embed_url))
+                                return@mapIndexedNotNull null
+
+                        if (link.embed_url.startsWith(apivoirfilm.mainUrl)) {
+                            apiUrl = link.embed_url
+                            return@mapIndexedNotNull null
+                        }
+                        if (link.embed_url.startsWith(onregadeou.mainUrl)) {
+                            onregardeUrl = link.embed_url
+                            return@mapIndexedNotNull null
+                        }
+
+                        val title = it.selectFirst("span.title")?.text()?:"Server $idx"
+
+                        Video.Server(
+                            id = "srv$idx",
+                            name = title,
+                            src = link.embed_url
+                        )}
+                    ?: emptyList()
+            }
+        }
+
+        val other = if (apiUrl.isNotEmpty())
+                        apivoirfilm.expand(apiUrl, baseUrl, "FR ")
+                    else if (onregardeUrl.isNotEmpty())
+                        onregadeou.expand(onregardeUrl, baseUrl, "FR ")
+                    else
+                        emptyList()
+
+        return servers + other
+    }
+--- getVideo ---
+override suspend fun getVideo(server: Video.Server): Video {
+        return Extractor.extract(server.src)
+    }
+
+### providers/VavooProvider.kt
+--- getServers ---
+override suspend fun getServers(id: String, videoType: Video.Type): List<Video.Server> {
+        return listOf(Video.Server(id = id, name = "Vavoo"))
+    }
+--- getVideo ---
+override suspend fun getVideo(server: Video.Server): Video {
+        val vavooUrl = if (server.id.startsWith("http")) server.id else "$baseUrl/vavoo-iptv/play/${server.id}"
+        Log.d(TAG, "[$language] Resolving: $vavooUrl")
+        val resolved = resolveChannel(vavooUrl)
+            ?: throw Exception("Vavoo: could not resolve stream URL for $vavooUrl")
+        Log.d(TAG, "[$language] Playing: ${resolved.url}")
+        return Video(source = resolved.url, subtitles = emptyList())
+    }
+
+### providers/WiflixProvider.kt
+--- getServers ---
+override suspend fun getServers(id: String, videoType: Video.Type): List<Video.Server> {
+        initializeService()
+        val servers = when (videoType) {
+            is Video.Type.Episode -> {
+                val (tvShowId, rel) = id.split("/")
+
+                val document = service.getTvShow(tvShowId)
+
+                document.select("div.$rel a").
+                    filter { ignoreSource(it.text().trim() ) == false }.
+                    mapIndexed { index, it ->
+                        Video.Server(
+                            id = it.selectFirst("span")
+                                ?.text()
+                                ?: index.toString(),
+                            name = it.selectFirst("span")
+                                ?.text()
+                                ?: "",
+                            src = it.attr("onclick")
+                                .substringAfter("loadVideo('").substringBeforeLast("'"),
+                    )
+                }
+            }
+
+            is Video.Type.Movie -> {
+                val document = service.getMovie(id)
+
+                document.select("div.tabs-sel a").
+                    filter { ignoreSource(it.text().trim() ) == false }.
+                    mapIndexed { index, it ->
+                        Video.Server(
+                            id = it.selectFirst("span")
+                                ?.text()
+                                ?: index.toString(),
+                            name = it.selectFirst("span")
+                                ?.text()
+                                ?: "",
+                            src = it.attr("onclick")
+                                .substringAfter("loadVideo('").substringBeforeLast("'"),
+                    )
+                }
+            }
+        }
+
+        return servers
+    }
+--- getVideo ---
+override suspend fun getVideo(server: Video.Server): Video {
+        val video = Extractor.extract(server.src)
+
+        return video
+    }
+
+### providers/ZeriunProvider.kt
+--- getServers ---
+override suspend fun getServers(id: String, videoType: Video.Type): List<Video.Server> {
+        val pageUrl = when (videoType) {
+            is Video.Type.Movie -> toAbsoluteUrl(id)
+            is Video.Type.Episode -> toAbsoluteUrl(id)
+        }
+        val document = service.getDocument(pageUrl)
+        val mode = if (document.selectFirst("#movie-page") != null) "movie" else "series"
+
+        return document.select(".video-list table").flatMap { table ->
+            val typeKey = table.attr("data-key").ifBlank { "default" }
+            table.select("tbody tr").mapNotNull { row ->
+                val button = row.selectFirst(".watch-btn[data-id]") ?: return@mapNotNull null
+                val host = row.selectFirst("td")?.text()
+                    ?.replace("premium", "", ignoreCase = true)
+                    ?.trim()
+                    .orEmpty()
+                if (host.isBlank()) return@mapNotNull null
+
+                Video.Server(
+                    id = encodeServerId(mode, pageUrl, button.attr("data-id")),
+                    name = "$host [$typeKey]"
+                )
+            }
+        }.distinctBy { it.id }
+    }
+--- getVideo ---
+override suspend fun getVideo(server: Video.Server): Video {
+        val serverData = parseServerId(server.id)
+        val document = service.getDocument(serverData.pageUrl)
+        val csrf = extractCsrf(document) ?: throw Exception("Missing Zeriun csrf token")
+        val endpoint = if (serverData.mode == "movie") {
+            "$baseUrl/api/movie/get-embed"
+        } else {
+            "$baseUrl/api/series/get-embed"
+        }
+
+        val body = FormBody.Builder()
+            .add("id", serverData.watchId)
+            .build()
+
+        val request = Request.Builder()
+            .url(endpoint)
+            .post(body)
+            .header("x-csrf-token", csrf)
+            .header("Content-Type", "application/x-www-form-urlencoded; charset=UTF-8")
+            .header("X-Requested-With", "XMLHttpRequest")
+            .header("Referer", serverData.pageUrl)
+            .header("Origin", baseUrl)
+            .header("User-Agent", USER_AGENT)
+            .build()
+
+        val json = client.newCall(request).execute().use { response ->
+            response.body?.string()
+        } ?: throw Exception("Empty Zeriun embed response")
+
+        val root = JSONObject(json)
+        val url = root.optJSONObject("data")
+            ?.optString("url")
+            ?.takeIf { it.isNotBlank() }
+            ?: throw Exception("Unable to resolve Zeriun embed")
+
+        return Extractor.extract(url, server)
+    }
+
+LANGUAGE/CATALOG ERROR REFERENCES
+---------------------------------
+fragments/player/PlayerMobileFragment.kt:591: getString(R.string.player_retry_later_message),
+fragments/player/PlayerTvFragment.kt:645: getString(R.string.player_retry_later_message),
+
+PLAYBACK SOURCE CALL SITES
+--------------------------
+extractors/PrimeSrcExtractor.kt:23: val serversResponse = service.getServers(apiUrl)
+extractors/StreamtapeExtractor.kt:52: val response = service.getVideo(finalVideoUrl)
+fragments/player/PlayerViewModel.kt:116: val servers = UserPreferences.currentProvider!!.getServers(id, videoType)
+fragments/player/PlayerViewModel.kt:158: val video = UserPreferences.currentProvider!!.getVideo(server)
+providers/AnikotoProvider.kt:263: val response = service.getServers(episodeToken, referer = referer)
+providers/HiAnimeProvider.kt:642: val servers = Jsoup.parse(service.getServers(episodeId).html)
+providers/TmdbProvider.kt:804: val allServers = provider.getServers(id, videoType)
+providers/UnJourUnFilmProvider.kt:713: val link = service.getServers(num=nume, post=post, type="tv")
+providers/UnJourUnFilmProvider.kt:746: val link = service.getServers(num=nume, post=post)
+
+DIRECT EXTRACTOR CALLS OUTSIDE PROVIDERS
+---------------------------------------
+
+SERVER VIDEO CACHE REFERENCES
+-----------------------------
+extractors/VixSrcExtractor.kt:79: .substringAfter("window.video = {", "")
+extractors/VixcloudExtractor.kt:92: .substringAfter("window.video = ", "")
+providers/AfterDarkProvider.kt:606: return server.video!!
+providers/FrembedProvider.kt:438: server.video != null -> server.video!!
+providers/SuperStreamProvider.kt:510: return server.video ?: throw Exception("No source found")
+providers/TmdbProvider.kt:882: server.video != null -> server.video!!
