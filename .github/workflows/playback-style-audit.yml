@@ -1,9 +1,9 @@
 name: Playback source style audit
 
 on:
-  push:
+  pull_request:
     branches:
-      - ci/playback-style-audit
+      - fix/playback-source-errors
 
 jobs:
   audit:
@@ -22,7 +22,6 @@ jobs:
         run: |
           python3 - <<'PY'
           import subprocess
-          from pathlib import Path
 
           base = '4aaa3ac34b5ca20251176958d9437fdcc67569d6'
           head = 'fix/playback-source-errors'
@@ -45,20 +44,21 @@ jobs:
 
           failed = False
           for path in paths:
-              b = blob(base, path)
-              h = blob(head, path)
-              bs = stats(b)
-              hs = stats(h)
+              base_stats = stats(blob(base, path))
+              head_stats = stats(blob(head, path))
               print(path)
-              print('  upstream:', bs)
-              print('  branch:  ', hs)
-              if (bs[0] and not bs[1]) != (hs[0] and not hs[1]):
-                  print('  ERROR: dominant EOL style changed')
+              print('  upstream:', base_stats)
+              print('  branch:  ', head_stats)
+
+              base_crlf_only = base_stats[0] > 0 and base_stats[1] == 0
+              head_crlf_only = head_stats[0] > 0 and head_stats[1] == 0
+              if base_crlf_only != head_crlf_only:
+                  print('  ERROR: EOL style changed')
                   failed = True
-              if bs[2] != hs[2]:
+              if base_stats[2] != head_stats[2]:
                   print('  ERROR: bare CR count changed')
                   failed = True
-              if bs[3] != hs[3]:
+              if base_stats[3] != head_stats[3]:
                   print('  ERROR: final newline presence changed')
                   failed = True
 
