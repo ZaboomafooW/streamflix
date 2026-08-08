@@ -99,7 +99,6 @@ import kotlinx.coroutines.delay
 import kotlinx.coroutines.withContext
 import okhttp3.OkHttpClient
 import okhttp3.internal.userAgent
-import java.util.Locale
 import com.streamflixreborn.streamflix.extractors.TokenManager
 
 class PlayerMobileFragment : Fragment() {
@@ -305,27 +304,6 @@ class PlayerMobileFragment : Fragment() {
                                     .putExtra(BypassWebViewActivity.EXTRA_URL, bypassUrl)
                             )
                         } else {
-                            val providerName = UserPreferences.currentProvider?.name ?: ""
-                            val isTmdb = providerName.contains("TMDb", ignoreCase = true)
-                            val isAD = providerName.contains("AfterDark", ignoreCase = true)
-
-                            if (servers.isEmpty()) {
-                                val message = if (isTmdb || isAD) {
-                                    val langCode = providerName.substringAfter("(").substringBefore(")")
-                                    val locale = Locale.forLanguageTag(langCode)
-                                    val langDisplayName = locale.getDisplayLanguage(Locale.getDefault())
-                                        .replaceFirstChar { if (it.isLowerCase()) it.titlecase(Locale.getDefault()) else it.toString() }
-
-                                    if (isTmdb) getString(R.string.player_not_available_lang_message, langDisplayName)
-                                    else getString(R.string.player_retry_later_message)
-                                } else {
-                                    "No servers found for this content."
-                                }
-                                Toast.makeText(requireContext(), message, Toast.LENGTH_LONG).show()
-                                findNavController().navigateUp()
-                                return@collect
-                            }
-
                             player.playlistMetadata = MediaMetadata.Builder()
                                 .setTitle(state.toString())
                                 .setMediaServers(state.servers.map {
@@ -344,14 +322,8 @@ class PlayerMobileFragment : Fragment() {
                     }
 
                     is PlayerViewModel.State.FailedLoadingServers -> {
-                        Toast.makeText(
-                            requireContext(),
-                            state.error.message ?: "",
-                            Toast.LENGTH_LONG
-                        ).show()
-                        findNavController().navigateUp()
+                        showPlaybackUnavailable(state.error)
                     }
-
                     is PlayerViewModel.State.LoadingVideo -> {
                         player.setMediaItem(
                             MediaItem.Builder()
@@ -376,27 +348,7 @@ class PlayerMobileFragment : Fragment() {
                         if (nextServer != null) {
                             viewModel.getVideo(nextServer)
                         } else {
-                            val providerName = UserPreferences.currentProvider?.name ?: ""
-                            val isTmdb = providerName.contains("TMDb", ignoreCase = true)
-                            val isAD = providerName.contains("AfterDark", ignoreCase = true)
-
-                            val message = if (isTmdb || isAD) {
-                                val langCode = providerName.substringAfter("(").substringBefore(")")
-                                val locale = Locale.forLanguageTag(langCode)
-                                val langDisplayName = locale.getDisplayLanguage(Locale.getDefault())
-                                    .replaceFirstChar { if (it.isLowerCase()) it.titlecase(Locale.getDefault()) else it.toString() }
-                                if (isTmdb) getString(R.string.player_not_available_lang_message, langDisplayName)
-                                else getString(R.string.player_retry_later_message)
-                            } else {
-                                "All servers failed to load the video."
-                            }
-                            
-                            Toast.makeText(
-                                requireContext(),
-                                message,
-                                Toast.LENGTH_LONG
-                            ).show()
-                            findNavController().navigateUp()
+                            showPlaybackUnavailable(state.error)
                         }
                     }
                 }
@@ -571,6 +523,17 @@ class PlayerMobileFragment : Fragment() {
             binding.settings.onBackPressed()
         }
         else -> false
+    }
+
+
+    private fun showPlaybackUnavailable(error: Exception? = null) {
+        error?.let { Log.e("PlayerMobileFragment", "Playback unavailable", it) }
+        Toast.makeText(
+            requireContext(),
+            getString(R.string.player_retry_later_message),
+            Toast.LENGTH_LONG,
+        ).show()
+        findNavController().navigateUp()
     }
 
 
