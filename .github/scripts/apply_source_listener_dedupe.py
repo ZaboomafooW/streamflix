@@ -21,7 +21,7 @@ r(
 r(
     MOBILE,
     "        player.addListener(object : Player.Listener {\n",
-    "        val shouldAttachListener = listenerPlayer !== player\n        if (shouldAttachListener) listenerPlayer = player\n        if (shouldAttachListener) player.addListener(object : Player.Listener {\n",
+    "\n        val shouldAttachListener = listenerPlayer !== player\n        if (shouldAttachListener) listenerPlayer = player\n        if (shouldAttachListener) player.addListener(object : Player.Listener {\n",
     "mobile listener attachment",
 )
 r(
