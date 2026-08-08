@@ -28,7 +28,9 @@ jobs:
       - name: Rebuild one bug per commit
         run: |
           python3 .github/scripts/patch_rebuild_script.py
-          python3 .github/scripts/rebuild_playback_history.py
+          cp .github/scripts/rebuild_playback_history.py /tmp/rebuild_playback_history.py
+          git checkout -- .github/scripts/rebuild_playback_history.py
+          python3 /tmp/rebuild_playback_history.py
 
       - name: Push staging history
         run: git push origin HEAD:refs/heads/rebuild/playback-source-errors --force
