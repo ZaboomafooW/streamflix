@@ -22,8 +22,7 @@ import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharedFlow
 import kotlinx.coroutines.launch
 import com.streamflixreborn.streamflix.utils.SubDL
-import java.util.Collections
-import java.util.IdentityHashMap
+import java.util.concurrent.ConcurrentHashMap
 import java.util.concurrent.atomic.AtomicReference
 
 class PlayerViewModel(
@@ -40,9 +39,7 @@ class PlayerViewModel(
     private val _playPreviousOrNextEpisode = MutableSharedFlow<Video.Type.Episode>()
     val playPreviousOrNextEpisode: SharedFlow<Video.Type.Episode> = _playPreviousOrNextEpisode
 
-    private val playbackRetryAttempted = Collections.synchronizedSet(
-        Collections.newSetFromMap(IdentityHashMap<Video.Server, Boolean>())
-    )
+    private val playbackRetryAttempted = ConcurrentHashMap.newKeySet<Video.Server>()
     private val activeServerLoad = AtomicReference<Job?>(null)
     private val activeVideoLoad = AtomicReference<Job?>(null)
 

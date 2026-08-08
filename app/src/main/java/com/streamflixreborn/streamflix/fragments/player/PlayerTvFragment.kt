@@ -350,14 +350,8 @@ class PlayerTvFragment : Fragment() {
 
                     }
                         is PlayerViewModel.State.FailedLoadingServers -> {
-                            Toast.makeText(
-                                requireContext(),
-                                state.error.message ?: getString(R.string.player_retry_later_message),
-                                Toast.LENGTH_LONG
-                            ).show()
-                            findNavController().navigateUp()
+                            showPlaybackUnavailable(state.error)
                         }
-
                         is PlayerViewModel.State.LoadingVideo -> {
                             if (pendingPlaybackPositionMs == null) {
                                 val currentUri = player.currentMediaItem?.localConfiguration?.uri?.toString().orEmpty()
@@ -600,11 +594,13 @@ class PlayerTvFragment : Fragment() {
     private fun nextServerAfter(server: Video.Server?): Video.Server? {
         if (server == null) return null
         val index = servers.indexOfFirst { it === server }
+            .takeIf { it >= 0 }
+            ?: servers.indexOf(server)
         return if (index >= 0) servers.getOrNull(index + 1) else null
     }
 
     private fun showPlaybackUnavailable(error: Exception? = null) {
-        error?.let { Log.e("PlayerTvFragment", "Playback sources exhausted", it) }
+        error?.let { Log.e("PlayerTvFragment", "Playback unavailable", it) }
         pendingPlaybackPositionMs = null
         Toast.makeText(
             requireContext(),
