@@ -370,7 +370,7 @@ class PlayerTvFragment : Fragment() {
                         }
 
                         is PlayerViewModel.State.FailedLoadingVideo -> {
-                            val nextServer = servers.getOrNull(servers.indexOf(state.server) + 1)
+                            val nextServer = nextServerAfter(state.server)
                             if (nextServer != null) {
                                 viewModel.getVideo(nextServer)
                             } else {
@@ -578,6 +578,14 @@ class PlayerTvFragment : Fragment() {
         }
 
         else -> false
+    }
+
+    private fun nextServerAfter(server: Video.Server?): Video.Server? {
+        if (server == null) return null
+        val index = servers.indexOfFirst { it === server }
+            .takeIf { it >= 0 }
+            ?: servers.indexOf(server)
+        return if (index >= 0) servers.getOrNull(index + 1) else null
     }
 
     private fun showPlaybackUnavailable(error: Exception? = null) {
@@ -1239,7 +1247,7 @@ class PlayerTvFragment : Fragment() {
                     super.onPlayerError(error)
                     Log.e("PlayerTvFragment", "onPlayerError: ", error)
 
-                    val nextServer = servers.getOrNull(servers.indexOf(currentServer) + 1)
+                    val nextServer = nextServerAfter(currentServer)
                     if (nextServer != null) {
                         Log.i("PlayerTvFragment", "Playback failed, trying next server: ${nextServer.name}")
                         viewModel.getVideo(nextServer)
