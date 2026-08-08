@@ -115,7 +115,12 @@ class PlayerViewModel(
             try {
                 val servers = UserPreferences.currentProvider!!.getServers(id, videoType)
                 ensureActive()
-                if (servers.isEmpty()) throw Exception("No servers found")
+                if (servers.isEmpty()) {
+                    val error = Exception("No streaming servers found for this title.")
+                    Log.w("PlayerViewModel", error.message.orEmpty())
+                    _state.emit(State.FailedLoadingServers(error))
+                    return@launch
+                }
 
                 // LOG POTENZIATO: Mostra tutti i server disponibili per il player
                 Log.i("StreamFlixES", "[SERVERS LIST] -> Provider: ${UserPreferences.currentProvider!!.name}")
@@ -127,7 +132,11 @@ class PlayerViewModel(
                 throw e
             } catch (e: Exception) {
                 Log.e("PlayerViewModel", "Errore ricerca server: ", e)
-                _state.emit(State.FailedLoadingServers(e))
+                _state.emit(
+                    State.FailedLoadingServers(
+                        Exception("Unable to load streaming servers. Please try again later.", e)
+                    )
+                )
             }
         }
 
