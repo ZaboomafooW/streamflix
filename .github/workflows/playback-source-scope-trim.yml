@@ -31,7 +31,9 @@ jobs:
           POSITION_SUBJECT='fix: preserve playback position during source recovery'
           STATE_SUBJECT='fix: preserve playback state across source changes'
           LISTENER_SUBJECT='fix: avoid duplicate player listeners after source changes'
+          SERIALIZE_SUBJECT='fix: serialize playback source recovery'
           cp .github/scripts/split_playback_scope.py /tmp/split_playback_scope.py
+          cp .github/scripts/apply_source_recovery_serialization.py /tmp/apply_source_recovery_serialization.py
 
           mapfile -t commits < <(git rev-list --reverse "$BASE..$BACKUP")
           position_sha=''
@@ -52,6 +54,14 @@ jobs:
                 ;;
               "$LISTENER_SUBJECT")
                 python3 /tmp/split_playback_scope.py listener
+                git add \
+                  app/src/main/java/com/streamflixreborn/streamflix/fragments/player/PlayerMobileFragment.kt \
+                  app/src/main/java/com/streamflixreborn/streamflix/fragments/player/PlayerTvFragment.kt
+                git commit -C "$sha"
+                kept=$((kept + 1))
+                ;;
+              "$SERIALIZE_SUBJECT")
+                python3 /tmp/apply_source_recovery_serialization.py
                 git add \
                   app/src/main/java/com/streamflixreborn/streamflix/fragments/player/PlayerMobileFragment.kt \
                   app/src/main/java/com/streamflixreborn/streamflix/fragments/player/PlayerTvFragment.kt
@@ -101,7 +111,6 @@ jobs:
           git log --reverse --oneline "$source_sha..HEAD"
           behavior_sha="$(git rev-parse HEAD)"
 
-          # The split branches together must reproduce the preserved pre-split tree exactly.
           git diff --exit-code "$BACKUP" "$behavior_sha"
           git push origin HEAD:refs/heads/rebuild/playback-behavior-improvements --force
 
