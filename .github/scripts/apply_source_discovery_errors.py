@@ -1,4 +1,5 @@
 from pathlib import Path
+import re
 
 VIEW_MODEL = Path("app/src/main/java/com/streamflixreborn/streamflix/fragments/player/PlayerViewModel.kt")
 MOBILE = Path("app/src/main/java/com/streamflixreborn/streamflix/fragments/player/PlayerMobileFragment.kt")
@@ -12,6 +13,35 @@ def replace_once(path: Path, old: str, new: str, label: str) -> None:
     if count != 1:
         raise RuntimeError(f"{label}: expected one match, found {count}")
     path.write_text(text.replace(old, new, 1))
+
+
+def replace_server_failure_state(path: Path) -> None:
+    text = path.read_text()
+    pattern = re.compile(
+        r'(?m)^(?P<indent>\s*)is PlayerViewModel\.State\.FailedLoadingServers -> \{\n'
+        r'(?P=indent)\s+showPlaybackUnavailable\(state\.error\)\n'
+        r'(?P=indent)\}',
+    )
+    match = pattern.search(text)
+    if match is None:
+        raise RuntimeError(f"{path.name} server failure states: expected one match, found 0")
+    if pattern.search(text, match.end()) is not None:
+        raise RuntimeError(f"{path.name} server failure states: expected one match, found multiple")
+    indent = match.group('indent')
+    inner = indent + '    '
+    deeper = inner + '    '
+    replacement = (
+        f'{indent}PlayerViewModel.State.NoServers -> {{\n'
+        f'{inner}showPlaybackUnavailable(messageRes = R.string.player_no_sources_message)\n'
+        f'{indent}}}\n'
+        f'{indent}is PlayerViewModel.State.FailedLoadingServers -> {{\n'
+        f'{inner}showPlaybackUnavailable(\n'
+        f'{deeper}state.error,\n'
+        f'{deeper}R.string.player_sources_load_failed_message,\n'
+        f'{inner})\n'
+        f'{indent}}}'
+    )
+    path.write_text(text[:match.start()] + replacement + text[match.end():])
 
 
 replace_once(
@@ -47,22 +77,7 @@ replace_once(
 )
 
 for path in (MOBILE, TV):
-    replace_once(
-        path,
-        '''is PlayerViewModel.State.FailedLoadingServers -> {
-                        showPlaybackUnavailable(state.error)
-                    }''',
-        '''PlayerViewModel.State.NoServers -> {
-                        showPlaybackUnavailable(messageRes = R.string.player_no_sources_message)
-                    }
-                    is PlayerViewModel.State.FailedLoadingServers -> {
-                        showPlaybackUnavailable(
-                            state.error,
-                            R.string.player_sources_load_failed_message,
-                        )
-                    }''',
-        f"{path.name} server failure states",
-    )
+    replace_server_failure_state(path)
 
     replace_once(
         path,
