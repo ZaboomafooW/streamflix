@@ -35,7 +35,6 @@ jobs:
                   return None
               brace = text.find('{', start)
               if brace < 0:
-                  # expression-bodied function
                   end = text.find('\n', start)
                   return text[start:end if end >= 0 else len(text)]
               depth = 0
@@ -142,6 +141,30 @@ jobs:
                   for i, line in enumerate(text.splitlines(), 1):
                       if n in line:
                           lines.append(f'{path.relative_to(ROOT)}:{i}: {line.strip()}')
+
+          lines.append('')
+          lines.append('PLAYBACK SOURCE CALL SITES')
+          lines.append('--------------------------')
+          for path in sorted(ROOT.rglob('*.kt')):
+              text = path.read_text(errors='replace')
+              for i, line in enumerate(text.splitlines(), 1):
+                  stripped = line.strip()
+                  is_definition = 'fun getServers' in stripped or 'fun getVideo' in stripped
+                  if is_definition:
+                      continue
+                  if '.getServers(' in stripped or '.getVideo(' in stripped:
+                      lines.append(f'{path.relative_to(ROOT)}:{i}: {stripped}')
+
+          lines.append('')
+          lines.append('DIRECT EXTRACTOR CALLS OUTSIDE PROVIDERS')
+          lines.append('---------------------------------------')
+          for path in sorted(ROOT.rglob('*.kt')):
+              if 'providers' in path.parts or 'extractors' in path.parts:
+                  continue
+              text = path.read_text(errors='replace')
+              for i, line in enumerate(text.splitlines(), 1):
+                  if 'Extractor.extract(' in line:
+                      lines.append(f'{path.relative_to(ROOT)}:{i}: {line.strip()}')
 
           lines.append('')
           lines.append('SERVER VIDEO CACHE REFERENCES')
