@@ -132,6 +132,8 @@ class PlayerMobileFragment : Fragment() {
     private var currentVideo: Video? = null
     private var currentServer: Video.Server? = null
     private var listenerPlayer: ExoPlayer? = null
+    private var lastWorkingServer: Video.Server? = null
+    private var restoringLastWorkingServer = false
     private var playbackSourceRecoveryInProgress = false
     private var isIgnoringPip = false
     private var waitingForBypass = false
@@ -285,7 +287,10 @@ class PlayerMobileFragment : Fragment() {
         viewLifecycleOwner.lifecycleScope.launch { 
             viewModel.state.flowWithLifecycle(lifecycle, Lifecycle.State.CREATED).collect { state ->
                 when (state) {
-                    PlayerViewModel.State.LoadingServers -> {}
+                    PlayerViewModel.State.LoadingServers -> {
+                        lastWorkingServer = null
+                        restoringLastWorkingServer = false
+                    }
                     is PlayerViewModel.State.SuccessLoadingServers -> {
                         servers = state.servers
                         val sToServer = servers.firstOrNull {
@@ -319,7 +324,10 @@ class PlayerMobileFragment : Fragment() {
                                 val selectedServer = state.servers.firstOrNull {
                                     it.id == server.id && it.name == server.name
                                 } ?: state.servers.firstOrNull { it.id == server.id }
-                                selectedServer?.let(viewModel::selectVideo)
+                                selectedServer?.let {
+                                    restoringLastWorkingServer = false
+                                    viewModel.selectVideo(it)
+                                }
                             }
                             viewModel.selectVideo(state.servers.first())
                         }
@@ -350,11 +358,16 @@ class PlayerMobileFragment : Fragment() {
                     }
 
                     is PlayerViewModel.State.FailedLoadingVideo -> {
-                        val nextServer = nextServerAfter(state.server)
-                        if (nextServer != null) {
-                            viewModel.selectVideo(nextServer)
-                        } else {
+                        if (restoringLastWorkingServer) {
+                            restoringLastWorkingServer = false
                             showPlaybackUnavailable(state.error)
+                        } else {
+                            val nextServer = nextServerAfter(state.server)
+                            if (nextServer != null) {
+                                viewModel.selectVideo(nextServer)
+                            } else if (!restoreLastWorkingSource(state.server)) {
+                                showPlaybackUnavailable(state.error)
+                            }
                         }
                     }
                 }
@@ -539,8 +552,20 @@ class PlayerMobileFragment : Fragment() {
         return if (index >= 0) servers.getOrNull(index + 1) else null
     }
 
+    private fun restoreLastWorkingSource(failedServer: Video.Server?): Boolean {
+        val workingServer = lastWorkingServer ?: return false
+        val isFailedServer = failedServer != null &&
+            (workingServer === failedServer || workingServer == failedServer)
+        if (restoringLastWorkingServer || isFailedServer) return false
+
+        restoringLastWorkingServer = true
+        viewModel.selectVideo(workingServer)
+        return true
+    }
+
     private fun showPlaybackUnavailable(error: Exception? = null) {
         error?.let { Log.e("PlayerMobileFragment", "Playback unavailable", it) }
+        restoringLastWorkingServer = false
         playbackSourceRecoveryInProgress = false
         Toast.makeText(
             requireContext(),
@@ -1015,6 +1040,8 @@ class PlayerMobileFragment : Fragment() {
                 binding.pvPlayer.keepScreenOn = isPlaying || UserPreferences.keepScreenOnWhenPaused
 
                 if (isPlaying) {
+                    currentServer?.let { lastWorkingServer = it }
+                    restoringLastWorkingServer = false
                     startProgressHandler()
                 } else {
                     stopProgressHandler()
@@ -1099,6 +1126,12 @@ class PlayerMobileFragment : Fragment() {
                 super.onPlayerError(error)
                 Log.e("PlayerMobileFragment", "onPlayerError: ", error)
 
+                if (restoringLastWorkingServer) {
+                    restoringLastWorkingServer = false
+                    showPlaybackUnavailable(error)
+                    return
+                }
+
                 if (playbackSourceRecoveryInProgress) {
                     Log.d("PlayerMobileFragment", "Ignoring duplicate playback error during source recovery")
                     return
@@ -1114,7 +1147,7 @@ class PlayerMobileFragment : Fragment() {
                 if (nextServer != null) {
                     Log.i("PlayerMobileFragment", "Playback failed, trying next server: ${nextServer.name}")
                     viewModel.selectVideo(nextServer)
-                } else {
+                } else if (!restoreLastWorkingSource(currentServer)) {
                     showPlaybackUnavailable()
                 }
             }
