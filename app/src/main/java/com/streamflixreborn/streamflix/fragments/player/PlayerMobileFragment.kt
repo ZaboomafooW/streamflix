@@ -131,6 +131,7 @@ class PlayerMobileFragment : Fragment() {
 
     private var currentVideo: Video? = null
     private var currentServer: Video.Server? = null
+    private var listenerPlayer: ExoPlayer? = null
     private var pendingPlaybackPositionMs: Long? = null
     private var isIgnoringPip = false
     private var waitingForBypass = false
@@ -1011,7 +1012,10 @@ class PlayerMobileFragment : Fragment() {
                 startActivity(Intent.createChooser(intent, getString(R.string.player_external_player_title)))
             }
         }
-        player.addListener(object : Player.Listener {
+
+        val shouldAttachListener = listenerPlayer !== player
+        if (shouldAttachListener) listenerPlayer = player
+        if (shouldAttachListener) player.addListener(object : Player.Listener {
             override fun onIsPlayingChanged(isPlaying: Boolean) {
                 super.onIsPlayingChanged(isPlaying)
                 binding.pvPlayer.keepScreenOn = isPlaying || UserPreferences.keepScreenOnWhenPaused
@@ -1468,6 +1472,7 @@ class PlayerMobileFragment : Fragment() {
 
     private fun releasePlayer() {
         stopProgressHandler()
+        listenerPlayer = null
         binding.pvPlayer.player = null
         binding.settings.player = null
         binding.settings.subtitleView = null
