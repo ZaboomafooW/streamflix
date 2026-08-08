@@ -34,6 +34,8 @@ jobs:
           SERIALIZE_SUBJECT='fix: serialize playback source recovery'
           cp .github/scripts/split_playback_scope.py /tmp/split_playback_scope.py
           cp .github/scripts/apply_source_recovery_serialization.py /tmp/apply_source_recovery_serialization.py
+          cp .github/scripts/apply_behavior_position.py /tmp/apply_behavior_position.py
+          cp .github/scripts/apply_behavior_play_state.py /tmp/apply_behavior_play_state.py
 
           mapfile -t commits < <(git rev-list --reverse "$BASE..$BACKUP")
           position_sha=''
@@ -94,12 +96,12 @@ jobs:
           source_sha="$(git rev-parse HEAD)"
 
           git switch -C rebuild/playback-behavior-improvements "$source_sha"
-          python3 /tmp/split_playback_scope.py position
+          python3 /tmp/apply_behavior_position.py
           git add \
             app/src/main/java/com/streamflixreborn/streamflix/fragments/player/PlayerMobileFragment.kt \
             app/src/main/java/com/streamflixreborn/streamflix/fragments/player/PlayerTvFragment.kt
           git commit -C "$position_sha"
-          python3 /tmp/split_playback_scope.py state
+          python3 /tmp/apply_behavior_play_state.py
           git add \
             app/src/main/java/com/streamflixreborn/streamflix/fragments/player/PlayerMobileFragment.kt \
             app/src/main/java/com/streamflixreborn/streamflix/fragments/player/PlayerTvFragment.kt
