@@ -36,4 +36,11 @@ if text.count(old) != 1:
     raise RuntimeError(f'expected one releasePlayer edit to patch, found {text.count(old)}')
 text = text.replace(old, new, 1)
 
+# On a final blob mismatch, print the real diff before failing the safety gate.
+old = '''        run("git", "diff", "--no-index", f"/tmp/does-not-exist-{path.name}", str(path)) if False else None\n        raise RuntimeError(f"final blob mismatch for {path}: rebuilt={actual} reviewed={expected}")'''
+new = '''        subprocess.run(["git", "diff", final_sha, "--", str(path)], check=False)\n        raise RuntimeError(f"final blob mismatch for {path}: rebuilt={actual} reviewed={expected}")'''
+if text.count(old) != 1:
+    raise RuntimeError(f'expected one mismatch diagnostic to patch, found {text.count(old)}')
+text = text.replace(old, new, 1)
+
 path.write_text(text)
