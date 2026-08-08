@@ -325,14 +325,8 @@ class PlayerMobileFragment : Fragment() {
                     }
 
                     is PlayerViewModel.State.FailedLoadingServers -> {
-                        Toast.makeText(
-                            requireContext(),
-                            state.error.message ?: getString(R.string.player_retry_later_message),
-                            Toast.LENGTH_LONG
-                        ).show()
-                        findNavController().navigateUp()
+                        showPlaybackUnavailable(state.error)
                     }
-
                     is PlayerViewModel.State.LoadingVideo -> {
                         if (pendingPlaybackPositionMs == null) {
                             val currentUri = player.currentMediaItem?.localConfiguration?.uri?.toString().orEmpty()
@@ -545,7 +539,7 @@ class PlayerMobileFragment : Fragment() {
 
     private fun nextServerAfter(server: Video.Server?): Video.Server? {
         if (server == null) return null
-        val index = servers.indexOfFirst { it === server }
+        val index = servers.indexOf(server)
         return if (index >= 0) servers.getOrNull(index + 1) else null
     }
 
