@@ -135,6 +135,7 @@ class PlayerMobileFragment : Fragment() {
     private var listenerPlayer: ExoPlayer? = null
     private var lastWorkingServer: Video.Server? = null
     private var restoringLastWorkingServer = false
+    private val failedServers = mutableSetOf<Video.Server>()
     private var playbackSourceRecoveryInProgress = false
     private var isIgnoringPip = false
     private var waitingForBypass = false
@@ -291,6 +292,7 @@ class PlayerMobileFragment : Fragment() {
                     PlayerViewModel.State.LoadingServers -> {
                         lastWorkingServer = null
                         restoringLastWorkingServer = false
+                        failedServers.clear()
                     }
                     is PlayerViewModel.State.SuccessLoadingServers -> {
                         servers = state.servers
@@ -326,6 +328,7 @@ class PlayerMobileFragment : Fragment() {
                                     it.id == server.id && it.name == server.name
                                 } ?: state.servers.firstOrNull { it.id == server.id }
                                 selectedServer?.let {
+                                    failedServers.clear()
                                     restoringLastWorkingServer = false
                                     showSourceStatus(getString(R.string.player_source_trying, it.name))
                                     viewModel.selectVideo(it)
@@ -370,7 +373,8 @@ class PlayerMobileFragment : Fragment() {
                             restoringLastWorkingServer = false
                             showPlaybackUnavailable(state.error)
                         } else {
-                            val nextServer = nextServerAfter(state.server)
+                            failedServers.add(state.server)
+                            val nextServer = nextUnfailedServerAfter(state.server)
                             if (nextServer != null) {
                                 showSourceStatus(
                                     getString(
@@ -566,19 +570,42 @@ class PlayerMobileFragment : Fragment() {
         }
     }
 
-    private fun nextServerAfter(server: Video.Server?): Video.Server? {
-        if (server == null) return null
-        val index = servers.indexOfFirst { it === server }
-            .takeIf { it >= 0 }
-            ?: servers.indexOf(server)
-        return if (index >= 0) servers.getOrNull(index + 1) else null
+    private fun nextUnfailedServerAfter(server: Video.Server?): Video.Server? {
+        if (servers.isEmpty()) return null
+
+        val currentIndex = if (server == null) {
+            -1
+        } else {
+            servers.indexOfFirst { it === server }
+                .takeIf { it >= 0 }
+                ?: servers.indexOf(server)
+        }
+
+        for (offset in 1..servers.size) {
+            val index = if (currentIndex >= 0) {
+                (currentIndex + offset) % servers.size
+            } else {
+                offset - 1
+            }
+            val candidate = servers[index]
+            val isCurrent = server != null && (candidate === server || candidate == server)
+            val isLastWorking = lastWorkingServer?.let {
+                candidate === it || candidate == it
+            } ?: false
+
+            if (!isCurrent && !isLastWorking && candidate !in failedServers) {
+                return candidate
+            }
+        }
+
+        return null
     }
 
     private fun restoreLastWorkingSource(failedServer: Video.Server?): Boolean {
         val workingServer = lastWorkingServer ?: return false
         val isFailedServer = failedServer != null &&
             (workingServer === failedServer || workingServer == failedServer)
-        if (restoringLastWorkingServer || isFailedServer) return false
+        if (restoringLastWorkingServer || isFailedServer || workingServer in failedServers) return false
 
         restoringLastWorkingServer = true
         showSourceStatus(getString(R.string.player_source_restoring, workingServer.name))
@@ -594,6 +621,7 @@ class PlayerMobileFragment : Fragment() {
         sourceStatusToast?.cancel()
         sourceStatusToast = null
         restoringLastWorkingServer = false
+        failedServers.clear()
         playbackSourceRecoveryInProgress = false
         Toast.makeText(
             requireContext(),
@@ -1070,6 +1098,7 @@ class PlayerMobileFragment : Fragment() {
                 if (isPlaying) {
                     currentServer?.let { lastWorkingServer = it }
                     restoringLastWorkingServer = false
+                    failedServers.clear()
                     sourceStatusToast?.cancel()
                     sourceStatusToast = null
                     startProgressHandler()
@@ -1176,7 +1205,9 @@ class PlayerMobileFragment : Fragment() {
                     return
                 }
 
-                val nextServer = nextServerAfter(currentServer)
+                currentServer?.let(failedServers::add)
+
+                val nextServer = nextUnfailedServerAfter(currentServer)
                 if (nextServer != null) {
                     Log.i("PlayerMobileFragment", "Playback failed, trying next server: ${nextServer.name}")
                     showSourceStatus(
