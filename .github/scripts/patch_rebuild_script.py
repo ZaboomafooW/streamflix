@@ -43,9 +43,9 @@ if text.count(old) != 1:
     raise RuntimeError(f'expected one displayVideo seek edit to patch, found {text.count(old)}')
 text = text.replace(old, new, 1)
 
-# Keep one blank line before nextServerAfter, matching the reviewed files.
+# Keep one blank line before nextServerAfter where the generated edit introduced an extra one.
 old = 'commit("fix: stop failed-server fallback from restarting at first source")'
-new = '''for path in (MOBILE, TV):\n    replace(path, "\\n\\n\\n    private fun nextServerAfter", "\\n\\n    private fun nextServerAfter")\ncommit("fix: stop failed-server fallback from restarting at first source")'''
+new = '''for path in (MOBILE, TV):\n    current = read(path)\n    needle = "\\n\\n\\n    private fun nextServerAfter"\n    count = current.count(needle)\n    if count > 1:\n        raise RuntimeError(f"{path}: found {count} unexpected extra gaps before nextServerAfter")\n    if count == 1:\n        write(path, current.replace(needle, "\\n\\n    private fun nextServerAfter", 1))\ncommit("fix: stop failed-server fallback from restarting at first source")'''
 if text.count(old) != 1:
     raise RuntimeError('failover commit marker not found')
 text = text.replace(old, new, 1)
