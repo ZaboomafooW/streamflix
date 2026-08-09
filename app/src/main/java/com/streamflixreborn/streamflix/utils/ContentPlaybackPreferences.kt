@@ -220,14 +220,7 @@ object ContentPlaybackPreferences {
             }
         }
 
-        exactMatches.singleOrNull()?.let { return it.index }
-
-        if (saved.layoutSignature == layoutSignature(availableTracks)) {
-            exactMatches.firstOrNull { it.value.trackIndex == saved.trackIndex }
-                ?.let { return it.index }
-        }
-
-        return null
+        return exactMatches.singleOrNull()?.index
     }
 
     fun canonicalLanguage(value: String?): String? {
