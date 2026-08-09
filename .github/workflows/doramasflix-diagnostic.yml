@@ -1,0 +1,60 @@
+name: Doramasflix Diagnostic
+
+on:
+  pull_request:
+    branches:
+      - build/tv-doramasflix-test
+
+permissions:
+  contents: read
+
+jobs:
+  probe:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Probe current Doramasflix GraphQL flow
+        shell: bash
+        run: |
+          set -euo pipefail
+          API='https://sv7.fluxcedene.net/graphql'
+          REF='https://doramasflix.in/'
+
+          post() {
+            curl --fail-with-body --silent --show-error \
+              -H "Referer: $REF" \
+              -H 'Content-Type: application/json' \
+              --data "$1" \
+              "$API"
+          }
+
+          movie_payload='{"operationName":"PaginationMovie","variables":{"page":1,"limit":5,"filter":{}},"query":"query PaginationMovie($page: Int, $limit: Int, $filter: FilterMoviesInput) { paginationMovie(page: $page, limit: $limit, filter: $filter) { items { _id name slug } } }"}'
+          movie_json="$(post "$movie_payload")"
+          echo "$movie_json" | jq -e '.data.paginationMovie.items | length > 0' >/dev/null
+          movie_id="$(echo "$movie_json" | jq -r '.data.paginationMovie.items[0]._id')"
+          movie_name="$(echo "$movie_json" | jq -r '.data.paginationMovie.items[0].name')"
+          echo "Movie: $movie_name"
+          echo "Movie id length: ${#movie_id}"
+
+          problems_payload="$(jq -nc --arg id "$movie_id" '{operationName:"listProblemsItem",variables:{problem_id:$id},query:"query listProblemsItem($problem_id: ID!) { listProblems(filter: {problem_id: $problem_id}) { server { link lang } } }"}')"
+          movie_problems="$(post "$problems_payload")"
+          echo "Movie listProblems response:"
+          echo "$movie_problems" | jq '{errors, count:(.data.listProblems // [] | length), serverNulls:(.data.listProblems // [] | map(select(.server == null)) | length), sampleHosts:(.data.listProblems // [] | map(.server.link // empty | capture("https?://(?<host>[^/]+)").host) | unique | .[0:5])}'
+
+          dorama_payload='{"operationName":"PaginationDorama","variables":{"page":1,"limit":5,"filter":{"isTVShow":false}},"query":"query PaginationDorama($page: Int, $limit: Int, $filter: FilterDoramasInput) { paginationDorama(page: $page, limit: $limit, filter: $filter) { items { _id name slug } } }"}'
+          dorama_json="$(post "$dorama_payload")"
+          echo "$dorama_json" | jq -e '.data.paginationDorama.items | length > 0' >/dev/null
+          dorama_slug="$(echo "$dorama_json" | jq -r '.data.paginationDorama.items[0].slug')"
+          dorama_name="$(echo "$dorama_json" | jq -r '.data.paginationDorama.items[0].name')"
+          echo "Dorama: $dorama_name"
+          echo "Dorama slug: $dorama_slug"
+
+          episodes_payload="$(jq -nc --arg slug "$dorama_slug" '{operationName:"listEpisodes",variables:{slug:$slug,season_number:1},query:"query listEpisodes($slug: String!, $season_number: Int!) { listEpisodes(sort: NUMBER_ASC, filter: {serie_slug: $slug, season_number: $season_number}) { _id slug episode_number } }"}')"
+          episodes_json="$(post "$episodes_payload")"
+          echo "$episodes_json" | jq '{errors, count:(.data.listEpisodes // [] | length)}'
+          episode_id="$(echo "$episodes_json" | jq -r '.data.listEpisodes[0]._id // empty')"
+          if [ -n "$episode_id" ]; then
+            episode_problems_payload="$(jq -nc --arg id "$episode_id" '{operationName:"listProblemsItem",variables:{problem_id:$id},query:"query listProblemsItem($problem_id: ID!) { listProblems(filter: {problem_id: $problem_id}) { server { link lang } } }"}')"
+            episode_problems="$(post "$episode_problems_payload")"
+            echo "Episode listProblems response:"
+            echo "$episode_problems" | jq '{errors, count:(.data.listProblems // [] | length), serverNulls:(.data.listProblems // [] | map(select(.server == null)) | length), sampleHosts:(.data.listProblems // [] | map(.server.link // empty | capture("https?://(?<host>[^/]+)").host) | unique | .[0:5])}'
+          fi
