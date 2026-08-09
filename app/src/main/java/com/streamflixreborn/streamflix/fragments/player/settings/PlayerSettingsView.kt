@@ -35,9 +35,13 @@ abstract class PlayerSettingsView @JvmOverloads constructor(
     defStyleAttr: Int = 0
 ) : ConstraintLayout(context, attrs, defStyleAttr) {
 
+    private var restoredPreferenceMediaKey: String? = null
+
     var player: ExoPlayer? = null
         set(value) {
             if (field === value) return
+
+            restoredPreferenceMediaKey = null
 
             value?.let {
                 Settings.Server.init(it)
@@ -45,7 +49,6 @@ abstract class PlayerSettingsView @JvmOverloads constructor(
                 Settings.Audio.init(it, resources)
                 Settings.Subtitle.init(it, resources)
                 Settings.Speed.refresh(it)
-                restoreContentPreferences(it)
             }
 
             value?.addListener(object : Player.Listener {
@@ -60,7 +63,7 @@ abstract class PlayerSettingsView @JvmOverloads constructor(
                         Settings.Quality.init(value, resources)
                         Settings.Audio.init(value, resources)
                         Settings.Subtitle.init(value, resources)
-                        restoreContentPreferences(value)
+                        restoreContentPreferencesForCurrentMedia(value)
                     }
                     if (events.contains(Player.EVENT_PLAYBACK_PARAMETERS_CHANGED)) {
                         Settings.Speed.refresh(value)
@@ -83,12 +86,30 @@ abstract class PlayerSettingsView @JvmOverloads constructor(
             field = value
         }
 
+    private fun restoreContentPreferencesForCurrentMedia(player: ExoPlayer) {
+        val activationToken = ContentPlaybackPreferences.currentActivationToken() ?: return
+        val mediaUri = player.currentMediaItem
+            ?.localConfiguration
+            ?.uri
+            ?.toString()
+            ?.takeIf { it.isNotBlank() }
+            ?: return
+        val mediaKey = "$activationToken|${player.mediaMetadata.mediaServerId.orEmpty()}|$mediaUri"
+        if (mediaKey == restoredPreferenceMediaKey) return
+
+        // Mark first so applying an override cannot recursively restore on the TRACKS_CHANGED it emits.
+        restoredPreferenceMediaKey = mediaKey
+        restoreContentPreferences(player)
+    }
+
     private fun restoreContentPreferences(player: ExoPlayer) {
-        ContentPlaybackPreferences.speed()?.let { speed ->
-            if (player.playbackParameters.speed != speed) {
-                player.playbackParameters = player.playbackParameters.withSpeed(speed)
+        ContentPlaybackPreferences.speed()
+            ?.takeIf { savedSpeed -> Settings.Speed.list.any { it.value == savedSpeed } }
+            ?.let { speed ->
+                if (player.playbackParameters.speed != speed) {
+                    player.playbackParameters = player.playbackParameters.withSpeed(speed)
+                }
             }
-        }
         restoreContentTrackPreferences(player)
     }
 
