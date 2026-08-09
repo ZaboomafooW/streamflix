@@ -4,6 +4,9 @@ on:
   push:
     branches:
       - ci/playback-preferences-verification
+  pull_request:
+    branches:
+      - fix/remember-playback-preferences
 
 jobs:
   build:
