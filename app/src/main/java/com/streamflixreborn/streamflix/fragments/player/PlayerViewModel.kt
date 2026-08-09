@@ -31,6 +31,8 @@ class PlayerViewModel(
     private val _playPreviousOrNextEpisode = MutableSharedFlow<Video.Type.Episode>()
     val playPreviousOrNextEpisode: SharedFlow<Video.Type.Episode> = _playPreviousOrNextEpisode
 
+    private var playbackPreferencesActivationToken: Long? = null
+
     init {
         getServers(videoType, id)
         getSubtitles(videoType)
@@ -94,7 +96,7 @@ class PlayerViewModel(
     }
 
     private fun getServers(videoType: Video.Type, id: String) {
-        ContentPlaybackPreferences.activate(
+        playbackPreferencesActivationToken = ContentPlaybackPreferences.activate(
             videoType = videoType,
             providerName = UserPreferences.currentProvider?.name,
         )
@@ -252,5 +254,10 @@ class PlayerViewModel(
         val type = lastVideoType ?: return
         val id = lastId ?: return
         getServers(type, id)
+    }
+
+    override fun onCleared() {
+        ContentPlaybackPreferences.deactivate(playbackPreferencesActivationToken)
+        super.onCleared()
     }
 }
