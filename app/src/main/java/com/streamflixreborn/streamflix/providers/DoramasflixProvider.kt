@@ -171,11 +171,6 @@ object DoramasflixProvider : Provider {
             } else null
     }
 
-    private suspend fun findDoramaById(id: String, titleHint: String): DoramasflixShow? {
-        return searchAll(titleHint).data?.searchDorama?.firstOrNull { it.id == id }
-            ?: searchAll(titleHint.substringBefore(" (")).data?.searchDorama?.firstOrNull { it.id == id }
-    }
-
     private suspend fun getSeasons(slug: String): List<com.streamflixreborn.streamflix.models.doramasflix.Season> {
         val response = apiRequest(
             operationName = "listSeasons",
@@ -424,7 +419,7 @@ object DoramasflixProvider : Provider {
         return try {
             getEpisodes(slug, seasonNumber).map { episode ->
                 Episode(
-                    id = episode.slug,
+                    id = episode.id,
                     number = episode.episodeNumber ?: 0,
                     title = "Episodio ${episode.episodeNumber ?: 0}: ${episode.name.orEmpty()}".trim(),
                     poster = getPosterUrl(episode.stillPath),
@@ -437,32 +432,9 @@ object DoramasflixProvider : Provider {
 
     override suspend fun getServers(id: String, videoType: Video.Type): List<Video.Server> {
         return try {
-            val problemId = when (videoType) {
-                is Video.Type.Movie -> {
-                    if ('/' !in id) {
-                        id
-                    } else {
-                        val slug = slugFromId(id)
-                        findMovieBySlug(slug, videoType.title)?.id
-                    }
-                }
-
-                is Video.Type.Episode -> {
-                    val showSlug = if ('/' in videoType.tvShow.id) {
-                        slugFromId(videoType.tvShow.id)
-                    } else {
-                        findDoramaById(videoType.tvShow.id, videoType.tvShow.title)?.slug
-                    } ?: return emptyList()
-
-                    getEpisodes(showSlug, videoType.season.number)
-                        .firstOrNull { it.slug == id }
-                        ?.id
-                }
-            } ?: return emptyList()
-
             val response = apiRequest(
                 operationName = "listProblemsItem",
-                variables = JSONObject().put("problem_id", problemId),
+                variables = JSONObject().put("problem_id", id),
                 query = """
                     query listProblemsItem(${'$'}problem_id: ID!) {
                       listProblems(filter: {problem_id: ${'$'}problem_id}) {
