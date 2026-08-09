@@ -53,6 +53,10 @@ object UserPreferences {
             Context.MODE_PRIVATE,
         )
         if (::prefs.isInitialized) {
+            // The old app-wide subtitle memory cannot be safely migrated into the
+            // new provider/content/source-specific model, so discard it.
+            prefs.edit().remove("SUBTITLE_NAME").apply()
+
             debugLog { "prefs initialized: ${prefs.hashCode()}" }
 
             val jsonString = Key.PROVIDER_CACHE.getString() ?: "{}"
@@ -336,9 +340,17 @@ object UserPreferences {
             Key.QUALITY_HEIGHT.setInt(value)
         }
 
+    /**
+     * Compatibility no-op for old call sites. Subtitle memory is now entirely
+     * handled by PlaybackTrackPreferences and is never stored globally.
+     */
+    @Deprecated("Use source-scoped PlaybackTrackPreferences")
     var subtitleName: String?
-        get() = Key.SUBTITLE_NAME.getString()
-        set(value) = Key.SUBTITLE_NAME.setString(value)
+        get() = null
+        set(value) {
+            // Deliberately ignored.
+        }
+
     var streamingcommunityDomain: String
         get() {
             if (!::prefs.isInitialized) {
@@ -501,7 +513,6 @@ object UserPreferences {
         SCREEN_PADDING_X,
         SCREEN_PADDING_Y,
         QUALITY_HEIGHT,
-        SUBTITLE_NAME,
         SERIENSTREAM_DOMAIN,
         MOFLIX_DOMAIN,
         STREAMINGCOMMUNITY_DOMAIN,
