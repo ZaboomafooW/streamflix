@@ -7,6 +7,7 @@ import com.streamflixreborn.streamflix.StreamFlixApp
 import com.streamflixreborn.streamflix.models.Video
 import org.json.JSONObject
 import java.util.Locale
+import java.util.concurrent.atomic.AtomicLong
 
 /**
  * Persists playback choices that belong to one movie or TV show.
@@ -44,6 +45,7 @@ object ContentPlaybackPreferences {
     private data class ActiveContent(
         val key: String,
         val providerName: String,
+        val activationToken: Long,
     )
 
     private val preferences by lazy {
@@ -53,14 +55,16 @@ object ContentPlaybackPreferences {
         )
     }
 
+    private val nextActivationToken = AtomicLong(0L)
+
     @Volatile
     private var activeContent: ActiveContent? = null
 
     /**
-     * Sets the content whose player is currently being configured.
+     * Sets the content whose player is currently being configured and returns an ownership token.
      * TV episodes share the TV-show key; movies use their movie key.
      */
-    fun activate(videoType: Video.Type, providerName: String?) {
+    fun activate(videoType: Video.Type, providerName: String?): Long? {
         val provider = providerName?.trim().orEmpty()
         val key = when (videoType) {
             is Video.Type.Movie -> contentKey(
@@ -78,7 +82,26 @@ object ContentPlaybackPreferences {
             )
         }
 
-        activeContent = key?.let { ActiveContent(it, provider) }
+        if (key == null) {
+            activeContent = null
+            return null
+        }
+
+        val token = nextActivationToken.incrementAndGet()
+        activeContent = ActiveContent(
+            key = key,
+            providerName = provider,
+            activationToken = token,
+        )
+        return token
+    }
+
+    /** Clears only the context owned by [activationToken], never a newer player's context. */
+    fun deactivate(activationToken: Long?) {
+        if (activationToken == null) return
+        if (activeContent?.activationToken == activationToken) {
+            activeContent = null
+        }
     }
 
     fun rememberAudio(
