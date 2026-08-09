@@ -14,8 +14,8 @@ import androidx.media3.ui.CaptionStyleCompat
 import androidx.media3.ui.DefaultTrackNameProvider
 import androidx.media3.ui.SubtitleView
 import com.streamflixreborn.streamflix.R
+import com.streamflixreborn.streamflix.utils.ContentPlaybackPreferences
 import com.streamflixreborn.streamflix.utils.OpenSubtitles
-import com.streamflixreborn.streamflix.utils.mediaServers
 import com.streamflixreborn.streamflix.utils.SubDL
 import com.streamflixreborn.streamflix.utils.UserPreferences
 import com.streamflixreborn.streamflix.utils.dp
@@ -45,6 +45,7 @@ abstract class PlayerSettingsView @JvmOverloads constructor(
                 Settings.Audio.init(it, resources)
                 Settings.Subtitle.init(it, resources)
                 Settings.Speed.refresh(it)
+                restoreContentPreferences(it)
             }
 
             value?.addListener(object : Player.Listener {
@@ -59,6 +60,7 @@ abstract class PlayerSettingsView @JvmOverloads constructor(
                         Settings.Quality.init(value, resources)
                         Settings.Audio.init(value, resources)
                         Settings.Subtitle.init(value, resources)
+                        restoreContentTrackPreferences(value)
                     }
                     if (events.contains(Player.EVENT_PLAYBACK_PARAMETERS_CHANGED)) {
                         Settings.Speed.refresh(value)
@@ -68,6 +70,7 @@ abstract class PlayerSettingsView @JvmOverloads constructor(
 
             field = value
         }
+
     var subtitleView: SubtitleView? = null
     var openSubtitles: List<OpenSubtitles.Subtitle> = listOf()
         set(value) {
@@ -79,6 +82,102 @@ abstract class PlayerSettingsView @JvmOverloads constructor(
             Settings.Subtitle.SubDLSubtitles.init(value)
             field = value
         }
+
+    private fun restoreContentPreferences(player: ExoPlayer) {
+        ContentPlaybackPreferences.speed()?.let { speed ->
+            if (player.playbackParameters.speed != speed) {
+                player.playbackParameters = player.playbackParameters.withSpeed(speed)
+            }
+        }
+        restoreContentTrackPreferences(player)
+    }
+
+    private fun restoreContentTrackPreferences(player: ExoPlayer) {
+        val audioTracks = Settings.Audio.list
+        ContentPlaybackPreferences.audio()?.let { saved ->
+            val descriptors = audioTracks.map { it.preferenceDescriptor() }
+            ContentPlaybackPreferences.findTrack(saved, descriptors)
+                ?.let(audioTracks::getOrNull)
+                ?.takeUnless { it.isSelected }
+                ?.let { audio ->
+                    player.trackSelectionParameters = player.trackSelectionParameters
+                        .buildUpon()
+                        .clearOverridesOfType(C.TRACK_TYPE_AUDIO)
+                        .setOverrideForType(
+                            TrackSelectionOverride(
+                                audio.trackGroup.mediaTrackGroup,
+                                listOf(audio.trackIndex)
+                            )
+                        )
+                        .setTrackTypeDisabled(C.TRACK_TYPE_AUDIO, false)
+                        .build()
+                }
+        }
+
+        when (val saved = ContentPlaybackPreferences.subtitle()) {
+            ContentPlaybackPreferences.SubtitlePreference.None -> {
+                val ignoredFlags = C.SELECTION_FLAG_FORCED.inv()
+                val hasNormalSubtitleSelected = Settings.Subtitle.list
+                    .filterIsInstance<Settings.Subtitle.TextTrackInformation>()
+                    .any { it.isSelected }
+                if (
+                    hasNormalSubtitleSelected ||
+                    player.trackSelectionParameters.ignoredTextSelectionFlags != ignoredFlags
+                ) {
+                    player.trackSelectionParameters = player.trackSelectionParameters
+                        .buildUpon()
+                        .clearOverridesOfType(C.TRACK_TYPE_TEXT)
+                        .setIgnoredTextSelectionFlags(ignoredFlags)
+                        .build()
+                }
+            }
+
+            is ContentPlaybackPreferences.SubtitlePreference.Track -> {
+                val subtitleTracks = Settings.Subtitle.list
+                    .filterIsInstance<Settings.Subtitle.TextTrackInformation>()
+                val descriptors = subtitleTracks.map { it.preferenceDescriptor() }
+                ContentPlaybackPreferences.findTrack(saved.value, descriptors)
+                    ?.let(subtitleTracks::getOrNull)
+                    ?.takeUnless { it.isSelected }
+                    ?.let { subtitle ->
+                        player.trackSelectionParameters = player.trackSelectionParameters
+                            .buildUpon()
+                            .clearOverridesOfType(C.TRACK_TYPE_TEXT)
+                            .setOverrideForType(
+                                TrackSelectionOverride(
+                                    subtitle.trackGroup.mediaTrackGroup,
+                                    listOf(subtitle.trackIndex)
+                                )
+                            )
+                            .setTrackTypeDisabled(C.TRACK_TYPE_TEXT, false)
+                            .setIgnoredTextSelectionFlags(0)
+                            .build()
+                    }
+            }
+
+            null -> Unit
+        }
+    }
+
+    private fun Settings.Audio.AudioTrackInformation.preferenceDescriptor() =
+        ContentPlaybackPreferences.TrackDescriptor(
+            language = language,
+            label = label,
+            name = name,
+            roleFlags = roleFlags,
+            trackIndex = trackIndex,
+            metadataMissing = metadataMissing,
+        )
+
+    private fun Settings.Subtitle.TextTrackInformation.preferenceDescriptor() =
+        ContentPlaybackPreferences.TrackDescriptor(
+            language = language,
+            label = label,
+            name = name,
+            roleFlags = roleFlags,
+            trackIndex = trackIndex,
+            metadataMissing = metadataMissing,
+        )
 
     protected var currentSettings = Setting.MAIN
 
@@ -162,6 +261,11 @@ abstract class PlayerSettingsView @JvmOverloads constructor(
                 )
                 .setTrackTypeDisabled(audio.trackGroup.type, false)
                 .build()
+
+            ContentPlaybackPreferences.rememberAudio(
+                selected = audio.preferenceDescriptor(),
+                availableTracks = Settings.Audio.list.map { it.preferenceDescriptor() },
+            )
         }
 
     protected var onSubtitleSelected: ((Settings.Subtitle) -> Unit) =
@@ -175,7 +279,7 @@ abstract class PlayerSettingsView @JvmOverloads constructor(
                         .clearOverridesOfType(C.TRACK_TYPE_TEXT)
                         .setIgnoredTextSelectionFlags(C.SELECTION_FLAG_FORCED.inv())
                         .build()
-                    UserPreferences.subtitleName = null
+                    ContentPlaybackPreferences.rememberSubtitleNone()
                 }
 
                 is Settings.Subtitle.TextTrackInformation -> {
@@ -188,8 +292,14 @@ abstract class PlayerSettingsView @JvmOverloads constructor(
                             )
                         )
                         .setTrackTypeDisabled(subtitle.trackGroup.type, false)
+                        .setIgnoredTextSelectionFlags(0)
                         .build()
-                    UserPreferences.subtitleName = (subtitle.language ?: subtitle.label).substringBefore(" ")
+                    ContentPlaybackPreferences.rememberSubtitle(
+                        selected = subtitle.preferenceDescriptor(),
+                        availableTracks = Settings.Subtitle.list
+                            .filterIsInstance<Settings.Subtitle.TextTrackInformation>()
+                            .map { it.preferenceDescriptor() },
+                    )
                 }
 
                 else -> {}
@@ -342,6 +452,7 @@ abstract class PlayerSettingsView @JvmOverloads constructor(
 
             player.playbackParameters = player.playbackParameters
                 .withSpeed(speed.value)
+            ContentPlaybackPreferences.rememberSpeed(speed.value)
         }
 
     protected var onExtraBufferingListener: ((Boolean) -> Unit)? = null
@@ -378,7 +489,6 @@ abstract class PlayerSettingsView @JvmOverloads constructor(
     fun setOnServerSelectedListener(onServerSelected: (server: Settings.Server) -> Unit) {
         this.onServerSelected = onServerSelected
     }
-
 
     interface Item
 
@@ -425,7 +535,7 @@ abstract class PlayerSettingsView @JvmOverloads constructor(
             }
             data object Off : Gestures() {
                 override val isSelected: Boolean get() = !UserPreferences.playerGestures
-                override val stringId: Int get() = R.string.settings_player_gestures_off
+                override val stringId: Int get() = R.string.settings_autoupdate_off
             }
         }
 
@@ -494,7 +604,7 @@ abstract class PlayerSettingsView @JvmOverloads constructor(
                 var isDefaultEnabled = false
                 var selectedValue: Boolean? = null
 
-                val isEnabled: Boolean get() = selectedValue ?: (isDefaultEnabled)
+                val isEnabled: Boolean get() = selectedValue ?: isDefaultEnabled
 
                 val list = listOf(On, Off)
 
@@ -652,9 +762,13 @@ abstract class PlayerSettingsView @JvmOverloads constructor(
                                     .map { (trackIndex, trackFormat) ->
                                         val trackName = DefaultTrackNameProvider(resources)
                                             .getTrackName(trackFormat)
-                                        
+                                        val trackNameMissing =
+                                            trackName.isBlank() ||
+                                                trackName.equals("und", ignoreCase = true) ||
+                                                trackName.equals("unknown", ignoreCase = true)
+
                                         val finalName = when {
-                                            trackName.isBlank() || trackName.lowercase() == "und" || trackName.lowercase() == "unknown" -> {
+                                            trackNameMissing -> {
                                                 if (serverTag != null) "Audio $serverTag" else "Track ${trackIndex + 1}"
                                             }
                                             else -> trackName
@@ -662,7 +776,10 @@ abstract class PlayerSettingsView @JvmOverloads constructor(
 
                                         AudioTrackInformation(
                                             name = finalName,
-
+                                            label = trackFormat.label,
+                                            language = trackFormat.language,
+                                            roleFlags = trackFormat.roleFlags,
+                                            metadataMissing = trackNameMissing && serverTag == null,
                                             trackGroup = trackGroup,
                                             trackIndex = trackIndex,
                                         )
@@ -677,7 +794,10 @@ abstract class PlayerSettingsView @JvmOverloads constructor(
 
             class AudioTrackInformation(
                 val name: String,
-
+                val label: String?,
+                val language: String?,
+                val roleFlags: Int,
+                val metadataMissing: Boolean,
                 val trackGroup: Tracks.Group,
                 val trackIndex: Int,
             ) : Audio() {
@@ -711,12 +831,23 @@ abstract class PlayerSettingsView @JvmOverloads constructor(
                                 trackGroup.supportedTrackFormats
                                     .filter { it.format.selectionFlags and C.SELECTION_FLAG_FORCED == 0 }
                                     .map { (trackIndex, trackFormat) ->
+                                        val trackName = DefaultTrackNameProvider(resources)
+                                            .getTrackName(trackFormat)
+                                        val metadataMissing =
+                                            trackFormat.language.isNullOrBlank() &&
+                                                trackFormat.label.isNullOrBlank() &&
+                                                (
+                                                    trackName.isBlank() ||
+                                                        trackName.equals("und", ignoreCase = true) ||
+                                                        trackName.equals("unknown", ignoreCase = true)
+                                                    )
+
                                         TextTrackInformation(
-                                            name = DefaultTrackNameProvider(resources)
-                                                .getTrackName(trackFormat),
+                                            name = trackName,
                                             label = trackFormat.label ?: "",
                                             language = trackFormat.language?.replaceFirstChar { it.titlecase() },
-
+                                            roleFlags = trackFormat.roleFlags,
+                                            metadataMissing = metadataMissing,
                                             trackGroup = trackGroup,
                                             trackIndex = trackIndex,
                                         )
@@ -726,7 +857,6 @@ abstract class PlayerSettingsView @JvmOverloads constructor(
                     )
                     list.add(LocalSubtitles)
                     list.add(OpenSubtitles)
-                    // Add SubDL only if an API key is configured
                     if (UserPreferences.subdlApiKey.isNotEmpty()) {
                         list.add(SubDLSubtitles)
                     }
@@ -768,7 +898,9 @@ abstract class PlayerSettingsView @JvmOverloads constructor(
                     companion object : Style() {
                         val list: List<Item> = (0..100 step 4).map { Margin(it) }
                         val selected: Margin
-                            get() = list.filterIsInstance<Margin>().find { it.value == UserPreferences.captionMargin } ?: list.filterIsInstance<Margin>().find { it.value == 24 } ?: Margin(24)
+                            get() = list.filterIsInstance<Margin>().find { it.value == UserPreferences.captionMargin }
+                                ?: list.filterIsInstance<Margin>().find { it.value == 24 }
+                                ?: Margin(24)
                     }
                 }
 
@@ -1143,7 +1275,8 @@ abstract class PlayerSettingsView @JvmOverloads constructor(
                 val name: String,
                 val label: String,
                 val language: String?,
-
+                val roleFlags: Int,
+                val metadataMissing: Boolean,
                 val trackGroup: Tracks.Group,
                 val trackIndex: Int,
             ) : Subtitle() {
