@@ -202,7 +202,6 @@ class PlayerViewModel(
         _subtitleState.emit(SubtitleState.DownloadingOpenSubtitle)
         try {
             val uri = OpenSubtitles.download(subtitle)
-            ContentPlaybackPreferences.suspendSubtitleRestoreForCurrentVideo()
             Log.d("PlayerViewModel", "Download OpenSubtitles completato: $uri")
             _subtitleState.emit(SubtitleState.SuccessDownloadingOpenSubtitle(subtitle, uri))
         } catch (e: Exception) {
@@ -216,7 +215,6 @@ class PlayerViewModel(
         _subtitleState.emit(SubtitleState.DownloadingSubDLSubtitle)
         try {
             val uri = SubDL.download(subtitle)
-            ContentPlaybackPreferences.suspendSubtitleRestoreForCurrentVideo()
             Log.d("PlayerViewModel", "Download SubDL completato: $uri")
             _subtitleState.emit(SubtitleState.SuccessDownloadingSubDLSubtitle(subtitle, uri))
         } catch (e: Exception) {
