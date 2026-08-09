@@ -120,34 +120,11 @@ class PlayerViewModel(
 
     fun getVideo(server: Video.Server) = viewModelScope.launch(Dispatchers.IO) {
         Log.d("PlayerViewModel", "Inizio estrazione video dal server: ${server.name}")
+        PlaybackTrackPreferences.activateSource(server.name)
         _state.emit(State.LoadingVideo(server))
         try {
             val video = UserPreferences.currentProvider!!.getVideo(server)
             if (video.source.isEmpty()) throw Exception("No source found")
-
-            // Preserve the legacy global subtitle preference without treating a
-            // missing preference as an empty-string match. Prefer an exact label
-            // so "English" does not accidentally select "English Forced".
-            val currentProviderLang = UserPreferences.currentProvider?.language ?: ""
-            val hasDefaultAlready = video.subtitles.any { it.default }
-            val savedSubtitleName = UserPreferences.subtitleName
-                ?.trim()
-                ?.takeIf { it.isNotEmpty() }
-
-            if (
-                !hasDefaultAlready &&
-                currentProviderLang != "es" &&
-                savedSubtitleName != null &&
-                !(video.useServerSubtitleSetting && UserPreferences.serverAutoSubtitlesDisabled)
-            ) {
-                val preferredSubtitle = video.subtitles.firstOrNull {
-                    it.label.equals(savedSubtitleName, ignoreCase = true)
-                } ?: video.subtitles.firstOrNull {
-                    it.label.startsWith(savedSubtitleName, ignoreCase = true) &&
-                        !PlaybackTrackPreferences.isForcedLabel(it.label)
-                }
-                preferredSubtitle?.default = true
-            }
 
             Log.d("PlayerViewModel", "Estrazione video completata con successo")
             _state.emit(State.SuccessLoadingVideo(video, server))
@@ -228,7 +205,7 @@ class PlayerViewModel(
     }
 
     fun downloadSubDLSubtitle(subtitle: SubDL.Subtitle) = viewModelScope.launch(Dispatchers.IO) {
-        Log.d("PlayerViewModel", "Inizio download sottotitolo SubDL: ${subtitle.name}")
+        Log.d("PlayerViewModel", "Inizio download SubDL")
         _subtitleState.emit(SubtitleState.DownloadingSubDLSubtitle)
         try {
             val uri = SubDL.download(subtitle)
@@ -236,7 +213,7 @@ class PlayerViewModel(
             _subtitleState.emit(SubtitleState.SuccessDownloadingSubDLSubtitle(subtitle, uri))
         } catch (e: Exception) {
             Log.e("PlayerViewModel", "Errore download SubDL: ", e)
-            _subtitleState.emit(SubtitleState.FailedDownloadingSubDLSubtitle(e, subtitle))
+            _subtitleState.emit(SubtitleState.FailedSubDLSubtitle(e, subtitle))
         }
     }
 
@@ -261,7 +238,7 @@ class PlayerViewModel(
         data class FailedSubDLSubtitles(val error: Exception) : SubtitleState()
         data object DownloadingSubDLSubtitle : SubtitleState()
         data class SuccessDownloadingSubDLSubtitle(val subtitle: SubDL.Subtitle, val uri: Uri) : SubtitleState()
-        data class FailedDownloadingSubDLSubtitle(val error: Exception, val subtitle: SubDL.Subtitle) : SubtitleState()
+        data class FailedSubDLSubtitle(val error: Exception, val subtitle: SubDL.Subtitle) : SubtitleState()
     }
     private var lastVideoType: Video.Type? = null
     private var lastId: String? = null
