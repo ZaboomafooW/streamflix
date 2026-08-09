@@ -14,176 +14,148 @@ import com.streamflixreborn.streamflix.models.Video
 import org.json.JSONObject
 
 /**
- * Persists only explicit Audio/Subtitle choices made by the user.
+ * Remembers explicit Audio/Subtitle choices for exactly one playback context:
+ * provider + movie/TV show + playback-source name.
  *
- * Preferences are scoped to provider + movie/TV show + playback source name.
- * Episodes therefore share a preference through their TV-show id, while a
- * different source or title is always independent.
- *
- * Restoration is deliberately exact. Track labels/languages are never
- * translated, normalized, or semantically inferred. If the saved track cannot
- * be identified exactly on the same source, the player is left alone.
+ * Matching is deterministic. Labels and language values are compared exactly;
+ * no language normalization, semantic matching, or cross-source inference is
+ * performed. Track position is used only to disambiguate otherwise-identical
+ * tracks.
  */
 object PlaybackTrackPreferences {
 
     private data class ContentScope(
-        val providerName: String,
-        val contentId: String,
+        val provider: String,
+        val content: String,
     )
 
-    private data class TrackPreference(
+    private data class SavedTrack(
         val label: String?,
         val language: String?,
         val roleFlags: Int,
-        val sampleMimeType: String?,
         val forced: Boolean,
-        val channelCount: Int,
-        val sampleRate: Int,
         val groupIndex: Int,
         val trackIndex: Int,
     ) {
-        fun matches(format: Format): Boolean {
-            return label == format.label &&
+        fun matches(format: Format): Boolean =
+            label == format.label &&
                 language == format.language &&
                 roleFlags == format.roleFlags &&
-                sampleMimeType == format.sampleMimeType &&
-                forced == (format.selectionFlags and C.SELECTION_FLAG_FORCED != 0) &&
-                channelCount == format.channelCount &&
-                sampleRate == format.sampleRate
-        }
+                forced == (format.selectionFlags and C.SELECTION_FLAG_FORCED != 0)
 
-        fun toJson(): String = JSONObject().apply {
-            putNullableString(JSON_LABEL, label)
-            putNullableString(JSON_LANGUAGE, language)
-            put(JSON_ROLE_FLAGS, roleFlags)
-            putNullableString(JSON_SAMPLE_MIME_TYPE, sampleMimeType)
-            put(JSON_FORCED, forced)
-            put(JSON_CHANNEL_COUNT, channelCount)
-            put(JSON_SAMPLE_RATE, sampleRate)
-            put(JSON_GROUP_INDEX, groupIndex)
-            put(JSON_TRACK_INDEX, trackIndex)
+        fun encode(): String = JSONObject().apply {
+            putNullable(LABEL, label)
+            putNullable(LANGUAGE, language)
+            put(ROLE_FLAGS, roleFlags)
+            put(FORCED, forced)
+            put(GROUP_INDEX, groupIndex)
+            put(TRACK_INDEX, trackIndex)
         }.toString()
 
         companion object {
-            fun fromJson(value: String): TrackPreference? = runCatching {
+            fun decode(value: String): SavedTrack? = runCatching {
                 val json = JSONObject(value)
-                TrackPreference(
-                    label = json.nullableString(JSON_LABEL),
-                    language = json.nullableString(JSON_LANGUAGE),
-                    roleFlags = json.getInt(JSON_ROLE_FLAGS),
-                    sampleMimeType = json.nullableString(JSON_SAMPLE_MIME_TYPE),
-                    forced = json.getBoolean(JSON_FORCED),
-                    channelCount = json.getInt(JSON_CHANNEL_COUNT),
-                    sampleRate = json.getInt(JSON_SAMPLE_RATE),
-                    groupIndex = json.getInt(JSON_GROUP_INDEX),
-                    trackIndex = json.getInt(JSON_TRACK_INDEX),
+                SavedTrack(
+                    label = json.nullableString(LABEL),
+                    language = json.nullableString(LANGUAGE),
+                    roleFlags = json.getInt(ROLE_FLAGS),
+                    forced = json.getBoolean(FORCED),
+                    groupIndex = json.getInt(GROUP_INDEX),
+                    trackIndex = json.getInt(TRACK_INDEX),
                 )
             }.getOrNull()
         }
     }
 
-    private sealed interface SubtitlePreference {
-        data object Off : SubtitlePreference
-        data class Track(val value: TrackPreference) : SubtitlePreference
+    private sealed interface SavedSubtitle {
+        data object Off : SavedSubtitle
+        data class Track(val value: SavedTrack) : SavedSubtitle
     }
 
-    private data class TrackMatch(
+    private data class TrackRef(
         val group: Tracks.Group,
         val groupIndex: Int,
         val trackIndex: Int,
-    )
+    ) {
+        val position: Pair<Int, Int>
+            get() = groupIndex to trackIndex
 
-    private data class OverrideSignature(
-        val groupIndex: Int,
-        val trackIndices: List<Int>,
-    )
-
-    private data class SubtitleParameterState(
-        val override: OverrideSignature?,
-        val off: Boolean,
-    )
-
-    @Volatile
-    private var currentContentScope: ContentScope? = null
-
-    @Volatile
-    private var currentScopeKey: String? = null
-
-    @Volatile
-    private var currentAudioPreference: TrackPreference? = null
+        fun saved(): SavedTrack {
+            val format = group.getTrackFormat(trackIndex)
+            return SavedTrack(
+                label = format.label,
+                language = format.language,
+                roleFlags = format.roleFlags,
+                forced = format.selectionFlags and C.SELECTION_FLAG_FORCED != 0,
+                groupIndex = groupIndex,
+                trackIndex = trackIndex,
+            )
+        }
+    }
 
     @Volatile
-    private var currentSubtitlePreference: SubtitlePreference? = null
+    private var contentScope: ContentScope? = null
 
-    private val preferences by lazy {
+    @Volatile
+    private var scopeKey: String? = null
+
+    @Volatile
+    private var savedAudio: SavedTrack? = null
+
+    @Volatile
+    private var savedSubtitle: SavedSubtitle? = null
+
+    private val prefs by lazy {
         StreamFlixApp.instance.getSharedPreferences(
             "${BuildConfig.APPLICATION_ID}.playback_tracks",
             Context.MODE_PRIVATE,
         )
     }
 
-    /** Establishes the movie/TV-show portion of the scope. */
     fun activate(videoType: Video.Type) {
-        val providerName = UserPreferences.currentProvider?.name
-        val contentId = when (videoType) {
+        val provider = UserPreferences.currentProvider?.name
+        val content = when (videoType) {
             is Video.Type.Movie -> "movie:${videoType.id}"
             is Video.Type.Episode -> "tv:${videoType.tvShow.id}"
         }
 
-        currentContentScope = providerName?.let { ContentScope(it, contentId) }
-        currentScopeKey = null
-        currentAudioPreference = null
-        currentSubtitlePreference = null
-
-        // The old global subtitle-name mechanism is intentionally not migrated.
-        // A global value cannot be assigned to a particular title/source without
-        // guessing, which is precisely what this persistence model avoids.
-        UserPreferences.subtitleName = null
-        clearObsoleteGlobalSubtitlePreference()
+        contentScope = provider?.let { ContentScope(it, content) }
+        scopeKey = null
+        savedAudio = null
+        savedSubtitle = null
+        clearObsoleteGlobalPreference()
     }
 
-    /** Adds the stable playback-source identity to the active scope. */
+    /** The stable server/source name is intentionally part of the preference key. */
     fun activateSource(sourceName: String) {
-        val contentScope = currentContentScope
-        currentScopeKey = contentScope?.let {
-            buildScopeKey(
-                providerName = it.providerName,
-                contentId = it.contentId,
-                sourceName = sourceName,
-            )
+        scopeKey = contentScope?.let { scope ->
+            keyOf(scope.provider, scope.content, sourceName)
         }
-        currentAudioPreference = currentScopeKey?.let(::loadAudio)
-        currentSubtitlePreference = currentScopeKey?.let(::loadSubtitle)
-
-        // Ignore any legacy write made elsewhere in the old subtitle path.
-        UserPreferences.subtitleName = null
+        savedAudio = scopeKey?.let(::loadAudio)
+        savedSubtitle = scopeKey?.let(::loadSubtitle)
     }
 
-    /**
-     * Binds restoration to a player. Parameter changes are observed only so an
-     * explicit settings override can be persisted. Automatic track selection
-     * itself is never learned.
-     */
     fun bind(player: Player): Player.Listener {
         val listener = object : Player.Listener {
             private var mediaItem: MediaItem? = null
-            private var scopeKey: String? = null
-            private var audioRestoreComplete = false
-            private var subtitleRestoreComplete = false
-            private var audioRestoreCancelled = false
-            private var subtitleRestoreCancelled = false
+            private var activeScope: String? = null
+            private var audioRestored = false
+            private var subtitleRestored = false
+            private var audioCancelled = false
+            private var subtitleCancelled = false
             private var expectedParameters: TrackSelectionParameters? = null
-            private var lastAudioOverride: OverrideSignature? = null
-            private var lastSubtitleState = SubtitleParameterState(null, false)
+            private var lastAudioPosition: Pair<Int, Int>? = null
+            private var lastSubtitlePosition: Pair<Int, Int>? = null
+            private var lastSubtitleOff = false
 
             override fun onMediaItemTransition(mediaItem: MediaItem?, reason: Int) {
-                prepareContext(mediaItem, player.currentTracks)
+                resetForContext(mediaItem, player.currentTracks)
             }
 
             override fun onTracksChanged(tracks: Tracks) {
-                prepareContext(player.currentMediaItem, tracks)
-                restoreIfPossible(tracks)
-                syncParameterState(player.trackSelectionParameters, tracks)
+                resetForContext(player.currentMediaItem, tracks)
+                restore(tracks)
+                captureState(player.trackSelectionParameters, tracks)
             }
 
             override fun onTrackSelectionParametersChanged(parameters: TrackSelectionParameters) {
@@ -191,147 +163,104 @@ object PlaybackTrackPreferences {
 
                 if (expectedParameters == parameters) {
                     expectedParameters = null
-                    syncParameterState(parameters, tracks)
+                    captureState(parameters, tracks)
                     return
                 }
 
-                val audioOverride = findCurrentOverride(
-                    parameters = parameters,
-                    groups = tracks.groups,
-                    trackType = C.TRACK_TYPE_AUDIO,
-                )
-                val audioSignature = audioOverride?.toOverrideSignature()
-                if (audioSignature != lastAudioOverride) {
-                    if (audioOverride != null) {
-                        saveAudio(audioOverride.toPreference())
-                        audioRestoreCancelled = true
+                val audio = currentOverride(parameters, tracks, C.TRACK_TYPE_AUDIO)
+                if (audio?.position != lastAudioPosition && audio != null) {
+                    saveAudio(audio.saved())
+                    audioCancelled = true
+                }
+
+                val subtitle = currentOverride(parameters, tracks, C.TRACK_TYPE_TEXT)
+                val subtitleOff = subtitle == null && isSubtitleOff(parameters)
+
+                when {
+                    subtitle?.position != lastSubtitlePosition && subtitle != null -> {
+                        saveSubtitle(subtitle.saved())
+                        subtitleCancelled = true
+                    }
+
+                    subtitleOff && !lastSubtitleOff -> {
+                        saveSubtitleOff()
+                        subtitleCancelled = true
                     }
                 }
 
-                val subtitleOverride = findCurrentOverride(
-                    parameters = parameters,
-                    groups = tracks.groups,
-                    trackType = C.TRACK_TYPE_TEXT,
-                )
-                val subtitleState = SubtitleParameterState(
-                    override = subtitleOverride?.toOverrideSignature(),
-                    off = subtitleOverride == null && isSubtitleOff(parameters),
-                )
-
-                if (subtitleState != lastSubtitleState) {
-                    when {
-                        subtitleOverride != null -> {
-                            saveSubtitle(subtitleOverride.toPreference())
-                            subtitleRestoreCancelled = true
-                        }
-
-                        subtitleState.off -> {
-                            saveSubtitleOff()
-                            subtitleRestoreCancelled = true
-                        }
-                    }
-                }
-
-                syncParameterState(parameters, tracks)
+                captureState(parameters, tracks)
             }
 
-            private fun prepareContext(newMediaItem: MediaItem?, tracks: Tracks) {
-                val newScopeKey = currentScopeKey ?: return
-                val scopeChanged = newScopeKey != scopeKey
-                val mediaItemChanged = newMediaItem !== mediaItem
-                if (!scopeChanged && !mediaItemChanged) return
+            private fun resetForContext(newItem: MediaItem?, tracks: Tracks) {
+                val newScope = scopeKey ?: return
+                val scopeChanged = activeScope != null && activeScope != newScope
+                val itemChanged = newItem !== mediaItem
+                if (!scopeChanged && !itemChanged) return
 
-                val hadContext = scopeKey != null || mediaItem != null
-                val externalSubtitleSelected = hasLocalDefaultSubtitle(newMediaItem)
-                val builder = player.trackSelectionParameters.buildUpon()
-                var changed = false
+                val externalSubtitle = hasLocalDefaultSubtitle(newItem)
+                var builder: TrackSelectionParameters.Builder? = null
 
-                if (hadContext && scopeChanged) {
-                    builder
+                if (scopeChanged) {
+                    builder = player.trackSelectionParameters.buildUpon()
                         .clearOverridesOfType(C.TRACK_TYPE_AUDIO)
                         .clearOverridesOfType(C.TRACK_TYPE_TEXT)
                         .setTrackTypeDisabled(C.TRACK_TYPE_AUDIO, false)
                         .setTrackTypeDisabled(C.TRACK_TYPE_TEXT, false)
-                        .setIgnoredTextSelectionFlags(DEFAULT_IGNORED_TEXT_SELECTION_FLAGS)
-                    changed = true
-                } else if (mediaItemChanged && externalSubtitleSelected) {
-                    // Downloaded/local subtitles are current-playback choices only.
-                    // Remove an embedded-text override so the external default can
-                    // take effect, but never persist the external track itself.
-                    builder
+                        .setIgnoredTextSelectionFlags(DEFAULT_TEXT_FLAGS)
+                } else if (externalSubtitle) {
+                    // Downloaded/local subtitles are playback-only choices. Clear
+                    // any embedded override and do not restore over the external
+                    // default for this MediaItem.
+                    builder = player.trackSelectionParameters.buildUpon()
                         .clearOverridesOfType(C.TRACK_TYPE_TEXT)
                         .setTrackTypeDisabled(C.TRACK_TYPE_TEXT, false)
-                        .setIgnoredTextSelectionFlags(DEFAULT_IGNORED_TEXT_SELECTION_FLAGS)
-                    changed = true
+                        .setIgnoredTextSelectionFlags(DEFAULT_TEXT_FLAGS)
                 }
 
-                mediaItem = newMediaItem
-                scopeKey = newScopeKey
-                audioRestoreCancelled = false
-                subtitleRestoreCancelled = externalSubtitleSelected
-                audioRestoreComplete = currentAudioPreference == null
-                subtitleRestoreComplete = currentSubtitlePreference == null
+                mediaItem = newItem
+                activeScope = newScope
+                audioRestored = savedAudio == null
+                subtitleRestored = savedSubtitle == null
+                audioCancelled = false
+                subtitleCancelled = externalSubtitle
 
-                if (changed) {
-                    applyParameters(builder.build())
-                }
-                syncParameterState(player.trackSelectionParameters, tracks)
+                builder?.build()?.let(::applyParameters)
+                captureState(player.trackSelectionParameters, tracks)
             }
 
-            private fun restoreIfPossible(tracks: Tracks) {
+            private fun restore(tracks: Tracks) {
                 var builder: TrackSelectionParameters.Builder? = null
 
-                if (!audioRestoreComplete && !audioRestoreCancelled) {
-                    val preference = currentAudioPreference
-                    if (preference == null) {
-                        audioRestoreComplete = true
-                    } else {
-                        findExactTrack(
-                            groups = tracks.groups,
-                            trackType = C.TRACK_TYPE_AUDIO,
-                            preference = preference,
-                        )?.let { match ->
+                if (!audioRestored && !audioCancelled) {
+                    savedAudio?.let { saved ->
+                        exactTrack(tracks, C.TRACK_TYPE_AUDIO, saved)?.let { track ->
                             builder = (builder ?: player.trackSelectionParameters.buildUpon())
-                                .setOverrideForType(
-                                    TrackSelectionOverride(
-                                        match.group.mediaTrackGroup,
-                                        listOf(match.trackIndex),
-                                    )
-                                )
+                                .setOverrideForType(track.override())
                                 .setTrackTypeDisabled(C.TRACK_TYPE_AUDIO, false)
-                            audioRestoreComplete = true
+                            audioRestored = true
                         }
                     }
                 }
 
-                if (!subtitleRestoreComplete && !subtitleRestoreCancelled) {
-                    when (val preference = currentSubtitlePreference) {
-                        null -> subtitleRestoreComplete = true
+                if (!subtitleRestored && !subtitleCancelled) {
+                    when (val saved = savedSubtitle) {
+                        null -> subtitleRestored = true
 
-                        SubtitlePreference.Off -> {
+                        SavedSubtitle.Off -> {
                             builder = (builder ?: player.trackSelectionParameters.buildUpon())
                                 .clearOverridesOfType(C.TRACK_TYPE_TEXT)
                                 .setTrackTypeDisabled(C.TRACK_TYPE_TEXT, false)
-                                .setIgnoredTextSelectionFlags(SUBTITLE_OFF_IGNORED_FLAGS)
-                            subtitleRestoreComplete = true
+                                .setIgnoredTextSelectionFlags(SUBTITLE_OFF_FLAGS)
+                            subtitleRestored = true
                         }
 
-                        is SubtitlePreference.Track -> {
-                            findExactTrack(
-                                groups = tracks.groups,
-                                trackType = C.TRACK_TYPE_TEXT,
-                                preference = preference.value,
-                            )?.let { match ->
+                        is SavedSubtitle.Track -> {
+                            exactTrack(tracks, C.TRACK_TYPE_TEXT, saved.value)?.let { track ->
                                 builder = (builder ?: player.trackSelectionParameters.buildUpon())
-                                    .setOverrideForType(
-                                        TrackSelectionOverride(
-                                            match.group.mediaTrackGroup,
-                                            listOf(match.trackIndex),
-                                        )
-                                    )
+                                    .setOverrideForType(track.override())
                                     .setTrackTypeDisabled(C.TRACK_TYPE_TEXT, false)
-                                    .setIgnoredTextSelectionFlags(DEFAULT_IGNORED_TEXT_SELECTION_FLAGS)
-                                subtitleRestoreComplete = true
+                                    .setIgnoredTextSelectionFlags(DEFAULT_TEXT_FLAGS)
+                                subtitleRestored = true
                             }
                         }
                     }
@@ -346,25 +275,20 @@ object PlaybackTrackPreferences {
                 player.trackSelectionParameters = parameters
             }
 
-            private fun syncParameterState(
-                parameters: TrackSelectionParameters,
-                tracks: Tracks,
-            ) {
-                lastAudioOverride = findCurrentOverride(
-                    parameters = parameters,
-                    groups = tracks.groups,
-                    trackType = C.TRACK_TYPE_AUDIO,
-                )?.toOverrideSignature()
+            private fun captureState(parameters: TrackSelectionParameters, tracks: Tracks) {
+                lastAudioPosition = currentOverride(
+                    parameters,
+                    tracks,
+                    C.TRACK_TYPE_AUDIO,
+                )?.position
 
-                val subtitleOverride = findCurrentOverride(
-                    parameters = parameters,
-                    groups = tracks.groups,
-                    trackType = C.TRACK_TYPE_TEXT,
+                val subtitle = currentOverride(
+                    parameters,
+                    tracks,
+                    C.TRACK_TYPE_TEXT,
                 )
-                lastSubtitleState = SubtitleParameterState(
-                    override = subtitleOverride?.toOverrideSignature(),
-                    off = subtitleOverride == null && isSubtitleOff(parameters),
-                )
+                lastSubtitlePosition = subtitle?.position
+                lastSubtitleOff = subtitle == null && isSubtitleOff(parameters)
             }
         }
 
@@ -375,80 +299,38 @@ object PlaybackTrackPreferences {
         return listener
     }
 
-    private fun loadAudio(scope: String): TrackPreference? {
-        return preferences.getString(audioKey(scope), null)
-            ?.let(TrackPreference::fromJson)
-    }
+    private fun TrackRef.override() = TrackSelectionOverride(
+        group.mediaTrackGroup,
+        listOf(trackIndex),
+    )
 
-    private fun loadSubtitle(scope: String): SubtitlePreference? {
-        return when (preferences.getString(subtitleModeKey(scope), null)) {
-            SUBTITLE_MODE_OFF -> SubtitlePreference.Off
-            SUBTITLE_MODE_TRACK -> preferences.getString(subtitleTrackKey(scope), null)
-                ?.let(TrackPreference::fromJson)
-                ?.let(SubtitlePreference::Track)
-            else -> null
-        }
-    }
-
-    private fun saveAudio(preference: TrackPreference) {
-        val scope = currentScopeKey ?: return
-        if (preference == currentAudioPreference) return
-        currentAudioPreference = preference
-        preferences.edit()
-            .putString(audioKey(scope), preference.toJson())
-            .apply()
-    }
-
-    private fun saveSubtitle(preference: TrackPreference) {
-        val scope = currentScopeKey ?: return
-        val saved = SubtitlePreference.Track(preference)
-        if (saved == currentSubtitlePreference) return
-        currentSubtitlePreference = saved
-        preferences.edit()
-            .putString(subtitleModeKey(scope), SUBTITLE_MODE_TRACK)
-            .putString(subtitleTrackKey(scope), preference.toJson())
-            .apply()
-    }
-
-    private fun saveSubtitleOff() {
-        val scope = currentScopeKey ?: return
-        if (currentSubtitlePreference == SubtitlePreference.Off) return
-        currentSubtitlePreference = SubtitlePreference.Off
-        preferences.edit()
-            .putString(subtitleModeKey(scope), SUBTITLE_MODE_OFF)
-            .remove(subtitleTrackKey(scope))
-            .apply()
-    }
-
-    private fun findCurrentOverride(
+    private fun currentOverride(
         parameters: TrackSelectionParameters,
-        groups: List<Tracks.Group>,
-        trackType: Int,
-    ): TrackMatch? {
-        val typeGroups = groups.filter { it.type == trackType }
-        typeGroups.forEachIndexed { groupIndex, group ->
+        tracks: Tracks,
+        type: Int,
+    ): TrackRef? {
+        tracks.groups.filter { it.type == type }.forEachIndexed { groupIndex, group ->
             val override = parameters.overrides[group.mediaTrackGroup] ?: return@forEachIndexed
             val trackIndex = override.trackIndices.firstOrNull() ?: return@forEachIndexed
             if (trackIndex in 0 until group.length) {
-                return TrackMatch(group, groupIndex, trackIndex)
+                return TrackRef(group, groupIndex, trackIndex)
             }
         }
         return null
     }
 
-    private fun findExactTrack(
-        groups: List<Tracks.Group>,
-        trackType: Int,
-        preference: TrackPreference,
-    ): TrackMatch? {
-        val typeGroups = groups.filter { it.type == trackType }
+    /**
+     * Raw metadata must match exactly. Position is consulted only if more than
+     * one track has the same raw metadata, so harmless track reordering does not
+     * break an otherwise unambiguous choice.
+     */
+    private fun exactTrack(tracks: Tracks, type: Int, saved: SavedTrack): TrackRef? {
         val matches = buildList {
-            typeGroups.forEachIndexed { groupIndex, group ->
+            tracks.groups.filter { it.type == type }.forEachIndexed { groupIndex, group ->
                 for (trackIndex in 0 until group.length) {
                     if (!group.isTrackSupported(trackIndex)) continue
-                    val format = group.getTrackFormat(trackIndex)
-                    if (preference.matches(format)) {
-                        add(TrackMatch(group, groupIndex, trackIndex))
+                    if (saved.matches(group.getTrackFormat(trackIndex))) {
+                        add(TrackRef(group, groupIndex, trackIndex))
                     }
                 }
             }
@@ -456,69 +338,73 @@ object PlaybackTrackPreferences {
 
         if (matches.size == 1) return matches.single()
         return matches.firstOrNull {
-            it.groupIndex == preference.groupIndex && it.trackIndex == preference.trackIndex
+            it.groupIndex == saved.groupIndex && it.trackIndex == saved.trackIndex
         }
     }
 
-    private fun TrackMatch.toPreference(): TrackPreference {
-        val format = group.getTrackFormat(trackIndex)
-        return TrackPreference(
-            label = format.label,
-            language = format.language,
-            roleFlags = format.roleFlags,
-            sampleMimeType = format.sampleMimeType,
-            forced = format.selectionFlags and C.SELECTION_FLAG_FORCED != 0,
-            channelCount = format.channelCount,
-            sampleRate = format.sampleRate,
-            groupIndex = groupIndex,
-            trackIndex = trackIndex,
-        )
+    private fun loadAudio(scope: String): SavedTrack? =
+        prefs.getString(audioKey(scope), null)?.let(SavedTrack::decode)
+
+    private fun loadSubtitle(scope: String): SavedSubtitle? =
+        when (prefs.getString(subtitleModeKey(scope), null)) {
+            MODE_OFF -> SavedSubtitle.Off
+            MODE_TRACK -> prefs.getString(subtitleTrackKey(scope), null)
+                ?.let(SavedTrack::decode)
+                ?.let(SavedSubtitle::Track)
+            else -> null
+        }
+
+    private fun saveAudio(value: SavedTrack) {
+        val scope = scopeKey ?: return
+        savedAudio = value
+        prefs.edit().putString(audioKey(scope), value.encode()).apply()
     }
 
-    private fun TrackMatch.toOverrideSignature(): OverrideSignature {
-        return OverrideSignature(
-            groupIndex = groupIndex,
-            trackIndices = listOf(trackIndex),
-        )
+    private fun saveSubtitle(value: SavedTrack) {
+        val scope = scopeKey ?: return
+        savedSubtitle = SavedSubtitle.Track(value)
+        prefs.edit()
+            .putString(subtitleModeKey(scope), MODE_TRACK)
+            .putString(subtitleTrackKey(scope), value.encode())
+            .apply()
     }
 
-    private fun isSubtitleOff(parameters: TrackSelectionParameters): Boolean {
-        return parameters.ignoredTextSelectionFlags == SUBTITLE_OFF_IGNORED_FLAGS
+    private fun saveSubtitleOff() {
+        val scope = scopeKey ?: return
+        savedSubtitle = SavedSubtitle.Off
+        prefs.edit()
+            .putString(subtitleModeKey(scope), MODE_OFF)
+            .remove(subtitleTrackKey(scope))
+            .apply()
     }
 
-    private fun hasLocalDefaultSubtitle(mediaItem: MediaItem?): Boolean {
-        return mediaItem?.localConfiguration?.subtitleConfigurations?.any { subtitle ->
+    private fun isSubtitleOff(parameters: TrackSelectionParameters) =
+        parameters.ignoredTextSelectionFlags == SUBTITLE_OFF_FLAGS
+
+    private fun hasLocalDefaultSubtitle(mediaItem: MediaItem?) =
+        mediaItem?.localConfiguration?.subtitleConfigurations?.any { subtitle ->
             val scheme = subtitle.uri.scheme?.lowercase()
-            val local = scheme == "content" || scheme == "file"
-            local && subtitle.selectionFlags and C.SELECTION_FLAG_DEFAULT != 0
+            (scheme == "file" || scheme == "content") &&
+                subtitle.selectionFlags and C.SELECTION_FLAG_DEFAULT != 0
         } == true
-    }
 
-    private fun buildScopeKey(
-        providerName: String,
-        contentId: String,
-        sourceName: String,
-    ): String {
-        return buildString {
-            appendComponent(providerName)
-            appendComponent(contentId)
-            appendComponent(sourceName)
+    private fun keyOf(provider: String, content: String, source: String) =
+        buildString {
+            appendPart(provider)
+            appendPart(content)
+            appendPart(source)
         }
-    }
 
-    private fun StringBuilder.appendComponent(value: String) {
-        append(value.length)
-        append(':')
-        append(value)
-        append('|')
+    private fun StringBuilder.appendPart(value: String) {
+        append(value.length).append(':').append(value).append('|')
     }
 
     private fun audioKey(scope: String) = "audio::$scope"
     private fun subtitleModeKey(scope: String) = "subtitle_mode::$scope"
     private fun subtitleTrackKey(scope: String) = "subtitle_track::$scope"
 
-    private fun clearObsoleteGlobalSubtitlePreference() {
-        preferences.edit()
+    private fun clearObsoleteGlobalPreference() {
+        prefs.edit()
             .remove("subtitle_mode::global")
             .remove("subtitle_language::global")
             .remove("subtitle_label::global")
@@ -526,27 +412,22 @@ object PlaybackTrackPreferences {
             .apply()
     }
 
-    private fun JSONObject.putNullableString(name: String, value: String?) {
-        if (value == null) put(name, JSONObject.NULL) else put(name, value)
+    private fun JSONObject.putNullable(name: String, value: String?) {
+        put(name, value ?: JSONObject.NULL)
     }
 
-    private fun JSONObject.nullableString(name: String): String? {
-        return if (!has(name) || isNull(name)) null else getString(name)
-    }
+    private fun JSONObject.nullableString(name: String): String? =
+        if (!has(name) || isNull(name)) null else getString(name)
 
-    private const val SUBTITLE_MODE_OFF = "off"
-    private const val SUBTITLE_MODE_TRACK = "track"
+    private const val MODE_OFF = "off"
+    private const val MODE_TRACK = "track"
+    private const val DEFAULT_TEXT_FLAGS = 0
+    private const val SUBTITLE_OFF_FLAGS = C.SELECTION_FLAG_FORCED.inv()
 
-    private const val DEFAULT_IGNORED_TEXT_SELECTION_FLAGS = 0
-    private const val SUBTITLE_OFF_IGNORED_FLAGS = C.SELECTION_FLAG_FORCED.inv()
-
-    private const val JSON_LABEL = "label"
-    private const val JSON_LANGUAGE = "language"
-    private const val JSON_ROLE_FLAGS = "roleFlags"
-    private const val JSON_SAMPLE_MIME_TYPE = "sampleMimeType"
-    private const val JSON_FORCED = "forced"
-    private const val JSON_CHANNEL_COUNT = "channelCount"
-    private const val JSON_SAMPLE_RATE = "sampleRate"
-    private const val JSON_GROUP_INDEX = "groupIndex"
-    private const val JSON_TRACK_INDEX = "trackIndex"
+    private const val LABEL = "label"
+    private const val LANGUAGE = "language"
+    private const val ROLE_FLAGS = "roleFlags"
+    private const val FORCED = "forced"
+    private const val GROUP_INDEX = "groupIndex"
+    private const val TRACK_INDEX = "trackIndex"
 }
