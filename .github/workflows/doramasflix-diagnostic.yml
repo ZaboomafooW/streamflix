@@ -13,18 +13,14 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - name: Probe current Doramasflix GraphQL flow
-        shell: bash
         run: |
           set -euo pipefail
           API='https://sv7.fluxcedene.net/graphql'
           REF='https://doramasflix.in/'
-          post() {
-            curl --fail-with-body --silent --show-error -H "Referer: $REF" -H 'Content-Type: application/json' --data "$1" "$API"
-          }
+          post() { curl --fail-with-body --silent --show-error -H "Referer: $REF" -H 'Content-Type: application/json' --data "$1" "$API"; }
           movie_payload='{"operationName":"PaginationMovie","variables":{"page":1,"limit":5,"filter":{}},"query":"query PaginationMovie($page: Int, $limit: Int, $filter: FilterMoviesInput) { paginationMovie(page: $page, limit: $limit, filter: $filter) { items { _id name slug } } }"}'
           movie_json="$(post "$movie_payload")"
           movie_id="$(echo "$movie_json" | jq -er '.data.paginationMovie.items[0]._id')"
-          echo 'Movie catalog item resolved'
           problems_payload="$(jq -nc --arg id "$movie_id" '{operationName:"listProblemsItem",variables:{problem_id:$id},query:"query listProblemsItem($problem_id: ID!) { listProblems(filter: {problem_id: $problem_id}) { server { link lang } } }"}')"
           movie_problems="$(post "$problems_payload")"
           echo 'Movie listProblems:'
@@ -32,7 +28,6 @@ jobs:
           dorama_payload='{"operationName":"PaginationDorama","variables":{"page":1,"limit":5,"filter":{"isTVShow":false}},"query":"query PaginationDorama($page: Int, $limit: Int, $filter: FilterDoramasInput) { paginationDorama(page: $page, limit: $limit, filter: $filter) { items { _id name slug } } }"}'
           dorama_json="$(post "$dorama_payload")"
           dorama_slug="$(echo "$dorama_json" | jq -er '.data.paginationDorama.items[0].slug')"
-          echo 'Dorama catalog item resolved'
           episodes_payload="$(jq -nc --arg slug "$dorama_slug" '{operationName:"listEpisodes",variables:{slug:$slug,season_number:1},query:"query listEpisodes($slug: String!, $season_number: Int!) { listEpisodes(sort: NUMBER_ASC, filter: {serie_slug: $slug, season_number: $season_number}) { _id slug episode_number } }"}')"
           episodes_json="$(post "$episodes_payload")"
           echo 'Episode query:'
