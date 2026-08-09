@@ -59,3 +59,11 @@ jobs:
 
       - name: Build debug APK
         run: ./gradlew assembleDebug --stacktrace --no-daemon
+
+      - name: Upload debug APK
+        uses: actions/upload-artifact@v4
+        with:
+          name: streamflix-${{ matrix.app_layout }}-debug-apk
+          path: app/build/outputs/apk/debug/*.apk
+          if-no-files-found: error
+          retention-days: 7
