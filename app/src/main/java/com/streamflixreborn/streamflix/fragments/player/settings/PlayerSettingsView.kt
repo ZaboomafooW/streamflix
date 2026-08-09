@@ -35,13 +35,20 @@ abstract class PlayerSettingsView @JvmOverloads constructor(
     defStyleAttr: Int = 0
 ) : ConstraintLayout(context, attrs, defStyleAttr) {
 
-    private var restoredPreferenceMediaKey: String? = null
+    private data class PreferenceRestoreState(
+        val mediaKey: String,
+        var speedHandled: Boolean = false,
+        var audioHandled: Boolean = false,
+        var subtitleHandled: Boolean = false,
+    )
+
+    private var preferenceRestoreState: PreferenceRestoreState? = null
 
     var player: ExoPlayer? = null
         set(value) {
             if (field === value) return
 
-            restoredPreferenceMediaKey = null
+            preferenceRestoreState = null
 
             value?.let {
                 Settings.Server.init(it)
@@ -86,97 +93,127 @@ abstract class PlayerSettingsView @JvmOverloads constructor(
             field = value
         }
 
-    private fun restoreContentPreferencesForCurrentMedia(player: ExoPlayer) {
-        val activationToken = ContentPlaybackPreferences.currentActivationToken() ?: return
+    private fun currentMediaKey(player: ExoPlayer): String? {
+        val activationToken = ContentPlaybackPreferences.currentActivationToken() ?: return null
         val mediaUri = player.currentMediaItem
             ?.localConfiguration
             ?.uri
             ?.toString()
             ?.takeIf { it.isNotBlank() }
-            ?: return
-        val mediaKey = "$activationToken|${player.mediaMetadata.mediaServerId.orEmpty()}|$mediaUri"
-        if (mediaKey == restoredPreferenceMediaKey) return
-
-        // Mark first so applying an override cannot recursively restore on the TRACKS_CHANGED it emits.
-        restoredPreferenceMediaKey = mediaKey
-        restoreContentPreferences(player)
+            ?: return null
+        return "$activationToken|${player.mediaMetadata.mediaServerId.orEmpty()}|$mediaUri"
     }
 
-    private fun restoreContentPreferences(player: ExoPlayer) {
-        ContentPlaybackPreferences.speed()
-            ?.takeIf { savedSpeed -> Settings.Speed.list.any { it.value == savedSpeed } }
-            ?.let { speed ->
-                if (player.playbackParameters.speed != speed) {
-                    player.playbackParameters = player.playbackParameters.withSpeed(speed)
-                }
-            }
-        restoreContentTrackPreferences(player)
+    private fun restoreState(player: ExoPlayer): PreferenceRestoreState? {
+        val mediaKey = currentMediaKey(player) ?: return null
+        return preferenceRestoreState
+            ?.takeIf { it.mediaKey == mediaKey }
+            ?: PreferenceRestoreState(mediaKey).also { preferenceRestoreState = it }
     }
 
-    private fun restoreContentTrackPreferences(player: ExoPlayer) {
-        val audioTracks = Settings.Audio.list
-        ContentPlaybackPreferences.audio()?.let { saved ->
-            val descriptors = audioTracks.map { it.preferenceDescriptor() }
-            ContentPlaybackPreferences.findTrack(saved, descriptors)
-                ?.let { audioTracks.getOrNull(it) }
-                ?.takeUnless { it.isSelected }
-                ?.let { audio ->
-                    player.trackSelectionParameters = player.trackSelectionParameters
-                        .buildUpon()
-                        .clearOverridesOfType(C.TRACK_TYPE_AUDIO)
-                        .setOverrideForType(
-                            TrackSelectionOverride(
-                                audio.trackGroup.mediaTrackGroup,
-                                listOf(audio.trackIndex)
-                            )
-                        )
-                        .setTrackTypeDisabled(C.TRACK_TYPE_AUDIO, false)
-                        .build()
+    private fun markAudioHandledForCurrentMedia(player: ExoPlayer) {
+        restoreState(player)?.audioHandled = true
+    }
+
+    private fun markSubtitleHandledForCurrentMedia(player: ExoPlayer) {
+        restoreState(player)?.subtitleHandled = true
+    }
+
+    private fun markSpeedHandledForCurrentMedia(player: ExoPlayer) {
+        restoreState(player)?.speedHandled = true
+    }
+
+    private fun restoreContentPreferencesForCurrentMedia(player: ExoPlayer) {
+        val state = restoreState(player) ?: return
+
+        if (!state.speedHandled) {
+            state.speedHandled = true
+            ContentPlaybackPreferences.speed()
+                ?.takeIf { savedSpeed -> Settings.Speed.list.any { it.value == savedSpeed } }
+                ?.let { speed ->
+                    if (player.playbackParameters.speed != speed) {
+                        player.playbackParameters = player.playbackParameters.withSpeed(speed)
+                    }
                 }
         }
 
-        when (val saved = ContentPlaybackPreferences.subtitle()) {
-            ContentPlaybackPreferences.SubtitlePreference.None -> {
-                val ignoredFlags = C.SELECTION_FLAG_FORCED.inv()
-                val hasNormalSubtitleSelected = Settings.Subtitle.list
-                    .filterIsInstance<Settings.Subtitle.TextTrackInformation>()
-                    .any { it.isSelected }
-                if (
-                    hasNormalSubtitleSelected ||
-                    player.trackSelectionParameters.ignoredTextSelectionFlags != ignoredFlags
-                ) {
-                    player.trackSelectionParameters = player.trackSelectionParameters
-                        .buildUpon()
-                        .clearOverridesOfType(C.TRACK_TYPE_TEXT)
-                        .setIgnoredTextSelectionFlags(ignoredFlags)
-                        .build()
+        if (!state.audioHandled) {
+            val savedAudio = ContentPlaybackPreferences.audio()
+            if (savedAudio == null) {
+                state.audioHandled = true
+            } else {
+                val audioTracks = Settings.Audio.list
+                if (audioTracks.isNotEmpty()) {
+                    state.audioHandled = true
+                    val descriptors = audioTracks.map { it.preferenceDescriptor() }
+                    ContentPlaybackPreferences.findTrack(savedAudio, descriptors)
+                        ?.let { audioTracks.getOrNull(it) }
+                        ?.takeUnless { it.isSelected }
+                        ?.let { audio ->
+                            player.trackSelectionParameters = player.trackSelectionParameters
+                                .buildUpon()
+                                .clearOverridesOfType(C.TRACK_TYPE_AUDIO)
+                                .setOverrideForType(
+                                    TrackSelectionOverride(
+                                        audio.trackGroup.mediaTrackGroup,
+                                        listOf(audio.trackIndex)
+                                    )
+                                )
+                                .setTrackTypeDisabled(C.TRACK_TYPE_AUDIO, false)
+                                .build()
+                        }
                 }
             }
+        }
 
-            is ContentPlaybackPreferences.SubtitlePreference.Track -> {
-                val subtitleTracks = Settings.Subtitle.list
-                    .filterIsInstance<Settings.Subtitle.TextTrackInformation>()
-                val descriptors = subtitleTracks.map { it.preferenceDescriptor() }
-                ContentPlaybackPreferences.findTrack(saved.value, descriptors)
-                    ?.let { subtitleTracks.getOrNull(it) }
-                    ?.takeUnless { it.isSelected }
-                    ?.let { subtitle ->
+        if (!state.subtitleHandled) {
+            when (val savedSubtitle = ContentPlaybackPreferences.subtitle()) {
+                ContentPlaybackPreferences.SubtitlePreference.None -> {
+                    state.subtitleHandled = true
+                    val ignoredFlags = C.SELECTION_FLAG_FORCED.inv()
+                    val hasNormalSubtitleSelected = Settings.Subtitle.list
+                        .filterIsInstance<Settings.Subtitle.TextTrackInformation>()
+                        .any { it.isSelected }
+                    if (
+                        hasNormalSubtitleSelected ||
+                        player.trackSelectionParameters.ignoredTextSelectionFlags != ignoredFlags
+                    ) {
                         player.trackSelectionParameters = player.trackSelectionParameters
                             .buildUpon()
                             .clearOverridesOfType(C.TRACK_TYPE_TEXT)
-                            .setOverrideForType(
-                                TrackSelectionOverride(
-                                    subtitle.trackGroup.mediaTrackGroup,
-                                    listOf(subtitle.trackIndex)
-                                )
-                            )
-                            .setTrackTypeDisabled(C.TRACK_TYPE_TEXT, false)
-                            .setIgnoredTextSelectionFlags(0)
+                            .setIgnoredTextSelectionFlags(ignoredFlags)
                             .build()
                     }
-            }
+                }
 
-            null -> Unit
+                is ContentPlaybackPreferences.SubtitlePreference.Track -> {
+                    val subtitleTracks = Settings.Subtitle.list
+                        .filterIsInstance<Settings.Subtitle.TextTrackInformation>()
+                    if (subtitleTracks.isNotEmpty()) {
+                        state.subtitleHandled = true
+                        val descriptors = subtitleTracks.map { it.preferenceDescriptor() }
+                        ContentPlaybackPreferences.findTrack(savedSubtitle.value, descriptors)
+                            ?.let { subtitleTracks.getOrNull(it) }
+                            ?.takeUnless { it.isSelected }
+                            ?.let { subtitle ->
+                                player.trackSelectionParameters = player.trackSelectionParameters
+                                    .buildUpon()
+                                    .clearOverridesOfType(C.TRACK_TYPE_TEXT)
+                                    .setOverrideForType(
+                                        TrackSelectionOverride(
+                                            subtitle.trackGroup.mediaTrackGroup,
+                                            listOf(subtitle.trackIndex)
+                                        )
+                                    )
+                                    .setTrackTypeDisabled(C.TRACK_TYPE_TEXT, false)
+                                    .setIgnoredTextSelectionFlags(0)
+                                    .build()
+                            }
+                    }
+                }
+
+                null -> state.subtitleHandled = true
+            }
         }
     }
 
@@ -272,6 +309,7 @@ abstract class PlayerSettingsView @JvmOverloads constructor(
             val player = player ?: return
             if (audio !is Settings.Audio.AudioTrackInformation) return
 
+            markAudioHandledForCurrentMedia(player)
             player.trackSelectionParameters = player.trackSelectionParameters
                 .buildUpon()
                 .setOverrideForType(
@@ -292,6 +330,7 @@ abstract class PlayerSettingsView @JvmOverloads constructor(
     protected var onSubtitleSelected: ((Settings.Subtitle) -> Unit) =
         fun(subtitle) {
             val player = player ?: return
+            markSubtitleHandledForCurrentMedia(player)
 
             when (subtitle) {
                 is Settings.Subtitle.None -> {
@@ -452,25 +491,35 @@ abstract class PlayerSettingsView @JvmOverloads constructor(
 
     protected var onLocalSubtitlesClicked: (() -> Unit)? = null
     fun setOnLocalSubtitlesClickedListener(onLocalSubtitlesClicked: () -> Unit) {
-        this.onLocalSubtitlesClicked = onLocalSubtitlesClicked
+        this.onLocalSubtitlesClicked = {
+            player?.let(::markSubtitleHandledForCurrentMedia)
+            onLocalSubtitlesClicked()
+        }
     }
 
     abstract var onSubtitlesClicked: (() -> Unit)?
 
     protected var onOpenSubtitleSelected: ((Settings.Subtitle.OpenSubtitles.Subtitle) -> Unit)? = null
     fun setOnOpenSubtitleSelectedListener(onOpenSubtitleSelected: (Settings.Subtitle.OpenSubtitles.Subtitle) -> Unit) {
-        this.onOpenSubtitleSelected = onOpenSubtitleSelected
+        this.onOpenSubtitleSelected = { subtitle ->
+            player?.let(::markSubtitleHandledForCurrentMedia)
+            onOpenSubtitleSelected(subtitle)
+        }
     }
 
     protected var onSubDLSubtitleSelected: ((Settings.Subtitle.SubDLSubtitles.Subtitle) -> Unit)? = null
     fun setOnSubDLSubtitleSelectedListener(onSubDLSubtitleSelected: (Settings.Subtitle.SubDLSubtitles.Subtitle) -> Unit) {
-        this.onSubDLSubtitleSelected = onSubDLSubtitleSelected
+        this.onSubDLSubtitleSelected = { subtitle ->
+            player?.let(::markSubtitleHandledForCurrentMedia)
+            onSubDLSubtitleSelected(subtitle)
+        }
     }
 
     protected var onSpeedSelected: ((Settings.Speed) -> Unit) =
         fun(speed) {
             val player = player ?: return
 
+            markSpeedHandledForCurrentMedia(player)
             player.playbackParameters = player.playbackParameters
                 .withSpeed(speed.value)
             ContentPlaybackPreferences.rememberSpeed(speed.value)
@@ -1366,7 +1415,8 @@ abstract class PlayerSettingsView @JvmOverloads constructor(
                         ?: DEFAULT
 
                 fun refresh(player: ExoPlayer) {
-                    list.forEach { it.isSelected = false }
+                    list.forEach { it.isSelected = false
+                    }
                     list.findClosest(player.playbackParameters.speed) { it.value }?.let {
                         it.isSelected = true
                     }
