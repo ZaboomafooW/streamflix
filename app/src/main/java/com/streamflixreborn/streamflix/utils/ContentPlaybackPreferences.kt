@@ -235,10 +235,11 @@ object ContentPlaybackPreferences {
         val active = activeContent ?: return null
         if (saved.providerName != active.providerName) return null
 
-        if (
-            saved.metadataMissing &&
-            saved.layoutSignature != layoutSignature(availableTracks)
-        ) {
+        val requiresStableLayout =
+            saved.metadataMissing ||
+                isGenericTrackText(saved.label) ||
+                isGenericTrackText(saved.name)
+        if (requiresStableLayout && saved.layoutSignature != layoutSignature(availableTracks)) {
             return null
         }
 
@@ -293,6 +294,12 @@ object ContentPlaybackPreferences {
         canonicalLanguage(value)?.substringBefore('-')
 
     private fun hasLanguageSpecificity(language: String): Boolean = '-' in language
+
+    private fun isGenericTrackText(value: String?): Boolean {
+        val normalized = normalizedText(value)?.lowercase(Locale.ROOT) ?: return false
+        return normalized.matches(Regex("(?:audio\\s*)?track\\s*\\d+")) ||
+            normalized.matches(Regex("audio\\s*\\d+"))
+    }
 
     private fun contentKey(
         type: String,
