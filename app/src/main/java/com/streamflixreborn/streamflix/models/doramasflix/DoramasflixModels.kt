@@ -13,11 +13,13 @@ data class Data(
     val searchMovie: List<Show>? = null,
     val listSeasons: List<Season>? = null,
     val listEpisodes: List<Episode>? = null,
+    val listProblems: List<Problem>? = null,
 )
 
 data class Pagination(
     val items: List<Show> = emptyList(),
     val pageInfo: PageInfo? = null,
+    val hasNextPage: Boolean? = null,
 )
 
 data class Show(
@@ -31,6 +33,11 @@ data class Show(
     @SerializedName("poster_path")
     val posterPath: String? = null,
     val poster: String? = null,
+    @SerializedName("backdrop_path")
+    val backdropPath: String? = null,
+    val backdrop: String? = null,
+    @SerializedName("isTVShow")
+    val isTvShow: Boolean? = null,
     val genres: List<Genre> = emptyList(),
     @SerializedName("__typename")
     val typename: String,
@@ -46,11 +53,21 @@ data class PageInfo(
 )
 
 data class Season(
+    @SerializedName("_id")
+    val id: String? = null,
     val slug: String,
     @SerializedName("season_number")
     val seasonNumber: Int,
     @SerializedName("poster_path")
     val posterPath: String? = null,
+    @SerializedName("serie_backdrop_path")
+    val serieBackdropPath: String? = null,
+    @SerializedName("serie_name")
+    val serieName: String? = null,
+    val trailer: String? = null,
+    val backdrop: String? = null,
+    val overview: String? = null,
+    val name: String? = null,
 )
 
 data class Episode(
@@ -58,12 +75,27 @@ data class Episode(
     val id: String,
     val name: String?,
     val slug: String,
+    @SerializedName("serie_name")
+    val serieName: String? = null,
+    @SerializedName("serie_id")
+    val serieId: String? = null,
     @SerializedName("episode_number")
     val episodeNumber: Int?,
     @SerializedName("season_number")
     val seasonNumber: Int?,
     @SerializedName("still_path")
     val stillPath: String? = null,
+    val languages: List<String> = emptyList(),
+    val backdrop: String? = null,
+)
+
+data class Problem(
+    val server: Server? = null,
+)
+
+data class Server(
+    val link: String? = null,
+    val lang: String? = null,
 )
 
 // --- MODELOS PARA EL TOKEN DE FKPLAYER ---
