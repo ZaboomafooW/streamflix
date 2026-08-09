@@ -330,10 +330,10 @@ abstract class PlayerSettingsView @JvmOverloads constructor(
     protected var onSubtitleSelected: ((Settings.Subtitle) -> Unit) =
         fun(subtitle) {
             val player = player ?: return
-            markSubtitleHandledForCurrentMedia(player)
 
             when (subtitle) {
                 is Settings.Subtitle.None -> {
+                    markSubtitleHandledForCurrentMedia(player)
                     player.trackSelectionParameters = player.trackSelectionParameters
                         .buildUpon()
                         .clearOverridesOfType(C.TRACK_TYPE_TEXT)
@@ -343,6 +343,7 @@ abstract class PlayerSettingsView @JvmOverloads constructor(
                 }
 
                 is Settings.Subtitle.TextTrackInformation -> {
+                    markSubtitleHandledForCurrentMedia(player)
                     player.trackSelectionParameters = player.trackSelectionParameters
                         .buildUpon()
                         .setOverrideForType(
@@ -1415,8 +1416,7 @@ abstract class PlayerSettingsView @JvmOverloads constructor(
                         ?: DEFAULT
 
                 fun refresh(player: ExoPlayer) {
-                    list.forEach { it.isSelected = false
-                    }
+                    list.forEach { it.isSelected = false }
                     list.findClosest(player.playbackParameters.speed) { it.value }?.let {
                         it.isSelected = true
                     }
