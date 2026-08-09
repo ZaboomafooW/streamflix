@@ -210,8 +210,15 @@ object ContentPlaybackPreferences {
 
         val savedLanguage = canonicalLanguage(saved.language)
         if (savedLanguage != null) {
-            val languageMatches = availableTracks.withIndex()
+            val exactLanguageMatches = availableTracks.withIndex()
                 .filter { canonicalLanguage(it.value.language) == savedLanguage }
+            val languageMatches = when {
+                exactLanguageMatches.isNotEmpty() -> exactLanguageMatches
+                hasLanguageSpecificity(savedLanguage) -> emptyList()
+                else -> availableTracks.withIndex().filter {
+                    baseLanguage(it.value.language) == savedLanguage
+                }
+            }
             if (languageMatches.isEmpty()) return null
 
             uniqueMatch(languageMatches) {
@@ -249,6 +256,11 @@ object ContentPlaybackPreferences {
         return exactMatches.singleOrNull()?.index
     }
 
+    /**
+     * Normalizes a BCP-47-like track language while preserving script/region specificity.
+     * The base language is normalized to ISO-639-2/3 where Android can provide it so `en` and
+     * `eng` compare consistently, but `pt-BR` and `pt-PT` remain distinct.
+     */
     fun canonicalLanguage(value: String?): String? {
         val raw = value
             ?.trim()
@@ -260,14 +272,29 @@ object ContentPlaybackPreferences {
         }
 
         val locale = Locale.forLanguageTag(raw)
-        if (locale.language.isBlank() || locale.language == "und") return null
-
-        return runCatching { locale.isO3Language }
+        val localeLanguage = locale.language
+            .takeIf { it.isNotBlank() && it != "und" }
+            ?: return null
+        val base = runCatching { locale.isO3Language }
             .getOrNull()
-            ?.lowercase(Locale.ROOT)
             ?.takeIf { it.isNotBlank() && it != "und" }
-            ?: locale.language.lowercase(Locale.ROOT)
+            ?: localeLanguage
+
+        return buildList {
+            add(base.lowercase(Locale.ROOT))
+            locale.script.takeIf { it.isNotBlank() }
+                ?.let { add(it.lowercase(Locale.ROOT)) }
+            locale.country.takeIf { it.isNotBlank() }
+                ?.let { add(it.lowercase(Locale.ROOT)) }
+            locale.variant.takeIf { it.isNotBlank() }
+                ?.let { add(it.lowercase(Locale.ROOT)) }
+        }.joinToString("-")
     }
+
+    private fun baseLanguage(value: String?): String? =
+        canonicalLanguage(value)?.substringBefore('-')
+
+    private fun hasLanguageSpecificity(language: String): Boolean = '-' in language
 
     private fun contentKey(
         type: String,
