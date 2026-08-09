@@ -1,23 +1,21 @@
 package com.streamflixreborn.streamflix.fragments.player
 
 import android.net.Uri
-import android.os.Bundle
 import android.util.Log
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.streamflixreborn.streamflix.models.Video
-import com.streamflixreborn.streamflix.utils.CustomTabHelper
+import com.streamflixreborn.streamflix.utils.ContentPlaybackPreferences
 import com.streamflixreborn.streamflix.utils.EpisodeManager
 import com.streamflixreborn.streamflix.utils.OpenSubtitles
+import com.streamflixreborn.streamflix.utils.SubDL
 import com.streamflixreborn.streamflix.utils.UserPreferences
-import com.streamflixreborn.streamflix.utils.format
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableSharedFlow
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharedFlow
 import kotlinx.coroutines.launch
-import com.streamflixreborn.streamflix.utils.SubDL
 
 class PlayerViewModel(
     videoType: Video.Type,
@@ -32,6 +30,7 @@ class PlayerViewModel(
 
     private val _playPreviousOrNextEpisode = MutableSharedFlow<Video.Type.Episode>()
     val playPreviousOrNextEpisode: SharedFlow<Video.Type.Episode> = _playPreviousOrNextEpisode
+
     init {
         getServers(videoType, id)
         getSubtitles(videoType)
@@ -78,40 +77,47 @@ class PlayerViewModel(
     }
 
     enum class Direction { PREVIOUS, NEXT }
-    fun playPreviousEpisode() =
-        playEpisode(Direction.PREVIOUS)
 
-    fun playNextEpisode() =
-        playEpisode(Direction.NEXT)
+    fun playPreviousEpisode() = playEpisode(Direction.PREVIOUS)
+
+    fun playNextEpisode() = playEpisode(Direction.NEXT)
 
     fun autoplayNextEpisode() {
         if (UserPreferences.autoplay) {
             playEpisode(Direction.NEXT)
         }
     }
+
     fun playEpisode(episode: Video.Type.Episode) {
         getServers(episode, episode.id)
         getSubtitles(episode)
     }
 
-    private fun getServers(videoType: Video.Type, id: String) = viewModelScope.launch(Dispatchers.IO) {
-        Log.d("PlayerViewModel", "Inizio ricerca server per ID: $id")
+    private fun getServers(videoType: Video.Type, id: String) {
+        ContentPlaybackPreferences.activate(
+            videoType = videoType,
+            providerName = UserPreferences.currentProvider?.name,
+        )
         lastVideoType = videoType
         lastId = id
-        _state.emit(State.LoadingServers)
-        try {
-            val servers = UserPreferences.currentProvider!!.getServers(id, videoType)
-            if (servers.isEmpty()) throw Exception("No servers found")
-            
-            // LOG POTENZIATO: Mostra tutti i server disponibili per il player
-            Log.i("StreamFlixES", "[SERVERS LIST] -> Provider: ${UserPreferences.currentProvider!!.name}")
-            Log.i("StreamFlixES", "[SERVERS LIST] -> Found ${servers.size} servers: ${servers.joinToString { it.name }}")
 
-            Log.d("PlayerViewModel", "Ricerca server completata: ${servers.size} server trovati")
-            _state.emit(State.SuccessLoadingServers(servers))
-        } catch (e: Exception) {
-            Log.e("PlayerViewModel", "Errore ricerca server: ", e)
-            _state.emit(State.FailedLoadingServers(e))
+        viewModelScope.launch(Dispatchers.IO) {
+            Log.d("PlayerViewModel", "Inizio ricerca server per ID: $id")
+            _state.emit(State.LoadingServers)
+            try {
+                val servers = UserPreferences.currentProvider!!.getServers(id, videoType)
+                if (servers.isEmpty()) throw Exception("No servers found")
+
+                // LOG POTENZIATO: Mostra tutti i server disponibili per il player
+                Log.i("StreamFlixES", "[SERVERS LIST] -> Provider: ${UserPreferences.currentProvider!!.name}")
+                Log.i("StreamFlixES", "[SERVERS LIST] -> Found ${servers.size} servers: ${servers.joinToString { it.name }}")
+
+                Log.d("PlayerViewModel", "Ricerca server completata: ${servers.size} server trovati")
+                _state.emit(State.SuccessLoadingServers(servers))
+            } catch (e: Exception) {
+                Log.e("PlayerViewModel", "Errore ricerca server: ", e)
+                _state.emit(State.FailedLoadingServers(e))
+            }
         }
     }
 
@@ -121,21 +127,6 @@ class PlayerViewModel(
         try {
             val video = UserPreferences.currentProvider!!.getVideo(server)
             if (video.source.isEmpty()) throw Exception("No source found")
-
-            // LOGICA SOTTOTITOLI GLOBALE: 
-            // Se il provider non ha già impostato un default (es. i "forced" in spagnolo),
-            // allora proviamo ad attivare l'ultimo sottotitolo usato dall'utente.
-            // MA: se siamo su un provider spagnolo e non ci sono forced, non dobbiamo attivare nulla.
-            val currentProviderLang = UserPreferences.currentProvider?.language ?: ""
-            val hasDefaultAlready = video.subtitles.any { it.default }
-
-            if (!hasDefaultAlready && currentProviderLang != "es") {
-                if (!(video.useServerSubtitleSetting && UserPreferences.serverAutoSubtitlesDisabled)) {
-                    video.subtitles
-                        .firstOrNull { it.label.startsWith(UserPreferences.subtitleName ?: "") }
-                        ?.default = true
-		}
-            }
 
             Log.d("PlayerViewModel", "Estrazione video completata con successo")
             _state.emit(State.SuccessLoadingVideo(video, server))
@@ -160,11 +151,12 @@ class PlayerViewModel(
                             episode = videoType.number,
                         )
                     }
+
                     is Video.Type.Movie -> {
                         OpenSubtitles.search(query = videoType.title)
                     }
                 }.sortedWith(compareBy({ it.languageName }, { it.subDownloadsCnt }))
-                
+
                 Log.d("PlayerViewModel", "Ricerca OpenSubtitles completata: ${subtitles.size} risultati")
                 _subtitleState.emit(SubtitleState.SuccessOpenSubtitles(subtitles))
             } catch (e: Exception) {
@@ -185,6 +177,7 @@ class PlayerViewModel(
                             type = "tv"
                         )
                     }
+
                     is Video.Type.Movie -> {
                         SubDL.search(
                             filmName = videoType.title,
@@ -192,7 +185,7 @@ class PlayerViewModel(
                         )
                     }
                 }
-                
+
                 Log.d("PlayerViewModel", "Ricerca SubDL completata: ${subtitles.size} risultati")
                 _subtitleState.emit(SubtitleState.SuccessSubDLSubtitles(subtitles))
             } catch (e: Exception) {
@@ -224,7 +217,7 @@ class PlayerViewModel(
             _subtitleState.emit(SubtitleState.SuccessDownloadingSubDLSubtitle(subtitle, uri))
         } catch (e: Exception) {
             Log.e("PlayerViewModel", "Errore download SubDL: ", e)
-            _subtitleState.emit(SubtitleState.FailedDownloadingSubDLSubtitle(e, subtitle))
+            _subtitleState.emit(SubtitleState.FailedSubDLSubtitle(e, subtitle))
         }
     }
 
@@ -249,10 +242,12 @@ class PlayerViewModel(
         data class FailedSubDLSubtitles(val error: Exception) : SubtitleState()
         data object DownloadingSubDLSubtitle : SubtitleState()
         data class SuccessDownloadingSubDLSubtitle(val subtitle: SubDL.Subtitle, val uri: Uri) : SubtitleState()
-        data class FailedDownloadingSubDLSubtitle(val error: Exception, val subtitle: SubDL.Subtitle) : SubtitleState()
+        data class FailedSubDLSubtitle(val error: Exception, val subtitle: SubDL.Subtitle) : SubtitleState()
     }
+
     private var lastVideoType: Video.Type? = null
     private var lastId: String? = null
+
     fun reloadServersAfterBypass() {
         val type = lastVideoType ?: return
         val id = lastId ?: return
