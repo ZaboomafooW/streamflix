@@ -838,7 +838,7 @@ class PlayerTvFragment : Fragment() {
 
             binding.pvPlayer.controller.binding.btnSkipIntro.setOnClickListener {
                 player.seekTo(player.currentPosition + 85000)
-                it.visibility = View.GONE
+                showSkipIntroButton(false)
             }
 
             binding.btnNextEpisodeAction.setOnClickListener {
@@ -985,6 +985,7 @@ class PlayerTvFragment : Fragment() {
                 EpisodeManager::hasNextEpisode,
                 ::playNextEpisodeAcrossSeasons
             )
+            updatePlayerFocusNavigation()
         }
 
         private fun decodeBase64Uri(uri: String): String? {
@@ -1170,11 +1171,15 @@ class PlayerTvFragment : Fragment() {
             }
 
             player.addListener(object : Player.Listener {
+                override fun onAvailableCommandsChanged(availableCommands: Player.Commands) {
+                    super.onAvailableCommandsChanged(availableCommands)
+                    updatePlayerFocusNavigation()
+                }
+
                 override fun onPlaybackStateChanged(playbackState: Int) {
                     super.onPlaybackStateChanged(playbackState)
 
                     if (playbackState == Player.STATE_READY) {
-                        binding.pvPlayer.controller.binding.exoPlayPause.nextFocusDownId = -1
                         val videoFormat = player.videoFormat
                         updatePlayerScale()
                     }
@@ -1493,7 +1498,6 @@ class PlayerTvFragment : Fragment() {
         }
 
         private fun showNextEpisodeOverlay(nextEpisode: Video.Type.Episode, remainingMs: Long) {
-            updateNextEpisodeOverlayFocusBindings(true)
             binding.tvNextEpisodeMeta.text = getString(
                 R.string.tv_show_item_season_number_episode_number,
                 nextEpisode.season.number,
@@ -1533,11 +1537,11 @@ class PlayerTvFragment : Fragment() {
                     binding.btnNextEpisodeAction.requestFocus()
                 }
             }
+            updatePlayerFocusNavigation()
         }
 
         private fun hideNextEpisodeOverlay() {
             if (_binding == null) return
-            updateNextEpisodeOverlayFocusBindings(false)
             if (binding.layoutNextEpisodeOverlay.isVisible) {
                 val fadeOut = android.view.animation.AnimationUtils.loadAnimation(
                     requireContext(),
@@ -1546,6 +1550,7 @@ class PlayerTvFragment : Fragment() {
                 binding.layoutNextEpisodeOverlay.startAnimation(fadeOut)
                 binding.layoutNextEpisodeOverlay.isGone = true
             }
+            updatePlayerFocusNavigation()
         }
 
         private fun updateNextEpisodeOverlayAlpha(hasFocus: Boolean) {
@@ -1555,38 +1560,111 @@ class PlayerTvFragment : Fragment() {
                 else NEXT_EPISODE_OVERLAY_ALPHA_UNFOCUSED
         }
 
-        private fun updateNextEpisodeOverlayFocusBindings(overlayVisible: Boolean) {
+        private fun updatePlayerFocusNavigation() {
+            if (_binding == null || !::player.isInitialized) return
+
             val controllerBinding = binding.pvPlayer.controller.binding
-            val overlayActionId = binding.btnNextEpisodeAction.id
-            val overlayDismissId = binding.btnNextEpisodeDismiss.id
 
-            controllerBinding.exoSettings.nextFocusUpId = if (overlayVisible) overlayActionId else View.NO_ID
-            controllerBinding.btnExoAspectRatio.nextFocusUpId = if (overlayVisible) overlayActionId else View.NO_ID
-            controllerBinding.exoProgress.nextFocusUpId = View.NO_ID
-            controllerBinding.btnCustomNext.nextFocusDownId = R.id.exo_progress
-            controllerBinding.exoPlayPause.nextFocusDownId = R.id.exo_progress
+            fun isAvailableFocusTarget(view: View): Boolean =
+                view.isVisible && view.isEnabled && view.isFocusable
 
-            controllerBinding.btnSkipIntro.nextFocusLeftId = if (overlayVisible) overlayActionId else View.NO_ID
-            controllerBinding.btnSkipIntro.nextFocusUpId = if (overlayVisible) overlayActionId else View.NO_ID
-            controllerBinding.btnSkipIntro.nextFocusDownId = if (overlayVisible) overlayActionId else View.NO_ID
+            fun connectHorizontalRow(views: List<View>) {
+                val availableViews = views.filter(::isAvailableFocusTarget)
+                availableViews.forEachIndexed { index, view ->
+                    view.nextFocusLeftId = availableViews.getOrNull(index - 1)?.id ?: view.id
+                    view.nextFocusRightId = availableViews.getOrNull(index + 1)?.id ?: view.id
+                }
+            }
 
-            binding.btnNextEpisodeAction.nextFocusLeftId = overlayDismissId
-            binding.btnNextEpisodeAction.nextFocusRightId = overlayDismissId
-            binding.btnNextEpisodeAction.nextFocusUpId = controllerBinding.exoPlayPause.id
-            binding.btnNextEpisodeAction.nextFocusDownId =
-                if (controllerBinding.btnSkipIntro.isVisible) controllerBinding.btnSkipIntro.id
-                else controllerBinding.exoSettings.id
+            val centerControls = listOf(
+                controllerBinding.btnCustomPrev,
+                controllerBinding.exoReplay,
+                controllerBinding.exoPlayPause,
+                controllerBinding.btnCustomNext,
+            ).filter(::isAvailableFocusTarget)
+            if (centerControls.isEmpty()) return
 
-            binding.btnNextEpisodeDismiss.nextFocusLeftId = overlayActionId
-            binding.btnNextEpisodeDismiss.nextFocusRightId = overlayActionId
-            binding.btnNextEpisodeDismiss.nextFocusUpId = controllerBinding.exoPlayPause.id
-            binding.btnNextEpisodeDismiss.nextFocusDownId =
-                if (controllerBinding.btnSkipIntro.isVisible) controllerBinding.btnSkipIntro.id
-                else controllerBinding.exoSettings.id
+            connectHorizontalRow(centerControls)
+            centerControls.forEach { it.nextFocusUpId = it.id }
+
+            val centerRightControl = centerControls.last()
+            val externalPlayer = controllerBinding.btnExoExternalPlayer
+            if (isAvailableFocusTarget(externalPlayer)) {
+                externalPlayer.nextFocusLeftId = externalPlayer.id
+                externalPlayer.nextFocusRightId = externalPlayer.id
+                externalPlayer.nextFocusDownId = centerRightControl.id
+                centerRightControl.nextFocusUpId = externalPlayer.id
+            }
+
+            val bottomControls = listOf(
+                controllerBinding.btnExoAspectRatio,
+                controllerBinding.exoSettings,
+            ).filter(::isAvailableFocusTarget)
+            connectHorizontalRow(bottomControls)
+
+            val bottomTargetId = bottomControls.lastOrNull()?.id ?: centerRightControl.id
+            val playPauseTargetId = controllerBinding.exoPlayPause
+                .takeIf(::isAvailableFocusTarget)
+                ?.id
+                ?: centerControls[centerControls.size / 2].id
+            val canSeek = player.isCommandAvailable(Player.COMMAND_SEEK_IN_CURRENT_MEDIA_ITEM) &&
+                controllerBinding.exoProgress.isVisible &&
+                controllerBinding.exoProgress.isFocusable
+            val defaultCenterDownTargetId =
+                if (canSeek) controllerBinding.exoProgress.id else bottomTargetId
+
+            val overlayVisible = binding.layoutNextEpisodeOverlay.isVisible
+            val skipIntroVisible = isAvailableFocusTarget(controllerBinding.btnSkipIntro)
+            val rightSideDownTargetId = when {
+                skipIntroVisible -> controllerBinding.btnSkipIntro.id
+                overlayVisible -> binding.btnNextEpisodeAction.id
+                else -> defaultCenterDownTargetId
+            }
+
+            centerControls.forEach { it.nextFocusDownId = defaultCenterDownTargetId }
+            centerRightControl.nextFocusDownId = rightSideDownTargetId
+
+            controllerBinding.exoProgress.nextFocusUpId = playPauseTargetId
+            controllerBinding.exoProgress.nextFocusDownId = bottomTargetId
+
+            val bottomUpTargetId = when {
+                overlayVisible -> binding.btnNextEpisodeAction.id
+                skipIntroVisible -> controllerBinding.btnSkipIntro.id
+                canSeek -> controllerBinding.exoProgress.id
+                else -> playPauseTargetId
+            }
+            bottomControls.forEach { it.nextFocusUpId = bottomUpTargetId }
+
+            if (skipIntroVisible) {
+                controllerBinding.btnSkipIntro.nextFocusLeftId = controllerBinding.btnSkipIntro.id
+                controllerBinding.btnSkipIntro.nextFocusRightId = controllerBinding.btnSkipIntro.id
+                controllerBinding.btnSkipIntro.nextFocusUpId = centerRightControl.id
+                controllerBinding.btnSkipIntro.nextFocusDownId = when {
+                    overlayVisible -> binding.btnNextEpisodeAction.id
+                    canSeek -> controllerBinding.exoProgress.id
+                    else -> bottomTargetId
+                }
+            }
+
+            if (overlayVisible) {
+                val overlayControls = listOf(
+                    binding.btnNextEpisodeAction,
+                    binding.btnNextEpisodeDismiss,
+                )
+                connectHorizontalRow(overlayControls)
+
+                val overlayUpTargetId =
+                    if (skipIntroVisible) controllerBinding.btnSkipIntro.id else centerRightControl.id
+                overlayControls.filter(::isAvailableFocusTarget).forEach { view ->
+                    view.nextFocusUpId = overlayUpTargetId
+                    view.nextFocusDownId = bottomTargetId
+                }
+            }
         }
 
         private fun showSkipIntroButton(show: Boolean) {
             val btnSkipIntro = binding.pvPlayer.controller.binding.btnSkipIntro
+            var visibilityChanged = false
             if (show && btnSkipIntro.isGone) {
                 val fadeIn = android.view.animation.AnimationUtils.loadAnimation(
                     requireContext(),
@@ -1594,9 +1672,7 @@ class PlayerTvFragment : Fragment() {
                 )
                 btnSkipIntro.startAnimation(fadeIn)
                 btnSkipIntro.isVisible = true
-                if (binding.layoutNextEpisodeOverlay.isVisible) {
-                    updateNextEpisodeOverlayFocusBindings(true)
-                }
+                visibilityChanged = true
             } else if (!show && btnSkipIntro.isVisible) {
                 val fadeOut = android.view.animation.AnimationUtils.loadAnimation(
                     requireContext(),
@@ -1604,9 +1680,11 @@ class PlayerTvFragment : Fragment() {
                 )
                 btnSkipIntro.startAnimation(fadeOut)
                 btnSkipIntro.isGone = true
-                if (binding.layoutNextEpisodeOverlay.isVisible) {
-                    updateNextEpisodeOverlayFocusBindings(true)
-                }
+                visibilityChanged = true
+            }
+
+            if (visibilityChanged) {
+                updatePlayerFocusNavigation()
             }
         }
 
@@ -1701,6 +1779,7 @@ class PlayerTvFragment : Fragment() {
             binding.settings.onSubtitlesClicked = {
                 viewModel.getSubtitles(args.videoType)
             }
+            updatePlayerFocusNavigation()
         }
 
         private fun releasePlayer() {
@@ -1892,6 +1971,7 @@ class PlayerTvFragment : Fragment() {
         binding.pvPlayer.player = player
         binding.settings.player = player
         binding.settings.subtitleView = binding.pvPlayer.subtitleView
+        updatePlayerFocusNavigation()
 
         bypassDone = true
         waitingForBypass = false
