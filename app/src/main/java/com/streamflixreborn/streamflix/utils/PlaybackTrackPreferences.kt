@@ -37,6 +37,9 @@ object PlaybackTrackPreferences {
         val groupIndex: Int,
         val trackIndex: Int,
     ) {
+        val hasRawIdentity: Boolean
+            get() = label != null || language != null || roleFlags != 0 || forced
+
         fun matches(format: Format): Boolean =
             label == format.label &&
                 language == format.language &&
@@ -321,8 +324,9 @@ object PlaybackTrackPreferences {
 
     /**
      * Raw metadata must match exactly. Position is consulted only if more than
-     * one track has the same raw metadata, so harmless track reordering does not
-     * break an otherwise unambiguous choice.
+     * one track has the same raw metadata, or if the track exposes no raw
+     * identity at all. That prevents a generic anonymous track from being
+     * guessed merely because it is the only candidate in a later episode.
      */
     private fun exactTrack(tracks: Tracks, type: Int, saved: SavedTrack): TrackRef? {
         val matches = buildList {
@@ -336,7 +340,7 @@ object PlaybackTrackPreferences {
             }
         }
 
-        if (matches.size == 1) return matches.single()
+        if (saved.hasRawIdentity && matches.size == 1) return matches.single()
         return matches.firstOrNull {
             it.groupIndex == saved.groupIndex && it.trackIndex == saved.trackIndex
         }
