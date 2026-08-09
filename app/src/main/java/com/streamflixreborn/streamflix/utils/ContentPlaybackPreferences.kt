@@ -60,6 +60,9 @@ object ContentPlaybackPreferences {
     @Volatile
     private var activeContent: ActiveContent? = null
 
+    @Volatile
+    private var subtitleRestoreSuspended = false
+
     /**
      * Sets the content whose player is currently being configured and returns an ownership token.
      * TV episodes share the TV-show key; movies use their movie key.
@@ -82,6 +85,8 @@ object ContentPlaybackPreferences {
             )
         }
 
+        subtitleRestoreSuspended = false
+
         if (key == null) {
             activeContent = null
             return null
@@ -101,6 +106,17 @@ object ContentPlaybackPreferences {
         if (activationToken == null) return
         if (activeContent?.activationToken == activationToken) {
             activeContent = null
+            subtitleRestoreSuspended = false
+        }
+    }
+
+    /**
+     * Keeps a deliberately selected episode-specific subtitle from being replaced by the show's
+     * remembered embedded-subtitle choice. The next content activation restores normal behavior.
+     */
+    fun suspendSubtitleRestoreForCurrentVideo() {
+        if (activeContent != null) {
+            subtitleRestoreSuspended = true
         }
     }
 
@@ -133,6 +149,7 @@ object ContentPlaybackPreferences {
         availableTracks: List<TrackDescriptor>,
     ) {
         val active = activeContent ?: return
+        subtitleRestoreSuspended = false
         update(active) { json ->
             json.put(
                 SUBTITLE,
@@ -159,6 +176,7 @@ object ContentPlaybackPreferences {
 
     fun rememberSubtitleNone() {
         val active = activeContent ?: return
+        subtitleRestoreSuspended = false
         update(active) { json ->
             json.put(SUBTITLE, JSONObject().put(MODE, MODE_NONE))
         }
@@ -176,6 +194,7 @@ object ContentPlaybackPreferences {
     }
 
     fun subtitle(): SubtitlePreference? {
+        if (subtitleRestoreSuspended) return null
         val json = loadActive() ?: return null
         val subtitle = json.optJSONObject(SUBTITLE) ?: return null
         return when (subtitle.optString(MODE)) {
