@@ -60,7 +60,7 @@ abstract class PlayerSettingsView @JvmOverloads constructor(
                         Settings.Quality.init(value, resources)
                         Settings.Audio.init(value, resources)
                         Settings.Subtitle.init(value, resources)
-                        restoreContentTrackPreferences(value)
+                        restoreContentPreferences(value)
                     }
                     if (events.contains(Player.EVENT_PLAYBACK_PARAMETERS_CHANGED)) {
                         Settings.Speed.refresh(value)
@@ -97,7 +97,7 @@ abstract class PlayerSettingsView @JvmOverloads constructor(
         ContentPlaybackPreferences.audio()?.let { saved ->
             val descriptors = audioTracks.map { it.preferenceDescriptor() }
             ContentPlaybackPreferences.findTrack(saved, descriptors)
-                ?.let(audioTracks::getOrNull)
+                ?.let { audioTracks.getOrNull(it) }
                 ?.takeUnless { it.isSelected }
                 ?.let { audio ->
                     player.trackSelectionParameters = player.trackSelectionParameters
@@ -137,7 +137,7 @@ abstract class PlayerSettingsView @JvmOverloads constructor(
                     .filterIsInstance<Settings.Subtitle.TextTrackInformation>()
                 val descriptors = subtitleTracks.map { it.preferenceDescriptor() }
                 ContentPlaybackPreferences.findTrack(saved.value, descriptors)
-                    ?.let(subtitleTracks::getOrNull)
+                    ?.let { subtitleTracks.getOrNull(it) }
                     ?.takeUnless { it.isSelected }
                     ?.let { subtitle ->
                         player.trackSelectionParameters = player.trackSelectionParameters
@@ -535,7 +535,7 @@ abstract class PlayerSettingsView @JvmOverloads constructor(
             }
             data object Off : Gestures() {
                 override val isSelected: Boolean get() = !UserPreferences.playerGestures
-                override val stringId: Int get() = R.string.settings_autoupdate_off
+                override val stringId: Int get() = R.string.settings_player_gestures_off
             }
         }
 
@@ -604,7 +604,7 @@ abstract class PlayerSettingsView @JvmOverloads constructor(
                 var isDefaultEnabled = false
                 var selectedValue: Boolean? = null
 
-                val isEnabled: Boolean get() = selectedValue ?: isDefaultEnabled
+                val isEnabled: Boolean get() = selectedValue ?: (isDefaultEnabled)
 
                 val list = listOf(On, Off)
 
@@ -779,7 +779,10 @@ abstract class PlayerSettingsView @JvmOverloads constructor(
                                             label = trackFormat.label,
                                             language = trackFormat.language,
                                             roleFlags = trackFormat.roleFlags,
-                                            metadataMissing = trackNameMissing && serverTag == null,
+                                            metadataMissing =
+                                                ContentPlaybackPreferences.canonicalLanguage(trackFormat.language) == null &&
+                                                    trackFormat.label.isNullOrBlank() &&
+                                                    serverTag == null,
                                             trackGroup = trackGroup,
                                             trackIndex = trackIndex,
                                         )
@@ -833,21 +836,15 @@ abstract class PlayerSettingsView @JvmOverloads constructor(
                                     .map { (trackIndex, trackFormat) ->
                                         val trackName = DefaultTrackNameProvider(resources)
                                             .getTrackName(trackFormat)
-                                        val metadataMissing =
-                                            trackFormat.language.isNullOrBlank() &&
-                                                trackFormat.label.isNullOrBlank() &&
-                                                (
-                                                    trackName.isBlank() ||
-                                                        trackName.equals("und", ignoreCase = true) ||
-                                                        trackName.equals("unknown", ignoreCase = true)
-                                                    )
 
                                         TextTrackInformation(
                                             name = trackName,
                                             label = trackFormat.label ?: "",
                                             language = trackFormat.language?.replaceFirstChar { it.titlecase() },
                                             roleFlags = trackFormat.roleFlags,
-                                            metadataMissing = metadataMissing,
+                                            metadataMissing =
+                                                ContentPlaybackPreferences.canonicalLanguage(trackFormat.language) == null &&
+                                                    trackFormat.label.isNullOrBlank(),
                                             trackGroup = trackGroup,
                                             trackIndex = trackIndex,
                                         )
@@ -857,6 +854,7 @@ abstract class PlayerSettingsView @JvmOverloads constructor(
                     )
                     list.add(LocalSubtitles)
                     list.add(OpenSubtitles)
+                    // Add SubDL only if an API key is configured
                     if (UserPreferences.subdlApiKey.isNotEmpty()) {
                         list.add(SubDLSubtitles)
                     }
@@ -898,9 +896,7 @@ abstract class PlayerSettingsView @JvmOverloads constructor(
                     companion object : Style() {
                         val list: List<Item> = (0..100 step 4).map { Margin(it) }
                         val selected: Margin
-                            get() = list.filterIsInstance<Margin>().find { it.value == UserPreferences.captionMargin }
-                                ?: list.filterIsInstance<Margin>().find { it.value == 24 }
-                                ?: Margin(24)
+                            get() = list.filterIsInstance<Margin>().find { it.value == UserPreferences.captionMargin } ?: list.filterIsInstance<Margin>().find { it.value == 24 } ?: Margin(24)
                     }
                 }
 
