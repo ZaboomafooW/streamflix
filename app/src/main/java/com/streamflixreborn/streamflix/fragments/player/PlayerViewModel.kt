@@ -217,7 +217,7 @@ class PlayerViewModel(
             _subtitleState.emit(SubtitleState.SuccessDownloadingSubDLSubtitle(subtitle, uri))
         } catch (e: Exception) {
             Log.e("PlayerViewModel", "Errore download SubDL: ", e)
-            _subtitleState.emit(SubtitleState.FailedSubDLSubtitle(e, subtitle))
+            _subtitleState.emit(SubtitleState.FailedDownloadingSubDLSubtitle(e, subtitle))
         }
     }
 
@@ -242,7 +242,7 @@ class PlayerViewModel(
         data class FailedSubDLSubtitles(val error: Exception) : SubtitleState()
         data object DownloadingSubDLSubtitle : SubtitleState()
         data class SuccessDownloadingSubDLSubtitle(val subtitle: SubDL.Subtitle, val uri: Uri) : SubtitleState()
-        data class FailedSubDLSubtitle(val error: Exception, val subtitle: SubDL.Subtitle) : SubtitleState()
+        data class FailedDownloadingSubDLSubtitle(val error: Exception, val subtitle: SubDL.Subtitle) : SubtitleState()
     }
 
     private var lastVideoType: Video.Type? = null
