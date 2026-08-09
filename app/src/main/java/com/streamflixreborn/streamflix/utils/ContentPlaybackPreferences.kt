@@ -229,10 +229,7 @@ object ContentPlaybackPreferences {
                 sameText(saved.name, it.name) && saved.roleFlags == it.roleFlags
             }?.let { return it }
 
-            uniqueMatch(languageMatches) { saved.roleFlags == it.roleFlags }
-                ?.let { return it }
-
-            return languageMatches.singleOrNull()?.index
+            return uniqueMatch(languageMatches) { saved.roleFlags == it.roleFlags }
         }
 
         val active = activeContent ?: return null
@@ -247,10 +244,11 @@ object ContentPlaybackPreferences {
 
         val exactMatches = availableTracks.withIndex().filter { indexed ->
             val candidate = indexed.value
-            when {
+            val textMatches = when {
                 saved.label != null -> sameText(saved.label, candidate.label)
                 else -> sameText(saved.name, candidate.name)
             }
+            textMatches && saved.roleFlags == candidate.roleFlags
         }
 
         return exactMatches.singleOrNull()?.index
