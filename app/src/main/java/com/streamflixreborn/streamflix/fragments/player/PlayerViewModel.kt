@@ -120,11 +120,30 @@ class PlayerViewModel(
 
     fun getVideo(server: Video.Server) = viewModelScope.launch(Dispatchers.IO) {
         Log.d("PlayerViewModel", "Inizio estrazione video dal server: ${server.name}")
-        PlaybackTrackPreferences.activateSource(server.name)
         _state.emit(State.LoadingVideo(server))
         try {
             val video = UserPreferences.currentProvider!!.getVideo(server)
             if (video.source.isEmpty()) throw Exception("No source found")
+
+            // Preserve main's normal subtitle-default behavior when there is no
+            // scoped explicit preference to restore. The legacy global
+            // subtitleName storage is intentionally retired, so an unset value
+            // retains main's existing first-subtitle fallback behavior.
+            val currentProviderLang = UserPreferences.currentProvider?.language ?: ""
+            val hasDefaultAlready = video.subtitles.any { it.default }
+
+            if (!hasDefaultAlready && currentProviderLang != "es") {
+                if (!(video.useServerSubtitleSetting && UserPreferences.serverAutoSubtitlesDisabled)) {
+                    video.subtitles
+                        .firstOrNull { it.label.startsWith(UserPreferences.subtitleName ?: "") }
+                        ?.default = true
+                }
+            }
+
+            // Activate the preference scope only after this source has resolved
+            // successfully, so any existing main-branch request race cannot file
+            // a later manual track choice under a source that never loaded.
+            PlaybackTrackPreferences.activateSource(server.name)
 
             Log.d("PlayerViewModel", "Estrazione video completata con successo")
             _state.emit(State.SuccessLoadingVideo(video, server))
