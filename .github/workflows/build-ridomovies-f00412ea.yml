@@ -1,0 +1,87 @@
+name: Build Ridomovies f00412ea TV Test APK
+
+on:
+  pull_request:
+    branches:
+      - main
+
+permissions:
+  contents: read
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - name: Checkout exact Ridomovies fix
+        uses: actions/checkout@v4
+        with:
+          repository: ZaboomafooW/streamflix
+          ref: f00412ea1c31327cb15bf4e96159f282dcd38905
+          fetch-depth: 1
+          path: source
+
+      - name: Verify exact source commit
+        working-directory: source
+        run: |
+          test "$(git rev-parse HEAD)" = 'f00412ea1c31327cb15bf4e96159f282dcd38905'
+          test -z "$(git status --short)"
+
+      - name: Set up JDK 17
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+
+      - name: Set up Android SDK
+        uses: android-actions/setup-android@v3
+
+      - name: Install required Android SDK components
+        run: |
+          yes | sdkmanager --licenses >/dev/null || true
+          sdkmanager "platforms;android-36" "ndk;26.1.10909125" "cmake;3.22.1"
+
+      - name: Create TV build properties
+        working-directory: source
+        run: |
+          cat > local.properties <<'EOF'
+          APP_LAYOUT=tv
+          TMDB_API_KEY=dummy-ci-key
+          SUBDL_API_KEY=dummy-ci-key
+          RABBITSTREAM_SOURCE_API=https://example.invalid/
+          EOF
+          test "$(grep '^APP_LAYOUT=' local.properties)" = 'APP_LAYOUT=tv'
+
+      - name: Generate required native source
+        working-directory: source
+        run: |
+          sed -e 's|{{UPROT_MSFI_API_BASE}}|https://example.invalid/msfi|g' \
+              -e 's|{{UPROT_MSE_API_BASE}}|https://example.invalid/mse|g' \
+              -e 's|{{UPROT_API_KEY}}|dummy-ci-key|g' \
+              app/src/main/cpp/native-lib.cpp.template > app/src/main/cpp/native-lib.cpp
+
+      - name: Run unit tests
+        working-directory: source
+        run: |
+          chmod +x ./gradlew
+          ./gradlew testDebugUnitTest --stacktrace --no-daemon
+
+      - name: Build TV debug APK
+        working-directory: source
+        run: ./gradlew assembleDebug --stacktrace --no-daemon
+
+      - name: Verify APK and source SHA
+        working-directory: source
+        run: |
+          test "$(git rev-parse HEAD)" = 'f00412ea1c31327cb15bf4e96159f282dcd38905'
+          test "$(grep '^APP_LAYOUT=' local.properties)" = 'APP_LAYOUT=tv'
+          test -f app/build/outputs/apk/debug/app-debug.apk
+          sha256sum app/build/outputs/apk/debug/app-debug.apk
+
+      - name: Upload TV debug APK
+        uses: actions/upload-artifact@v4
+        with:
+          name: streamflix-ridomovies-f00412ea-tv-debug
+          path: source/app/build/outputs/apk/debug/app-debug.apk
+          if-no-files-found: error
+          retention-days: 7
