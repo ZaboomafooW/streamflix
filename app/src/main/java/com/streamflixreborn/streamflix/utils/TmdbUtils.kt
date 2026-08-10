@@ -100,6 +100,34 @@ object TmdbUtils {
         } catch (_: Exception) { null }
     }
 
+    suspend fun getMovieOriginalLanguage(
+        title: String,
+        year: Int? = null,
+        language: String? = null,
+    ): String? {
+        if (!UserPreferences.enableTmdb) return null
+        return runCatching {
+            val effectiveYear = year ?: extractYear(title)
+            findBestMovieMatch(title, effectiveYear, language)
+                ?.originalLanguage
+                ?.takeIf { it.isNotBlank() }
+        }.getOrNull()
+    }
+
+    suspend fun getTvShowOriginalLanguage(
+        title: String,
+        year: Int? = null,
+        language: String? = null,
+    ): String? {
+        if (!UserPreferences.enableTmdb) return null
+        return runCatching {
+            val effectiveYear = year ?: extractYear(title)
+            findBestTvMatch(title, effectiveYear, language)
+                ?.originalLanguage
+                ?.takeIf { it.isNotBlank() }
+        }.getOrNull()
+    }
+
     suspend fun getEpisodesBySeason(tvShowId: String, seasonNumber: Int, language: String? = null): List<Episode> {
         if (!UserPreferences.enableTmdb) return listOf()
         return try {
