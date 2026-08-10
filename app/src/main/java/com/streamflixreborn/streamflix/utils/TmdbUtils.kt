@@ -52,6 +52,7 @@ object TmdbUtils {
                 imdbId = details.externalIds?.imdbId,
                 genres = details.genres.map { Genre(it.id.toString(), it.name) },
                 cast = details.credits?.cast?.map { People(it.id.toString(), it.name, it.profilePath?.w500) } ?: listOf(),
+                originalLanguage = details.originalLanguage,
             )
         } catch (_: Exception) { null }
     }
@@ -96,34 +97,9 @@ object TmdbUtils {
                 },
                 genres = details.genres.map { Genre(it.id.toString(), it.name) },
                 cast = details.credits?.cast?.map { People(it.id.toString(), it.name, it.profilePath?.w500) } ?: listOf(),
+                originalLanguage = details.originalLanguage,
             )
         } catch (_: Exception) { null }
-    }
-
-    suspend fun getMovieOriginalLanguage(
-        title: String,
-        year: Int? = null,
-        language: String? = null,
-    ): String? {
-        if (!UserPreferences.enableTmdb) return null
-        return runCatching {
-            findUniqueExactMovieMatch(title, year, language)
-                ?.originalLanguage
-                ?.takeIf { it.isNotBlank() }
-        }.getOrNull()
-    }
-
-    suspend fun getTvShowOriginalLanguage(
-        title: String,
-        year: Int? = null,
-        language: String? = null,
-    ): String? {
-        if (!UserPreferences.enableTmdb) return null
-        return runCatching {
-            findUniqueExactTvMatch(title, year, language)
-                ?.originalLanguage
-                ?.takeIf { it.isNotBlank() }
-        }.getOrNull()
     }
 
     suspend fun getEpisodesBySeason(tvShowId: String, seasonNumber: Int, language: String? = null): List<Episode> {
@@ -210,6 +186,7 @@ object TmdbUtils {
                 imdbId = details.externalIds?.imdbId,
                 genres = details.genres.map { Genre(it.id.toString(), it.name) },
                 cast = details.credits?.cast?.map { People(it.id.toString(), it.name, it.profilePath?.w500) } ?: listOf(),
+                originalLanguage = details.originalLanguage,
             )
         } catch (_: Exception) { null }
     }
@@ -271,6 +248,7 @@ object TmdbUtils {
                 },
                 genres = details.genres.map { Genre(it.id.toString(), it.name) },
                 cast = details.credits?.cast?.map { People(it.id.toString(), it.name, it.profilePath?.w500) } ?: listOf(),
+                originalLanguage = details.originalLanguage,
             )
         } catch (_: Exception) { null }
     }
@@ -293,46 +271,6 @@ object TmdbUtils {
 
         tvAgeCache[cacheKey] = encodeAgeRatingCacheValue(ageRating)
         return ageRating
-    }
-
-    private suspend fun findUniqueExactMovieMatch(
-        rawTitle: String,
-        year: Int?,
-        language: String?,
-    ): TMDb3.Movie? {
-        val normalizedTitle = normalizeTitle(rawTitle)
-        if (normalizedTitle.isBlank()) return null
-
-        return searchMovieCandidates(rawTitle, language)
-            .filter { movie ->
-                val titleMatches = listOf(movie.title, movie.originalTitle)
-                    .map(::normalizeTitle)
-                    .any { it == normalizedTitle }
-                val candidateYear = extractYear(movie.releaseDate)
-                titleMatches && (year == null || candidateYear == year)
-            }
-            .distinctBy { it.id }
-            .singleOrNull()
-    }
-
-    private suspend fun findUniqueExactTvMatch(
-        rawTitle: String,
-        year: Int?,
-        language: String?,
-    ): TMDb3.Tv? {
-        val normalizedTitle = normalizeTitle(rawTitle)
-        if (normalizedTitle.isBlank()) return null
-
-        return searchTvCandidates(rawTitle, language)
-            .filter { tv ->
-                val titleMatches = listOf(tv.name, tv.originalName)
-                    .map(::normalizeTitle)
-                    .any { it == normalizedTitle }
-                val candidateYear = extractYear(tv.firstAirDate)
-                titleMatches && (year == null || candidateYear == year)
-            }
-            .distinctBy { it.id }
-            .singleOrNull()
     }
 
     private suspend fun findBestMovieMatch(
@@ -609,8 +547,8 @@ object TmdbUtils {
         preferredCountries.forEach { countryCode ->
             contentRatings
                 .filter { it.iso3166.equals(countryCode, ignoreCase = true) }
-                .mapNotNull { parseAgeRating(it.rating) }
-                .maxOrNull()
+                ?.mapNotNull { parseAgeRating(it.rating) }
+                ?.maxOrNull()
                 ?.let { return it }
         }
 
