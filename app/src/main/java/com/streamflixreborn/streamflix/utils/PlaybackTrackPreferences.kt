@@ -13,6 +13,7 @@ import com.streamflixreborn.streamflix.BuildConfig
 import com.streamflixreborn.streamflix.StreamFlixApp
 import com.streamflixreborn.streamflix.models.Video
 import org.json.JSONObject
+import java.util.Locale
 
 /**
  * Remembers explicit Audio/Subtitle choices for exactly one playback context:
@@ -20,7 +21,7 @@ import org.json.JSONObject
  *
  * Global language preferences are delegated to Media3's built-in track selection.
  * Exact per-title choices are restored above those preferences when available.
- * Track position is used only to disambiguate otherwise-identical tracks.
+ * Labels are consulted only when a source exposes no usable language metadata.
  */
 object PlaybackTrackPreferences {
 
@@ -142,7 +143,9 @@ object PlaybackTrackPreferences {
     }
 
     fun bind(player: Player): Player.Listener {
-        applyPreferredLanguages(player)
+        val preferredAudioLanguage = preferredLanguage(PREFERRED_AUDIO_LANGUAGE)
+        val preferredSubtitleLanguage = preferredLanguage(PREFERRED_SUBTITLE_LANGUAGE)
+        applyPreferredLanguages(player, preferredAudioLanguage, preferredSubtitleLanguage)
 
         val listener = object : Player.Listener {
             private var mediaItem: MediaItem? = null
@@ -238,6 +241,9 @@ object PlaybackTrackPreferences {
 
             private fun restore(tracks: Tracks) {
                 var builder: TrackSelectionParameters.Builder? = null
+                var exactAudioApplied = false
+                var exactSubtitleApplied = false
+                var subtitleExplicitlyOff = false
 
                 if (!audioRestored && !audioCancelled) {
                     savedAudio?.let { saved ->
@@ -246,6 +252,7 @@ object PlaybackTrackPreferences {
                                 .setOverrideForType(track.override())
                                 .setTrackTypeDisabled(C.TRACK_TYPE_AUDIO, false)
                             audioRestored = true
+                            exactAudioApplied = true
                         }
                     }
                 }
@@ -260,6 +267,7 @@ object PlaybackTrackPreferences {
                                 .setTrackTypeDisabled(C.TRACK_TYPE_TEXT, false)
                                 .setIgnoredTextSelectionFlags(SUBTITLE_OFF_FLAGS)
                             subtitleRestored = true
+                            subtitleExplicitlyOff = true
                         }
 
                         is SavedSubtitle.Track -> {
@@ -269,8 +277,31 @@ object PlaybackTrackPreferences {
                                     .setTrackTypeDisabled(C.TRACK_TYPE_TEXT, false)
                                     .setIgnoredTextSelectionFlags(DEFAULT_TEXT_FLAGS)
                                 subtitleRestored = true
+                                exactSubtitleApplied = true
                             }
                         }
+                    }
+                }
+
+                if (!audioCancelled && !exactAudioApplied &&
+                    currentOverride(player.trackSelectionParameters, tracks, C.TRACK_TYPE_AUDIO) == null
+                ) {
+                    labelFallbackTrack(tracks, C.TRACK_TYPE_AUDIO, preferredAudioLanguage)?.let { track ->
+                        builder = (builder ?: player.trackSelectionParameters.buildUpon())
+                            .setOverrideForType(track.override())
+                            .setTrackTypeDisabled(C.TRACK_TYPE_AUDIO, false)
+                    }
+                }
+
+                if (!subtitleCancelled && !subtitleExplicitlyOff && !exactSubtitleApplied &&
+                    currentOverride(player.trackSelectionParameters, tracks, C.TRACK_TYPE_TEXT) == null &&
+                    !isSubtitleOff(player.trackSelectionParameters)
+                ) {
+                    labelFallbackTrack(tracks, C.TRACK_TYPE_TEXT, preferredSubtitleLanguage)?.let { track ->
+                        builder = (builder ?: player.trackSelectionParameters.buildUpon())
+                            .setOverrideForType(track.override())
+                            .setTrackTypeDisabled(C.TRACK_TYPE_TEXT, false)
+                            .setIgnoredTextSelectionFlags(DEFAULT_TEXT_FLAGS)
                     }
                 }
 
@@ -307,14 +338,15 @@ object PlaybackTrackPreferences {
         return listener
     }
 
-    private fun applyPreferredLanguages(player: Player) {
-        val preferredAudioLanguage = settingsPrefs
-            .getString(PREFERRED_AUDIO_LANGUAGE, null)
-            ?.takeIf { it.isNotBlank() }
-        val preferredSubtitleLanguage = settingsPrefs
-            .getString(PREFERRED_SUBTITLE_LANGUAGE, null)
-            ?.takeIf { it.isNotBlank() }
+    private fun preferredLanguage(key: String) = settingsPrefs
+        .getString(key, null)
+        ?.takeIf { it.isNotBlank() }
 
+    private fun applyPreferredLanguages(
+        player: Player,
+        preferredAudioLanguage: String?,
+        preferredSubtitleLanguage: String?,
+    ) {
         if (preferredAudioLanguage == null && preferredSubtitleLanguage == null) return
 
         val builder = player.trackSelectionParameters.buildUpon()
@@ -326,6 +358,117 @@ object PlaybackTrackPreferences {
             player.trackSelectionParameters = parameters
         }
     }
+
+    /**
+     * Media3 owns language matching whenever tracks expose language metadata.
+     * Some extractor-provided sidecar tracks only expose a human-readable label;
+     * for those tracks alone, infer the requested language from the label and
+     * hand the resulting concrete track back to Media3 as an override.
+     */
+    private fun labelFallbackTrack(
+        tracks: Tracks,
+        type: Int,
+        preferredLanguage: String?,
+    ): TrackRef? {
+        preferredLanguage ?: return null
+
+        val refs = buildList {
+            tracks.groups.filter { it.type == type }.forEachIndexed { groupIndex, group ->
+                for (trackIndex in 0 until group.length) {
+                    if (!group.isTrackSupported(trackIndex)) continue
+                    add(TrackRef(group, groupIndex, trackIndex))
+                }
+            }
+        }
+
+        if (refs.any { ref ->
+                val language = ref.group.getTrackFormat(ref.trackIndex).language
+                hasUsableLanguage(language) && languageMatches(language!!, preferredLanguage)
+            }
+        ) {
+            return null
+        }
+
+        val candidates = refs.filter { ref ->
+            val format = ref.group.getTrackFormat(ref.trackIndex)
+            !hasUsableLanguage(format.language) &&
+                labelMatchesLanguage(format.label, preferredLanguage) &&
+                (type != C.TRACK_TYPE_TEXT || !isForcedSubtitle(format))
+        }
+
+        if (candidates.any { it.group.isTrackSelected(it.trackIndex) }) return null
+
+        return candidates.minByOrNull { fallbackPenalty(it, type) }
+    }
+
+    private fun fallbackPenalty(track: TrackRef, type: Int): Int {
+        val format = track.group.getTrackFormat(track.trackIndex)
+        val label = normalizeLabel(format.label.orEmpty())
+        return when (type) {
+            C.TRACK_TYPE_TEXT -> if (containsWord(label, "cc") || containsWord(label, "sdh")) 1 else 0
+            C.TRACK_TYPE_AUDIO -> if (
+                containsWord(label, "commentary") ||
+                containsWord(label, "descriptive") ||
+                label.contains("audio description")
+            ) 1 else 0
+            else -> 0
+        }
+    }
+
+    private fun isForcedSubtitle(format: Format): Boolean =
+        format.selectionFlags and C.SELECTION_FLAG_FORCED != 0 ||
+            containsWord(normalizeLabel(format.label.orEmpty()), "forced")
+
+    private fun labelMatchesLanguage(label: String?, preferredLanguage: String): Boolean {
+        val normalizedLabel = normalizeLabel(label ?: return false)
+        if (normalizedLabel.isBlank()) return false
+        return languageAliases(preferredLanguage).any { alias ->
+            normalizedLabel == alias ||
+                normalizedLabel.startsWith("$alias ") ||
+                normalizedLabel.endsWith(" $alias") ||
+                normalizedLabel.contains(" $alias ")
+        }
+    }
+
+    private fun languageAliases(languageTag: String): Set<String> {
+        val locale = Locale.forLanguageTag(languageTag)
+        if (locale.language.isBlank() || locale.language == "und") return emptySet()
+
+        return buildSet {
+            add(locale.language)
+            runCatching { locale.isO3Language }.getOrNull()?.let(::add)
+            add(locale.getDisplayLanguage(Locale.ENGLISH))
+            add(locale.getDisplayLanguage(locale))
+            add(locale.getDisplayLanguage(Locale.getDefault()))
+        }.map(::normalizeLabel)
+            .filterTo(linkedSetOf()) { it.isNotBlank() }
+    }
+
+    private fun languageMatches(trackLanguage: String, preferredLanguage: String): Boolean {
+        val preferredLocale = Locale.forLanguageTag(preferredLanguage)
+        val preferredCodes = buildSet {
+            add(preferredLocale.language.lowercase(Locale.ROOT))
+            runCatching { preferredLocale.isO3Language.lowercase(Locale.ROOT) }
+                .getOrNull()
+                ?.let(::add)
+        }
+        val trackCode = trackLanguage.substringBefore('-').substringBefore('_').lowercase(Locale.ROOT)
+        return trackCode in preferredCodes
+    }
+
+    private fun hasUsableLanguage(language: String?): Boolean =
+        !language.isNullOrBlank() && !language.equals("und", ignoreCase = true)
+
+    private fun normalizeLabel(value: String): String = value
+        .lowercase(Locale.ROOT)
+        .replace(NON_WORD, " ")
+        .trim()
+
+    private fun containsWord(normalizedLabel: String, word: String): Boolean =
+        normalizedLabel == word ||
+            normalizedLabel.startsWith("$word ") ||
+            normalizedLabel.endsWith(" $word") ||
+            normalizedLabel.contains(" $word ")
 
     private fun TrackRef.override() = TrackSelectionOverride(
         group.mediaTrackGroup,
@@ -446,6 +589,8 @@ object PlaybackTrackPreferences {
 
     private const val PREFERRED_AUDIO_LANGUAGE = "PREFERRED_AUDIO_LANGUAGE"
     private const val PREFERRED_SUBTITLE_LANGUAGE = "PREFERRED_SUBTITLE_LANGUAGE"
+
+    private val NON_WORD = Regex("[^\\p{L}\\p{N}]+")
 
     private const val LABEL = "label"
     private const val LANGUAGE = "language"
