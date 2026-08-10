@@ -8,6 +8,7 @@ import com.streamflixreborn.streamflix.models.Video
 import com.streamflixreborn.streamflix.utils.EpisodeManager
 import com.streamflixreborn.streamflix.utils.OpenSubtitles
 import com.streamflixreborn.streamflix.utils.PlaybackTrackPreferences
+import com.streamflixreborn.streamflix.utils.SubDL
 import com.streamflixreborn.streamflix.utils.UserPreferences
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.Flow
@@ -15,7 +16,6 @@ import kotlinx.coroutines.flow.MutableSharedFlow
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharedFlow
 import kotlinx.coroutines.launch
-import com.streamflixreborn.streamflix.utils.SubDL
 
 class PlayerViewModel(
     videoType: Video.Type,
