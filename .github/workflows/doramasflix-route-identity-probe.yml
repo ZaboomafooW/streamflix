@@ -1,9 +1,9 @@
 name: Doramasflix Route Identity Probe
 
 on:
-  push:
+  pull_request:
     branches:
-      - ci/doramasflix-route-identity-probe
+      - main
 
 permissions:
   contents: read
