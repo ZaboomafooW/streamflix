@@ -157,12 +157,6 @@ object UserPreferences {
             Key.AUTOPLAY_BUFFER.setLong(value)
         }
 
-    var serverAutoSubtitlesDisabled: Boolean
-        get() = Key.SERVER_AUTO_SUBTITLES_DISABLED.getBoolean() ?: true
-        set(value) {
-            Key.SERVER_AUTO_SUBTITLES_DISABLED.setBoolean(value)
-        }
-
     var selectedTheme: String
         get() = Key.SELECTED_THEME.getString() ?: "default"
         set(value) = Key.SELECTED_THEME.setString(value)
@@ -334,16 +328,6 @@ object UserPreferences {
         get() = Key.QUALITY_HEIGHT.getInt()
         set(value) {
             Key.QUALITY_HEIGHT.setInt(value)
-        }
-
-    /**
-     * Compatibility no-op for old call sites. Subtitle memory is now entirely
-     * handled by PlaybackTrackPreferences and is never stored globally.
-     */
-    var subtitleName: String?
-        get() = null
-        set(value) {
-            // Deliberately ignored.
         }
 
     var streamingcommunityDomain: String
@@ -523,7 +507,6 @@ object UserPreferences {
         SUBDL_API_KEY,
         FORCE_EXTRA_BUFFERING,
         AUTOPLAY_BUFFER,
-        SERVER_AUTO_SUBTITLES_DISABLED,
         ENABLE_TMDB,
         PARENTAL_CONTROL_PIN,
         PARENTAL_CONTROL_ADMIN_PIN,

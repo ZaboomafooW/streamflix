@@ -44,14 +44,16 @@ object EpisodeManager {
                 poster = storedTvShow.poster,
                 banner = storedTvShow.banner,
                 released = storedTvShow.released?.format("yyyy-MM-dd"),
-                imdbId = storedTvShow.imdbId
+                imdbId = storedTvShow.imdbId,
+                originalLanguage = type.tvShow.originalLanguage,
             )
         } ?: TvShow(
             id = type.tvShow.id,
             title = type.tvShow.title,
             poster = type.tvShow.poster,
             banner = type.tvShow.banner,
-            imdbId = type.tvShow.imdbId
+            imdbId = type.tvShow.imdbId,
+            originalLanguage = type.tvShow.originalLanguage,
         )
         val seasonContext = Season(id = "", number = seasonNumber, title = type.season.title).apply {
             tvShow = tvShowContext
@@ -82,7 +84,14 @@ object EpisodeManager {
                 episode.tvShow = episode.tvShow ?: tvShowContext
                 episode.season = episode.season ?: seasonContext
             }
-            addEpisodes(convertToVideoTypeEpisodes(episodesFromDb, database, seasonNumber))
+            addEpisodes(
+                convertToVideoTypeEpisodes(
+                    episodesFromDb,
+                    database,
+                    seasonNumber,
+                    type.tvShow.originalLanguage,
+                )
+            )
         }
     }
 
@@ -142,7 +151,14 @@ object EpisodeManager {
             episode.season = episode.season ?: seasonToLoad
         }
 
-        mergeEpisodes(convertToVideoTypeEpisodes(nextSeasonEpisodes, database, seasonToLoad.number))
+        mergeEpisodes(
+            convertToVideoTypeEpisodes(
+                nextSeasonEpisodes,
+                database,
+                seasonToLoad.number,
+                currentEpisode.tvShow.originalLanguage,
+            )
+        )
         return hasNextEpisode()
     }
     fun clearEpisodes(){
@@ -188,7 +204,12 @@ object EpisodeManager {
         return episodes.isEmpty() || episodes.none { it.id == episode.id }
     }
 
-    fun convertToVideoTypeEpisodes(episodes: List<com.streamflixreborn.streamflix.models.Episode>, database: AppDatabase, seasonNumber: Int): List<Episode> {
+    fun convertToVideoTypeEpisodes(
+        episodes: List<com.streamflixreborn.streamflix.models.Episode>,
+        database: AppDatabase,
+        seasonNumber: Int,
+        originalLanguage: String? = null,
+    ): List<Episode> {
         val videoEpisodes = episodes.map { ep ->
             val seasonId = ep.season?.id ?: ""
             val tvShowId = ep.tvShow?.id ?: ""
@@ -209,7 +230,8 @@ object EpisodeManager {
                     poster = tvShowFromDb?.poster ?: ep.tvShow?.poster,
                     banner = tvShowFromDb?.banner ?: ep.tvShow?.banner,
                     releaseDate = tvShowFromDb?.released?.format("yyyy-MM-dd") ?: ep.tvShow?.released?.format("yyyy-MM-dd"),
-                    imdbId = tvShowFromDb?.imdbId ?: ep.tvShow?.imdbId
+                    imdbId = tvShowFromDb?.imdbId ?: ep.tvShow?.imdbId,
+                    originalLanguage = ep.tvShow?.originalLanguage ?: originalLanguage,
                 ),
                 season = Episode.Season(
                     number = seasonFromDb?.number ?: seasonNumber,

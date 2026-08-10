@@ -440,7 +440,6 @@ class PlayerMobileFragment : Fragment() {
                                 .setMediaMetadata(player.mediaMetadata)
                                 .build()
                         )
-                        UserPreferences.subtitleName = (state.subtitle.languageName ?: fileName).substringBefore(" ")
                         player.seekTo(currentPosition)
                         player.play()
                     }
@@ -480,7 +479,6 @@ class PlayerMobileFragment : Fragment() {
                                 .setMediaMetadata(player.mediaMetadata)
                                 .build()
                         )
-                        UserPreferences.subtitleName = (state.subtitle.releaseName ?: state.subtitle.name ?: fileName).substringBefore(" ")
                         player.seekTo(currentPosition)
                         player.play()
                     }

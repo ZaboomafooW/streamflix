@@ -275,7 +275,7 @@ object PlaybackTrackPreferences {
                                 .clearOverridesOfType(C.TRACK_TYPE_TEXT)
                                 .setPreferredTextLanguages(*emptyArray())
                                 .setTrackTypeDisabled(C.TRACK_TYPE_TEXT, true)
-                                .setIgnoredTextSelectionFlags(SUBTITLE_OFF_FLAGS)
+                                .setIgnoredTextSelectionFlags(DEFAULT_TEXT_FLAGS)
                                 .build()
                         )
                     }
@@ -325,7 +325,7 @@ object PlaybackTrackPreferences {
                 var exactSubtitleApplied = false
 
                 if (!audioRestored && !audioCancelled) {
-                    savedAudio?.takeIf(::audioExactApplies)?.let { saved ->
+                    savedAudio?.let { saved ->
                         exactTrack(tracks, C.TRACK_TYPE_AUDIO, saved)?.let { track ->
                             builder = (builder ?: player.trackSelectionParameters.buildUpon())
                                 .setOverrideForType(track.override())
@@ -490,7 +490,7 @@ object PlaybackTrackPreferences {
                 .clearOverridesOfType(C.TRACK_TYPE_TEXT)
                 .setPreferredTextLanguages(*emptyArray())
                 .setTrackTypeDisabled(C.TRACK_TYPE_TEXT, true)
-                .setIgnoredTextSelectionFlags(SUBTITLE_OFF_FLAGS)
+                .setIgnoredTextSelectionFlags(DEFAULT_TEXT_FLAGS)
 
             is SubtitlePreference.Language -> builder
                 .setPreferredTextLanguages(
@@ -520,7 +520,7 @@ object PlaybackTrackPreferences {
             return
         }
 
-        clearAudioExact()
+        clearAllAudioExactForContent()
 
         if (
             originalAudioLanguage != null &&
@@ -785,12 +785,6 @@ object PlaybackTrackPreferences {
         return null
     }
 
-    private fun audioExactApplies(saved: SavedTrack): Boolean {
-        val titleLanguage = titleAudioLanguage ?: return true
-        val savedLanguage = canonicalLanguage(saved.language) ?: languageFromLabel(saved.label)
-        return savedLanguage != null && languageMatches(savedLanguage, titleLanguage)
-    }
-
     /**
      * Raw metadata must match exactly. Position is only used to disambiguate duplicate metadata or
      * anonymous tracks, avoiding guesses when episodes expose different anonymous tracks.
@@ -855,10 +849,15 @@ object PlaybackTrackPreferences {
         prefs.edit().putString(audioKey(scope), value.encode()).apply()
     }
 
-    private fun clearAudioExact() {
-        val scope = scopeKey ?: return
+    private fun clearAllAudioExactForContent() {
+        val contentKey = contentPreferenceKey ?: return
+        val prefix = audioKey(contentKey)
+        val editor = prefs.edit()
+        prefs.all.keys
+            .filter { key -> key.startsWith(prefix) }
+            .forEach(editor::remove)
+        editor.apply()
         savedAudio = null
-        prefs.edit().remove(audioKey(scope)).apply()
     }
 
     private fun saveSubtitleExact(value: SavedTrack) {
@@ -925,7 +924,8 @@ object PlaybackTrackPreferences {
     }
 
     private fun isSubtitleOff(parameters: TrackSelectionParameters) =
-        parameters.ignoredTextSelectionFlags == SUBTITLE_OFF_FLAGS
+        parameters.disabledTrackTypes.contains(C.TRACK_TYPE_TEXT) ||
+            parameters.ignoredTextSelectionFlags == LEGACY_SUBTITLE_OFF_FLAGS
 
     private fun hasLocalDefaultSubtitle(mediaItem: MediaItem?) =
         mediaItem?.localConfiguration?.subtitleConfigurations?.any { subtitle ->
@@ -1009,7 +1009,7 @@ object PlaybackTrackPreferences {
     private const val MODE_TRACK = "track"
     private const val MODE_LANGUAGE = "language"
     private const val DEFAULT_TEXT_FLAGS = 0
-    private const val SUBTITLE_OFF_FLAGS = C.SELECTION_FLAG_FORCED.inv()
+    private const val LEGACY_SUBTITLE_OFF_FLAGS = C.SELECTION_FLAG_FORCED.inv()
 
     private val NON_WORD = Regex("[^\\p{L}\\p{N}]+")
 

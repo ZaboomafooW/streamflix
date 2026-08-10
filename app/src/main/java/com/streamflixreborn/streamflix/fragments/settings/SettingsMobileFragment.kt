@@ -521,14 +521,6 @@ class SettingsMobileFragment : PreferenceFragmentCompat() {
             true
         }
 
-        findPreference<SwitchPreference>("SERVER_AUTO_SUBTITLES_DISABLED")?.apply {
-            isChecked = UserPreferences.serverAutoSubtitlesDisabled
-            setOnPreferenceChangeListener { _, newValue ->
-                UserPreferences.serverAutoSubtitlesDisabled = newValue as Boolean
-                true
-            }
-        }
-
         val HasConfigProvider = UserPreferences.currentProvider is ProviderConfigUrl
         findPreference<PreferenceCategory>("pc_provider_settings")?.apply {
             isVisible = HasConfigProvider

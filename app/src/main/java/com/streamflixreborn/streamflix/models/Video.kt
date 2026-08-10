@@ -10,7 +10,6 @@ data class Video(
     val headers: Map<String, String>? = null,
     val type: String? = null,
     val extraBuffering: Boolean = false,
-    val useServerSubtitleSetting: Boolean = false,
     val maintainToken: Boolean = false
 ) : Serializable {
 
