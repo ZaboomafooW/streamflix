@@ -1,0 +1,194 @@
+name: Diagnose Ridomovies Hitman 2 live flow
+
+on:
+  pull_request:
+    branches: [ main ]
+
+permissions:
+  contents: read
+
+jobs:
+  diagnose:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install diagnostic dependencies
+        run: python -m pip install --disable-pip-version-check curl_cffi beautifulsoup4 selenium
+
+      - name: Trace live Ridomovies Hitman 2 flow
+        env:
+          PYTHONUNBUFFERED: '1'
+        run: |
+          python - <<'PY'
+          import json, re, time
+          from urllib.parse import urljoin, urlparse, urlencode
+          from curl_cffi import requests as cr
+          from bs4 import BeautifulSoup
+
+          BASE = 'https://ridomovies.su/'
+          TITLE = 'Hitman 2'
+          sess = cr.Session(impersonate='chrome136')
+          common = {
+              'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/136.0.0.0 Safari/537.36',
+              'Accept-Language': 'en-US,en;q=0.9',
+          }
+
+          def get(url, **kwargs):
+              headers = dict(common)
+              headers.update(kwargs.pop('headers', {}))
+              r = sess.get(url, headers=headers, timeout=30, allow_redirects=True, **kwargs)
+              print(f'GET {url} -> {r.status_code} final={r.url} type={r.headers.get("content-type")} bytes={len(r.content)}')
+              return r
+
+          api = urljoin(BASE, 'api/search') + '?' + urlencode({'q': TITLE, 'lang': 'en', 'limit': 32})
+          r = get(api, headers={'Accept': 'application/json', 'Referer': BASE})
+          print('SEARCH BODY:', r.text[:12000])
+          r.raise_for_status()
+          data = r.json()
+          rows = data.get('data', []) if isinstance(data, dict) else []
+          matches = [x for x in rows if isinstance(x, dict) and str(x.get('title','')).strip().lower() == TITLE.lower()]
+          if not matches:
+              matches = [x for x in rows if isinstance(x, dict) and 'hitman 2' in str(x.get('title','')).lower()]
+          if not matches:
+              raise SystemExit('No Hitman 2 row returned by live Rido search API')
+          row = matches[0]
+          print('\n=== MATCHING RIDO SEARCH ROW ===')
+          print(json.dumps(row, indent=2, ensure_ascii=False))
+
+          slug = str(row.get('slug') or row.get('slug_en') or '').strip()
+          if not slug:
+              raise SystemExit('Hitman 2 result has no slug')
+          detail_url = urljoin(BASE, f'movie/{slug}')
+          r = get(detail_url, headers={'Accept': 'text/html,application/xhtml+xml,*/*;q=0.8', 'Referer': BASE})
+          r.raise_for_status()
+          detail_html = r.text
+          soup = BeautifulSoup(detail_html, 'html.parser')
+          print('\n=== RIDO DETAIL ===')
+          print('detail_url=', detail_url)
+          print('title=', soup.title.get_text(' ', strip=True) if soup.title else '')
+
+          config = soup.select_one('#detailConfig')
+          imdb = ''
+          videos = []
+          if config:
+              imdb = (config.get('data-imdb-id') or '').strip()
+              raw = config.get('data-videos') or ''
+              print('detailConfig imdb=', imdb)
+              print('detailConfig data-videos raw=', raw)
+              try:
+                  parsed = json.loads(raw)
+                  if isinstance(parsed, list): videos = parsed
+              except Exception as e:
+                  print('data-videos JSON error:', repr(e))
+          else:
+              print('NO #detailConfig FOUND')
+
+          embeds = []
+          def norm_embed(raw):
+              raw = (raw or '').strip()
+              if not raw: return None
+              if raw.startswith('//'): return 'https:' + raw
+              if raw.startswith('http://') or raw.startswith('https://'): return raw
+              ss = BeautifulSoup(raw, 'html.parser')
+              iframe = ss.find('iframe')
+              if iframe:
+                  return urljoin(BASE, iframe.get('src') or iframe.get('data-src') or '')
+              return None
+
+          print('\n=== RIDO DATA-VIDEOS ===')
+          for v in videos:
+              if not isinstance(v, dict): continue
+              print(json.dumps(v, indent=2, ensure_ascii=False))
+              vid = str(v.get('video_id') or v.get('video') or '').strip()
+              templ = str(v.get('template') or '').strip()
+              if vid and templ:
+                  raw = templ.replace('{{id}}', vid).replace('{id}', vid).replace('{url}', vid)
+                  u = norm_embed(raw)
+                  if u and 'closeload' in urlparse(u).hostname.lower() and imdb and 'imdb_id=' not in u:
+                      sep = '&' if '?' in u else '?'
+                      u = f'{u}{sep}imdb_id={imdb}'
+                  if u: embeds.append((str(v.get('service_name') or ''), u))
+
+          print('\n=== RIDO DOM SERVER EMBEDS ===')
+          for node in soup.select('#player-cover[data-embed], .server-dropdown-item[data-server-embed]'):
+              raw = node.get('data-embed') or node.get('data-server-embed') or ''
+              u = norm_embed(raw)
+              print('node=', node.get_text(' ', strip=True)[:120], ' raw=', raw, ' normalized=', u)
+              if u: embeds.append(('DOM', u))
+
+          dedup = []
+          seen = set()
+          for name,u in embeds:
+              key=(urlparse(u).hostname, urlparse(u).path)
+              if key in seen: continue
+              seen.add(key); dedup.append((name,u))
+          embeds=dedup
+          print('\n=== FINAL EMBEDS WEBSITE OFFERS ===')
+          for i,(name,u) in enumerate(embeds,1): print(i, name, u)
+          if not embeds:
+              raise SystemExit('Rido detail page exposes no playback embeds')
+
+          for i,(name,u) in enumerate(embeds,1):
+              print(f'\n=== EMBED {i}: {name} {u} ===')
+              try:
+                  er = get(u, headers={'Accept': 'text/html,application/xhtml+xml,*/*;q=0.8', 'Referer': detail_url})
+                  print('embed response snippet=', er.text[:1000].replace('\n',' ') if 'text' in (er.headers.get('content-type') or '') else '<binary>')
+                  es = BeautifulSoup(er.text, 'html.parser')
+                  tracks = []
+                  for t in es.select('track[src]'):
+                      tracks.append({'src': urljoin(u,t.get('src','')), 'label': t.get('label'), 'srclang': t.get('srclang'), 'kind': t.get('kind'), 'default': t.has_attr('default')})
+                  print('HTML TRACKS=', json.dumps(tracks, indent=2, ensure_ascii=False))
+                  interesting = []
+                  for sc in es.find_all('script'):
+                      txt = sc.string or sc.get_text() or ''
+                      low = txt.lower()
+                      if any(k in low for k in ['playerinit','tracks:', 'hash:', 'master.txt', '.m3u8', 'eval(function']):
+                          interesting.append(txt[:5000])
+                  print('INTERESTING SCRIPT COUNT=',len(interesting))
+                  for n,txt in enumerate(interesting[:6],1):
+                      print(f'--- script {n} ---')
+                      print(txt[:5000])
+              except Exception as e:
+                  print('embed static inspection failed:', repr(e))
+
+          print('\n=== HEADLESS CHROME NETWORK TRACE ===')
+          try:
+              from selenium import webdriver
+              from selenium.webdriver.chrome.options import Options
+              opts=Options()
+              opts.add_argument('--headless=new'); opts.add_argument('--no-sandbox'); opts.add_argument('--disable-dev-shm-usage')
+              opts.add_argument('--autoplay-policy=no-user-gesture-required'); opts.add_argument('--mute-audio')
+              opts.set_capability('goog:loggingPrefs', {'performance':'ALL','browser':'ALL'})
+              driver=webdriver.Chrome(options=opts)
+              driver.execute_cdp_cmd('Network.enable', {})
+              for i,(name,u) in enumerate(embeds,1):
+                  print(f'\n--- browser embed {i} {name}: {u} ---')
+                  driver.execute_cdp_cmd('Network.setExtraHTTPHeaders', {'headers': {'Referer': detail_url}})
+                  driver.get(u)
+                  time.sleep(4)
+                  try:
+                      driver.execute_script("document.querySelector('video')?.play(); document.querySelectorAll('[class*=play],[id*=play]').forEach(e=>{try{e.click()}catch(_){}})")
+                  except Exception as e: print('play kick failed',repr(e))
+                  time.sleep(10)
+                  events=[]
+                  for ent in driver.get_log('performance'):
+                      try:
+                          msg=json.loads(ent['message'])['message']
+                      except Exception: continue
+                      if msg.get('method')!='Network.requestWillBeSent': continue
+                      req=msg.get('params',{}).get('request',{})
+                      url=req.get('url',''); method=req.get('method','')
+                      low=url.lower()
+                      if any(x in low for x in ['.m3u8','.mp4','master.txt','playlist','/hls/']) or method=='POST':
+                          events.append((method,url,req.get('headers',{}).get('Referer'),msg.get('params',{}).get('type')))
+                  for ev in events:
+                      print('NETWORK', ev)
+                  print('current_url=',driver.current_url)
+                  print('video state=',driver.execute_script("var v=document.querySelector('video'); return v?{src:v.currentSrc||v.src,ready:v.readyState,duration:v.duration,current:v.currentTime,error:v.error&&v.error.code}:null"))
+                  print('browser logs=', driver.get_log('browser')[-20:])
+              driver.quit()
+          except Exception as e:
+              print('HEADLESS TRACE FAILED:', repr(e))
+          PY
