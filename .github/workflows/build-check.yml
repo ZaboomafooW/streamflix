@@ -1,4 +1,4 @@
-name: Build Check
+name: Doramasflix Subtitle Audit
 
 on:
   pull_request:
@@ -9,60 +9,50 @@ permissions:
   contents: read
 
 jobs:
-  build:
-    name: Build Android TV debug APK
+  audit:
+    name: Inspect Doramasflix subtitle playback data
     runs-on: ubuntu-latest
-    timeout-minutes: 30
-
+    timeout-minutes: 10
     steps:
-      - name: Checkout requested code
-        uses: actions/checkout@v4
-        with:
-          ref: ${{ github.sha }}
-
-      - name: Set up JDK 17
-        uses: actions/setup-java@v4
-        with:
-          distribution: temurin
-          java-version: '17'
-
-      - name: Set up Android SDK
-        uses: android-actions/setup-android@v3
-
-      - name: Install required Android SDK components
+      - name: Inspect live playback subtitle schema
+        shell: bash
         run: |
-          yes | sdkmanager --licenses >/dev/null || true
-          sdkmanager "platforms;android-36" "ndk;26.1.10909125" "cmake;3.22.1"
+          set -euo pipefail
+          python3 - <<'PY'
+          import json, urllib.request, urllib.error
+          API='https://userapi.cloudfleir.xyz/graphql'
+          ORIGIN='https://doramasflix.in'
+          APP='com.asiapp.doramasgo'
+          UA='Mozilla/5.0 (Linux; Android 10; Android TV) AppleWebKit/537.36 Chrome/140.0.0.0 Safari/537.36'
+          def gql(operation, variables, query):
+              body=json.dumps({'operationName':operation,'variables':variables,'query':query}).encode()
+              req=urllib.request.Request(API,data=body,headers={'Accept':'application/json','Content-Type':'application/json','Origin':ORIGIN,'Referer':ORIGIN+'/','User-Agent':UA})
+              try:
+                  with urllib.request.urlopen(req,timeout=20) as r: raw=r.read().decode('utf-8','replace')
+              except urllib.error.HTTPError as e:
+                  print('HTTP_ERROR', e.code, e.read().decode('utf-8','replace')[:1000]); raise
+              obj=json.loads(raw)
+              if obj.get('errors'): print('GRAPHQL_ERRORS', json.dumps(obj['errors'],ensure_ascii=False)[:2000])
+              return obj
 
-      - name: Create build properties
-        run: |
-          cat > local.properties <<'EOF'
-          APP_LAYOUT=tv
-          TMDB_API_KEY=dummy-ci-key
-          SUBDL_API_KEY=dummy-ci-key
-          RABBITSTREAM_SOURCE_API=https://example.invalid/
-          EOF
+          # First ask the schema directly for any subtitle-related object types.
+          introspection='''query SubtitleTypes { __schema { types { name kind fields { name type { kind name ofType { kind name } } } } } }'''
+          schema=gql('SubtitleTypes',{},introspection)
+          types=((schema.get('data') or {}).get('__schema') or {}).get('types') or []
+          subtitle_types=[t for t in types if 'subtit' in (t.get('name') or '').lower()]
+          print('SUBTITLE_TYPES', json.dumps(subtitle_types,ensure_ascii=False)[:12000])
 
-      - name: Generate native source from template
-        run: |
-          sed -e 's|{{UPROT_MSFI_API_BASE}}|https://example.invalid/msfi|g' \
-              -e 's|{{UPROT_MSE_API_BASE}}|https://example.invalid/mse|g' \
-              -e 's|{{UPROT_API_KEY}}|dummy-ci-key|g' \
-              app/src/main/cpp/native-lib.cpp.template > app/src/main/cpp/native-lib.cpp
-
-      - name: Make Gradle executable
-        run: chmod +x ./gradlew
-
-      - name: Run unit tests
-        run: ./gradlew testDebugUnitTest --stacktrace --no-daemon
-
-      - name: Build debug APK
-        run: ./gradlew assembleDebug --stacktrace --no-daemon
-
-      - name: Upload debug APK
-        uses: actions/upload-artifact@v4
-        with:
-          name: streamflix-tv-debug-apk
-          path: app/build/outputs/apk/debug/*.apk
-          if-no-files-found: error
-          retention-days: 7
+          MQ='''query PaginationMovie($page:Int,$limit:Int,$filter:FilterMoviesInput){paginationMovie(page:$page,limit:$limit,filter:$filter){items{_id name slug}}}'''
+          movies=((gql('PaginationMovie',{'page':1,'limit':40,'filter':{}},MQ).get('data') or {}).get('paginationMovie') or {}).get('items') or []
+          LQ='''query MovieLinks($movie_id:ID!){getMovieLinks(id:$movie_id,app:"'''+APP+''' "){links_online{server lang link page is_recommended subtitles{__typename language_code type}}}}'''
+          found=[]
+          for m in movies:
+              obj=gql('MovieLinks',{'movie_id':m['_id']},LQ)
+              links=((obj.get('data') or {}).get('getMovieLinks') or {}).get('links_online') or []
+              for link in links:
+                  if link.get('subtitles'):
+                      found.append({'movie':m,'link':link})
+                      print('SUBTITLE_SAMPLE', json.dumps(found[-1],ensure_ascii=False)[:5000])
+              if len(found)>=5: break
+          print('SUBTITLE_SAMPLE_COUNT',len(found))
+          PY
