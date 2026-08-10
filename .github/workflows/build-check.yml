@@ -1,4 +1,4 @@
-name: Doramasflix Subtitle Audit
+name: Build Check
 
 on:
   pull_request:
@@ -9,85 +9,60 @@ permissions:
   contents: read
 
 jobs:
-  audit:
-    name: Scan Doramasflix subtitle playback data
+  build:
+    name: Build Android TV debug APK
     runs-on: ubuntu-latest
-    timeout-minutes: 10
-    steps:
-      - name: Scan live movie and episode subtitle data
-        shell: bash
-        run: |
-          set -euo pipefail
-          python3 - <<'PY'
-          import json, urllib.request, urllib.error, time, base64
-          API='https://userapi.cloudfleir.xyz/graphql'
-          ORIGIN='https://doramasflix.in'
-          APP='com.asiapp.doramasgo'
-          UA='Mozilla/5.0 (Linux; Android 10; Android TV) AppleWebKit/537.36 Chrome/140.0.0.0 Safari/537.36'
-          def request(operation, variables, query):
-              body=json.dumps({'operationName':operation,'variables':variables,'query':query}).encode()
-              req=urllib.request.Request(API,data=body,headers={'Accept':'application/json','Content-Type':'application/json','Origin':ORIGIN,'Referer':ORIGIN+'/','User-Agent':UA})
-              try:
-                  with urllib.request.urlopen(req,timeout=20) as r: return r.status,json.loads(r.read().decode('utf-8','replace'))
-              except urllib.error.HTTPError as e:
-                  raw=e.read().decode('utf-8','replace')
-                  try:o=json.loads(raw)
-                  except:o={'raw':raw[:1000]}
-                  return e.code,o
-          MQ='''query PaginationMovie($page:Int,$limit:Int,$filter:FilterMoviesInput){paginationMovie(page:$page,limit:$limit,filter:$filter){items{_id name slug}}}'''
-          DQ='''query PaginationDorama($page:Int,$limit:Int,$filter:FilterDoramasInput){paginationDorama(page:$page,limit:$limit,filter:$filter){items{_id name slug isTVShow}}}'''
-          SQ='''query listSeasons($slug:String!){listSeasons(sort:NUMBER_ASC,filter:{serie_slug:$slug}){season_number}}'''
-          EQ='''query listEpisodes($slug:String!,$season_number:Int!){listEpisodes(sort:NUMBER_ASC,filter:{serie_slug:$slug,season_number:$season_number}){_id name episode_number}}'''
-          MLQ='''query MovieLinks($movie_id:ID!){getMovieLinks(id:$movie_id,app:"'''+APP+''' "){links_online{server lang link page is_recommended subtitles{language_code type url label}}}}'''
-          ELQ='''query EpisodeLinksOnline($episode_id:ID!){getEpisodeLinks(id:$episode_id,app:"'''+APP+''' "){links_online{server lang link is_recommended subtitles{language_code type url label}}}}'''
-          def inspect(owner, links):
-              soft=[]; kinds=[]
-              for l in links or []:
-                  for s in l.get('subtitles') or []:
-                      kinds.append((s.get('type'),s.get('language_code'),bool(s.get('url')),s.get('label')))
-                      if s.get('url') or (s.get('type') and s.get('type')!='HARDSUB'):
-                          soft.append({'owner':owner,'server':l.get('server'),'lang':l.get('lang'),'subtitle':s})
-              return soft,kinds
-          movie_soft=[];movie_kinds=[]
-          _,obj=request('PaginationMovie',{'page':1,'limit':80,'filter':{}},MQ)
-          movies=((obj.get('data') or {}).get('paginationMovie') or {}).get('items') or []
-          for m in movies:
-              st,o=request('MovieLinks',{'movie_id':m['_id']},MLQ)
-              if st!=200:
-                  print('MOVIE_ERR',m.get('name'),st); continue
-              links=((o.get('data') or {}).get('getMovieLinks') or {}).get('links_online') or []
-              soft,kinds=inspect({'type':'movie','name':m.get('name'),'id':m.get('_id')},links);movie_soft+=soft;movie_kinds+=kinds
-              if soft:
-                  for x in soft: print('MOVIE_SOFT',json.dumps(x,ensure_ascii=False))
-              if len(movie_soft)>=8: break
-              time.sleep(0.06)
-          print('MOVIE_SUBTITLE_TYPES',json.dumps(movie_kinds[:100],ensure_ascii=False))
-          print('MOVIE_SOFT_COUNT',len(movie_soft))
+    timeout-minutes: 30
 
-          episode_soft=[];episode_kinds=[]
-          _,obj=request('PaginationDorama',{'page':1,'limit':35,'filter':{'isTVShow':False}},DQ)
-          shows=((obj.get('data') or {}).get('paginationDorama') or {}).get('items') or []
-          for d in shows:
-              st,o=request('listSeasons',{'slug':d['slug']},SQ)
-              if st!=200: continue
-              seasons=(o.get('data') or {}).get('listSeasons') or []
-              if not seasons: continue
-              sn=seasons[0].get('season_number')
-              st,o=request('listEpisodes',{'slug':d['slug'],'season_number':sn},EQ)
-              if st!=200: continue
-              eps=(o.get('data') or {}).get('listEpisodes') or []
-              if not eps: continue
-              e=eps[0]
-              st,o=request('EpisodeLinksOnline',{'episode_id':e['_id']},ELQ)
-              if st!=200:
-                  print('EP_ERR',d.get('name'),st); continue
-              links=((o.get('data') or {}).get('getEpisodeLinks') or {}).get('links_online') or []
-              owner={'type':'episode','show':d.get('name'),'episode':e.get('episode_number'),'id':e.get('_id')}
-              soft,kinds=inspect(owner,links);episode_soft+=soft;episode_kinds+=kinds
-              if soft:
-                  for x in soft: print('EP_SOFT',json.dumps(x,ensure_ascii=False))
-              if len(episode_soft)>=8: break
-              time.sleep(0.08)
-          print('EP_SUBTITLE_TYPES',json.dumps(episode_kinds[:100],ensure_ascii=False))
-          print('EP_SOFT_COUNT',len(episode_soft))
-          PY
+    steps:
+      - name: Checkout requested code
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ github.sha }}
+
+      - name: Set up JDK 17
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+
+      - name: Set up Android SDK
+        uses: android-actions/setup-android@v3
+
+      - name: Install required Android SDK components
+        run: |
+          yes | sdkmanager --licenses >/dev/null || true
+          sdkmanager "platforms;android-36" "ndk;26.1.10909125" "cmake;3.22.1"
+
+      - name: Create build properties
+        run: |
+          cat > local.properties <<'EOF'
+          APP_LAYOUT=tv
+          TMDB_API_KEY=dummy-ci-key
+          SUBDL_API_KEY=dummy-ci-key
+          RABBITSTREAM_SOURCE_API=https://example.invalid/
+          EOF
+
+      - name: Generate native source from template
+        run: |
+          sed -e 's|{{UPROT_MSFI_API_BASE}}|https://example.invalid/msfi|g' \
+              -e 's|{{UPROT_MSE_API_BASE}}|https://example.invalid/mse|g' \
+              -e 's|{{UPROT_API_KEY}}|dummy-ci-key|g' \
+              app/src/main/cpp/native-lib.cpp.template > app/src/main/cpp/native-lib.cpp
+
+      - name: Make Gradle executable
+        run: chmod +x ./gradlew
+
+      - name: Run unit tests
+        run: ./gradlew testDebugUnitTest --stacktrace --no-daemon
+
+      - name: Build debug APK
+        run: ./gradlew assembleDebug --stacktrace --no-daemon
+
+      - name: Upload debug APK
+        uses: actions/upload-artifact@v4
+        with:
+          name: streamflix-tv-debug-apk
+          path: app/build/outputs/apk/debug/*.apk
+          if-no-files-found: error
+          retention-days: 7
