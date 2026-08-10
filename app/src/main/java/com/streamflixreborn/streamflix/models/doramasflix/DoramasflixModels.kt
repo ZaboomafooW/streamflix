@@ -20,7 +20,6 @@ data class Data(
 data class Pagination(
     val items: List<Show> = emptyList(),
     val pageInfo: PageInfo? = null,
-    val hasNextPage: Boolean? = null,
 )
 
 data class Show(
@@ -34,11 +33,6 @@ data class Show(
     @SerializedName("poster_path")
     val posterPath: String? = null,
     val poster: String? = null,
-    @SerializedName("backdrop_path")
-    val backdropPath: String? = null,
-    val backdrop: String? = null,
-    @SerializedName("isTVShow")
-    val isTvShow: Boolean? = null,
     val genres: List<Genre> = emptyList(),
     @SerializedName("__typename")
     val typename: String,
@@ -54,8 +48,6 @@ data class PageInfo(
 )
 
 data class Season(
-    @SerializedName("_id")
-    val id: String? = null,
     val slug: String,
     @SerializedName("season_number")
     val seasonNumber: Int,
@@ -76,18 +68,12 @@ data class Episode(
     val id: String,
     val name: String?,
     val slug: String,
-    @SerializedName("serie_name")
-    val serieName: String? = null,
-    @SerializedName("serie_id")
-    val serieId: String? = null,
     @SerializedName("episode_number")
     val episodeNumber: Int?,
     @SerializedName("season_number")
     val seasonNumber: Int?,
     @SerializedName("still_path")
     val stillPath: String? = null,
-    val languages: List<String> = emptyList(),
-    val backdrop: String? = null,
 )
 
 data class LinkContainer(
@@ -96,21 +82,10 @@ data class LinkContainer(
 )
 
 data class OnlineLink(
-    @SerializedName("_id")
-    val id: String? = null,
     val lang: String? = null,
     val link: String? = null,
-    val page: String? = null,
-    val server: String? = null,
     @SerializedName("is_recommended")
     val isRecommended: Boolean? = null,
-    val subtitles: List<OnlineSubtitle> = emptyList(),
-)
-
-data class OnlineSubtitle(
-    @SerializedName("language_code")
-    val languageCode: String? = null,
-    val type: String? = null,
 )
 
 // --- MODELOS PARA EL TOKEN DE FKPLAYER ---
