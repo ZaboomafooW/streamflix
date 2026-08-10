@@ -2,6 +2,7 @@ package com.streamflixreborn.streamflix.extractors
 
 import com.streamflixreborn.streamflix.models.Video
 import com.streamflixreborn.streamflix.providers.RidomoviesProvider
+import com.streamflixreborn.streamflix.utils.NetworkClient
 import com.tanasi.retrofit_jsoup.converter.JsoupConverterFactory
 import okhttp3.HttpUrl.Companion.toHttpUrlOrNull
 import okhttp3.OkHttpClient
@@ -19,9 +20,20 @@ class RidooExtractor : Extractor() {
     override suspend fun extract(link: String): Video {
         val embedUrl = link.toHttpUrlOrNull()
             ?: throw Exception("Invalid Ridoo embed URL")
+
+        if (embedUrl.host.contains("ridorapid", ignoreCase = true)) {
+            return BrowserStreamResolver.resolve(
+                link = link,
+                referer = RidomoviesProvider.URL,
+            ) { candidate ->
+                val mediaUrl = candidate.toHttpUrlOrNull()
+                candidate.contains(".m3u8", ignoreCase = true) &&
+                    mediaUrl?.host?.contains("rapidrame", ignoreCase = true) == true
+            }
+        }
+
         val embedOrigin = "${embedUrl.scheme}://${embedUrl.host}"
         val document = Service.build(embedOrigin, RidomoviesProvider.URL).get(link)
-
         val m3u8Url = Regex("""file\s*:\s*["']([^"']+\.m3u8[^"']*)["']""")
             .find(document.toString())
             ?.groups?.get(1)?.value
@@ -32,7 +44,7 @@ class RidooExtractor : Extractor() {
             headers = mapOf(
                 "Referer" to "$embedOrigin/",
                 "Origin" to embedOrigin,
-                "User-Agent" to USER_AGENT,
+                "User-Agent" to NetworkClient.USER_AGENT,
                 "Accept" to "*/*",
                 "Accept-Language" to "en-US,en;q=0.9",
             ),
@@ -45,7 +57,7 @@ class RidooExtractor : Extractor() {
                 val client = OkHttpClient.Builder()
                     .addInterceptor { chain ->
                         val request = chain.request().newBuilder()
-                            .header("User-Agent", USER_AGENT)
+                            .header("User-Agent", NetworkClient.USER_AGENT)
                             .header("Accept", "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8")
                             .header("Accept-Language", "en-US,en;q=0.9")
                             .header("Referer", referer)
@@ -65,10 +77,5 @@ class RidooExtractor : Extractor() {
 
         @GET
         suspend fun get(@Url url: String): Document
-    }
-
-    companion object {
-        private const val USER_AGENT =
-            "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/140.0.0.0 Safari/537.36"
     }
 }
