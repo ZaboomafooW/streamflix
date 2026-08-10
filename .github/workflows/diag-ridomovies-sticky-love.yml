@@ -1,0 +1,80 @@
+name: Diagnose Ridomovies Our Sticky Love live flow
+
+on:
+  pull_request:
+    branches: [ main ]
+
+permissions:
+  contents: read
+
+jobs:
+  diagnose:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install diagnostic dependencies
+        run: python -m pip install --disable-pip-version-check curl_cffi beautifulsoup4
+      - name: Trace Our Sticky Love S1E1
+        env:
+          PYTHONUNBUFFERED: '1'
+        run: |
+          python - <<'PY'
+          import json, re
+          from urllib.parse import urljoin, urlparse
+          from curl_cffi import requests as cr
+          from bs4 import BeautifulSoup
+
+          PAGE='https://ridomovies.su/tv/our-sticky-love-2026/season-1/episode-1'
+          UA='Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/136.0.0.0 Safari/537.36'
+          s=cr.Session(impersonate='chrome136')
+          r=s.get(PAGE,headers={'User-Agent':UA,'Referer':'https://ridomovies.su/','Accept-Language':'en-US,en;q=0.9'},timeout=30)
+          print('PAGE',r.status_code,r.url,r.headers.get('content-type'),len(r.content)); r.raise_for_status()
+          soup=BeautifulSoup(r.text,'html.parser')
+          cfg=soup.select_one('#detailConfig'); print('CONFIG=',cfg.attrs if cfg else None)
+          videos=[]
+          if cfg:
+              raw=cfg.get('data-videos') or ''; print('DATA-VIDEOS RAW=',raw)
+              try: videos=json.loads(raw)
+              except Exception as e: print('DATA-VIDEOS ERROR',repr(e))
+          embeds=[]
+          for v in videos if isinstance(videos,list) else []:
+              print('VIDEO ROW=',json.dumps(v,ensure_ascii=False,indent=2))
+              vid=str(v.get('video_id') or v.get('video') or ''); templ=str(v.get('template') or '')
+              if vid and templ:
+                  raw=templ.replace('{{id}}',vid).replace('{id}',vid).replace('{url}',vid)
+                  ss=BeautifulSoup(raw,'html.parser'); iframe=ss.find('iframe')
+                  if iframe:
+                      u=iframe.get('src') or iframe.get('data-src') or ''
+                      if u.startswith('//'): u='https:'+u
+                      if u.startswith('/'): u=urljoin(PAGE,u)
+                      embeds.append((v.get('service_name'),u))
+          for node in soup.select('#player-cover[data-embed], .server-dropdown-item[data-server-embed]'):
+              raw=node.get('data-embed') or node.get('data-server-embed') or ''; ss=BeautifulSoup(raw,'html.parser'); iframe=ss.find('iframe')
+              if iframe:
+                  u=iframe.get('src') or iframe.get('data-src') or ''
+                  if u.startswith('//'): u='https:'+u
+                  embeds.append(('DOM',u))
+          seen=set(); dedup=[]
+          for name,u in embeds:
+              key=(urlparse(u).hostname,urlparse(u).path)
+              if key not in seen: seen.add(key); dedup.append((name,u))
+          print('EMBEDS=',dedup)
+          for name,u in dedup:
+              print('\nEMBED',name,u)
+              er=s.get(u,headers={'User-Agent':UA,'Referer':PAGE,'Accept-Language':'en-US,en;q=0.9'},timeout=30)
+              print('EMBED RESP',er.status_code,er.url,er.headers.get('content-type'),len(er.content))
+              es=BeautifulSoup(er.text,'html.parser')
+              print('HTML TRACKS=',[{'src':t.get('src'),'label':t.get('label'),'srclang':t.get('srclang'),'kind':t.get('kind')} for t in es.select('track[src]')])
+              for sc in es.find_all('script'):
+                  txt=sc.string or sc.get_text() or ''
+                  if 'jwplayer("videoplayer").setup' in txt or 'tracks:' in txt or 'contentUrl' in txt or 'eval(function' in txt:
+                      print('SCRIPT=',txt[:15000])
+              m=re.search(r'"contentUrl"\s*:\s*"([^"]+)"',er.text)
+              if m:
+                  src=m.group(1).replace('\\/','/'); print('CONTENT URL=',src)
+                  rr=s.get(src,headers={'User-Agent':UA,'Referer':u,'Origin':f'https://{urlparse(u).hostname}','Accept':'*/*'},timeout=30,allow_redirects=True)
+                  print('CONTENT FETCH',rr.status_code,rr.url,rr.headers.get('content-type'),len(rr.content)); print(rr.text[:12000])
+                  if rr.text.startswith('#EXTM3U'):
+                      print('EXT-X-MEDIA=',re.findall(r'#EXT-X-MEDIA:[^\n]+',rr.text)); print('EXT-X-STREAM-INF=',re.findall(r'#EXT-X-STREAM-INF:[^\n]+',rr.text))
+          PY
