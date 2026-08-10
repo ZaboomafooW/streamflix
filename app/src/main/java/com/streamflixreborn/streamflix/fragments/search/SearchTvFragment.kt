@@ -60,7 +60,7 @@ class SearchTvFragment : Fragment() {
             onTvShowClickListener = { tvShow ->
 
                 if (tvShow.providerName != UserPreferences.currentProvider?.name) {
-                    UserPreferences.currentProvider = Provider.providers.keys.find { it.name == tvShow.providerName }
+                    UserPreferences.currentProvider = Provider.providers.keys.find { it.name == movie.providerName }
                     Toast.makeText(requireContext(), getString(R.string.switching_to_provider, tvShow.providerName), Toast.LENGTH_SHORT).show()
                 }
                 findNavController().navigate(
@@ -154,6 +154,8 @@ class SearchTvFragment : Fragment() {
         voiceHelper.stopRecognition()
         _binding = null
     }
+
+    fun focusSearchInput(): Boolean = _binding?.etSearch?.requestFocus() == true
 
     private fun submitSearch(): Boolean {
         val query = binding.etSearch.text?.toString().orEmpty()
