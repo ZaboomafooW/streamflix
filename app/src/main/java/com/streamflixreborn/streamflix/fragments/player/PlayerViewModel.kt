@@ -227,7 +227,7 @@ class PlayerViewModel(
         _subtitleState.emit(SubtitleState.DownloadingOpenSubtitle)
         try {
             val uri = OpenSubtitles.download(subtitle)
-            Log.d("PlayerViewModel", "Download OpenSubtitles completado: $uri")
+            Log.d("PlayerViewModel", "Download OpenSubtitles completato: $uri")
             _subtitleState.emit(SubtitleState.SuccessDownloadingOpenSubtitle(subtitle, uri))
         } catch (e: Exception) {
             Log.e("PlayerViewModel", "Errore download OpenSubtitles: ", e)
