@@ -4,6 +4,9 @@ on:
   push:
     branches:
       - test/hide-unavailable-servers-tv-apk
+  pull_request:
+    branches:
+      - fix/hide-unavailable-servers
 
 jobs:
   build-tv-debug:
