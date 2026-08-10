@@ -13,6 +13,8 @@ import android.view.inputmethod.EditorInfo
 import android.widget.Toast
 import androidx.fragment.app.Fragment
 import androidx.lifecycle.Lifecycle
+import androidx.lifecycle.ViewModel
+import androidx.lifecycle.ViewModelProvider
 import androidx.lifecycle.flowWithLifecycle
 import androidx.lifecycle.lifecycleScope
 import androidx.recyclerview.widget.RecyclerView
@@ -29,7 +31,6 @@ import com.streamflixreborn.streamflix.utils.LoggingUtils
 import com.streamflixreborn.streamflix.utils.UserPreferences
 import com.streamflixreborn.streamflix.utils.VoiceRecognitionHelper
 import com.streamflixreborn.streamflix.utils.hideKeyboard
-import com.streamflixreborn.streamflix.utils.viewModelsFactory
 import kotlinx.coroutines.launch
 import androidx.navigation.fragment.findNavController
 import com.streamflixreborn.streamflix.providers.Provider
@@ -42,7 +43,15 @@ class SearchTvFragment : Fragment() {
     private val binding get() = _binding!!
 
     private val database by lazy { AppDatabase.getInstance(requireContext()) }
-    private val viewModel by viewModelsFactory { SearchViewModel(database) }
+    private val viewModel: SearchViewModel by lazy {
+        val factory = object : ViewModelProvider.Factory {
+            override fun <T : ViewModel> create(modelClass: Class<T>): T {
+                @Suppress("UNCHECKED_CAST")
+                return SearchViewModel(database) as T
+            }
+        }
+        ViewModelProvider(requireActivity(), factory)[SearchViewModel::class.java]
+    }
     private var isGlobalSearchChecked: Boolean = false
 
     private val appAdapter by lazy {
