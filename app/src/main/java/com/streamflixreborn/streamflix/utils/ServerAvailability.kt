@@ -98,10 +98,11 @@ object ServerAvailability {
             workingServers[key]
                 ?.takeIf { it.isNotEmpty() }
                 ?.let { return Result.Available(it, fromCache = true) }
-        }
 
-        val pending = inFlight[key]
-        if (pending != null) return pending.firstResult.await()
+            inFlight[key]?.let { return it.firstResult.await() }
+        } else {
+            inFlight.remove(key)?.job?.cancel()
+        }
 
         return startDiscovery(
             provider = provider,
