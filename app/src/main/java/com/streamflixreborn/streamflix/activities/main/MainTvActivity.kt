@@ -12,6 +12,8 @@ import androidx.activity.OnBackPressedCallback
 import androidx.activity.viewModels
 import androidx.fragment.app.FragmentActivity
 import androidx.lifecycle.Lifecycle
+import androidx.lifecycle.ViewModel
+import androidx.lifecycle.ViewModelProvider
 import androidx.lifecycle.flowWithLifecycle
 import androidx.lifecycle.lifecycleScope
 import androidx.navigation.NavController
@@ -24,7 +26,11 @@ import com.streamflixreborn.streamflix.R
 import com.streamflixreborn.streamflix.database.AppDatabase
 import com.streamflixreborn.streamflix.databinding.ActivityMainTvBinding
 import com.streamflixreborn.streamflix.databinding.ContentHeaderMenuMainTvBinding
+import com.streamflixreborn.streamflix.fragments.home.HomeViewModel
+import com.streamflixreborn.streamflix.fragments.movies.MoviesViewModel
 import com.streamflixreborn.streamflix.fragments.player.PlayerTvFragment
+import com.streamflixreborn.streamflix.fragments.search.SearchViewModel
+import com.streamflixreborn.streamflix.fragments.tv_shows.TvShowsViewModel
 import com.streamflixreborn.streamflix.ui.UpdateAppTvDialog
 import com.streamflixreborn.streamflix.providers.IptvProvider
 import com.streamflixreborn.streamflix.providers.Provider
@@ -87,6 +93,8 @@ class MainTvActivity : FragmentActivity() {
             startActivity(Intent(this, MainMobileActivity::class.java))
             return
         }
+
+        preloadTopLevelContent()
 
         if (savedInstanceState == null) {
             UserPreferences.currentProvider?.let {
@@ -190,6 +198,28 @@ class MainTvActivity : FragmentActivity() {
     override fun onResume() {
         super.onResume()
         viewModel.checkUpdate()
+    }
+
+    private fun preloadTopLevelContent() {
+        if (UserPreferences.currentProvider == null) return
+
+        val database = AppDatabase.getInstance(this)
+        val factory = object : ViewModelProvider.Factory {
+            @Suppress("UNCHECKED_CAST")
+            override fun <T : ViewModel> create(modelClass: Class<T>): T = when {
+                modelClass.isAssignableFrom(HomeViewModel::class.java) -> HomeViewModel(database)
+                modelClass.isAssignableFrom(SearchViewModel::class.java) -> SearchViewModel(database)
+                modelClass.isAssignableFrom(MoviesViewModel::class.java) -> MoviesViewModel(database)
+                modelClass.isAssignableFrom(TvShowsViewModel::class.java) -> TvShowsViewModel(database)
+                else -> throw IllegalArgumentException("Unknown top-level TV ViewModel: ${modelClass.name}")
+            } as T
+        }
+        val provider = ViewModelProvider(this, factory)
+
+        provider[HomeViewModel::class.java]
+        provider[SearchViewModel::class.java]
+        provider[MoviesViewModel::class.java]
+        provider[TvShowsViewModel::class.java]
     }
 
     private fun applyThemeNavigationChrome() {
