@@ -10,7 +10,7 @@ permissions:
 
 jobs:
   build:
-    name: Verify Doramasflix playback endpoint
+    name: Inspect Doramasflix shortened embeds
     runs-on: ubuntu-latest
     timeout-minutes: 10
 
@@ -20,41 +20,56 @@ jobs:
         with:
           ref: ${{ github.sha }}
 
-      - name: Query current movie links
+      - name: Resolve current movie links
         shell: bash
         run: |
           set -euo pipefail
           UA='Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/140.0.0.0 Safari/537.36'
           REFERER='https://doramasflix.in/peliculas-online/just-for-meeting-you'
-          cat > payload.json <<'JSON'
-          {
-            "operationName": "MovieLinks",
-            "variables": {"movie_id": "6a78e51c56e57b5ffbb0b2c6"},
-            "query": "query MovieLinks($movie_id: ID!) { getMovieLinks(id: $movie_id, app: \"com.asiapp.doramasgo\") { links_online { lang link page server is_recommended subtitles { language_code type } } } }"
+          python3 - <<'PY'
+          import json, urllib.request
+          endpoint='https://userapi.cloudfleir.xyz/graphql'
+          referer='https://doramasflix.in/peliculas-online/just-for-meeting-you'
+          ua='Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/140.0.0.0 Safari/537.36'
+          payload={
+            'operationName':'MovieLinks',
+            'variables':{'movie_id':'6a78e51c56e57b5ffbb0b2c6'},
+            'query':'query MovieLinks($movie_id: ID!) { getMovieLinks(id: $movie_id, app: "com.asiapp.doramasgo") { links_online { lang link page server is_recommended subtitles { language_code type } } } }'
           }
-          JSON
-
-          for ENDPOINT in \
-            'https://sv7.fluxcedene.net/graphql' \
-            'https://userapi.cloudfleir.xyz/graphql'
-          do
-            echo "=== $ENDPOINT ==="
-            CODE=$(curl -L --compressed -A "$UA" \
-              -H 'Accept: application/json, text/plain, */*' \
-              -H 'Content-Type: application/json' \
-              -H 'Origin: https://doramasflix.in' \
-              -H "Referer: $REFERER" \
-              --data-binary @payload.json \
-              -sS -o response.json -w '%{http_code}' "$ENDPOINT" || true)
-            echo "HTTP $CODE"
-            python3 - <<'PY'
-          import json
-          from pathlib import Path
-          raw = Path('response.json').read_text(errors='replace') if Path('response.json').exists() else ''
-          try:
-              obj = json.loads(raw)
-              print(json.dumps(obj, ensure_ascii=False, indent=2)[:12000])
-          except Exception:
-              print(raw[:12000])
+          req=urllib.request.Request(endpoint,data=json.dumps(payload).encode(),headers={
+            'User-Agent':ua,'Accept':'application/json, text/plain, */*','Content-Type':'application/json',
+            'Origin':'https://doramasflix.in','Referer':referer})
+          with urllib.request.urlopen(req,timeout=20) as r:
+            obj=json.load(r)
+          links=obj['data']['getMovieLinks']['links_online']
+          with open('links.tsv','w') as f:
+            for x in links:
+              f.write(f"{x.get('server','')}\t{1 if x.get('is_recommended') else 0}\t{x.get('link','')}\n")
+          print('links returned:',len(links))
           PY
-          done
+
+          n=0
+          while IFS=$'\t' read -r SERVER RECOMMENDED LINK; do
+            n=$((n+1))
+            echo "=== LINK $n server=$SERVER recommended=$RECOMMENDED ==="
+            RESULT=$(curl -L --compressed -A "$UA" -H "Referer: $REFERER" -sS -o "short-$n.html" -w '%{http_code}\t%{url_effective}' "$LINK" || true)
+            CODE=${RESULT%%$'\t'*}
+            EFFECTIVE=${RESULT#*$'\t'}
+            echo "HTTP $CODE"
+            python3 - "$EFFECTIVE" "short-$n.html" <<'PY'
+          import re, sys
+          from pathlib import Path
+          from urllib.parse import urlparse
+          url=sys.argv[1]
+          path=Path(sys.argv[2])
+          p=urlparse(url)
+          print('effective host:',p.netloc)
+          print('effective path prefix:',p.path[:80])
+          text=path.read_text(errors='replace') if path.exists() else ''
+          print('body bytes:',len(text.encode(errors='replace')))
+          for pat in [r'<title[^>]*>(.*?)</title>',r'(?:window\.)?location(?:\.href|\.replace)?\s*[=(]\s*["\']([^"\']+)',r'<iframe[^>]+src=["\']([^"\']+)',r'(?:data-url|data-src)=["\']([^"\']+)']:
+            m=re.search(pat,text,re.I|re.S)
+            if m:
+              print('body target:',re.sub(r'\s+',' ',m.group(1))[:300])
+          PY
+          done < links.tsv
