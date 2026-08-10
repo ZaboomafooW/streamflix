@@ -430,7 +430,8 @@ object HDFilmeProvider : Provider {
             quality = quality,
             genres = tmdbMovie?.genres ?: genres,
             cast = cast,
-            imdbId = tmdbMovie?.imdbId
+            imdbId = tmdbMovie?.imdbId,
+            originalLanguage = tmdbMovie?.originalLanguage,
         )
     }
 
@@ -550,7 +551,8 @@ object HDFilmeProvider : Provider {
             genres = tmdbTvShow?.genres ?: genres,
             cast = cast,
             seasons = seasons,
-            imdbId = tmdbTvShow?.imdbId
+            imdbId = tmdbTvShow?.imdbId,
+            originalLanguage = tmdbTvShow?.originalLanguage,
         )
     }
 
