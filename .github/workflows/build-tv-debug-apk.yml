@@ -1,6 +1,7 @@
 name: Build TV Debug APK
 
 on:
+  pull_request:
   push:
     branches:
       - ci/remember-track-preferences
