@@ -730,7 +730,7 @@ object PlaybackTrackPreferences {
             MODE_OFF -> SubtitlePreference.Off
             MODE_LANGUAGE -> prefs.getString(GLOBAL_SUBTITLE_LANGUAGE, null)
                 ?.let(::canonicalLanguage)
-                ?.let(SubtitlePreference::Language)
+                ?.let { SubtitlePreference.Language(it) }
                 ?: SubtitlePreference.Unset
             else -> SubtitlePreference.Unset
         }
