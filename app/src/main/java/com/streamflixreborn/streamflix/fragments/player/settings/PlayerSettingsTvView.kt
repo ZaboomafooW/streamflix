@@ -16,9 +16,9 @@ import com.streamflixreborn.streamflix.databinding.ItemSettingTvBinding
 import com.streamflixreborn.streamflix.databinding.ViewPlayerSettingsTvBinding
 import com.streamflixreborn.streamflix.ui.SpacingItemDecoration
 import com.streamflixreborn.streamflix.utils.SubtitleDebugState
+import com.streamflixreborn.streamflix.utils.UserPreferences
 import com.streamflixreborn.streamflix.utils.dp
 import com.streamflixreborn.streamflix.utils.margin
-import com.streamflixreborn.streamflix.utils.UserPreferences
 
 class PlayerSettingsTvView @JvmOverloads constructor(
     context: Context,
@@ -164,92 +164,108 @@ class PlayerSettingsTvView @JvmOverloads constructor(
         binding.rvSettings.requestFocus()
 
         if (setting == Setting.SUBTITLES) {
-            showSubtitleDebugIfAvailable()
+            showPlaybackTrackDebug()
         }
     }
 
-    private fun showSubtitleDebugIfAvailable() {
-        if (Settings.Server.selected?.name?.contains("Vixcloud", ignoreCase = true) != true) return
-
-        val snapshot = SubtitleDebugState.snapshot() ?: return
+    /** Temporary TV-only diagnostic used while validating track behavior across providers. */
+    private fun showPlaybackTrackDebug() {
         val currentPlayer = player ?: return
         val trackNameProvider = DefaultTrackNameProvider(resources)
+        val provider = UserPreferences.currentProvider
+        val serverName = Settings.Server.selected?.name ?: "unknown"
+        val parameters = currentPlayer.trackSelectionParameters
+        val sourceSnapshot = SubtitleDebugState.snapshot()?.takeIf { snapshot ->
+            serverName.contains(snapshot.source, ignoreCase = true)
+        }
+
+        fun selectionFlags(formatFlags: Int): String {
+            val names = mutableListOf<String>()
+            if ((formatFlags and C.SELECTION_FLAG_DEFAULT) != 0) names += "DEFAULT"
+            if ((formatFlags and C.SELECTION_FLAG_FORCED) != 0) names += "FORCED"
+            return if (names.isEmpty()) formatFlags.toString() else "$formatFlags (${names.joinToString()})"
+        }
 
         val report = buildString {
-            appendLine("Source: ${snapshot.source}")
-            appendLine("Requested language: ${snapshot.preferredLanguage ?: "null"}")
+            appendLine("Provider: ${provider?.name ?: "unknown"}")
+            appendLine("Provider language: ${provider?.language ?: "unknown"}")
+            appendLine("Server: $serverName")
+            appendLine("Preferred audio: ${parameters.preferredAudioLanguages.joinToString().ifBlank { "(none)" }}")
+            appendLine("Preferred text: ${parameters.preferredTextLanguages.joinToString().ifBlank { "(none)" }}")
+            appendLine("Text disabled: ${parameters.disabledTrackTypes.contains(C.TRACK_TYPE_TEXT)}")
+            appendLine("Ignored text flags: ${parameters.ignoredTextSelectionFlags}")
 
             appendLine()
-            appendLine("RAW HLS AUDIO")
-            if (snapshot.rawAudioLines.isEmpty()) {
-                appendLine("(none)")
-            } else {
-                snapshot.rawAudioLines.forEachIndexed { index, line ->
-                    appendLine("A${index + 1}: $line")
-                }
-            }
-
-            appendLine()
-            appendLine("RAW HLS SUBTITLES")
-            if (snapshot.rawSubtitleLines.isEmpty()) {
-                appendLine("(none)")
-            } else {
-                snapshot.rawSubtitleLines.forEachIndexed { index, line ->
-                    appendLine("S${index + 1}: $line")
-                }
-            }
-
-            appendLine()
-            appendLine("PATCHED HLS SUBTITLES")
-            if (snapshot.patchedSubtitleLines.isEmpty()) {
-                appendLine("(none)")
-            } else {
-                snapshot.patchedSubtitleLines.forEachIndexed { index, line ->
-                    appendLine("S${index + 1}: $line")
-                }
-            }
-
-            appendLine()
-            appendLine("MEDIA3 TEXT TRACKS")
-            var media3TrackCount = 0
+            appendLine("MEDIA3 AUDIO TRACKS")
+            var audioCount = 0
             currentPlayer.currentTracks.groups.forEachIndexed { groupIndex, group ->
-                if (group.type != C.TRACK_TYPE_TEXT) return@forEachIndexed
-
+                if (group.type != C.TRACK_TYPE_AUDIO) return@forEachIndexed
                 for (trackIndex in 0 until group.length) {
-                    media3TrackCount++
+                    audioCount++
                     val format = group.getTrackFormat(trackIndex)
-                    val selectionFlagNames = mutableListOf<String>()
-                    if ((format.selectionFlags and C.SELECTION_FLAG_DEFAULT) != 0) {
-                        selectionFlagNames.add("DEFAULT")
-                    }
-                    if ((format.selectionFlags and C.SELECTION_FLAG_FORCED) != 0) {
-                        selectionFlagNames.add("FORCED")
-                    }
-
-                    appendLine("T$media3TrackCount: group=$groupIndex track=$trackIndex")
+                    appendLine("A$audioCount: group=$groupIndex track=$trackIndex")
                     appendLine("  Media3 name=${trackNameProvider.getTrackName(format)}")
                     appendLine("  id=${format.id ?: "null"}")
                     appendLine("  label=${format.label ?: "null"}")
                     appendLine("  language=${format.language ?: "null"}")
                     appendLine("  mime=${format.sampleMimeType ?: "null"}")
                     appendLine("  codecs=${format.codecs ?: "null"}")
-                    appendLine(
-                        "  selectionFlags=${format.selectionFlags}" +
-                            if (selectionFlagNames.isEmpty()) "" else " (${selectionFlagNames.joinToString()})"
-                    )
+                    appendLine("  selectionFlags=${selectionFlags(format.selectionFlags)}")
                     appendLine("  roleFlags=${format.roleFlags}")
                     appendLine("  selected=${group.isTrackSelected(trackIndex)}")
                     appendLine("  supported=${group.isTrackSupported(trackIndex)}")
                 }
             }
+            if (audioCount == 0) appendLine("(none)")
 
-            if (media3TrackCount == 0) {
-                appendLine("(none)")
+            appendLine()
+            appendLine("MEDIA3 TEXT TRACKS")
+            var textCount = 0
+            currentPlayer.currentTracks.groups.forEachIndexed { groupIndex, group ->
+                if (group.type != C.TRACK_TYPE_TEXT) return@forEachIndexed
+                for (trackIndex in 0 until group.length) {
+                    textCount++
+                    val format = group.getTrackFormat(trackIndex)
+                    appendLine("T$textCount: group=$groupIndex track=$trackIndex")
+                    appendLine("  Media3 name=${trackNameProvider.getTrackName(format)}")
+                    appendLine("  id=${format.id ?: "null"}")
+                    appendLine("  label=${format.label ?: "null"}")
+                    appendLine("  language=${format.language ?: "null"}")
+                    appendLine("  mime=${format.sampleMimeType ?: "null"}")
+                    appendLine("  codecs=${format.codecs ?: "null"}")
+                    appendLine("  selectionFlags=${selectionFlags(format.selectionFlags)}")
+                    appendLine("  roleFlags=${format.roleFlags}")
+                    appendLine("  selected=${group.isTrackSelected(trackIndex)}")
+                    appendLine("  supported=${group.isTrackSupported(trackIndex)}")
+                }
+            }
+            if (textCount == 0) appendLine("(none)")
+
+            sourceSnapshot?.let { snapshot ->
+                appendLine()
+                appendLine("RAW ${snapshot.source.uppercase()} HLS AUDIO")
+                if (snapshot.rawAudioLines.isEmpty()) appendLine("(none)")
+                else snapshot.rawAudioLines.forEachIndexed { index, line -> appendLine("A${index + 1}: $line") }
+
+                appendLine()
+                appendLine("RAW ${snapshot.source.uppercase()} HLS SUBTITLES")
+                if (snapshot.rawSubtitleLines.isEmpty()) appendLine("(none)")
+                else snapshot.rawSubtitleLines.forEachIndexed { index, line -> appendLine("S${index + 1}: $line") }
+
+                appendLine()
+                appendLine("NORMALIZED ${snapshot.source.uppercase()} HLS AUDIO")
+                if (snapshot.patchedAudioLines.isEmpty()) appendLine("(none)")
+                else snapshot.patchedAudioLines.forEachIndexed { index, line -> appendLine("A${index + 1}: $line") }
+
+                appendLine()
+                appendLine("NORMALIZED ${snapshot.source.uppercase()} HLS SUBTITLES")
+                if (snapshot.patchedSubtitleLines.isEmpty()) appendLine("(none)")
+                else snapshot.patchedSubtitleLines.forEachIndexed { index, line -> appendLine("S${index + 1}: $line") }
             }
         }.trim()
 
         AlertDialog.Builder(context)
-            .setTitle("Vixcloud subtitle debug")
+            .setTitle("Playback track debug")
             .setMessage(report)
             .setPositiveButton(android.R.string.ok, null)
             .show()
