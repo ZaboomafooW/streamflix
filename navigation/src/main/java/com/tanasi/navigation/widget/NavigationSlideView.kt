@@ -31,6 +31,7 @@ class NavigationSlideView @JvmOverloads constructor(
 
     private var selectedListener: ((item: MenuItem) -> Boolean)? = null
     private var reselectedListener: ((item: MenuItem) -> Boolean)? = null
+    private var focusedListener: ((item: MenuItem) -> Unit)? = null
 
     /**
      * Currently selected menu item ID, or zero if there is no menu.
@@ -124,6 +125,10 @@ class NavigationSlideView @JvmOverloads constructor(
         reselectedListener = onNavigationItemReselected
     }
 
+    fun setOnItemFocusedListener(onNavigationItemFocused: (item: MenuItem) -> Unit) {
+        focusedListener = onNavigationItemFocused
+    }
+
     /**
      * Inflate a menu resource into this navigation view.
      *
@@ -147,7 +152,10 @@ class NavigationSlideView @JvmOverloads constructor(
             }
         }
         menuView.forEach { child, item ->
-            child.setOnFocusChangeListener { _, _ ->
+            child.setOnFocusChangeListener { _, hasFocus ->
+                if (hasFocus) {
+                    focusedListener?.invoke(item)
+                }
                 when {
                     headerView?.hasFocus() == true || menuView.hasFocus() -> open()
                     else -> close()
