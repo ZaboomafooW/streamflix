@@ -15,14 +15,17 @@ import org.json.JSONObject
 import java.util.Locale
 
 /**
- * Persists only playback intent that cannot survive a Player recreation by itself.
+ * Persists playback intent that Media3 cannot carry across Player recreation.
  *
- * Media3 remains responsible for normal language matching and ranking. StreamFlix stores:
- * - a per-title Audio language override when the user deliberately chooses a dub;
- * - a learned global Audio fallback language for titles whose original language is unavailable;
- * - one global Subtitle state (unset, Off, or a language);
- * - narrow source-specific exact-track fallbacks only when a track cannot be represented safely
- *   as a normal language preference (for example an anonymous track or commentary track).
+ * Media3 remains responsible for normal language matching and ranking. StreamFlix only adds:
+ * - a per-title Audio language chosen explicitly by the user;
+ * - the known original Audio language;
+ * - a learned global Audio fallback from choices on other titles;
+ * - one learned global Subtitle state (Off or language + same-language variant);
+ * - narrow source-specific exact fallbacks for tracks whose intent cannot be represented by
+ *   language alone, such as anonymous tracks or commentary/descriptive Audio.
+ *
+ * Audio precedence is: title choice -> original language -> learned fallback -> existing defaults.
  */
 object PlaybackTrackPreferences {
 
@@ -77,10 +80,20 @@ object PlaybackTrackPreferences {
         val globalRevision: Int,
     )
 
+    private enum class SubtitleVariant {
+        STANDARD,
+        CC,
+        SDH,
+        FORCED,
+    }
+
     private sealed interface SubtitlePreference {
         data object Unset : SubtitlePreference
         data object Off : SubtitlePreference
-        data class Language(val value: String) : SubtitlePreference
+        data class Language(
+            val value: String,
+            val variant: SubtitleVariant,
+        ) : SubtitlePreference
     }
 
     private data class TrackRef(
@@ -157,6 +170,8 @@ object PlaybackTrackPreferences {
         globalSubtitlePreference = loadGlobalSubtitlePreference()
         globalSubtitleRevision = prefs.getInt(GLOBAL_SUBTITLE_REVISION, 0)
 
+        // Choosing the known original language means "follow original" rather than keeping a
+        // redundant title override. It must not change the learned fallback from other titles.
         if (
             titleAudioLanguage != null &&
             originalAudioLanguage != null &&
@@ -170,7 +185,7 @@ object PlaybackTrackPreferences {
         savedSubtitle = null
     }
 
-    /** The stable server/source name is intentionally part of the exact-track fallback key. */
+    /** The stable server/source name is intentionally part of exact fallback identity. */
     fun activateSource(sourceName: String) {
         scopeKey = contentScope?.let { scope ->
             keyOf(scope.provider, scope.content, sourceName)
@@ -287,7 +302,7 @@ object PlaybackTrackPreferences {
                 var exactSubtitleApplied = false
 
                 if (!audioRestored && !audioCancelled) {
-                    savedAudio?.let { saved ->
+                    savedAudio?.takeIf(::audioExactApplies)?.let { saved ->
                         exactTrack(tracks, C.TRACK_TYPE_AUDIO, saved)?.let { track ->
                             builder = (builder ?: player.trackSelectionParameters.buildUpon())
                                 .setOverrideForType(track.override())
@@ -331,24 +346,42 @@ object PlaybackTrackPreferences {
                     }
                 }
 
-                val subtitleLanguages = when (val preference = globalSubtitlePreference) {
-                    is SubtitlePreference.Language -> preferredLanguageOrder(
-                        preference.value,
-                        existingSubtitleLanguages,
-                    )
-                    else -> emptyList()
-                }
+                val subtitlePreference = globalSubtitlePreference as? SubtitlePreference.Language
                 if (
                     !subtitleCancelled &&
                     !exactSubtitleApplied &&
-                    globalSubtitlePreference !is SubtitlePreference.Off &&
+                    subtitlePreference != null &&
+                    !isSubtitleOff(player.trackSelectionParameters)
+                ) {
+                    subtitleVariantTrack(
+                        tracks = tracks,
+                        language = subtitlePreference.value,
+                        variant = subtitlePreference.variant,
+                    )?.let { track ->
+                        if (!track.group.isTrackSelected(track.trackIndex)) {
+                            builder = (builder ?: player.trackSelectionParameters.buildUpon())
+                                .setOverrideForType(track.override())
+                                .setTrackTypeDisabled(C.TRACK_TYPE_TEXT, false)
+                                .setIgnoredTextSelectionFlags(DEFAULT_TEXT_FLAGS)
+                        }
+                        exactSubtitleApplied = true
+                    }
+                }
+
+                if (
+                    !subtitleCancelled &&
+                    !exactSubtitleApplied &&
+                    subtitlePreference != null &&
                     currentOverride(player.trackSelectionParameters, tracks, C.TRACK_TYPE_TEXT) == null &&
                     !isSubtitleOff(player.trackSelectionParameters)
                 ) {
                     labelFallbackTrack(
                         tracks = tracks,
                         type = C.TRACK_TYPE_TEXT,
-                        preferredLanguages = subtitleLanguages,
+                        preferredLanguages = preferredLanguageOrder(
+                            subtitlePreference.value,
+                            existingSubtitleLanguages,
+                        ),
                     )?.let { track ->
                         builder = (builder ?: player.trackSelectionParameters.buildUpon())
                             .setOverrideForType(track.override())
@@ -458,7 +491,7 @@ object PlaybackTrackPreferences {
     }.distinctBy { it.lowercase(Locale.ROOT) }
 
     private fun rememberManualAudioSelection(track: TrackRef) {
-        val language = eligiblePreferenceLanguage(C.TRACK_TYPE_AUDIO, track.format)
+        val language = eligibleAudioLanguage(track.format)
         if (language == null) {
             saveAudioExact(track.saved())
             return
@@ -479,19 +512,23 @@ object PlaybackTrackPreferences {
     }
 
     private fun rememberManualSubtitleSelection(track: TrackRef) {
-        val language = eligiblePreferenceLanguage(C.TRACK_TYPE_TEXT, track.format)
+        val language = canonicalLanguage(track.format.language)
+            ?: languageFromLabel(track.format.label)
+
         if (language == null) {
             saveSubtitleExact(track.saved())
             return
         }
 
         clearSubtitleExact()
-        saveGlobalSubtitleLanguage(language)
+        saveGlobalSubtitleLanguage(
+            language = language,
+            variant = subtitleVariant(track.format),
+        )
     }
 
-    private fun eligiblePreferenceLanguage(type: Int, format: Format): String? {
-        if (type == C.TRACK_TYPE_TEXT && isForcedSubtitle(format)) return null
-        if (type == C.TRACK_TYPE_AUDIO && isNonPrimaryAudio(format)) return null
+    private fun eligibleAudioLanguage(format: Format): String? {
+        if (isNonPrimaryAudio(format)) return null
         return canonicalLanguage(format.language) ?: languageFromLabel(format.label)
     }
 
@@ -557,9 +594,36 @@ object PlaybackTrackPreferences {
     }.distinctBy { it.lowercase(Locale.ROOT) }
 
     /**
-     * Media3 owns language matching whenever tracks expose language metadata.
-     * Some extractor-provided tracks only expose a human-readable label. Only in that case do we
-     * infer enough from the label to hand one concrete track back to Media3 as an override.
+     * Preserve a user's same-language subtitle variant across titles/episodes when that variant is
+     * present. If it is not present, do nothing here and let Media3 fall back to another track in
+     * the remembered language.
+     */
+    private fun subtitleVariantTrack(
+        tracks: Tracks,
+        language: String,
+        variant: SubtitleVariant,
+    ): TrackRef? = allSupportedTracks(tracks, C.TRACK_TYPE_TEXT)
+        .filter { ref -> trackMatchesLanguage(ref.format, language) }
+        .filter { ref -> subtitleVariant(ref.format) == variant }
+        .let { candidates ->
+            candidates.firstOrNull { it.group.isTrackSelected(it.trackIndex) }
+                ?: candidates.firstOrNull()
+        }
+
+    private fun subtitleVariant(format: Format): SubtitleVariant {
+        if (isForcedSubtitle(format)) return SubtitleVariant.FORCED
+
+        val label = normalizeLabel(format.label.orEmpty())
+        return when {
+            containsWord(label, "sdh") -> SubtitleVariant.SDH
+            containsWord(label, "cc") || label.contains("closed caption") -> SubtitleVariant.CC
+            else -> SubtitleVariant.STANDARD
+        }
+    }
+
+    /**
+     * Media3 owns language matching whenever tracks expose language metadata. Some extractor tracks
+     * only expose a label. In that limited case, infer enough from the label to select a track.
      */
     private fun labelFallbackTrack(
         tracks: Tracks,
@@ -568,14 +632,7 @@ object PlaybackTrackPreferences {
     ): TrackRef? {
         if (preferredLanguages.isEmpty()) return null
 
-        val refs = buildList {
-            tracks.groups.filter { it.type == type }.forEachIndexed { groupIndex, group ->
-                for (trackIndex in 0 until group.length) {
-                    if (!group.isTrackSupported(trackIndex)) continue
-                    add(TrackRef(group, groupIndex, trackIndex))
-                }
-            }
-        }
+        val refs = allSupportedTracks(tracks, type)
 
         preferredLanguages.forEach { preferredLanguage ->
             if (refs.any { ref ->
@@ -600,15 +657,30 @@ object PlaybackTrackPreferences {
         return null
     }
 
+    private fun allSupportedTracks(tracks: Tracks, type: Int): List<TrackRef> = buildList {
+        tracks.groups.filter { it.type == type }.forEachIndexed { groupIndex, group ->
+            for (trackIndex in 0 until group.length) {
+                if (!group.isTrackSupported(trackIndex)) continue
+                add(TrackRef(group, groupIndex, trackIndex))
+            }
+        }
+    }
+
     private fun fallbackPenalty(track: TrackRef, type: Int): Int {
         val label = normalizeLabel(track.format.label.orEmpty())
         return when (type) {
-            C.TRACK_TYPE_TEXT -> if (containsWord(label, "cc") || containsWord(label, "sdh")) 1 else 0
+            C.TRACK_TYPE_TEXT -> when {
+                containsWord(label, "forced") -> 2
+                containsWord(label, "cc") || containsWord(label, "sdh") -> 1
+                else -> 0
+            }
+
             C.TRACK_TYPE_AUDIO -> if (
                 containsWord(label, "commentary") ||
                 containsWord(label, "descriptive") ||
                 label.contains("audio description")
             ) 1 else 0
+
             else -> 0
         }
     }
@@ -616,6 +688,15 @@ object PlaybackTrackPreferences {
     private fun isForcedSubtitle(format: Format): Boolean =
         format.selectionFlags and C.SELECTION_FLAG_FORCED != 0 ||
             containsWord(normalizeLabel(format.label.orEmpty()), "forced")
+
+    private fun trackMatchesLanguage(format: Format, preferredLanguage: String): Boolean {
+        val metadataLanguage = canonicalLanguage(format.language)
+        return if (metadataLanguage != null) {
+            languageMatches(metadataLanguage, preferredLanguage)
+        } else {
+            labelMatchesLanguage(format.label, preferredLanguage)
+        }
+    }
 
     private fun labelMatchesLanguage(label: String?, preferredLanguage: String): Boolean {
         val normalizedLabel = normalizeLabel(label ?: return false)
@@ -682,21 +763,19 @@ object PlaybackTrackPreferences {
         return null
     }
 
+    private fun audioExactApplies(saved: SavedTrack): Boolean {
+        val titleLanguage = titleAudioLanguage ?: return true
+        val savedLanguage = canonicalLanguage(saved.language) ?: languageFromLabel(saved.label)
+        return savedLanguage != null && languageMatches(savedLanguage, titleLanguage)
+    }
+
     /**
      * Raw metadata must match exactly. Position is only used to disambiguate duplicate metadata or
-     * anonymous tracks. This avoids guessing a different anonymous track on another episode.
+     * anonymous tracks, avoiding guesses when episodes expose different anonymous tracks.
      */
     private fun exactTrack(tracks: Tracks, type: Int, saved: SavedTrack): TrackRef? {
-        val matches = buildList {
-            tracks.groups.filter { it.type == type }.forEachIndexed { groupIndex, group ->
-                for (trackIndex in 0 until group.length) {
-                    if (!group.isTrackSupported(trackIndex)) continue
-                    if (saved.matches(group.getTrackFormat(trackIndex))) {
-                        add(TrackRef(group, groupIndex, trackIndex))
-                    }
-                }
-            }
-        }
+        val matches = allSupportedTracks(tracks, type)
+            .filter { saved.matches(it.format) }
 
         if (saved.hasRawIdentity && matches.size == 1) return matches.single()
         return matches.firstOrNull {
@@ -728,10 +807,18 @@ object PlaybackTrackPreferences {
     private fun loadGlobalSubtitlePreference(): SubtitlePreference =
         when (prefs.getString(GLOBAL_SUBTITLE_MODE, null)) {
             MODE_OFF -> SubtitlePreference.Off
-            MODE_LANGUAGE -> prefs.getString(GLOBAL_SUBTITLE_LANGUAGE, null)
-                ?.let(::canonicalLanguage)
-                ?.let { SubtitlePreference.Language(it) }
-                ?: SubtitlePreference.Unset
+            MODE_LANGUAGE -> {
+                val language = prefs.getString(GLOBAL_SUBTITLE_LANGUAGE, null)
+                    ?.let(::canonicalLanguage)
+                    ?: return SubtitlePreference.Unset
+                val variant = prefs.getString(GLOBAL_SUBTITLE_VARIANT, null)
+                    ?.let { value ->
+                        runCatching { SubtitleVariant.valueOf(value) }.getOrNull()
+                    }
+                    ?: SubtitleVariant.STANDARD
+                SubtitlePreference.Language(language, variant)
+            }
+
             else -> SubtitlePreference.Unset
         }
 
@@ -785,12 +872,16 @@ object PlaybackTrackPreferences {
         prefs.edit().putString(GLOBAL_AUDIO_FALLBACK_LANGUAGE, language).apply()
     }
 
-    private fun saveGlobalSubtitleLanguage(language: String) {
+    private fun saveGlobalSubtitleLanguage(
+        language: String,
+        variant: SubtitleVariant,
+    ) {
         globalSubtitleRevision += 1
-        globalSubtitlePreference = SubtitlePreference.Language(language)
+        globalSubtitlePreference = SubtitlePreference.Language(language, variant)
         prefs.edit()
             .putString(GLOBAL_SUBTITLE_MODE, MODE_LANGUAGE)
             .putString(GLOBAL_SUBTITLE_LANGUAGE, language)
+            .putString(GLOBAL_SUBTITLE_VARIANT, variant.name)
             .putInt(GLOBAL_SUBTITLE_REVISION, globalSubtitleRevision)
             .apply()
     }
@@ -801,6 +892,7 @@ object PlaybackTrackPreferences {
         prefs.edit()
             .putString(GLOBAL_SUBTITLE_MODE, MODE_OFF)
             .remove(GLOBAL_SUBTITLE_LANGUAGE)
+            .remove(GLOBAL_SUBTITLE_VARIANT)
             .putInt(GLOBAL_SUBTITLE_REVISION, globalSubtitleRevision)
             .apply()
     }
@@ -844,7 +936,8 @@ object PlaybackTrackPreferences {
     private fun titleAudioLanguageKey(contentKey: String) = "title_audio_language::$contentKey"
 
     private fun migratePreferencesIfNeeded() {
-        if (prefs.getInt(SCHEMA_VERSION_KEY, 0) >= CURRENT_SCHEMA_VERSION) return
+        val currentVersion = prefs.getInt(SCHEMA_VERSION_KEY, 0)
+        if (currentVersion >= CURRENT_SCHEMA_VERSION) return
 
         val editor = prefs.edit()
         prefs.all.keys.forEach { key ->
@@ -858,6 +951,14 @@ object PlaybackTrackPreferences {
                 editor.remove(key)
             }
         }
+
+        if (
+            prefs.getString(GLOBAL_SUBTITLE_MODE, null) == MODE_LANGUAGE &&
+            prefs.getString(GLOBAL_SUBTITLE_VARIANT, null) == null
+        ) {
+            editor.putString(GLOBAL_SUBTITLE_VARIANT, SubtitleVariant.STANDARD.name)
+        }
+
         editor.putInt(SCHEMA_VERSION_KEY, CURRENT_SCHEMA_VERSION).apply()
     }
 
@@ -868,12 +969,13 @@ object PlaybackTrackPreferences {
     private fun JSONObject.nullableString(name: String): String? =
         if (!has(name) || isNull(name)) null else getString(name)
 
-    private const val CURRENT_SCHEMA_VERSION = 2
+    private const val CURRENT_SCHEMA_VERSION = 3
     private const val SCHEMA_VERSION_KEY = "schema_version"
 
     private const val GLOBAL_AUDIO_FALLBACK_LANGUAGE = "global_audio_fallback_language"
     private const val GLOBAL_SUBTITLE_MODE = "global_subtitle_mode"
     private const val GLOBAL_SUBTITLE_LANGUAGE = "global_subtitle_language"
+    private const val GLOBAL_SUBTITLE_VARIANT = "global_subtitle_variant"
     private const val GLOBAL_SUBTITLE_REVISION = "global_subtitle_revision"
 
     private const val MODE_OFF = "off"
