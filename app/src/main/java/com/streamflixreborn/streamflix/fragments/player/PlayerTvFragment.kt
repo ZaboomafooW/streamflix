@@ -270,6 +270,29 @@ class PlayerTvFragment : Fragment() {
             binding.tvVolumePercentage
         )
 
+        viewLifecycleOwner.lifecycleScope.launch {
+            viewModel.availableServers
+                .flowWithLifecycle(lifecycle, Lifecycle.State.CREATED)
+                .collect { availableServers ->
+                    if (availableServers.isEmpty()) return@collect
+                    if (availableServers.any { isSerienStreamBypassUrl(it.id) }) return@collect
+
+                    servers = availableServers
+                    player.playlistMetadata = MediaMetadata.Builder()
+                        .setTitle(resolvePlayerTitle())
+                        .setMediaServers(availableServers.map {
+                            MediaServer(
+                                id = it.id,
+                                name = it.name,
+                            )
+                        })
+                        .build()
+                    binding.settings.setOnServerSelectedListener { selected ->
+                        servers.firstOrNull { selected.id == it.id }?.let(viewModel::getVideo)
+                    }
+                }
+        }
+
         // Stato Video
         viewLifecycleOwner.lifecycleScope.launch {
             viewModel.state.flowWithLifecycle(lifecycle, Lifecycle.State.CREATED).collect { state ->
@@ -367,8 +390,8 @@ class PlayerTvFragment : Fragment() {
                                 )
                             })
                             .build()
-                        binding.settings.setOnServerSelectedListener { server ->
-                            viewModel.getVideo(state.servers.find { server.id == it.id }!!)
+                        binding.settings.setOnServerSelectedListener { selected ->
+                            servers.firstOrNull { selected.id == it.id }?.let(viewModel::getVideo)
                         }
                         viewModel.getVideo(state.servers.first())
 
