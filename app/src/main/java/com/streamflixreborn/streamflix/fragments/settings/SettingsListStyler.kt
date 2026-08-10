@@ -6,6 +6,7 @@ import android.graphics.drawable.Drawable
 import android.graphics.drawable.GradientDrawable
 import android.graphics.drawable.StateListDrawable
 import android.util.TypedValue
+import android.view.KeyEvent
 import android.view.View
 import android.view.ViewGroup
 import android.widget.ImageView
@@ -110,6 +111,20 @@ internal object SettingsListStyler {
         }
         val titleText = title.text?.toString().orEmpty()
         val hasChevron = view.findViewById<View>(R.id.settings_chevron) != null
+        if (isTv && hasChevron) {
+            view.setOnKeyListener { _, keyCode, event ->
+                if (event.action != KeyEvent.ACTION_DOWN || keyCode != KeyEvent.KEYCODE_DPAD_RIGHT) {
+                    return@setOnKeyListener false
+                }
+
+                val nextFocus = view.focusSearch(View.FOCUS_RIGHT)
+                if (nextFocus != null && nextFocus !== view) {
+                    false
+                } else {
+                    view.performClick()
+                }
+            }
+        }
         if (!hasChevron) {
             layoutParams?.setMargins(
                 defaults.marginLeft,
