@@ -1,7 +1,9 @@
 package com.streamflixreborn.streamflix.extractors
 
 import com.streamflixreborn.streamflix.models.Video
+import com.streamflixreborn.streamflix.providers.RidomoviesProvider
 import com.tanasi.retrofit_jsoup.converter.JsoupConverterFactory
+import okhttp3.HttpUrl.Companion.toHttpUrlOrNull
 import okhttp3.OkHttpClient
 import org.jsoup.nodes.Document
 import retrofit2.Retrofit
@@ -12,53 +14,52 @@ class RidooExtractor : Extractor() {
 
     override val name = "Ridoo"
     override val mainUrl = "https://ridoo.net"
+    override val rotatingDomain = listOf(Regex("""(^|\.)ridorapid\.""", RegexOption.IGNORE_CASE))
 
     override suspend fun extract(link: String): Video {
-        val service = Service.build(mainUrl)
-        val document = service.get(link)
+        val embedUrl = link.toHttpUrlOrNull()
+            ?: throw Exception("Invalid Ridoo embed URL")
+        val embedOrigin = "${embedUrl.scheme}://${embedUrl.host}"
+        val document = Service.build(embedOrigin, RidomoviesProvider.URL).get(link)
 
-        val regex = Regex("""file\s*:\s*"([^"]+\.m3u8[^"]*)"""")
-        val match = regex.find(document.toString())
-        val m3u8Url = match?.groups?.get(1)?.value
+        val m3u8Url = Regex("""file\s*:\s*["']([^"']+\.m3u8[^"']*)["']""")
+            .find(document.toString())
+            ?.groups?.get(1)?.value
             ?: throw Exception("Can't extract m3u8 URL from embed page")
-        val headers = mapOf(
-            "Referer" to "https://ridoo.net/",
-            "User-Agent" to "Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:140.0) Gecko/20100101 Firefox/140.0",
-            "Accept" to "*/*",
-            "Accept-Language" to "de,en-US;q=0.7,en;q=0.3",
-            "Origin" to "https://ridoo.net"
-        )
+
         return Video(
             source = m3u8Url,
-            subtitles = listOf(),
-            headers = headers
+            headers = mapOf(
+                "Referer" to "$embedOrigin/",
+                "Origin" to embedOrigin,
+                "User-Agent" to USER_AGENT,
+                "Accept" to "*/*",
+                "Accept-Language" to "en-US,en;q=0.9",
+            ),
         )
     }
 
-
-    interface Service {
+    private interface Service {
         companion object {
-            fun build(baseUrl: String): Service {
+            fun build(baseUrl: String, referer: String): Service {
                 val client = OkHttpClient.Builder()
                     .addInterceptor { chain ->
-                        val original = chain.request()
-                        val request = original.newBuilder()
-                            .header("User-Agent", "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/115.0 Safari/537.36")
+                        val request = chain.request().newBuilder()
+                            .header("User-Agent", USER_AGENT)
                             .header("Accept", "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8")
                             .header("Accept-Language", "en-US,en;q=0.9")
-                            .header("Referer", "https://ridomovies.tv/")
+                            .header("Referer", referer)
                             .build()
                         chain.proceed(request)
                     }
                     .build()
 
-                val retrofit = Retrofit.Builder()
-                    .baseUrl(baseUrl)
+                return Retrofit.Builder()
+                    .baseUrl("$baseUrl/")
                     .client(client)
                     .addConverterFactory(JsoupConverterFactory.create())
                     .build()
-
-                return retrofit.create(Service::class.java)
+                    .create(Service::class.java)
             }
         }
 
@@ -66,4 +67,8 @@ class RidooExtractor : Extractor() {
         suspend fun get(@Url url: String): Document
     }
 
+    companion object {
+        private const val USER_AGENT =
+            "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/140.0.0.0 Safari/537.36"
+    }
 }
