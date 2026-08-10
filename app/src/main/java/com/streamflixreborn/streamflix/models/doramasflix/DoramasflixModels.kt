@@ -13,7 +13,8 @@ data class Data(
     val searchMovie: List<Show>? = null,
     val listSeasons: List<Season>? = null,
     val listEpisodes: List<Episode>? = null,
-    val listProblems: List<Problem>? = null,
+    val getMovieLinks: LinkContainer? = null,
+    val getEpisodeLinks: LinkContainer? = null,
 )
 
 data class Pagination(
@@ -89,13 +90,27 @@ data class Episode(
     val backdrop: String? = null,
 )
 
-data class Problem(
-    val server: Server? = null,
+data class LinkContainer(
+    @SerializedName("links_online")
+    val linksOnline: List<OnlineLink> = emptyList(),
 )
 
-data class Server(
-    val link: String? = null,
+data class OnlineLink(
+    @SerializedName("_id")
+    val id: String? = null,
     val lang: String? = null,
+    val link: String? = null,
+    val page: String? = null,
+    val server: String? = null,
+    @SerializedName("is_recommended")
+    val isRecommended: Boolean? = null,
+    val subtitles: List<OnlineSubtitle> = emptyList(),
+)
+
+data class OnlineSubtitle(
+    @SerializedName("language_code")
+    val languageCode: String? = null,
+    val type: String? = null,
 )
 
 // --- MODELOS PARA EL TOKEN DE FKPLAYER ---
