@@ -9,119 +9,91 @@ permissions:
   contents: read
 
 jobs:
-  build:
-    name: Build Android TV debug APK
+  audit:
+    name: Inspect Doramasflix rating source
     runs-on: ubuntu-latest
-    timeout-minutes: 30
+    timeout-minutes: 10
 
     steps:
-      - name: Checkout requested code
-        uses: actions/checkout@v4
-        with:
-          ref: ${{ github.sha }}
-
-      - name: Inspect live Doramasflix rating and logo metadata
+      - name: Inspect live rating data
         run: |
           python3 - <<'PY'
           import json
           import re
           import urllib.request
           from html import unescape
+          from urllib.parse import urljoin
 
           UA = "Mozilla/5.0 (Linux; Android 10; Android TV) AppleWebKit/537.36 Chrome/140.0.0.0 Safari/537.36"
 
           def fetch(url):
-              req = urllib.request.Request(url, headers={"User-Agent": UA, "Accept": "text/html,application/xhtml+xml"})
+              req = urllib.request.Request(url, headers={"User-Agent": UA, "Accept": "text/html,application/xhtml+xml,*/*"})
               with urllib.request.urlopen(req, timeout=20) as response:
-                  return response.status, response.read().decode("utf-8", errors="replace")
+                  return response.status, response.geturl(), response.read().decode("utf-8", errors="replace")
 
           urls = [
+              "https://doramasflix.in/doramas-online/our-sticky-love",
+              "https://doramasflix.in/peliculas-online/our-sticky-love",
               "https://doramasflix.in/peliculas-online/just-for-meeting-you",
               "https://doramasflix.in/doramas-online/unlock-your-love",
-              "https://doramasflix.in/peliculas-online/unlock-your-love",
+              "https://doramasflix.in/doramas-online/meeting-you",
           ]
 
+          chunk_urls = set()
+
           for url in urls:
-              print("=" * 100)
-              print("DETAIL", url)
+              print("=" * 120)
+              print("PAGE", url)
               try:
-                  status, body = fetch(url)
-                  print("HTTP", status, "bytes", len(body))
+                  status, final_url, body = fetch(url)
+                  print("HTTP", status, "FINAL", final_url, "BYTES", len(body))
+
                   blocks = re.findall(r'<script[^>]+type=["\']application/ld\+json["\'][^>]*>(.*?)</script>', body, flags=re.I|re.S)
-                  print("JSONLD_BLOCKS", len(blocks))
-                  for i, raw in enumerate(blocks):
+                  for raw in blocks:
                       try:
                           data = json.loads(unescape(raw).strip())
-                          print("JSONLD", i, json.dumps(data, ensure_ascii=False)[:6000])
-                      except Exception as exc:
-                          print("JSONLD_PARSE_ERROR", i, repr(exc), raw[:1000])
+                      except Exception:
+                          continue
+                      if data.get("@type") in ("Movie", "TVSeries"):
+                          print("JSONLD_TITLE", data.get("name"))
+                          print("JSONLD_DESCRIPTION", data.get("description"))
+                          print("JSONLD_RATING", data.get("ratingValue"), data.get("aggregateRating"))
+
+                  for marker in ["hasRatings", "ratingValue", "rating_average", "ratingAverage", "averageRating", "userRating", "ratingsCount", "ratingCount"]:
+                      positions = [m.start() for m in re.finditer(marker, body, flags=re.I)]
+                      print("MARKER", marker, "COUNT", len(positions))
+                      for pos in positions[:8]:
+                          snippet = body[max(0, pos - 500): min(len(body), pos + 1000)]
+                          print("SNIPPET", marker, snippet.replace("\n", " ")[:1500])
+
+                  numeric_primary = re.findall(r'<span[^>]*class=["\'][^"\']*text-primary[^"\']*["\'][^>]*>\s*([0-9]+(?:\.[0-9]+)?)\s*</span>', body, flags=re.I)
+                  print("VISIBLE_TEXT_PRIMARY_NUMBERS", numeric_primary[:30])
+
+                  for value in ["4.9", ">4<", ">0.0<"]:
+                      positions = [m.start() for m in re.finditer(re.escape(value), body)]
+                      print("VALUE", value, "COUNT", len(positions))
+                      for pos in positions[:8]:
+                          print("VALUE_SNIPPET", value, body[max(0, pos - 500): min(len(body), pos + 900)].replace("\n", " ")[:1400])
+
+                  for src in re.findall(r'<script[^>]+src=["\']([^"\']+)["\']', body, flags=re.I):
+                      if "_next/static/chunks/" in src:
+                          chunk_urls.add(urljoin("https://doramasflix.in", src))
               except Exception as exc:
                   print("FETCH_ERROR", repr(exc))
 
-          print("=" * 100)
-          print("HOME LOGO METADATA")
-          try:
-              status, body = fetch("https://doramasflix.in/")
-              print("HTTP", status, "bytes", len(body))
-              for pattern_name, pattern in [
-                  ("ICON", r'<link[^>]+rel=["\'][^"\']*(?:icon|apple-touch-icon)[^"\']*["\'][^>]*>'),
-                  ("IMG", r'<img[^>]+(?:logo|doramasflix)[^>]*>'),
-                  ("OG_IMAGE", r'<meta[^>]+property=["\']og:image["\'][^>]*>'),
-              ]:
-                  print(pattern_name)
-                  for match in re.findall(pattern, body, flags=re.I):
-                      print(match[:1500])
-              for m in re.finditer(r'https?://[^"\'<> ]+\.(?:png|webp|jpg|jpeg|svg)', body, flags=re.I):
-                  url = m.group(0)
-                  if "logo" in url.lower() or "icon" in url.lower() or "doramas" in url.lower():
-                      print("ASSET", url[:1500])
-          except Exception as exc:
-              print("HOME_FETCH_ERROR", repr(exc))
+          print("=" * 120)
+          print("SCRIPT CHUNK AUDIT", len(chunk_urls))
+          for chunk_url in sorted(chunk_urls):
+              try:
+                  _, _, js = fetch(chunk_url)
+              except Exception:
+                  continue
+              lower = js.lower()
+              if "hasratings" not in lower and "ratingcount" not in lower and "averagerating" not in lower:
+                  continue
+              print("CHUNK", chunk_url, "BYTES", len(js))
+              for marker in ["hasRatings", "ratingCount", "averageRating", "/rating", "ratings"]:
+                  for match in list(re.finditer(marker, js, flags=re.I))[:10]:
+                      pos = match.start()
+                      print("JS_SNIPPET", marker, js[max(0, pos - 900): min(len(js), pos + 1800)][:2700])
           PY
-
-      - name: Set up JDK 17
-        uses: actions/setup-java@v4
-        with:
-          distribution: temurin
-          java-version: '17'
-
-      - name: Set up Android SDK
-        uses: android-actions/setup-android@v3
-
-      - name: Install required Android SDK components
-        run: |
-          yes | sdkmanager --licenses >/dev/null || true
-          sdkmanager "platforms;android-36" "ndk;26.1.10909125" "cmake;3.22.1"
-
-      - name: Create build properties
-        run: |
-          cat > local.properties <<'EOF'
-          APP_LAYOUT=tv
-          TMDB_API_KEY=dummy-ci-key
-          SUBDL_API_KEY=dummy-ci-key
-          RABBITSTREAM_SOURCE_API=https://example.invalid/
-          EOF
-
-      - name: Generate native source from template
-        run: |
-          sed -e 's|{{UPROT_MSFI_API_BASE}}|https://example.invalid/msfi|g' \
-              -e 's|{{UPROT_MSE_API_BASE}}|https://example.invalid/mse|g' \
-              -e 's|{{UPROT_API_KEY}}|dummy-ci-key|g' \
-              app/src/main/cpp/native-lib.cpp.template > app/src/main/cpp/native-lib.cpp
-
-      - name: Make Gradle executable
-        run: chmod +x ./gradlew
-
-      - name: Run unit tests
-        run: ./gradlew testDebugUnitTest --stacktrace --no-daemon
-
-      - name: Build debug APK
-        run: ./gradlew assembleDebug --stacktrace --no-daemon
-
-      - name: Upload debug APK
-        uses: actions/upload-artifact@v4
-        with:
-          name: streamflix-tv-debug-apk
-          path: app/build/outputs/apk/debug/*.apk
-          if-no-files-found: error
-          retention-days: 7
