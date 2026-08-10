@@ -37,32 +37,32 @@ class VoeExtractor : Extractor() {
 
         val m3u8 = decryptedContent.get("source")?.asString.orEmpty()
 
-        val baseSubtitleScript = source.selectFirst("script")?.data() ?: ""
+        val baseSubtitleScript = source.selectFirst("script")?.data()?:""
         var baseSubtitle = ""
         if (baseSubtitleScript.isNotBlank()) {
             val regex = Regex("""var\s+base\s*=\s*['"]([^'"]+)['"]""")
-            baseSubtitle = regex.find(baseSubtitleScript)?.groupValues?.get(1) ?: ""
+            baseSubtitle = regex.find(baseSubtitleScript)?.groupValues?.get(1)?:""
         }
 
         val subtitles = decryptedContent.getAsJsonArray("captions")
-            .map { caption ->
-                val obj = caption.asJsonObject
-                val file = obj.get("file").asString
-                val isDefault = obj.get("default").asBoolean
+        .map { caption ->
+            val obj = caption.asJsonObject
+                var file = obj.get("file").asString
+            val default = obj.get("default").asBoolean
 
-                Video.Subtitle(
-                    file = if (file.startsWith("http")) file else baseSubtitle + file,
-                    label = obj.get("label").asString,
-                    initialDefault = isDefault,
-                    default = isDefault,
-                )
-            }
-
+            Video.Subtitle(
+                file = if (file.startsWith("http")) file else baseSubtitle + file,
+                label = obj.get("label").asString,
+                initialDefault = default,
+                default = default
+            )
+        }
         return Video(
             source = m3u8,
-            subtitles = subtitles,
+            subtitles = subtitles
         )
     }
+
 
     private interface VoeExtractorService {
 
@@ -84,12 +84,15 @@ class VoeExtractor : Extractor() {
                     .baseUrl(baseUrl)
                     .client(client)
                     .addConverterFactory(JsoupConverterFactory.create())
+
                     .build()
                 val retrofitVOEBuiled = retrofitVOE.create(VoeExtractorService::class.java)
 
+                // Extract path from original link (handles both mainUrl and alias URLs)
                 val relativePath = if (originalLink.startsWith(baseUrl)) {
                     originalLink.replace(baseUrl, "")
                 } else {
+                    // If link doesn't start with baseUrl, extract path directly (alias URL)
                     val parsedUrl = URL(originalLink)
                     parsedUrl.path + if (parsedUrl.query != null) "?${parsedUrl.query}" else ""
                 }
