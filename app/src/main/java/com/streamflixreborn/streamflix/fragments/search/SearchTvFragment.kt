@@ -13,8 +13,6 @@ import android.view.inputmethod.EditorInfo
 import android.widget.Toast
 import androidx.fragment.app.Fragment
 import androidx.lifecycle.Lifecycle
-import androidx.lifecycle.ViewModel
-import androidx.lifecycle.ViewModelProvider
 import androidx.lifecycle.flowWithLifecycle
 import androidx.lifecycle.lifecycleScope
 import androidx.recyclerview.widget.RecyclerView
@@ -31,6 +29,7 @@ import com.streamflixreborn.streamflix.utils.LoggingUtils
 import com.streamflixreborn.streamflix.utils.UserPreferences
 import com.streamflixreborn.streamflix.utils.VoiceRecognitionHelper
 import com.streamflixreborn.streamflix.utils.hideKeyboard
+import com.streamflixreborn.streamflix.utils.viewModelsFactory
 import kotlinx.coroutines.launch
 import androidx.navigation.fragment.findNavController
 import com.streamflixreborn.streamflix.providers.Provider
@@ -43,15 +42,7 @@ class SearchTvFragment : Fragment() {
     private val binding get() = _binding!!
 
     private val database by lazy { AppDatabase.getInstance(requireContext()) }
-    private val viewModel: SearchViewModel by lazy {
-        val factory = object : ViewModelProvider.Factory {
-            override fun <T : ViewModel> create(modelClass: Class<T>): T {
-                @Suppress("UNCHECKED_CAST")
-                return SearchViewModel(database) as T
-            }
-        }
-        ViewModelProvider(requireActivity(), factory)[SearchViewModel::class.java]
-    }
+    private val viewModel by viewModelsFactory { SearchViewModel(database) }
     private var isGlobalSearchChecked: Boolean = false
 
     private val appAdapter by lazy {
@@ -96,10 +87,65 @@ class SearchTvFragment : Fragment() {
         super.onViewCreated(view, savedInstanceState)
 
         initializeSearch()
-        renderState(viewModel.state.value)
 
         viewLifecycleOwner.lifecycleScope.launch {
-            viewModel.state.flowWithLifecycle(lifecycle, Lifecycle.State.STARTED).collect(::renderState)
+            viewModel.state.flowWithLifecycle(lifecycle, Lifecycle.State.STARTED).collect { state ->
+
+                when (state) {
+                    is State.Searching, is State.GlobalSearching -> {
+                        binding.isLoading.apply {
+                            root.visibility = View.VISIBLE
+                            pbIsLoading.visibility = View.VISIBLE
+                            gIsLoadingRetry.visibility = View.GONE
+                        }
+                        appAdapter.isLoading = false
+                        appAdapter.setOnLoadMoreListener(null)
+                    }
+                    is State.SearchingMore -> appAdapter.isLoading = true
+                    is State.SuccessSearching -> {
+                        displaySearch(state.results, state.hasMore)
+                        appAdapter.isLoading = false
+                        binding.vgvSearch.visibility = View.VISIBLE
+                        binding.isLoading.root.visibility = View.GONE
+                    }
+                    is State.SuccessGlobalSearching -> {
+                        displayGlobalSearch(state.providerResults)
+                        appAdapter.isLoading = false
+                        binding.vgvSearch.visibility = View.VISIBLE
+                        binding.isLoading.root.visibility = View.GONE
+                    }
+                    is State.FailedSearching -> {
+                        val code = (state.error as? retrofit2.HttpException)?.code()
+                        if (code == 409 && !hasAutoCleared409) {
+                            hasAutoCleared409 = true
+                            CacheUtils.clearAppCache(requireContext())
+                            Toast.makeText(requireContext(), getString(R.string.clear_cache_done_409), Toast.LENGTH_SHORT).show()
+                            if (appAdapter.isLoading) appAdapter.isLoading = false
+                            viewModel.search(viewModel.query)
+                            return@collect
+                        }
+                        Toast.makeText(requireContext(), state.error.message ?: "", Toast.LENGTH_SHORT).show()
+                        if (appAdapter.isLoading) {
+                            appAdapter.isLoading = false
+                        } else {
+                            binding.isLoading.apply {
+                                pbIsLoading.visibility = View.GONE
+                                gIsLoadingRetry.visibility = View.VISIBLE
+                                btnIsLoadingRetry.setOnClickListener { viewModel.search(viewModel.query) }
+                                btnIsLoadingClearCache.setOnClickListener {
+                                    CacheUtils.clearAppCache(requireContext())
+                                    Toast.makeText(requireContext(), getString(R.string.clear_cache_done), Toast.LENGTH_SHORT).show()
+                                    viewModel.search(viewModel.query)
+                                }
+                                btnIsLoadingErrorDetails.setOnClickListener {
+                                    LoggingUtils.showErrorDialog(requireContext(), state.error)
+                                }
+                                binding.vgvSearch.visibility = View.INVISIBLE
+                            }
+                        }
+                    }
+                }
+            }
         }
     }
 
@@ -130,7 +176,6 @@ class SearchTvFragment : Fragment() {
         val isIptv = UserPreferences.currentProvider is IptvProvider
         val hintStringRes = if (isIptv) R.string.search_input_hint_iptv else R.string.search_input_hint
         binding.etSearch.hint = getString(hintStringRes)
-        binding.etSearch.setText(viewModel.query)
 
         binding.llGlobalSearch.setOnClickListener {
             isGlobalSearchChecked = !isGlobalSearchChecked
@@ -247,71 +292,6 @@ class SearchTvFragment : Fragment() {
         }
 
         binding.root.requestFocus()
-    }
-
-    private fun renderState(state: State) {
-        when (state) {
-            is State.Searching, is State.GlobalSearching -> {
-                binding.isLoading.apply {
-                    root.visibility = View.VISIBLE
-                    pbIsLoading.visibility = View.VISIBLE
-                    gIsLoadingRetry.visibility = View.GONE
-                }
-                appAdapter.isLoading = false
-                appAdapter.setOnLoadMoreListener(null)
-            }
-            is State.SearchingMore -> appAdapter.isLoading = true
-            is State.SuccessSearching -> {
-                displaySearch(state.results, state.hasMore)
-                appAdapter.isLoading = false
-                binding.vgvSearch.visibility = View.VISIBLE
-                binding.isLoading.root.visibility = View.GONE
-            }
-            is State.SuccessGlobalSearching -> {
-                displayGlobalSearch(state.providerResults)
-                appAdapter.isLoading = false
-                binding.vgvSearch.visibility = View.VISIBLE
-                binding.isLoading.root.visibility = View.GONE
-            }
-            is State.FailedSearching -> {
-                val code = (state.error as? retrofit2.HttpException)?.code()
-                if (code == 409 && !hasAutoCleared409) {
-                    hasAutoCleared409 = true
-                    CacheUtils.clearAppCache(requireContext())
-                    Toast.makeText(
-                        requireContext(),
-                        getString(R.string.clear_cache_done_409),
-                        Toast.LENGTH_SHORT
-                    ).show()
-                    if (appAdapter.isLoading) appAdapter.isLoading = false
-                    viewModel.search(viewModel.query)
-                    return
-                }
-                Toast.makeText(requireContext(), state.error.message ?: "", Toast.LENGTH_SHORT).show()
-                if (appAdapter.isLoading) {
-                    appAdapter.isLoading = false
-                } else {
-                    binding.isLoading.apply {
-                        pbIsLoading.visibility = View.GONE
-                        gIsLoadingRetry.visibility = View.VISIBLE
-                        btnIsLoadingRetry.setOnClickListener { viewModel.search(viewModel.query) }
-                        btnIsLoadingClearCache.setOnClickListener {
-                            CacheUtils.clearAppCache(requireContext())
-                            Toast.makeText(
-                                requireContext(),
-                                getString(R.string.clear_cache_done),
-                                Toast.LENGTH_SHORT
-                            ).show()
-                            viewModel.search(viewModel.query)
-                        }
-                        btnIsLoadingErrorDetails.setOnClickListener {
-                            LoggingUtils.showErrorDialog(requireContext(), state.error)
-                        }
-                        binding.vgvSearch.visibility = View.INVISIBLE
-                    }
-                }
-            }
-        }
     }
 
     private fun focusSearchContent(): Boolean {
