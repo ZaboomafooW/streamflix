@@ -75,6 +75,10 @@ object ServerAvailability {
         val created = scope.async(start = CoroutineStart.LAZY) {
             discover(provider, id, videoType, key)
         }
+        created.invokeOnCompletion {
+            inFlight.remove(key, created)
+        }
+
         val existing = inFlight.putIfAbsent(key, created)
         val deferred = existing ?: created.also { it.start() }
 
@@ -82,13 +86,7 @@ object ServerAvailability {
             created.cancel()
         }
 
-        return try {
-            deferred.await()
-        } finally {
-            if (deferred.isCompleted) {
-                inFlight.remove(key, deferred)
-            }
-        }
+        return deferred.await()
     }
 
     fun markAvailable(
