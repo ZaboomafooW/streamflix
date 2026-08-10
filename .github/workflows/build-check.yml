@@ -18,13 +18,13 @@ jobs:
       - name: Checkout tested production commit
         uses: actions/checkout@v4
         with:
-          ref: e4b18388b5654eade0ac91ad0199c70787c2c5d4
+          ref: 615326305e4f3834479b8356b6f8e6ea05092a29
           fetch-depth: 0
 
       - name: Verify production commit
         run: |
-          test "$(git rev-parse HEAD)" = 'e4b18388b5654eade0ac91ad0199c70787c2c5d4'
-          echo 'Verified production SHA e4b18388b5654eade0ac91ad0199c70787c2c5d4'
+          test "$(git rev-parse HEAD)" = '615326305e4f3834479b8356b6f8e6ea05092a29'
+          echo 'Verified production SHA 615326305e4f3834479b8356b6f8e6ea05092a29'
 
       - name: Set up JDK 17
         uses: actions/setup-java@v4
@@ -69,7 +69,7 @@ jobs:
 
       - name: Verify TV APK
         run: |
-          test "$(git rev-parse HEAD)" = 'e4b18388b5654eade0ac91ad0199c70787c2c5d4'
+          test "$(git rev-parse HEAD)" = '615326305e4f3834479b8356b6f8e6ea05092a29'
           test "$(grep '^APP_LAYOUT=' local.properties)" = 'APP_LAYOUT=tv'
           test -f app/build/outputs/apk/debug/app-debug.apk
           sha256sum app/build/outputs/apk/debug/app-debug.apk
@@ -77,7 +77,7 @@ jobs:
       - name: Upload TV debug APK
         uses: actions/upload-artifact@v4
         with:
-          name: streamflix-tv-navigation-settings-apk
+          name: streamflix-tv-navigation-sidebar-apk
           path: app/build/outputs/apk/debug/app-debug.apk
           if-no-files-found: error
           retention-days: 7
