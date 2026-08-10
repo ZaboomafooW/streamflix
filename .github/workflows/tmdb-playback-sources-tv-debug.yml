@@ -1,0 +1,58 @@
+name: TMDb Playback Sources TV Debug
+
+on:
+  pull_request:
+
+jobs:
+  build-tv-debug:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout exact test candidate
+        uses: actions/checkout@v4
+        with:
+          ref: 8db3a2bb3eeb2b7676c76656d3eae354ac25b4bd
+          fetch-depth: 1
+
+      - name: Set up JDK 17
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+          cache: gradle
+
+      - name: Prepare build configuration
+        env:
+          TMDB_API_KEY: ${{ secrets.TMDB_API_KEY }}
+          SUBDL_API_KEY: ${{ secrets.SUBDL_API_KEY }}
+          RABBITSTREAM_SOURCE_API: ${{ secrets.RABBITSTREAM_SOURCE_API }}
+          UPROT_MSFI_API_BASE: ${{ secrets.UPROT_MSFI_API_BASE }}
+          UPROT_MSE_API_BASE: ${{ secrets.UPROT_MSE_API_BASE }}
+          UPROT_API_KEY: ${{ secrets.UPROT_API_KEY }}
+        run: |
+          cat > local.properties <<EOF
+          APP_LAYOUT=tv
+          TMDB_API_KEY=$TMDB_API_KEY
+          SUBDL_API_KEY=$SUBDL_API_KEY
+          RABBITSTREAM_SOURCE_API=$RABBITSTREAM_SOURCE_API
+          EOF
+          sed -e "s|{{UPROT_MSFI_API_BASE}}|$UPROT_MSFI_API_BASE|g" \
+              -e "s|{{UPROT_MSE_API_BASE}}|$UPROT_MSE_API_BASE|g" \
+              -e "s|{{UPROT_API_KEY}}|$UPROT_API_KEY|g" \
+              app/src/main/cpp/native-lib.cpp.template > app/src/main/cpp/native-lib.cpp
+
+      - name: Test and build TV debug APK
+        run: |
+          chmod +x ./gradlew
+          ./gradlew testDebugUnitTest assembleDebug --stacktrace
+
+      - name: Verify APK
+        run: |
+          test -f app/build/outputs/apk/debug/app-debug.apk
+          sha256sum app/build/outputs/apk/debug/app-debug.apk
+
+      - name: Upload TV debug APK
+        uses: actions/upload-artifact@v4
+        with:
+          name: streamflix-tmdb-playback-sources-tv-debug
+          path: app/build/outputs/apk/debug/app-debug.apk
+          if-no-files-found: error
