@@ -114,16 +114,6 @@
                 android:title="@string/settings_trailer_player_reset"
                 android:summary="@string/settings_trailer_player_reset_summary" />
         </PreferenceCategory>
-
-        <PreferenceCategory
-            android:title="@string/settings_server_voe_category">
-
-            <SwitchPreference
-                android:key="SERVER_AUTO_SUBTITLES_DISABLED"
-                android:title="@string/settings_server_voe_title"
-                android:summary="@string/settings_server_voe_summary"
-                android:defaultValue="true" />
-        </PreferenceCategory>
     </PreferenceScreen>
 
     <PreferenceScreen
