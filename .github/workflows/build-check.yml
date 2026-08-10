@@ -20,6 +20,88 @@ jobs:
         with:
           ref: ${{ github.sha }}
 
+      - name: Inject Doramasflix server diagnostics
+        shell: python
+        run: |
+          from pathlib import Path
+          import re
+
+          path = Path("app/src/main/java/com/streamflixreborn/streamflix/providers/DoramasflixProvider.kt")
+          text = path.read_text()
+          pattern = re.compile(
+              r"    override suspend fun getServers\(id: String, videoType: Video\.Type\): List<Video\.Server> \{.*?\n    \}\n\n    private suspend fun getRealLink",
+              re.S,
+          )
+          replacement = r'''    override suspend fun getServers(id: String, videoType: Video.Type): List<Video.Server> {
+              val diagnostics = mutableListOf<String>()
+              val query = """
+                  query listProblemsItem(${ '$' }problem_id: ID!) {
+                    listProblems(filter: {problem_id: ${ '$' }problem_id}) {
+                      server {
+                        link
+                        lang
+                      }
+                    }
+                  }
+              """.trimIndent()
+
+              for (referer in serverReferers) {
+                  val label = when {
+                      referer.contains(".co") -> "co"
+                      referer.contains(".io") -> "io"
+                      else -> "in"
+                  }
+                  try {
+                      val response = apiRequest(
+                          operationName = "listProblemsItem",
+                          variables = JSONObject().put("problem_id", id),
+                          query = query,
+                          referer = referer,
+                      )
+                      val problems = response.data?.listProblems
+                      if (problems == null) {
+                          diagnostics += "$label:data=null"
+                          continue
+                      }
+
+                      val nullServers = problems.count { it.server == null }
+                      val blankLinks = problems.count {
+                          it.server != null && it.server.link.isNullOrBlank()
+                      }
+                      val servers = problems.mapNotNull { problem ->
+                          val serverUrl = problem.server?.link?.takeIf { it.isNotBlank() }
+                              ?: return@mapNotNull null
+                          val lang = problem.server.lang?.getLang().orEmpty()
+                          val serverName = runCatching {
+                              URL(serverUrl).host
+                                  .split('.')
+                                  .firstOrNull { it.isNotBlank() && it != "www" }
+                                  ?.replaceFirstChar { it.titlecase(Locale.ROOT) }
+                          }.getOrNull() ?: "Server"
+
+                          Video.Server(
+                              id = getRealLink(serverUrl),
+                              name = "$serverName $lang".trim(),
+                          )
+                      }.distinctBy { it.id }
+
+                      if (servers.isNotEmpty()) return servers
+                      diagnostics += "$label:t${problems.size}/n$nullServers/b$blankLinks"
+                  } catch (e: Exception) {
+                      val message = e.message.orEmpty().replace("\n", " ").take(36)
+                      diagnostics += "$label:ERR:${e.javaClass.simpleName}:$message"
+                  }
+              }
+
+              throw Exception("DF ${id.takeLast(8)} | ${diagnostics.joinToString(" | ")}")
+          }
+
+          private suspend fun getRealLink'''
+          updated, count = pattern.subn(replacement, text)
+          if count != 1:
+              raise SystemExit(f"Expected one getServers function, replaced {count}")
+          path.write_text(updated)
+
       - name: Set up JDK 17
         uses: actions/setup-java@v4
         with:
