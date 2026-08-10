@@ -9,131 +9,60 @@ permissions:
   contents: read
 
 jobs:
-  audit:
-    name: Audit Doramasflix playback coverage
+  build:
+    name: Build Android TV debug APK
     runs-on: ubuntu-latest
-    timeout-minutes: 10
+    timeout-minutes: 30
 
     steps:
-      - name: Audit current movies and episodes
-        shell: bash
+      - name: Checkout requested code
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ github.sha }}
+
+      - name: Set up JDK 17
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+
+      - name: Set up Android SDK
+        uses: android-actions/setup-android@v3
+
+      - name: Install required Android SDK components
         run: |
-          set -euo pipefail
-          python3 - <<'PY'
-          import base64, json, urllib.request, urllib.error, urllib.parse, collections
-          from concurrent.futures import ThreadPoolExecutor, as_completed
+          yes | sdkmanager --licenses >/dev/null || true
+          sdkmanager "platforms;android-36" "ndk;26.1.10909125" "cmake;3.22.1"
 
-          API='https://userapi.cloudfleir.xyz/graphql'; ORIGIN='https://doramasflix.in'; APP='com.asiapp.doramasgo'
-          UA='Mozilla/5.0 (Linux; Android 10; Android TV) AppleWebKit/537.36 Chrome/140.0.0.0 Safari/537.36'
-          def gql(operation,variables,query):
-              body=json.dumps({'operationName':operation,'variables':variables,'query':query}).encode()
-              req=urllib.request.Request(API,data=body,headers={'Accept':'application/json, text/plain, */*','Content-Type':'application/json','Origin':ORIGIN,'Referer':ORIGIN+'/','User-Agent':UA})
-              try:
-                  with urllib.request.urlopen(req,timeout=20) as r: raw=r.read().decode('utf-8','replace')
-              except urllib.error.HTTPError as e:
-                  raise RuntimeError(f'HTTP {e.code}: '+e.read().decode('utf-8','replace')[:500])
-              obj=json.loads(raw)
-              if obj.get('errors'): raise RuntimeError(json.dumps(obj['errors'])[:800])
-              return obj.get('data') or {}
-          def decode_link(link):
-              if not link:return None
-              if 'embedshortener.co/e/' not in link:return link
-              try:
-                  token=link.split('/e/',1)[1].split('?',1)[0].split('#',1)[0]
-                  p=token.split('.')[1]; p += '='*((4-len(p)%4)%4)
-                  enc=json.loads(base64.urlsafe_b64decode(p).decode()).get('link')
-                  return base64.b64decode(enc).decode().strip() if enc else None
-              except:return None
-          def host(u):
-              try:return (urllib.parse.urlparse(u).hostname or '').lower().removeprefix('www.')
-              except:return ''
-          def classify(links):
-              dec=[]
-              for x in links or []:
-                  u=decode_link(x.get('link'))
-                  if u:dec.append((host(u),x.get('lang'),bool(x.get('is_recommended'))))
-              prime=[x for x in dec if x[0]=='primeload.co' or x[0].endswith('.primeload.co')]
-              other=[x for x in dec if x not in prime]
-              return dec,prime,other,sorted(set(str(x[1]) for x in dec if x[1] is not None)),sorted(set(x[0] for x in dec if x[0]))
+      - name: Create build properties
+        run: |
+          cat > local.properties <<'EOF'
+          APP_LAYOUT=tv
+          TMDB_API_KEY=dummy-ci-key
+          SUBDL_API_KEY=dummy-ci-key
+          RABBITSTREAM_SOURCE_API=https://example.invalid/
+          EOF
 
-          MQ='''query PaginationMovie($page: Int, $limit: Int, $filter: FilterMoviesInput){paginationMovie(page:$page,limit:$limit,filter:$filter){items{_id name slug}}}'''
-          DQ='''query PaginationDorama($page: Int, $limit: Int, $filter: FilterDoramasInput){paginationDorama(page:$page,limit:$limit,filter:$filter){items{_id name slug isTVShow}}}'''
-          SQ='''query listSeasons($slug:String!){listSeasons(sort:NUMBER_ASC,filter:{serie_slug:$slug}){season_number slug}}'''
-          EQ='''query listEpisodes($slug:String!,$season_number:Int!){listEpisodes(sort:NUMBER_ASC,filter:{serie_slug:$slug,season_number:$season_number}){_id name slug episode_number season_number}}'''
-          MLQ='''query MovieLinks($movie_id:ID!){getMovieLinks(id:$movie_id,app:"'''+APP+''' "){links_online{lang link page server is_recommended}}}'''
-          ELQ='''query EpisodeLinksOnline($episode_id:ID!){getEpisodeLinks(id:$episode_id,app:"'''+APP+''' "){links_online{_id server lang link is_recommended}}}'''
+      - name: Generate native source from template
+        run: |
+          sed -e 's|{{UPROT_MSFI_API_BASE}}|https://example.invalid/msfi|g' \
+              -e 's|{{UPROT_MSE_API_BASE}}|https://example.invalid/mse|g' \
+              -e 's|{{UPROT_API_KEY}}|dummy-ci-key|g' \
+              app/src/main/cpp/native-lib.cpp.template > app/src/main/cpp/native-lib.cpp
 
-          def catalog(operation,q,key,filt):
-              out=[];seen=set()
-              for p in range(1,6):
-                  batch=(gql(operation,{'page':p,'limit':50,'filter':filt},q).get(key) or {}).get('items') or []
-                  if not batch:break
-                  fresh=[x for x in batch if x.get('_id') not in seen]
-                  if not fresh:break
-                  out.extend(fresh);seen.update(x.get('_id') for x in fresh)
-                  if len(batch)<50:break
-              return out
-          movies=catalog('PaginationMovie',MQ,'paginationMovie',{})
-          doramas=catalog('PaginationDorama',DQ,'paginationDorama',{'isTVShow':False})
-          print('CATALOG_COUNTS movies=',len(movies),'doramas=',len(doramas))
+      - name: Make Gradle executable
+        run: chmod +x ./gradlew
 
-          def movie_check(m):
-              links=(gql('MovieLinks',{'movie_id':m['_id']},MLQ).get('getMovieLinks') or {}).get('links_online') or []
-              return m,classify(links)
-          movie_results=[]
-          with ThreadPoolExecutor(max_workers=20) as ex:
-              fs=[ex.submit(movie_check,m) for m in movies]
-              for f in as_completed(fs):
-                  try:movie_results.append(f.result())
-                  except Exception as e:print('MOVIE_ERROR',repr(e))
+      - name: Run unit tests
+        run: ./gradlew testDebugUnitTest --stacktrace --no-daemon
 
-          def enumerate_show(d):
-              out=[]
-              seasons=gql('listSeasons',{'slug':d['slug']},SQ).get('listSeasons') or []
-              for s in seasons[:3]:
-                  eps=gql('listEpisodes',{'slug':d['slug'],'season_number':int(s['season_number'])},EQ).get('listEpisodes') or []
-                  if eps:
-                      for i in sorted({0,len(eps)//2,len(eps)-1}):out.append((d,eps[i]))
-              return out
-          episode_items=[]
-          with ThreadPoolExecutor(max_workers=20) as ex:
-              fs=[ex.submit(enumerate_show,d) for d in doramas]
-              for f in as_completed(fs):
-                  try:episode_items.extend(f.result())
-                  except Exception as e:print('SHOW_ENUM_ERROR',repr(e))
+      - name: Build debug APK
+        run: ./gradlew assembleDebug --stacktrace --no-daemon
 
-          def ep_check(pair):
-              d,e=pair
-              links=(gql('EpisodeLinksOnline',{'episode_id':e['_id']},ELQ).get('getEpisodeLinks') or {}).get('links_online') or []
-              return d,e,classify(links)
-          episode_results=[]
-          with ThreadPoolExecutor(max_workers=24) as ex:
-              fs=[ex.submit(ep_check,x) for x in episode_items]
-              for f in as_completed(fs):
-                  try:episode_results.append(f.result())
-                  except Exception as e:print('EP_ERROR',repr(e))
-
-          def movie_report():
-              po=[];one=[];multi=[];none=[];hc=collections.Counter()
-              for m,c in movie_results:
-                  dec,pr,ot,la,hs=c;hc.update(hs)
-                  if dec and pr and not ot:po.append((m,c))
-                  if len(ot)==1:one.append((m,c))
-                  if len(la)>1 or len(hs)>2:multi.append((m,c))
-                  if not dec:none.append((m,c))
-              print('MOVIES_AUDITED',len(movie_results),'PRIME_ONLY',len(po),'ONE_USABLE_OTHER',len(one),'NO_LINKS',len(none));print('MOVIE_HOSTS',dict(hc))
-              for lab,arr in [('MOVIE_PRIME_ONLY',po),('MOVIE_ONE_OTHER',one[:15]),('MOVIE_MULTI',multi[:15]),('MOVIE_NO_LINKS',none[:15])]:
-                  for m,c in arr:print(lab,json.dumps({'name':m.get('name'),'slug':m.get('slug'),'id':m.get('_id'),'hosts':c[4],'langs':c[3]},ensure_ascii=False))
-          def ep_report():
-              po=[];one=[];multi=[];none=[];hc=collections.Counter()
-              for d,e,c in episode_results:
-                  dec,pr,ot,la,hs=c;hc.update(hs);it=(d,e,c)
-                  if dec and pr and not ot:po.append(it)
-                  if len(ot)==1:one.append(it)
-                  if len(la)>1 or len(hs)>2:multi.append(it)
-                  if not dec:none.append(it)
-              print('EPISODES_AUDITED',len(episode_results),'PRIME_ONLY',len(po),'ONE_USABLE_OTHER',len(one),'NO_LINKS',len(none));print('EP_HOSTS',dict(hc))
-              for lab,arr in [('EP_PRIME_ONLY',po),('EP_ONE_OTHER',one[:20]),('EP_MULTI',multi[:20]),('EP_NO_LINKS',none[:20])]:
-                  for d,e,c in arr:print(lab,json.dumps({'show':d.get('name'),'slug':d.get('slug'),'episode':e.get('episode_number'),'id':e.get('_id'),'hosts':c[4],'langs':c[3]},ensure_ascii=False))
-          movie_report();ep_report()
-          PY
+      - name: Upload debug APK
+        uses: actions/upload-artifact@v4
+        with:
+          name: streamflix-tv-debug-apk
+          path: app/build/outputs/apk/debug/*.apk
+          if-no-files-found: error
+          retention-days: 7
