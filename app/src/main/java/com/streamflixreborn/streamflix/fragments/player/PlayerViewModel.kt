@@ -173,7 +173,7 @@ class PlayerViewModel(
                 Log.d("PlayerViewModel", "Ricerca OpenSubtitles completata: ${subtitles.size} risultati")
                 _subtitleState.emit(SubtitleState.SuccessOpenSubtitles(subtitles))
             } catch (e: Exception) {
-                Log.e("PlayerViewModel", "Errore ricerca OpenSubtitles: ", e)
+                Log.e("PlayerViewModel", "Errore OpenSubtitles: ", e)
                 _subtitleState.emit(SubtitleState.FailedOpenSubtitles(e))
             }
         }
@@ -228,7 +228,7 @@ class PlayerViewModel(
             Log.d("PlayerViewModel", "Download SubDL completato: $uri")
             _subtitleState.emit(SubtitleState.SuccessDownloadingSubDLSubtitle(subtitle, uri))
         } catch (e: Exception) {
-            Log.e("PlayerViewModel", "Errore SubDL: ", e)
+            Log.e("PlayerViewModel", "Errore download SubDL: ", e)
             _subtitleState.emit(SubtitleState.FailedDownloadingSubDLSubtitle(e, subtitle))
         }
     }
