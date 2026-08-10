@@ -1,4 +1,4 @@
-name: Build Check
+name: Doramasflix Roundup Subtitle Audit
 
 on:
   pull_request:
@@ -9,60 +9,67 @@ permissions:
   contents: read
 
 jobs:
-  build:
-    name: Build Android TV debug APK
+  audit:
     runs-on: ubuntu-latest
-    timeout-minutes: 30
-
+    timeout-minutes: 10
     steps:
-      - name: Checkout requested code
-        uses: actions/checkout@v4
-        with:
-          ref: ${{ github.sha }}
-
-      - name: Set up JDK 17
-        uses: actions/setup-java@v4
-        with:
-          distribution: temurin
-          java-version: '17'
-
-      - name: Set up Android SDK
-        uses: android-actions/setup-android@v3
-
-      - name: Install required Android SDK components
+      - name: Inspect Roundup playback hosts
+        shell: bash
         run: |
-          yes | sdkmanager --licenses >/dev/null || true
-          sdkmanager "platforms;android-36" "ndk;26.1.10909125" "cmake;3.22.1"
+          set -euo pipefail
+          python3 - <<'PY'
+          import json, urllib.request, urllib.error, base64, re
+          API='https://userapi.cloudfleir.xyz/graphql'
+          ORIGIN='https://doramasflix.in'
+          APP='com.asiapp.doramasgo'
+          UA='Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 Chrome/131.0.0.0 Safari/537.36'
 
-      - name: Create build properties
-        run: |
-          cat > local.properties <<'EOF'
-          APP_LAYOUT=tv
-          TMDB_API_KEY=dummy-ci-key
-          SUBDL_API_KEY=dummy-ci-key
-          RABBITSTREAM_SOURCE_API=https://example.invalid/
-          EOF
+          def gql(op, vars, query):
+              body=json.dumps({'operationName':op,'variables':vars,'query':query}).encode()
+              req=urllib.request.Request(API,data=body,headers={'Accept':'application/json','Content-Type':'application/json','Origin':ORIGIN,'Referer':ORIGIN+'/','User-Agent':UA})
+              with urllib.request.urlopen(req,timeout=20) as r:
+                  return json.loads(r.read().decode())
 
-      - name: Generate native source from template
-        run: |
-          sed -e 's|{{UPROT_MSFI_API_BASE}}|https://example.invalid/msfi|g' \
-              -e 's|{{UPROT_MSE_API_BASE}}|https://example.invalid/mse|g' \
-              -e 's|{{UPROT_API_KEY}}|dummy-ci-key|g' \
-              app/src/main/cpp/native-lib.cpp.template > app/src/main/cpp/native-lib.cpp
+          sq='''query searchAll($input:String!){searchMovie(input:$input,limit:20){_id name slug}}'''
+          obj=gql('searchAll',{'input':'The Roundup: No Way Out'},sq)
+          movies=(obj.get('data') or {}).get('searchMovie') or []
+          print('SEARCH',json.dumps(movies,ensure_ascii=False))
+          target=next((m for m in movies if m.get('slug')=='the-roundup-no-way-out'),None)
+          if not target: raise SystemExit('target not found')
 
-      - name: Make Gradle executable
-        run: chmod +x ./gradlew
+          lq='''query MovieLinks($movie_id:ID!){getMovieLinks(id:$movie_id,app:"'''+APP+''' "){links_online{server lang link page is_recommended subtitles{language_code type url label}}}}'''
+          obj=gql('MovieLinks',{'movie_id':target['_id']},lq)
+          links=((obj.get('data') or {}).get('getMovieLinks') or {}).get('links_online') or []
 
-      - name: Run unit tests
-        run: ./gradlew testDebugUnitTest --stacktrace --no-daemon
+          def decode_short(url):
+              if 'embedshortener.co/e/' not in url: return url
+              token=url.split('/e/',1)[1].split('?',1)[0].split('#',1)[0]
+              p=token.split('.')[1]
+              p += '='*((4-len(p)%4)%4)
+              payload=json.loads(base64.urlsafe_b64decode(p).decode())
+              enc=payload.get('link','')
+              return base64.b64decode(enc).decode().strip()
 
-      - name: Build debug APK
-        run: ./gradlew assembleDebug --stacktrace --no-daemon
-
-      - name: Upload debug APK
-        uses: actions/upload-artifact@v4
-        with:
-          name: streamflix-tv-debug-apk
-          path: app/build/outputs/apk/debug/*.apk
-          if-no-files-found: error
-          retention-days: 7
+          for l in links:
+              raw=l.get('link') or ''
+              try: real=decode_short(raw)
+              except Exception as e:
+                  print('DECODE_ERR',e); continue
+              print('LINK',json.dumps({'server':l.get('server'),'lang':l.get('lang'),'subtitles':l.get('subtitles'),'real':real},ensure_ascii=False))
+              host=urllib.parse.urlparse(real).hostname or ''
+              if not any(x in host for x in ['flaswish','streamwish','jessicayeahcatch','voe']): continue
+              req=urllib.request.Request(real,headers={'User-Agent':UA,'Referer':ORIGIN+'/'})
+              try:
+                  with urllib.request.urlopen(req,timeout=20) as r:
+                      html=r.read().decode('utf-8','replace')
+                      final=r.geturl()
+              except Exception as e:
+                  print('FETCH_ERR',host,repr(e)); continue
+              print('FETCH',host,'FINAL',final,'LEN',len(html))
+              low=html.lower()
+              for needle in ['tracks','captions','.vtt','.srt','kind:"captions"','kind:\"captions\"','subtitle']:
+                  print('HAS',host,needle,needle in low)
+              for pat in [r'.{0,180}tracks.{0,500}',r'.{0,180}captions.{0,500}',r'.{0,180}\.vtt.{0,300}',r'.{0,180}subtitle.{0,500}']:
+                  m=re.search(pat,html,re.I|re.S)
+                  if m: print('SNIP',host,re.sub(r'\s+',' ',m.group(0))[:1200])
+          PY
