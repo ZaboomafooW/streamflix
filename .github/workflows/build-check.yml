@@ -6,63 +6,25 @@ on:
       - main
 
 permissions:
-  contents: write
+  contents: read
 
 jobs:
   build:
-    name: Clean and build Android TV navigation
+    name: Build Android TV navigation candidate
     runs-on: ubuntu-latest
     timeout-minutes: 30
 
     steps:
-      - name: Checkout navigation branch
+      - name: Checkout tested production commit
         uses: actions/checkout@v4
         with:
-          ref: fix/tv-ui-navigation
+          ref: e4b18388b5654eade0ac91ad0199c70787c2c5d4
           fetch-depth: 0
 
-      - name: Apply final navigation cleanup
+      - name: Verify production commit
         run: |
-          python3 - <<'PY'
-          from pathlib import Path
-
-          settings = Path('app/src/main/java/com/streamflixreborn/streamflix/fragments/settings/SettingsTvFragment.kt')
-          text = settings.read_text()
-
-          guard_line = "                    event.keyCode != KeyEvent.KEYCODE_DPAD_LEFT ||\n"
-          assert text.count(guard_line) == 1, 'Expected exactly one Left boundary guard'
-          text = text.replace(
-              guard_line,
-              "                    event.repeatCount != 0 ||\n" + guard_line,
-              1,
-          )
-
-          old_seekbar = "                if (preference is SeekBarPreference && preference.isAdjustable) {\n                    return@setOnKeyInterceptListener false\n                }"
-          new_seekbar = "                if (preference is SeekBarPreference &&\n                    preference.isAdjustable &&\n                    preference.value > preference.min\n                ) {\n                    return@setOnKeyInterceptListener false\n                }"
-          assert text.count(old_seekbar) == 1, 'Expected exactly one SeekBar boundary guard'
-          text = text.replace(old_seekbar, new_seekbar, 1)
-          settings.write_text(text)
-
-          player = Path('app/src/main/java/com/streamflixreborn/streamflix/fragments/player/PlayerTvFragment.kt')
-          player_text = player.read_text()
-          player.write_text(player_text.rstrip('\n') + '\n')
-          PY
-
-          git diff --check
-          git diff -- app/src/main/java/com/streamflixreborn/streamflix/fragments/settings/SettingsTvFragment.kt app/src/main/java/com/streamflixreborn/streamflix/fragments/player/PlayerTvFragment.kt
-
-      - name: Commit cleanup to navigation branch
-        run: |
-          if git diff --quiet; then
-            echo 'No cleanup changes required'
-          else
-            git config user.name 'github-actions[bot]'
-            git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
-            git add app/src/main/java/com/streamflixreborn/streamflix/fragments/settings/SettingsTvFragment.kt app/src/main/java/com/streamflixreborn/streamflix/fragments/player/PlayerTvFragment.kt
-            git commit -m 'fix(tv): tighten settings boundary navigation'
-            git push origin HEAD:fix/tv-ui-navigation
-          fi
-          echo "TESTED_SHA=$(git rev-parse HEAD)" >> "$GITHUB_ENV"
+          test "$(git rev-parse HEAD)" = 'e4b18388b5654eade0ac91ad0199c70787c2c5d4'
+          echo 'Verified production SHA e4b18388b5654eade0ac91ad0199c70787c2c5d4'
 
       - name: Set up JDK 17
         uses: actions/setup-java@v4
@@ -107,16 +69,15 @@ jobs:
 
       - name: Verify TV APK
         run: |
+          test "$(git rev-parse HEAD)" = 'e4b18388b5654eade0ac91ad0199c70787c2c5d4'
           test "$(grep '^APP_LAYOUT=' local.properties)" = 'APP_LAYOUT=tv'
           test -f app/build/outputs/apk/debug/app-debug.apk
-          echo "Built commit: $TESTED_SHA"
-          git rev-parse HEAD
           sha256sum app/build/outputs/apk/debug/app-debug.apk
 
       - name: Upload TV debug APK
         uses: actions/upload-artifact@v4
         with:
-          name: streamflix-tv-navigation-cleanup-apk
+          name: streamflix-tv-navigation-settings-apk
           path: app/build/outputs/apk/debug/app-debug.apk
           if-no-files-found: error
           retention-days: 7
