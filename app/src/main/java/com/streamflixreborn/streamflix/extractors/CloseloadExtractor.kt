@@ -7,8 +7,11 @@ import com.streamflixreborn.streamflix.providers.RidomoviesProvider
 import com.streamflixreborn.streamflix.utils.JsUnpacker
 import com.streamflixreborn.streamflix.utils.NetworkClient
 import com.tanasi.retrofit_jsoup.converter.JsoupConverterFactory
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.withContext
 import okhttp3.HttpUrl.Companion.toHttpUrlOrNull
 import okhttp3.OkHttpClient
+import okhttp3.Request
 import org.jsoup.nodes.Document
 import retrofit2.Retrofit
 import retrofit2.converter.gson.GsonConverterFactory
@@ -23,14 +26,51 @@ class CloseloadExtractor : Extractor() {
     override val mainUrl = "https://closeload.top/"
 
     override suspend fun extract(link: String): Video {
-        extractStaticSource(link)?.let { return video(it, link) }
+        extractStaticSource(link)?.let { candidate ->
+            resolveStaticCandidate(candidate, link)?.let { return it }
+        }
 
         return BrowserStreamResolver.resolve(
             link = link,
             referer = RidomoviesProvider.URL,
+            timeoutMs = 15_000L,
         ) { candidate ->
             isPlayableMediaUrl(candidate)
         }
+    }
+
+    private suspend fun resolveStaticCandidate(source: String, link: String): Video? {
+        if (isPlayableMediaUrl(source)) return video(source, link)
+        if (!source.contains("master.txt", ignoreCase = true)) return null
+
+        val embedUrl = link.toHttpUrlOrNull()
+        val origin = embedUrl?.let { "${it.scheme}://${it.host}" } ?: mainUrl.trimEnd('/')
+        val body = withContext(Dispatchers.IO) {
+            val request = Request.Builder()
+                .url(source)
+                .header("User-Agent", NetworkClient.USER_AGENT)
+                .header("Referer", "$origin/")
+                .header("Origin", origin)
+                .build()
+            runCatching {
+                NetworkClient.default.newCall(request).execute().use { response ->
+                    if (response.isSuccessful) response.body?.string() else null
+                }
+            }.getOrNull()
+        }?.trim().orEmpty()
+
+        if (body.startsWith("#EXTM3U")) {
+            return Video(
+                source = source,
+                headers = mediaHeaders(link),
+                type = MimeTypes.APPLICATION_M3U8,
+            )
+        }
+
+        val direct = body.lineSequence()
+            .map(String::trim)
+            .firstOrNull(::isPlayableMediaUrl)
+        return direct?.let { video(it, link) }
     }
 
     private suspend fun extractStaticSource(link: String): String? = runCatching {
@@ -78,7 +118,7 @@ class CloseloadExtractor : Extractor() {
                 .findAll(unpacked)
                 .mapNotNull { safeBase64Decode(it.groupValues[1]) }
                 .map { String(it, Charsets.UTF_8).trim() }
-                .firstOrNull(::isPlayableMediaUrl)
+                .firstOrNull(::isPotentialStaticUrl)
     }.getOrNull()
 
     private fun smartBruteForce(inputData: String, magicNum: Long, offset: Int): String? {
@@ -109,11 +149,11 @@ class CloseloadExtractor : Extractor() {
                     val transformed = byteTransform(candidate)
                     runCatching { String(unmixLoop(transformed, magicNum, offset), Charsets.UTF_8).trim() }
                         .getOrNull()
-                        ?.takeIf(::isPlayableMediaUrl)
+                        ?.takeIf(::isPotentialStaticUrl)
                         ?.let { return it }
                     runCatching { String(transformed, Charsets.UTF_8).trim() }
                         .getOrNull()
-                        ?.takeIf(::isPlayableMediaUrl)
+                        ?.takeIf(::isPotentialStaticUrl)
                         ?.let { return it }
                 }
             }
@@ -122,8 +162,6 @@ class CloseloadExtractor : Extractor() {
     }
 
     private fun video(source: String, link: String): Video {
-        val embedUrl = link.toHttpUrlOrNull()
-        val origin = embedUrl?.let { "${it.scheme}://${it.host}" } ?: mainUrl.trimEnd('/')
         val path = source.substringBefore('?').substringBefore('#')
         val type = if (path.endsWith(".mp4", ignoreCase = true)) {
             MimeTypes.VIDEO_MP4
@@ -132,12 +170,18 @@ class CloseloadExtractor : Extractor() {
         }
         return Video(
             source = source,
-            headers = mapOf(
-                "Referer" to "$origin/",
-                "Origin" to origin,
-                "User-Agent" to NetworkClient.USER_AGENT,
-            ),
+            headers = mediaHeaders(link),
             type = type,
+        )
+    }
+
+    private fun mediaHeaders(link: String): Map<String, String> {
+        val embedUrl = link.toHttpUrlOrNull()
+        val origin = embedUrl?.let { "${it.scheme}://${it.host}" } ?: mainUrl.trimEnd('/')
+        return mapOf(
+            "Referer" to "$origin/",
+            "Origin" to origin,
+            "User-Agent" to NetworkClient.USER_AGENT,
         )
     }
 
@@ -146,6 +190,12 @@ class CloseloadExtractor : Extractor() {
         if (!lower.startsWith("http") || lower.contains("master.txt")) return false
         val path = lower.substringBefore('?').substringBefore('#')
         return path.endsWith(".m3u8") || path.endsWith(".mp4")
+    }
+
+    private fun isPotentialStaticUrl(value: String): Boolean {
+        val lower = value.trim().lowercase(Locale.ROOT)
+        return isPlayableMediaUrl(value) ||
+            (lower.startsWith("http") && lower.contains("master.txt"))
     }
 
     private fun safeBase64Decode(value: String): ByteArray? = try {
