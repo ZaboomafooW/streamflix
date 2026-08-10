@@ -21,7 +21,7 @@ import kotlinx.coroutines.flow.flowOn
 import kotlinx.coroutines.flow.transformLatest
 import kotlinx.coroutines.launch
 
-// DEFINICIONES DE ESTADO Y RESULTADOS (Fuera de la classe per un accesso migliore)
+// DEFINICIONES DE ESTADO Y RESULTADOS (Fuera de la clase para mejor acceso)
 sealed class State {
     data object Searching : State()
     data object SearchingMore : State()
