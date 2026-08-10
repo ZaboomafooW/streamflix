@@ -249,16 +249,39 @@ object PlaybackTrackPreferences {
                     subtitle?.position != lastSubtitlePosition && subtitle != null -> {
                         rememberManualSubtitleSelection(subtitle)
                         subtitleCancelled = true
+
+                        // The stock Off action leaves forced-subtitle flags behind. Once the user
+                        // explicitly selects a subtitle track, normalize the parameters back to a
+                        // normal enabled text state.
+                        if (parameters.ignoredTextSelectionFlags != DEFAULT_TEXT_FLAGS) {
+                            applyParameters(
+                                parameters.buildUpon()
+                                    .setTrackTypeDisabled(C.TRACK_TYPE_TEXT, false)
+                                    .setIgnoredTextSelectionFlags(DEFAULT_TEXT_FLAGS)
+                                    .build()
+                            )
+                        }
                     }
 
                     subtitleOff && !lastSubtitleOff -> {
                         clearSubtitleExact()
                         saveGlobalSubtitleOff()
                         subtitleCancelled = true
+
+                        // "Off" in the learned model means all captions are off, including forced
+                        // tracks. Apply that immediately instead of waiting for the next Player.
+                        applyParameters(
+                            parameters.buildUpon()
+                                .clearOverridesOfType(C.TRACK_TYPE_TEXT)
+                                .setPreferredTextLanguages(*emptyArray())
+                                .setTrackTypeDisabled(C.TRACK_TYPE_TEXT, true)
+                                .setIgnoredTextSelectionFlags(SUBTITLE_OFF_FLAGS)
+                                .build()
+                        )
                     }
                 }
 
-                captureState(parameters, tracks)
+                captureState(player.trackSelectionParameters, tracks)
             }
 
             private fun resetForContext(newItem: MediaItem?, tracks: Tracks) {
@@ -594,9 +617,8 @@ object PlaybackTrackPreferences {
     }.distinctBy { it.lowercase(Locale.ROOT) }
 
     /**
-     * Preserve a user's same-language subtitle variant across titles/episodes when that variant is
-     * present. If it is not present, do nothing here and let Media3 fall back to another track in
-     * the remembered language.
+     * Preserve the user's same-language subtitle variant when that variant exists. If it does not,
+     * leave selection to Media3 so it can fall back to another track in the remembered language.
      */
     private fun subtitleVariantTrack(
         tracks: Tracks,
@@ -804,23 +826,28 @@ object PlaybackTrackPreferences {
         prefs.getString(GLOBAL_AUDIO_FALLBACK_LANGUAGE, null)
             ?.let(::canonicalLanguage)
 
-    private fun loadGlobalSubtitlePreference(): SubtitlePreference =
-        when (prefs.getString(GLOBAL_SUBTITLE_MODE, null)) {
+    private fun loadGlobalSubtitlePreference(): SubtitlePreference {
+        return when (prefs.getString(GLOBAL_SUBTITLE_MODE, null)) {
             MODE_OFF -> SubtitlePreference.Off
             MODE_LANGUAGE -> {
                 val language = prefs.getString(GLOBAL_SUBTITLE_LANGUAGE, null)
                     ?.let(::canonicalLanguage)
-                    ?: return SubtitlePreference.Unset
-                val variant = prefs.getString(GLOBAL_SUBTITLE_VARIANT, null)
-                    ?.let { value ->
-                        runCatching { SubtitleVariant.valueOf(value) }.getOrNull()
-                    }
-                    ?: SubtitleVariant.STANDARD
-                SubtitlePreference.Language(language, variant)
+
+                if (language == null) {
+                    SubtitlePreference.Unset
+                } else {
+                    val variant = prefs.getString(GLOBAL_SUBTITLE_VARIANT, null)
+                        ?.let { value ->
+                            runCatching { SubtitleVariant.valueOf(value) }.getOrNull()
+                        }
+                        ?: SubtitleVariant.STANDARD
+                    SubtitlePreference.Language(language, variant)
+                }
             }
 
             else -> SubtitlePreference.Unset
         }
+    }
 
     private fun saveAudioExact(value: SavedTrack) {
         val scope = scopeKey ?: return
