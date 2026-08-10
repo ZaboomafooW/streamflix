@@ -10,9 +10,9 @@ permissions:
 
 jobs:
   build:
-    name: Inspect Doramasflix short-link token
+    name: Build Android TV debug APK
     runs-on: ubuntu-latest
-    timeout-minutes: 10
+    timeout-minutes: 30
 
     steps:
       - name: Checkout requested code
@@ -20,34 +20,49 @@ jobs:
         with:
           ref: ${{ github.sha }}
 
-      - name: Inspect live token payload and stateless decode
-        shell: bash
-        run: |
-          set -euo pipefail
-          python3 - <<'PY'
-          import base64, json, urllib.parse, urllib.request, urllib.error
-          ua='Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/140.0.0.0 Safari/537.36'
-          page='https://doramasflix.in/peliculas-online/just-for-meeting-you'
-          gql='https://userapi.cloudfleir.xyz/graphql'
-          action='4082a28b2fb3eb29fde4ec3df198a5afd10f8edc32'
-          payload={'operationName':'MovieLinks','variables':{'movie_id':'6a78e51c56e57b5ffbb0b2c6'},'query':'query MovieLinks($movie_id: ID!) { getMovieLinks(id: $movie_id, app: "com.asiapp.doramasgo") { links_online { link server is_recommended } } }'}
-          req=urllib.request.Request(gql,data=json.dumps(payload).encode(),headers={'User-Agent':ua,'Content-Type':'application/json','Origin':'https://doramasflix.in','Referer':page})
-          with urllib.request.urlopen(req,timeout=20) as r: short=json.load(r)['data']['getMovieLinks']['links_online'][0]['link']
-          token=urllib.parse.urlparse(short).path.split('/e/',1)[1]
-          parts=token.split('.')
-          print('segments:',len(parts),[len(x) for x in parts])
-          for i,p in enumerate(parts[:2]):
-            try:
-              raw=base64.urlsafe_b64decode(p+'='*((4-len(p)%4)%4)).decode('utf-8','replace')
-              print('segment',i,raw[:4000])
-            except Exception as e: print('segment',i,'decode error',repr(e))
+      - name: Set up JDK 17
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
 
-          # Verify whether the action is stateless: no preliminary GET/cookies.
-          headers={'User-Agent':ua,'Accept':'text/x-component','Content-Type':'text/plain;charset=UTF-8','Origin':'https://embedshortener.co','Referer':short,'next-action':action}
-          req=urllib.request.Request(short,data=json.dumps([token],separators=(',',':')).encode(),headers=headers,method='POST')
-          try:
-            with urllib.request.urlopen(req,timeout=20) as r:
-              raw=r.read().decode('utf-8','replace'); print('stateless HTTP',r.status); print(raw[:4000])
-          except urllib.error.HTTPError as e:
-            print('stateless HTTP',e.code); print(e.read().decode('utf-8','replace')[:4000])
-          PY
+      - name: Set up Android SDK
+        uses: android-actions/setup-android@v3
+
+      - name: Install required Android SDK components
+        run: |
+          yes | sdkmanager --licenses >/dev/null || true
+          sdkmanager "platforms;android-36" "ndk;26.1.10909125" "cmake;3.22.1"
+
+      - name: Create build properties
+        run: |
+          cat > local.properties <<'EOF'
+          APP_LAYOUT=tv
+          TMDB_API_KEY=dummy-ci-key
+          SUBDL_API_KEY=dummy-ci-key
+          RABBITSTREAM_SOURCE_API=https://example.invalid/
+          EOF
+
+      - name: Generate native source from template
+        run: |
+          sed -e 's|{{UPROT_MSFI_API_BASE}}|https://example.invalid/msfi|g' \
+              -e 's|{{UPROT_MSE_API_BASE}}|https://example.invalid/mse|g' \
+              -e 's|{{UPROT_API_KEY}}|dummy-ci-key|g' \
+              app/src/main/cpp/native-lib.cpp.template > app/src/main/cpp/native-lib.cpp
+
+      - name: Make Gradle executable
+        run: chmod +x ./gradlew
+
+      - name: Run unit tests
+        run: ./gradlew testDebugUnitTest --stacktrace --no-daemon
+
+      - name: Build debug APK
+        run: ./gradlew assembleDebug --stacktrace --no-daemon
+
+      - name: Upload debug APK
+        uses: actions/upload-artifact@v4
+        with:
+          name: streamflix-tv-debug-apk
+          path: app/build/outputs/apk/debug/*.apk
+          if-no-files-found: error
+          retention-days: 7
