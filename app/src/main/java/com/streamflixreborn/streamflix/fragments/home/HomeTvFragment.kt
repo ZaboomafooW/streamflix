@@ -92,7 +92,7 @@ class HomeTvFragment : Fragment() {
         viewLifecycleOwner.lifecycleScope.launch {
             ProviderTrackAuditRunner.progress
                 .flowWithLifecycle(lifecycle, Lifecycle.State.STARTED)
-                .collect(::displayAuditProgress)
+                .collect { progress -> displayAuditProgress(progress) }
         }
 
         viewLifecycleOwner.lifecycleScope.launch {
@@ -104,10 +104,6 @@ class HomeTvFragment : Fragment() {
                         gIsLoadingRetry.visibility = View.GONE
                     }
                     is HomeViewModel.State.SuccessLoading -> {
-                        displayHome(state.categories)
-                        binding.vgvHome.visibility = View.VISIBLE
-                        binding.isLoading.root.visibility = View.GONE
-
                         UserPreferences.currentProvider?.let { provider ->
                             ProviderTrackAuditRunner.startIfNeeded(
                                 context = requireContext(),
@@ -115,6 +111,10 @@ class HomeTvFragment : Fragment() {
                                 categories = state.categories,
                             )
                         }
+
+                        displayHome(state.categories)
+                        binding.vgvHome.visibility = View.VISIBLE
+                        binding.isLoading.root.visibility = View.GONE
                     }
                     is HomeViewModel.State.FailedLoading -> {
                         val code = (state.error as? retrofit2.HttpException)?.code()
