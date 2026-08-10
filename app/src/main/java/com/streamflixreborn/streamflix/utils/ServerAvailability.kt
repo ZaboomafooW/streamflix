@@ -129,7 +129,10 @@ object ServerAvailability {
         key: ContentKey,
     ): Result {
         val candidates = provider.getServers(id, videoType)
-        if (candidates.isEmpty()) return Result.Empty
+        if (candidates.isEmpty()) {
+            workingServers.remove(key)
+            return Result.Empty
+        }
 
         if (requiresSerienStreamInteraction(provider, candidates)) {
             return Result.RequiresInteraction(candidates)
