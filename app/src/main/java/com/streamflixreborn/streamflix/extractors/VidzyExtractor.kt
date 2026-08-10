@@ -2,14 +2,13 @@ package com.streamflixreborn.streamflix.extractors
 
 import com.tanasi.retrofit_jsoup.converter.JsoupConverterFactory
 import com.streamflixreborn.streamflix.models.Video
+import com.streamflixreborn.streamflix.utils.DnsResolver
 import com.streamflixreborn.streamflix.utils.JsUnpacker
+import okhttp3.OkHttpClient
 import org.jsoup.nodes.Document
 import retrofit2.Retrofit
 import retrofit2.http.GET
 import retrofit2.http.Url
-import com.streamflixreborn.streamflix.utils.DnsResolver
-import com.streamflixreborn.streamflix.utils.UserPreferences
-import okhttp3.OkHttpClient
 
 class VidzyExtractor : Extractor() {
 
@@ -27,14 +26,14 @@ class VidzyExtractor : Extractor() {
 
             val label = Regex("""label:'([^']+)'""").find(obj)?.groupValues?.get(1)
             val file = Regex("""src:'([^']+)'""").find(obj)?.groupValues?.get(1)
-            val default = Regex("""default:(true|false)""").find(obj)?.groupValues?.get(1)?.toBoolean() ?: false
+            val isDefault = Regex("""default:(true|false)""").find(obj)?.groupValues?.get(1)?.toBoolean() ?: false
 
             if (label == null || file == null || !file.startsWith("http")) return@mapNotNull null
             Video.Subtitle(
                 file = file,
                 label = label,
-                initialDefault = default,
-                default = if (UserPreferences.serverAutoSubtitlesDisabled) false else default
+                initialDefault = isDefault,
+                default = isDefault,
             )
         }.toList()
     }
@@ -57,10 +56,9 @@ class VidzyExtractor : Extractor() {
             ?: throw Exception("No src found")
 
         return Video(
-            source = streamUrl ?: throw Exception("Can't retrieve source"),
+            source = streamUrl,
             headers = mapOf("Referer" to mainUrl),
             subtitles = extractSubtitles(unPacked),
-            useServerSubtitleSetting = true
         )
     }
 
@@ -81,6 +79,7 @@ class VidzyExtractor : Extractor() {
                     chain.proceed(request)
                 }
                 .build()
+
             fun build(baseUrl: String): Service {
                 val retrofit = Retrofit.Builder()
                     .baseUrl(baseUrl)
