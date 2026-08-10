@@ -1,0 +1,79 @@
+name: Retry Final Playback Language Cleanup
+
+on:
+  pull_request:
+    branches: [main]
+
+permissions:
+  contents: write
+
+jobs:
+  cleanup:
+    if: github.head_ref == 'ci/remember-track-preferences'
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout CI branch
+        uses: actions/checkout@v4
+        with:
+          ref: ci/remember-track-preferences
+          fetch-depth: 0
+
+      - name: Prepare corrected cleanup script
+        run: |
+          python3 <<'PY'
+          from pathlib import Path
+          import re
+          import textwrap
+
+          workflow = Path('.github/workflows/apply-final-language-cleanup.yml').read_text()
+          script = workflow.split("          python3 <<'PY'\n", 1)[1].split("\n          PY\n", 1)[0]
+          script = textwrap.dedent(script)
+
+          replacement = '''for frag in [
+              'app/src/main/java/com/streamflixreborn/streamflix/fragments/season/SeasonTvFragment.kt',
+              'app/src/main/java/com/streamflixreborn/streamflix/fragments/season/SeasonMobileFragment.kt',
+          ]:
+              replace_once(
+                  frag,
+                  '            args.tvShowId,\\n',
+                  '            args.tvShowId,\\n            args.tvShowOriginalLanguage,\\n',
+              )
+
+          svm ='''
+
+          script, count = re.subn(
+              r"for frag in \[\n\s*'app/src/main/java/com/streamflixreborn/streamflix/fragments/season/SeasonTvFragment\.kt',.*?\n\s*svm =",
+              replacement,
+              script,
+              count=1,
+              flags=re.S,
+          )
+          if count != 1:
+              raise SystemExit(f'Failed to patch Season fragment cleanup block: {count}')
+
+          Path('/tmp/apply-final-language-cleanup.py').write_text(script)
+          PY
+
+      - name: Checkout feature branch
+        run: |
+          git checkout -B fix/remember-track-preferences origin/fix/remember-track-preferences
+
+      - name: Apply reviewed cleanup
+        run: python3 /tmp/apply-final-language-cleanup.py
+
+      - name: Validate patch
+        run: |
+          git diff --check
+          git status --short
+
+      - name: Commit cleanup to feature branch
+        run: |
+          if git diff --quiet; then
+            echo "Cleanup already applied."
+            exit 0
+          fi
+          git config user.name "ZaboomafooW"
+          git config user.email "239698314+ZaboomafooW@users.noreply.github.com"
+          git add app/src
+          git commit -m "fix: finalize playback language preference behavior"
+          git push origin HEAD:fix/remember-track-preferences
