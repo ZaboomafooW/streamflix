@@ -1,0 +1,51 @@
+name: TMDb Source Integration TV Debug
+
+on:
+  pull_request:
+    paths:
+      - '.github/workflows/tmdb-source-integration-tv.yml'
+  workflow_dispatch:
+
+jobs:
+  build-tv-debug:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout exact test candidate
+        uses: actions/checkout@v4
+        with:
+          ref: 0a25fc42b8b50d45eebde0e0f45245457337b5c4
+
+      - name: Set up JDK 17
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+
+      - name: Prepare build configuration
+        shell: bash
+        run: |
+          cat > local.properties <<'EOF'
+          APP_LAYOUT=tv
+          TMDB_API_KEY=
+          SUBDL_API_KEY=
+          RABBITSTREAM_SOURCE_API=
+          EOF
+          sed -e 's|{{UPROT_MSFI_API_BASE}}||g' \
+              -e 's|{{UPROT_MSE_API_BASE}}||g' \
+              -e 's|{{UPROT_API_KEY}}||g' \
+              app/src/main/cpp/native-lib.cpp.template > app/src/main/cpp/native-lib.cpp
+          chmod +x ./gradlew
+          test "$(git rev-parse HEAD)" = "0a25fc42b8b50d45eebde0e0f45245457337b5c4"
+
+      - name: Test and build TV debug APK
+        run: ./gradlew testDebugUnitTest assembleDebug --stacktrace
+
+      - name: Verify APK
+        run: test -f app/build/outputs/apk/debug/app-debug.apk
+
+      - name: Upload TV debug APK
+        uses: actions/upload-artifact@v4
+        with:
+          name: streamflix-tmdb-source-integration-tv-debug
+          path: app/build/outputs/apk/debug/app-debug.apk
+          if-no-files-found: error
