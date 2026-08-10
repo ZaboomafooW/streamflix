@@ -270,6 +270,7 @@ object Altadefinizione01Provider : Provider {
             quality = doc.select("p.meta_dd:has(b.icon-playback-play)").text().replace("Qualita", "").trim().takeIf { it.isNotBlank() },
             banner = tmdbMovie?.banner,
             imdbId = tmdbMovie?.imdbId,
+            originalLanguage = tmdbMovie?.originalLanguage,
             genres = tmdbMovie?.genres ?: doc.select("p.meta_dd b[title=Genere]").firstOrNull()?.parent()?.select("a")?.map { Genre(it.attr("href"), it.text().trim()) } ?: emptyList(),
             cast = doc.select("p.meta_dd.limpiar:has(b.icon-male) a[href]").map { el ->
                 val href = el.attr("href").trim()
@@ -401,6 +402,7 @@ object Altadefinizione01Provider : Provider {
             poster = poster,
             banner = tmdbTvShow?.banner,
             imdbId = tmdbTvShow?.imdbId,
+            originalLanguage = tmdbTvShow?.originalLanguage,
             seasons = seasons,
             genres = tmdbTvShow?.genres ?: doc.select("p.meta_dd:has(b.icon-medal) a[href]").map { Genre(it.attr("href"), it.text().trim()) } ?: emptyList(),
             cast = doc.select("p.meta_dd.limpiar:has(b.icon-male) a[href]").map { el ->

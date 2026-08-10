@@ -328,7 +328,8 @@ object SerienStreamProvider : Provider {
                     poster = tmdbTvShow?.seasons?.find { s -> s.number == seasonNumber }?.poster
                 )
             },
-            imdbId = tmdbTvShow?.imdbId
+            imdbId = tmdbTvShow?.imdbId,
+            originalLanguage = tmdbTvShow?.originalLanguage,
         )
     }
 

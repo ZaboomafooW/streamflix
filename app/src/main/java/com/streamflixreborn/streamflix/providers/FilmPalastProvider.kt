@@ -240,7 +240,8 @@ object FilmPalastProvider : Provider {
             released = tmdbMovie?.released?.let { "${it.get(java.util.Calendar.YEAR)}" } ?: document.selectFirst("ul#detail-content-list > li:has(p:matchesOwn(Release)) a")?.text()?.trim(),
             runtime = tmdbMovie?.runtime,
             trailer = tmdbMovie?.trailer,
-            imdbId = tmdbMovie?.imdbId
+            imdbId = tmdbMovie?.imdbId,
+            originalLanguage = tmdbMovie?.originalLanguage,
         )
     }
 
@@ -427,7 +428,8 @@ object FilmPalastProvider : Provider {
             runtime = tmdbTvShow?.runtime,
             trailer = tmdbTvShow?.trailer,
             imdbId = tmdbTvShow?.imdbId,
-            seasons = seasons
+            seasons = seasons,
+            originalLanguage = tmdbTvShow?.originalLanguage,
         )
     }
 
