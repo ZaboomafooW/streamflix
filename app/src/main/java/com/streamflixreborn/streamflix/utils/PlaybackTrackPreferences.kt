@@ -141,19 +141,6 @@ object PlaybackTrackPreferences {
             .apply()
     }
 
-    fun shouldResolveOriginalAudioLanguage(videoType: Video.Type): Boolean {
-        if (
-            settingsPrefs.getString(PREFERRED_AUDIO_LANGUAGE, AUDIO_LANGUAGE_ORIGINAL) !=
-            AUDIO_LANGUAGE_ORIGINAL
-        ) {
-            return false
-        }
-
-        val provider = UserPreferences.currentProvider?.name ?: return false
-        val contentKey = contentKeyOf(provider, contentOf(videoType))
-        return loadTitleAudioLanguage(contentKey) == null
-    }
-
     fun activate(videoType: Video.Type, originalLanguage: String? = null) {
         val provider = UserPreferences.currentProvider?.name
         val content = contentOf(videoType)
