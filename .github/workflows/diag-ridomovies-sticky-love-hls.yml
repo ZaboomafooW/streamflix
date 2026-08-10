@@ -1,0 +1,84 @@
+name: Diagnose Ridomovies Our Sticky Love HLS
+
+on:
+  pull_request:
+    branches: [ main ]
+
+permissions:
+  contents: read
+
+jobs:
+  diagnose:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install dependency
+        run: python -m pip install --disable-pip-version-check curl_cffi beautifulsoup4
+      - name: Decode live Rapidrame master playlist
+        env:
+          PYTHONUNBUFFERED: '1'
+        run: |
+          python - <<'PY'
+          import base64,re
+          from curl_cffi import requests as cr
+          from bs4 import BeautifulSoup
+          from urllib.parse import urlparse
+
+          EMBED='https://ridorapid.closeload.top/embed-r1v560hnwl1t/'
+          UA='Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/136.0.0.0 Safari/537.36'
+          s=cr.Session(impersonate='chrome136')
+          r=s.get(EMBED,headers={'User-Agent':UA,'Referer':'https://ridomovies.su/','Accept-Language':'en-US,en;q=0.9'},timeout=30)
+          print('EMBED',r.status_code,len(r.content)); r.raise_for_status()
+          soup=BeautifulSoup(r.text,'html.parser')
+
+          def unpack(js):
+              m=re.search(r"\}\s*\('(.*)',\s*(.*?),\s*(\d+),\s*'(.*?)'\.split\('\|'\)",js,re.S)
+              if not m:return None
+              payload=m.group(1).replace("\\'", "'")
+              radix=int(m.group(2)); count=int(m.group(3)); sym=m.group(4).split('|')
+              if len(sym)!=count:return None
+              alphabet='0123456789abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ'
+              def unbase(word):
+                  n=0
+                  for ch in word:
+                      n=n*radix+alphabet.index(ch)
+                  return n
+              def repl(mt):
+                  try:i=unbase(mt.group(0))
+                  except:return mt.group(0)
+                  return sym[i] if 0<=i<len(sym) and sym[i] else mt.group(0)
+              return re.sub(r'\b\w+\b',repl,payload)
+
+          candidates=[]
+          for sc in soup.find_all('script'):
+              txt=sc.string or sc.get_text() or ''
+              if 'eval(function(p,a,c,k,e' not in txt:continue
+              u=unpack(txt)
+              if not u:continue
+              print('UNPACKED=',u[:12000])
+              m=re.search(r'[\w_]+\s*=\s*[\w_]+\(\[(.*?)]\)',u,re.S)
+              if not m:continue
+              parts=re.findall(r'["\']([^"\']+)["\']',m.group(1))
+              if parts:candidates.append(''.join(parts))
+
+          def rot13_bytes(b):
+              out=bytearray(b)
+              for i,v in enumerate(out):
+                  if 65<=v<=90:out[i]=65+(v-65+13)%26
+                  elif 97<=v<=122:out[i]=97+(v-97+13)%26
+              return out
+          for enc in candidates:
+              try:
+                  data=rot13_bytes(base64.b64decode(enc))[::-1]
+                  decoded=''.join(chr((v-(399756995%(i+5))+256)%256) for i,v in enumerate(data)).strip()
+              except Exception as e:
+                  print('DECODE ERROR',repr(e));continue
+              print('DECODED=',decoded)
+              if not decoded.startswith('http'):continue
+              origin=f"{urlparse(EMBED).scheme}://{urlparse(EMBED).hostname}"
+              rr=s.get(decoded,headers={'User-Agent':UA,'Referer':EMBED,'Origin':origin,'Accept':'*/*'},timeout=30,allow_redirects=True)
+              print('MASTER',rr.status_code,rr.url,rr.headers.get('content-type'),len(rr.content));print(rr.text[:20000])
+              print('EXT-X-MEDIA=',re.findall(r'#EXT-X-MEDIA:[^\n]+',rr.text))
+              print('EXT-X-STREAM-INF=',re.findall(r'#EXT-X-STREAM-INF:[^\n]+',rr.text))
+          PY
