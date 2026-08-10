@@ -1,4 +1,4 @@
-name: Doramasflix Roundup Subtitle Audit
+name: Build Check
 
 on:
   pull_request:
@@ -9,54 +9,60 @@ permissions:
   contents: read
 
 jobs:
-  audit:
+  build:
+    name: Build Android TV debug APK
     runs-on: ubuntu-latest
-    timeout-minutes: 10
+    timeout-minutes: 30
+
     steps:
-      - name: Inspect Roundup Streamwish captions
-        shell: bash
+      - name: Checkout requested code
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ github.sha }}
+
+      - name: Set up JDK 17
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+
+      - name: Set up Android SDK
+        uses: android-actions/setup-android@v3
+
+      - name: Install required Android SDK components
         run: |
-          set -euo pipefail
-          python3 -m pip install -q jsbeautifier
-          python3 - <<'PY'
-          import json, urllib.request, base64, re
-          from jsbeautifier.unpackers import packer
-          API='https://userapi.cloudfleir.xyz/graphql'
-          ORIGIN='https://doramasflix.in'
-          APP='com.asiapp.doramasgo'
-          UA='Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 Chrome/131.0.0.0 Safari/537.36'
-          def gql(op, vars, query):
-              body=json.dumps({'operationName':op,'variables':vars,'query':query}).encode()
-              req=urllib.request.Request(API,data=body,headers={'Accept':'application/json','Content-Type':'application/json','Origin':ORIGIN,'Referer':ORIGIN+'/','User-Agent':UA})
-              with urllib.request.urlopen(req,timeout=20) as r:return json.loads(r.read().decode())
-          sq='''query searchAll($input:String!){searchMovie(input:$input,limit:20){_id name slug}}'''
-          movies=(gql('searchAll',{'input':'The Roundup: No Way Out'},sq).get('data') or {}).get('searchMovie') or []
-          target=next(m for m in movies if m.get('slug')=='the-roundup-no-way-out')
-          lq='''query MovieLinks($movie_id:ID!){getMovieLinks(id:$movie_id,app:"'''+APP+''' "){links_online{server lang link subtitles{language_code type url label}}}}'''
-          links=((gql('MovieLinks',{'movie_id':target['_id']},lq).get('data') or {}).get('getMovieLinks') or {}).get('links_online') or []
-          def dec(url):
-              token=url.split('/e/',1)[1].split('?',1)[0].split('#',1)[0]; p=token.split('.')[1]; p+='='*((4-len(p)%4)%4)
-              enc=json.loads(base64.urlsafe_b64decode(p).decode())['link']; return base64.b64decode(enc).decode().strip()
-          sw=next((dec(l['link']) for l in links if 'embedshortener.co/e/' in (l.get('link') or '') and 'flaswish.com' in dec(l['link'])),None)
-          print('STREAMWISH',sw)
-          req=urllib.request.Request(sw,headers={'User-Agent':UA,'Referer':ORIGIN+'/'})
-          with urllib.request.urlopen(req,timeout=20) as r: html=r.read().decode('utf-8','replace')
-          evals=re.findall(r'(eval\(function\(p,a,c,k,e,(?:d|r).*?</script>|eval\(function\(p,a,c,k,e,(?:d|r).*?\)\))',html,re.I|re.S)
-          print('EVAL_COUNT',len(evals))
-          unpacked=[]
-          for e in evals:
-              e=e.split('</script>')[0]
-              try:
-                  if packer.detect(e):
-                      u=packer.unpack(e); unpacked.append(u)
-              except Exception as ex: print('UNPACK_ERR',repr(ex))
-          print('UNPACKED_COUNT',len(unpacked))
-          for i,u in enumerate(unpacked):
-              if 'm3u8' not in u and 'tracks' not in u and 'captions' not in u: continue
-              print('SCRIPT',i,'LEN',len(u))
-              for pat in [r'tracks\s*:\s*\[(.*?)\]',r'captions.{0,800}',r'kind\s*:\s*["\']captions["\'].{0,500}',r'file\s*:\s*["\'][^"\']+\.(?:vtt|srt)[^"\']*["\']']:
-                  for m in re.finditer(pat,u,re.I|re.S): print('MATCH',pat,re.sub(r'\s+',' ',m.group(0))[:1600])
-              print('CONTAINS_CAPTIONS', 'captions' in u.lower())
-              print('CONTAINS_VTT', '.vtt' in u.lower())
-              print('CONTAINS_SRT', '.srt' in u.lower())
-          PY
+          yes | sdkmanager --licenses >/dev/null || true
+          sdkmanager "platforms;android-36" "ndk;26.1.10909125" "cmake;3.22.1"
+
+      - name: Create build properties
+        run: |
+          cat > local.properties <<'EOF'
+          APP_LAYOUT=tv
+          TMDB_API_KEY=dummy-ci-key
+          SUBDL_API_KEY=dummy-ci-key
+          RABBITSTREAM_SOURCE_API=https://example.invalid/
+          EOF
+
+      - name: Generate native source from template
+        run: |
+          sed -e 's|{{UPROT_MSFI_API_BASE}}|https://example.invalid/msfi|g' \
+              -e 's|{{UPROT_MSE_API_BASE}}|https://example.invalid/mse|g' \
+              -e 's|{{UPROT_API_KEY}}|dummy-ci-key|g' \
+              app/src/main/cpp/native-lib.cpp.template > app/src/main/cpp/native-lib.cpp
+
+      - name: Make Gradle executable
+        run: chmod +x ./gradlew
+
+      - name: Run unit tests
+        run: ./gradlew testDebugUnitTest --stacktrace --no-daemon
+
+      - name: Build debug APK
+        run: ./gradlew assembleDebug --stacktrace --no-daemon
+
+      - name: Upload debug APK
+        uses: actions/upload-artifact@v4
+        with:
+          name: streamflix-tv-debug-apk
+          path: app/build/outputs/apk/debug/*.apk
+          if-no-files-found: error
+          retention-days: 7
