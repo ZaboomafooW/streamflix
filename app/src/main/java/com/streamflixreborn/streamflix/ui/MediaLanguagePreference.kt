@@ -8,12 +8,14 @@ import com.streamflixreborn.streamflix.R
 import com.streamflixreborn.streamflix.utils.PlaybackTrackPreferences
 import java.util.Locale
 
-class MediaLanguagePreference(
+abstract class MediaLanguagePreference(
     context: Context,
     attrs: AttributeSet?,
 ) : ListPreference(context, attrs) {
 
-    init {
+    protected fun configure(
+        leadingEntries: List<Pair<String, String>>,
+    ) {
         val displayLocale = Locale.getDefault()
         val languages = Locale.getISOLanguages()
             .map { languageTag ->
@@ -27,20 +29,49 @@ class MediaLanguagePreference(
             .sortedBy { (_, displayName) -> displayName.lowercase(displayLocale) }
 
         entries = buildList<CharSequence> {
-            add(context.getString(R.string.settings_preferred_language_none_selected))
+            addAll(leadingEntries.map { it.second })
             addAll(languages.map { it.second })
         }.toTypedArray()
 
         entryValues = buildList<CharSequence> {
-            add("")
+            addAll(leadingEntries.map { it.first })
             addAll(languages.map { it.first })
         }.toTypedArray()
 
         summaryProvider = Preference.SummaryProvider<ListPreference> { preference ->
             val index = preference.findIndexOfValue(preference.value)
-            preference.entries.getOrNull(index)
-                ?: context.getString(R.string.settings_preferred_language_none_selected)
+            preference.entries.getOrNull(index) ?: leadingEntries.first().second
         }
+    }
+}
+
+class AudioLanguagePreference(
+    context: Context,
+    attrs: AttributeSet?,
+) : MediaLanguagePreference(context, attrs) {
+
+    init {
+        configure(
+            listOf(
+                PlaybackTrackPreferences.AUDIO_LANGUAGE_ORIGINAL to
+                    context.getString(R.string.settings_preferred_audio_language_original),
+                "" to context.getString(R.string.settings_preferred_language_no_preference),
+            )
+        )
+    }
+}
+
+class SubtitleLanguagePreference(
+    context: Context,
+    attrs: AttributeSet?,
+) : MediaLanguagePreference(context, attrs) {
+
+    init {
+        configure(
+            listOf(
+                "" to context.getString(R.string.settings_preferred_language_no_preference),
+            )
+        )
 
         setOnPreferenceChangeListener { preference, _ ->
             PlaybackTrackPreferences.markGlobalLanguagePreferenceInitialized(preference.key)
