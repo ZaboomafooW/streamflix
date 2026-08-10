@@ -1,0 +1,57 @@
+name: Doramasflix Route Identity Probe
+
+on:
+  push:
+    branches:
+      - ci/doramasflix-route-identity-probe
+
+permissions:
+  contents: read
+
+jobs:
+  probe:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Verify current Doramasflix variety classification and routes
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          API='https://sv7.fluxcedene.net/graphql'
+          SITE='https://doramasflix.in'
+          UA='Mozilla/5.0 (Linux; Android 10; Android TV) AppleWebKit/537.36 Chrome/140.0.0.0 Safari/537.36'
+
+          request_graphql() {
+            operation="$1"
+            variables="$2"
+            query="$3"
+            payload="$(jq -nc --arg operation "$operation" --argjson variables "$variables" --arg query "$query" '{operationName:$operation,variables:$variables,query:$query}')"
+            curl --fail-with-body --silent --show-error --location \
+              -H 'Accept: application/json, text/plain, */*' \
+              -H 'Content-Type: application/json' \
+              -H "Origin: $SITE" \
+              -H "Referer: $SITE/" \
+              -H "User-Agent: $UA" \
+              --data "$payload" \
+              "$API"
+          }
+
+          echo '=== SEARCH RESULT ==='
+          SEARCH_QUERY='query searchAll($input: String!) { searchDorama(input: $input, limit: 32) { _id slug name name_es isTVShow __typename } searchMovie(input: $input, limit: 32) { _id slug name name_es __typename } }'
+          request_graphql 'searchAll' '{"input":"Better Late Than Single"}' "$SEARCH_QUERY" | jq -c '.'
+
+          echo '=== VARIETY PAGE RESULTS ==='
+          PAGE_QUERY='query PaginationDorama($page: Int, $limit: Int, $filter: FilterDoramasInput) { paginationDorama(page: $page, limit: $limit, filter: $filter) { items { _id slug name name_es isTVShow __typename } } }'
+          request_graphql 'PaginationDorama' '{"page":1,"limit":20,"filter":{"isTVShow":true}}' "$PAGE_QUERY" | jq -c '.data.paginationDorama.items[:5]'
+
+          echo '=== ROUTE STATUS ==='
+          for path in \
+            '/variedades-online/better-late-than-single' \
+            '/doramas-online/better-late-than-single' \
+            '/better-late-than-single'; do
+            printf '%s -> ' "$path"
+            curl --silent --show-error --location --output /dev/null \
+              --write-out '%{http_code} %{url_effective}\n' \
+              -A "$UA" \
+              "$SITE$path"
+          done
