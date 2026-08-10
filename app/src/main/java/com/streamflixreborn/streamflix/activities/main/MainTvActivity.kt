@@ -102,7 +102,7 @@ class MainTvActivity : FragmentActivity() {
                 val header = ContentHeaderMenuMainTvBinding.bind(this)
 
                 Glide.with(context)
-                    .load(UserPreferences.currentProvider?.logo?.takeIf { it.isNotEmpty() } ?: R.drawable.ic_provider_default_logo)
+                    .load(currentProviderLogo())
                     .error(R.drawable.ic_provider_default_logo)
                     .into(header.ivNavigationHeaderIcon)
                 header.tvNavigationHeaderTitle.text = UserPreferences.currentProvider?.name
@@ -182,6 +182,11 @@ class MainTvActivity : FragmentActivity() {
         super.onResume()
         viewModel.checkUpdate()
     }
+
+    private fun currentProviderLogo(): Any =
+        UserPreferences.currentProvider?.logoRes
+            ?: UserPreferences.currentProvider?.logo?.takeIf { it.isNotEmpty() }
+            ?: R.drawable.ic_provider_default_logo
 
     private fun applyThemeNavigationChrome() {
         val palette = ThemeManager.palette(UserPreferences.selectedTheme)
