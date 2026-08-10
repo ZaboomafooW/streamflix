@@ -10,7 +10,7 @@ permissions:
 
 jobs:
   audit:
-    name: Trace Doramasflix unknown playback hosts
+    name: Trace Primeload player internals
     runs-on: ubuntu-latest
     timeout-minutes: 15
 
@@ -20,49 +20,43 @@ jobs:
         with:
           ref: ${{ github.sha }}
 
-      - name: Trace live host implementations
+      - name: Trace live Primeload player
         shell: bash
         run: |
           set -euo pipefail
           python3 - <<'PY'
-          import re, urllib.parse, urllib.request, urllib.error
+          import re, urllib.parse, urllib.request
           UA='Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/140.0.0.0 Safari/537.36'
-          REF='https://doramasflix.in/'
-          samples={
-            'primeload':'https://primeload.co/embed/SpdeEhk2xMAn',
-            'unknown_byse':'https://bysefujedu.com/e/cc1cexlwqc8h',
-            'unknown_callistanise':'https://callistanise.com/embed/rlh5wkumnnmr',
-            'known_filemoon':'https://filemoon.sx/e/cc1cexlwqc8h',
-          }
+          embed='https://primeload.co/embed/SpdeEhk2xMAn'
+          player='https://primeload.co/player/SpdeEhk2xMAn?ref=https%3A%2F%2Fdoramasflix.in%2F'
           opener=urllib.request.build_opener(urllib.request.HTTPCookieProcessor())
-          def fetch(url, referer=REF):
+          def fetch(url, referer):
             req=urllib.request.Request(url,headers={'User-Agent':UA,'Referer':referer,'Accept':'text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8'})
             with opener.open(req,timeout=25) as r:
               return r.read().decode('utf-8','replace'),r.geturl(),dict(r.headers)
-          for name,url in samples.items():
-            print('\n===== TRACE',name,url,'=====')
+          text,final,h=fetch(player,embed)
+          print('FINAL',final,'BYTES',len(text.encode()),'HEADERS',h)
+          print('HTML',text[:30000])
+          scripts=[]
+          for src in re.findall(r'<script[^>]+src=["\']([^"\']+)',text,re.I):
+            u=urllib.parse.urljoin(final,src)
+            if u not in scripts:scripts.append(u)
+          print('SCRIPTS',scripts)
+          needles=['m3u8','mp4','sources','file:', 'src:', 'fetch(', 'XMLHttpRequest','/api/','eval(function','jwplayer','videojs','hls.js','atob(','CryptoJS','manifest','playlist']
+          for u in scripts[:20]:
             try:
-              text,final,headers=fetch(url)
-              print('FINAL',final,'BYTES',len(text.encode()),'SERVER',headers.get('Server'),'CTYPE',headers.get('Content-Type'))
-              print('HTML',text[:12000].replace('\r',''))
-              scripts=[]
-              for src in re.findall(r'<script[^>]+src=["\']([^"\']+)',text,re.I):
-                u=urllib.parse.urljoin(final,src)
-                if u not in scripts: scripts.append(u)
-              print('SCRIPTS',scripts)
-              for u in scripts[:12]:
-                try:
-                  jt,jfinal,_=fetch(u,final)
-                  needles=['m3u8','sources','file:', 'fetch(', '/api/', 'pass_md5','embed_frame_url','challenge_id','eval(function','jwplayer','videojs','atob(','CryptoJS']
-                  hits=[]
-                  for n in needles:
-                    p=jt.lower().find(n.lower())
-                    if p>=0:hits.append((p,n))
-                  if hits:
-                    print('JS',u,'FINAL',jfinal,'BYTES',len(jt.encode()))
-                    for p,n in sorted(hits)[:8]:
-                      print('JS_SNIP',n,jt[max(0,p-800):min(len(jt),p+2600)][:3600])
-                except Exception as e: print('JS_ERR',u,repr(e))
-            except Exception as e:
-              print('TRACE_ERR',name,repr(e))
+              jt,jfinal,_=fetch(u,final)
+              hits=[]
+              for n in needles:
+                pos=0
+                while True:
+                  p=jt.lower().find(n.lower(),pos)
+                  if p<0:break
+                  hits.append((p,n));pos=p+len(n)
+                  if len([x for x in hits if x[1]==n])>=3:break
+              if hits:
+                print('\nJS',u,'FINAL',jfinal,'BYTES',len(jt.encode()))
+                for p,n in sorted(hits)[:20]:
+                  print('SNIP',n,jt[max(0,p-1000):min(len(jt),p+4000)][:5200])
+            except Exception as e:print('JS_ERR',u,repr(e))
           PY
