@@ -19,7 +19,6 @@ data class Data(
 
 data class Pagination(
     val items: List<Show> = emptyList(),
-    val pageInfo: PageInfo? = null,
 )
 
 data class Show(
@@ -29,26 +28,12 @@ data class Show(
     @SerializedName("name_es")
     val nameEs: String? = null,
     val slug: String,
-    val overview: String? = null,
     @SerializedName("poster_path")
     val posterPath: String? = null,
     val poster: String? = null,
-    val genres: List<Genre> = emptyList(),
-    @SerializedName("__typename")
-    val typename: String,
-)
-
-data class Genre(
-    val name: String? = null,
-    val slug: String? = null,
-)
-
-data class PageInfo(
-    val hasNextPage: Boolean? = false,
 )
 
 data class Season(
-    val slug: String,
     @SerializedName("season_number")
     val seasonNumber: Int,
     @SerializedName("poster_path")
@@ -67,11 +52,8 @@ data class Episode(
     @SerializedName("_id")
     val id: String,
     val name: String?,
-    val slug: String,
     @SerializedName("episode_number")
     val episodeNumber: Int?,
-    @SerializedName("season_number")
-    val seasonNumber: Int?,
     @SerializedName("still_path")
     val stillPath: String? = null,
 )
