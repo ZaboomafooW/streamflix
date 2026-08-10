@@ -126,7 +126,6 @@ object PlaybackTrackPreferences {
         scopeKey = null
         savedAudio = null
         savedSubtitle = null
-        clearObsoleteGlobalPreference()
     }
 
     /** The stable server/source name is intentionally part of the preference key. */
@@ -406,15 +405,6 @@ object PlaybackTrackPreferences {
     private fun audioKey(scope: String) = "audio::$scope"
     private fun subtitleModeKey(scope: String) = "subtitle_mode::$scope"
     private fun subtitleTrackKey(scope: String) = "subtitle_track::$scope"
-
-    private fun clearObsoleteGlobalPreference() {
-        prefs.edit()
-            .remove("subtitle_mode::global")
-            .remove("subtitle_language::global")
-            .remove("subtitle_label::global")
-            .remove("subtitle_variant::global")
-            .apply()
-    }
 
     private fun JSONObject.putNullable(name: String, value: String?) {
         put(name, value ?: JSONObject.NULL)
