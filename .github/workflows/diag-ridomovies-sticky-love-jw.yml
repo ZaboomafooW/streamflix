@@ -1,0 +1,65 @@
+name: Diagnose Ridomovies Our Sticky Love JW tracks
+
+on:
+  pull_request:
+    branches: [ main ]
+
+permissions:
+  contents: read
+
+jobs:
+  diagnose:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install Selenium
+        run: python -m pip install --disable-pip-version-check selenium
+      - name: Inspect live JWPlayer tracks
+        env:
+          PYTHONUNBUFFERED: '1'
+        run: |
+          python - <<'PY'
+          import json,time
+          from selenium import webdriver
+          from selenium.webdriver.chrome.options import Options
+          EMBED='https://ridorapid.closeload.top/embed-r1v560hnwl1t/'
+          opts=Options()
+          for a in ['--headless=new','--no-sandbox','--disable-dev-shm-usage','--autoplay-policy=no-user-gesture-required','--mute-audio']:
+              opts.add_argument(a)
+          opts.set_capability('goog:loggingPrefs',{'performance':'ALL','browser':'ALL'})
+          d=webdriver.Chrome(options=opts)
+          d.execute_cdp_cmd('Network.enable',{})
+          d.execute_cdp_cmd('Network.setExtraHTTPHeaders',{'headers':{'Referer':'https://ridomovies.su/'}})
+          d.get(EMBED)
+          for i in range(12):
+              time.sleep(1)
+              ready=d.execute_script("return typeof jwplayer==='function' && !!jwplayer('player')")
+              if ready: break
+          def js(code):
+              try:return d.execute_script(code)
+              except Exception as e:return 'ERR '+repr(e)
+          print('JW TYPE=',js('return typeof jwplayer'))
+          print('STATE=',js("return typeof jwplayer==='function'?jwplayer('player').getState():null"))
+          print('PLAYLIST=',js("return typeof jwplayer==='function'?JSON.stringify(jwplayer('player').getPlaylist()):null"))
+          print('AUDIO BEFORE=',js("return typeof jwplayer==='function'?JSON.stringify(jwplayer('player').getAudioTracks()):null"))
+          print('CAPTIONS BEFORE=',js("return typeof jwplayer==='function'?JSON.stringify(jwplayer('player').getCaptionsList()):null"))
+          print('PLAY=',js("if(typeof jwplayer==='function'){jwplayer('player').play(true);return jwplayer('player').getState()}return null"))
+          time.sleep(8)
+          print('STATE AFTER=',js("return typeof jwplayer==='function'?jwplayer('player').getState():null"))
+          print('POSITION=',js("return typeof jwplayer==='function'?jwplayer('player').getPosition():null"))
+          print('AUDIO AFTER=',js("return typeof jwplayer==='function'?JSON.stringify(jwplayer('player').getAudioTracks()):null"))
+          print('CURRENT AUDIO=',js("return typeof jwplayer==='function'?jwplayer('player').getCurrentAudioTrack():null"))
+          print('CAPTIONS AFTER=',js("return typeof jwplayer==='function'?JSON.stringify(jwplayer('player').getCaptionsList()):null"))
+          reqs=[]
+          for ent in d.get_log('performance'):
+              try:m=json.loads(ent['message'])['message']
+              except:continue
+              if m.get('method')!='Network.requestWillBeSent':continue
+              req=m.get('params',{}).get('request',{});u=req.get('url','');low=u.lower()
+              if any(x in low for x in ['.m3u8','master.txt','/hls/','.vtt']):reqs.append((req.get('method'),u,req.get('headers',{}).get('Referer')))
+          print('MEDIA REQUESTS=')
+          for x in reqs:print(x)
+          print('BROWSER LOGS=',d.get_log('browser')[-20:])
+          d.quit()
+          PY
