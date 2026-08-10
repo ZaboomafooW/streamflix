@@ -1,0 +1,93 @@
+name: Diagnose Hitman 2 Closeload PlayerInit
+
+on:
+  pull_request:
+    branches: [ main ]
+
+permissions:
+  contents: read
+
+jobs:
+  diagnose:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install dependencies
+        run: python -m pip install --disable-pip-version-check curl_cffi beautifulsoup4
+      - name: Inspect PlayerInit and source activation
+        env:
+          PYTHONUNBUFFERED: '1'
+        run: |
+          python - <<'PY'
+          import re,json
+          from urllib.parse import urljoin,urlparse
+          from curl_cffi import requests as cr
+          from bs4 import BeautifulSoup
+
+          EMBED='https://closeload.top/video/embed/oGZBTo87vFR/?imdb_id=tt30788876'
+          PARENT='https://ridomovies.su/movie/hitman-2-2025'
+          UA='Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/136.0.0.0 Safari/537.36'
+          s=cr.Session(impersonate='chrome136')
+          h={'User-Agent':UA,'Referer':PARENT,'Accept-Language':'en-US,en;q=0.9'}
+          r=s.get(EMBED,headers=h,timeout=30)
+          print('EMBED',r.status_code,r.url,len(r.content),r.headers.get('set-cookie'));r.raise_for_status()
+          print('COOKIES AFTER EMBED',s.cookies.get_dict())
+          soup=BeautifulSoup(r.text,'html.parser')
+          scripts=[x.string or x.get_text() or '' for x in soup.find_all('script')]
+          for i,txt in enumerate(scripts):
+              if 'PlayerInit' in txt or 'hash' in txt or 'master.txt' in txt or 'jwplayer' in txt:
+                  print('\nSCRIPT',i,'\n',txt[:30000])
+
+          # Reproduce current app extraction from first packed PlayerInit script.
+          packed=next((x for x in scripts if 'eval(' in x and 'PlayerInit' in x),None) or next((x for x in scripts if 'eval(' in x),None)
+          print('PACKED LEN',len(packed or ''))
+
+          # Simple P.A.C.K.E.R. unpack compatible with common Closeload page.
+          def unpack(js):
+              m=re.search(r"\}\s*\('(.*)',\s*(.*?),\s*(\d+),\s*'(.*?)'\.split\('\|'\)",js,re.S)
+              if not m:return js
+              payload=m.group(1).replace("\\'", "'");radix=int(m.group(2));count=int(m.group(3));sym=m.group(4).split('|')
+              alphabet='0123456789abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ'
+              if len(sym)!=count:return js
+              def ub(w):
+                  n=0
+                  for c in w:n=n*radix+alphabet.index(c)
+                  return n
+              def repl(mt):
+                  try:i=ub(mt.group(0))
+                  except:return mt.group(0)
+                  return sym[i] if 0<=i<len(sym) and sym[i] else mt.group(0)
+              return re.sub(r'\b\w+\b',repl,payload)
+          u=unpack(packed or '')
+          print('\nUNPACKED\n',u[:40000])
+          hash_m=re.search(r'\bhash\s*:\s*["\']([^"\']+)["\']',u)
+          url_m=re.search(r'\burl\s*:\s*["\']([^"\']+)["\']',u)
+          print('HASH',hash_m.group(1) if hash_m else None)
+          print('ENDPOINT',url_m.group(1) if url_m else None)
+
+          # Find advertised media URLs before init.
+          media_before=sorted(set(re.findall(r'https?://[^"\'\\\s<>]+(?:master\.txt|\.m3u8[^"\'\\\s<>]*)',u+r.text,re.I)))
+          print('MEDIA BEFORE',media_before)
+          origin='https://closeload.top'
+          for src in media_before:
+              rr=s.get(src,headers={'User-Agent':UA,'Referer':EMBED,'Origin':origin,'Accept':'*/*'},timeout=30,allow_redirects=True)
+              print('FETCH BEFORE',rr.status_code,rr.url,rr.headers.get('content-type'),len(rr.content),repr(rr.text[:300]))
+
+          if hash_m and url_m:
+              endpoint=urljoin(origin+'/',url_m.group(1))
+              ph={'User-Agent':UA,'Accept':'*/*','Accept-Language':'en-US,en;q=0.9','Referer':EMBED,'Origin':origin,'X-Requested-With':'XMLHttpRequest'}
+              pr=s.post(endpoint,data={'hash':hash_m.group(1)},headers=ph,timeout=30,allow_redirects=True)
+              print('\nPLAYERINIT',pr.status_code,pr.url,pr.headers.get('content-type'),pr.headers.get('set-cookie'),len(pr.content))
+              print('PLAYERINIT BODY',repr(pr.text[:10000]))
+              print('COOKIES AFTER INIT',s.cookies.get_dict())
+              try: print('PLAYERINIT JSON',json.dumps(pr.json(),indent=2,ensure_ascii=False))
+              except Exception as e: print('PLAYERINIT NOT JSON',repr(e))
+
+              # URLs contained in response too.
+              media_after=sorted(set(media_before + re.findall(r'https?://[^"\'\\\s<>]+(?:master\.txt|\.m3u8[^"\'\\\s<>]*)',pr.text,re.I)))
+              print('MEDIA AFTER',media_after)
+              for src in media_after:
+                  rr=s.get(src,headers={'User-Agent':UA,'Referer':EMBED,'Origin':origin,'Accept':'*/*'},timeout=30,allow_redirects=True)
+                  print('FETCH AFTER',rr.status_code,rr.url,rr.headers.get('content-type'),len(rr.content),repr(rr.text[:1000]))
+          PY
