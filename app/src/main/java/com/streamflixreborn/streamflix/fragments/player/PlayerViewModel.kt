@@ -10,6 +10,7 @@ import com.streamflixreborn.streamflix.utils.CustomTabHelper
 import com.streamflixreborn.streamflix.utils.EpisodeManager
 import com.streamflixreborn.streamflix.utils.OpenSubtitles
 import com.streamflixreborn.streamflix.utils.PlaybackTrackPreferences
+import com.streamflixreborn.streamflix.utils.TmdbUtils
 import com.streamflixreborn.streamflix.utils.UserPreferences
 import com.streamflixreborn.streamflix.utils.format
 import kotlinx.coroutines.Dispatchers
@@ -33,9 +34,11 @@ class PlayerViewModel(
 
     private val _playPreviousOrNextEpisode = MutableSharedFlow<Video.Type.Episode>()
     val playPreviousOrNextEpisode: SharedFlow<Video.Type.Episode> = _playPreviousOrNextEpisode
+
+    private var resolvedTvOriginalAudioLanguage: Pair<String, String>? = null
+
     init {
-        PlaybackTrackPreferences.activate(videoType)
-        getServers(videoType, id)
+        startPlayback(videoType, id)
         getSubtitles(videoType)
     }
 
@@ -91,13 +94,54 @@ class PlayerViewModel(
             playEpisode(Direction.NEXT)
         }
     }
+
     fun playEpisode(episode: Video.Type.Episode) {
-        PlaybackTrackPreferences.activate(episode)
-        getServers(episode, episode.id)
+        startPlayback(episode, episode.id)
         getSubtitles(episode)
     }
 
-    private fun getServers(videoType: Video.Type, id: String) = viewModelScope.launch(Dispatchers.IO) {
+    private fun startPlayback(videoType: Video.Type, id: String) =
+        viewModelScope.launch(Dispatchers.IO) {
+            val originalAudioLanguage = resolveOriginalAudioLanguage(videoType)
+            PlaybackTrackPreferences.activate(videoType, originalAudioLanguage)
+            loadServers(videoType, id)
+        }
+
+    private suspend fun resolveOriginalAudioLanguage(videoType: Video.Type): String? {
+        if (!UserPreferences.enableTmdb) return null
+        if (!PlaybackTrackPreferences.shouldResolveOriginalAudioLanguage()) return null
+
+        val providerLanguage = UserPreferences.currentProvider?.language
+        return when (videoType) {
+            is Video.Type.Movie -> TmdbUtils.getMovieOriginalLanguage(
+                title = videoType.title,
+                year = videoType.releaseDate.substringBefore('-').toIntOrNull(),
+                language = providerLanguage,
+            )
+
+            is Video.Type.Episode -> {
+                resolvedTvOriginalAudioLanguage
+                    ?.takeIf { it.first == videoType.tvShow.id }
+                    ?.second
+                    ?: TmdbUtils.getTvShowOriginalLanguage(
+                        title = videoType.tvShow.title,
+                        year = videoType.tvShow.releaseDate
+                            ?.substringBefore('-')
+                            ?.toIntOrNull(),
+                        language = providerLanguage,
+                    )?.also { language ->
+                        resolvedTvOriginalAudioLanguage = videoType.tvShow.id to language
+                    }
+            }
+        }
+    }
+
+    private fun getServers(videoType: Video.Type, id: String) =
+        viewModelScope.launch(Dispatchers.IO) {
+            loadServers(videoType, id)
+        }
+
+    private suspend fun loadServers(videoType: Video.Type, id: String) {
         Log.d("PlayerViewModel", "Inizio ricerca server per ID: $id")
         lastVideoType = videoType
         lastId = id
@@ -173,7 +217,7 @@ class PlayerViewModel(
                 Log.d("PlayerViewModel", "Ricerca OpenSubtitles completata: ${subtitles.size} risultati")
                 _subtitleState.emit(SubtitleState.SuccessOpenSubtitles(subtitles))
             } catch (e: Exception) {
-                Log.e("PlayerViewModel", "Errore OpenSubtitles: ", e)
+                Log.e("PlayerViewModel", "Errore ricerca OpenSubtitles: ", e)
                 _subtitleState.emit(SubtitleState.FailedOpenSubtitles(e))
             }
         }
@@ -201,7 +245,7 @@ class PlayerViewModel(
                 Log.d("PlayerViewModel", "Ricerca SubDL completata: ${subtitles.size} risultati")
                 _subtitleState.emit(SubtitleState.SuccessSubDLSubtitles(subtitles))
             } catch (e: Exception) {
-                Log.e("PlayerViewModel", "Errore SubDL: ", e)
+                Log.e("PlayerViewModel", "Errore ricerca SubDL: ", e)
                 _subtitleState.emit(SubtitleState.FailedSubDLSubtitles(e))
             }
         }
