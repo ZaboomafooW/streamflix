@@ -23,10 +23,19 @@ class CloseloadExtractor : Extractor() {
     override val mainUrl = "https://closeload.top/"
 
     override suspend fun extract(link: String): Video {
-        val service = Service.build(mainUrl)
-        val document = service.get(link, RidomoviesProvider.URL)
-        val html = document.toString()
+        extractStaticSource(link)?.let { return video(it, link) }
 
+        return BrowserStreamResolver.resolve(
+            link = link,
+            referer = RidomoviesProvider.URL,
+        ) { candidate ->
+            isPlayableMediaUrl(candidate)
+        }
+    }
+
+    private suspend fun extractStaticSource(link: String): String? = runCatching {
+        val document = Service.build(mainUrl).get(link, RidomoviesProvider.URL)
+        val html = document.toString()
         val unpacker = JsUnpacker(html)
         val unpacked = if (unpacker.detect()) unpacker.unpack() ?: html else html
 
@@ -64,24 +73,13 @@ class CloseloadExtractor : Extractor() {
             inputs.add(match.groupValues[1])
         }
 
-        var source = inputs.firstNotNullOfOrNull { smartBruteForce(it, magicNum, offset) }
-        if (source == null) {
-            source = Regex("[\"'](aHR0[a-zA-Z0-9+/=]{20,})[\"']")
+        inputs.firstNotNullOfOrNull { smartBruteForce(it, magicNum, offset) }
+            ?: Regex("[\"'](aHR0[a-zA-Z0-9+/=]{20,})[\"']")
                 .findAll(unpacked)
                 .mapNotNull { safeBase64Decode(it.groupValues[1]) }
                 .map { String(it, Charsets.UTF_8).trim() }
                 .firstOrNull(::isPlayableMediaUrl)
-        }
-
-        if (source != null) return video(source, link)
-
-        return BrowserStreamResolver.resolve(
-            link = link,
-            referer = RidomoviesProvider.URL,
-        ) { candidate ->
-            isPlayableMediaUrl(candidate)
-        }
-    }
+    }.getOrNull()
 
     private fun smartBruteForce(inputData: String, magicNum: Long, offset: Int): String? {
         val stringTransforms = listOf<(String) -> String>(
