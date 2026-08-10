@@ -212,7 +212,6 @@ object DoramasflixProvider : Provider {
                 name_es
                 poster_path
                 poster
-                __typename
               }
               searchMovie(input: ${'$'}input, limit: 32) {
                 _id
@@ -221,7 +220,6 @@ object DoramasflixProvider : Provider {
                 name_es
                 poster_path
                 poster
-                __typename
               }
             }
         """.trimIndent(),
@@ -246,7 +244,6 @@ object DoramasflixProvider : Provider {
             query = """
                 query listSeasons(${'$'}slug: String!) {
                   listSeasons(sort: NUMBER_ASC, filter: {serie_slug: ${'$'}slug}) {
-                    slug
                     season_number
                     poster_path
                     serie_backdrop_path
@@ -255,7 +252,6 @@ object DoramasflixProvider : Provider {
                     backdrop
                     overview
                     name
-                    __typename
                   }
                 }
             """.trimIndent(),
@@ -277,11 +273,8 @@ object DoramasflixProvider : Provider {
                   ) {
                     _id
                     name
-                    slug
                     still_path
-                    season_number
                     episode_number
-                    __typename
                   }
                 }
             """.trimIndent(),
@@ -357,7 +350,6 @@ object DoramasflixProvider : Provider {
                           slug
                           poster_path
                           poster
-                          __typename
                         }
                       }
                     }
@@ -395,7 +387,6 @@ object DoramasflixProvider : Provider {
                           slug
                           poster_path
                           poster
-                          __typename
                         }
                       }
                     }
