@@ -7,6 +7,7 @@ import androidx.lifecycle.viewModelScope
 import com.streamflixreborn.streamflix.models.Video
 import com.streamflixreborn.streamflix.utils.EpisodeManager
 import com.streamflixreborn.streamflix.utils.OpenSubtitles
+import com.streamflixreborn.streamflix.utils.PlaybackLanguageContext
 import com.streamflixreborn.streamflix.utils.PlaybackTrackPreferences
 import com.streamflixreborn.streamflix.utils.SubDL
 import com.streamflixreborn.streamflix.utils.UserPreferences
@@ -96,7 +97,9 @@ class PlayerViewModel(
     }
 
     private fun startPlayback(videoType: Video.Type, id: String) {
-        PlaybackTrackPreferences.activate(videoType, originalAudioLanguage(videoType))
+        val originalLanguage = originalAudioLanguage(videoType)
+        PlaybackLanguageContext.setOriginalAudioLanguage(originalLanguage)
+        PlaybackTrackPreferences.activate(videoType, originalLanguage)
         getServers(videoType, id)
     }
 
