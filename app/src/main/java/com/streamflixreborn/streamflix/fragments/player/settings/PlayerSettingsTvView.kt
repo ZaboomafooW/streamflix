@@ -347,24 +347,21 @@ class PlayerSettingsTvView @JvmOverloads constructor(
             setPadding(24.dp(context), 16.dp(context), 24.dp(context), 8.dp(context))
         }
 
-        val dialog = AlertDialog.Builder(context)
+        AlertDialog.Builder(context)
             .setTitle("Download track audit")
             .setMessage(
                 "Scan this QR code with your phone while it is on the same network as the TV. " +
                     "It downloads one JSON file that you can upload to ChatGPT.\n\n${session.url}"
             )
             .setView(qrView)
-            .setPositiveButton("Done") { _, _ ->
-                session.stop()
-                if (auditExportSession === session) auditExportSession = null
+            .setPositiveButton("Close") { _, _ ->
+                Toast.makeText(
+                    context,
+                    "Export stays available until you leave the player or start another export.",
+                    Toast.LENGTH_SHORT,
+                ).show()
             }
-            .create()
-
-        dialog.setOnCancelListener {
-            session.stop()
-            if (auditExportSession === session) auditExportSession = null
-        }
-        dialog.show()
+            .show()
     }
 
     fun hide() {
