@@ -260,6 +260,7 @@ class PlayerViewModel(
             }
         }
 
+        rediscoveredAfterExhaustion = false
         activatePlaybackSession(video)
         Log.d("PlayerViewModel", "Estrazione video completata con successo")
         _state.emit(State.SuccessLoadingVideo(video, server))
