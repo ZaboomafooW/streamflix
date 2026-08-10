@@ -117,6 +117,15 @@ class HomeViewModel(database: AppDatabase) : ViewModel() {
                 }
             )
 
+            val orderIndex = buildMap<String, Int> {
+                _userDataCache.value?.continueWatchingMovies?.forEachIndexed { index, cached ->
+                    put("movie:${cached.id}", index)
+                }
+                _userDataCache.value?.continueWatchingEpisodes?.forEachIndexed { index, cached ->
+                    put("episode:${cached.id}", index)
+                }
+            }
+
             (watchingMovies + enrichedEpisodes)
                 .sortedByDescending { item ->
                     when (item) {
