@@ -826,8 +826,14 @@ class TmdbProvider(override val language: String) : Provider {
                 if (lang == "en") {
                     servers.add(VixSrcExtractor().server(videoType))
                     servers.add(VidsrcNetExtractor().server(videoType))
-                    servers.addAll(VidrockExtractor().servers(videoType))
-                    servers.addAll(PrimeSrcExtractor().servers(videoType))
+
+                    val dynamicServers = coroutineScope {
+                        val vidrockDeferred = async { VidrockExtractor().servers(videoType) }
+                        val primeSrcDeferred = async { PrimeSrcExtractor().servers(videoType) }
+                        listOf(vidrockDeferred, primeSrcDeferred).awaitAll().flatten()
+                    }
+                    servers.addAll(dynamicServers)
+
                     servers.add(MoviesapiExtractor().server(videoType))
                     servers.add(TwoEmbedExtractor().server(videoType))
                     servers.add(VidLinkExtractor().server(videoType))
@@ -963,7 +969,7 @@ class TmdbProvider(override val language: String) : Provider {
             "fr" -> when (key) {
                 "Trending" -> "Tendances"
                 "Popular Movies" -> "Films populaires"
-                "Popular TV Shows" -> "Séries TV populaires"
+                "Popular TV Shows" -> "Séries populaires"
                 "Popular Anime" -> "Animes populaires"
                 "Popular on Netflix" -> "Populaire sur Netflix"
                 "Popular on Amazon" -> "Populaire sur Amazon"
