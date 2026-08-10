@@ -1,0 +1,121 @@
+name: Apply Remember Track Cleanup
+
+on:
+  push:
+    branches:
+      - ci/remember-track-preferences
+
+permissions:
+  contents: write
+
+jobs:
+  cleanup:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout fix branch
+        uses: actions/checkout@v4
+        with:
+          ref: fix/remember-track-preferences
+          fetch-depth: 0
+
+      - name: Apply exact cleanup
+        shell: python
+        run: |
+          from pathlib import Path
+
+          helper = Path("app/src/main/java/com/streamflixreborn/streamflix/utils/PlaybackTrackPreferences.kt")
+          text = helper.read_text()
+          old = """        savedAudio = null
+        savedSubtitle = null
+        clearObsoleteGlobalPreference()
+"""
+          new = """        savedAudio = null
+        savedSubtitle = null
+"""
+          assert text.count(old) == 1, "helper activate cleanup target changed"
+          text = text.replace(old, new, 1)
+          old = """    private fun clearObsoleteGlobalPreference() {
+        prefs.edit()
+            .remove(\"subtitle_mode::global\")
+            .remove(\"subtitle_language::global\")
+            .remove(\"subtitle_label::global\")
+            .remove(\"subtitle_variant::global\")
+            .apply()
+    }
+
+"""
+          assert text.count(old) == 1, "obsolete-global cleanup target changed"
+          helper.write_text(text.replace(old, "", 1))
+
+          prefs = Path("app/src/main/java/com/streamflixreborn/streamflix/utils/UserPreferences.kt")
+          text = prefs.read_text()
+          old = """        if (::prefs.isInitialized) {
+            // The old app-wide subtitle memory cannot be safely migrated into the
+            // new provider/content/source-specific model, so discard it.
+            prefs.edit().remove(\"SUBTITLE_NAME\").apply()
+
+            debugLog { \"prefs initialized: ${prefs.hashCode()}\" }
+"""
+          new = """        if (::prefs.isInitialized) {
+            debugLog { \"prefs initialized: ${prefs.hashCode()}\" }
+"""
+          assert text.count(old) == 1, "UserPreferences startup cleanup target changed"
+          prefs.write_text(text.replace(old, new, 1))
+
+          vm = Path("app/src/main/java/com/streamflixreborn/streamflix/fragments/player/PlayerViewModel.kt")
+          text = vm.read_text()
+          old = """            // Preserve main's normal subtitle-default behavior when there is no
+            // scoped explicit preference to restore. The legacy global
+            // subtitleName storage is intentionally retired, so an unset value
+            // retains main's existing first-subtitle fallback behavior.
+            val currentProviderLang = UserPreferences.currentProvider?.language ?: \"\"
+            val hasDefaultAlready = video.subtitles.any { it.default }
+
+            if (!hasDefaultAlready && currentProviderLang != \"es\") {
+                if (!(video.useServerSubtitleSetting && UserPreferences.serverAutoSubtitlesDisabled)) {
+                    video.subtitles
+                        .firstOrNull { it.label.startsWith(UserPreferences.subtitleName ?: \"\") }
+                        ?.default = true
+                }
+            }
+
+            // Activate the preference scope only after this source has resolved
+            // successfully, so any existing main-branch request race cannot file
+            // a later manual track choice under a source that never loaded.
+            PlaybackTrackPreferences.activateSource(server.name)
+"""
+          new = """            // LOGICA SOTTOTITOLI GLOBALE: 
+            // Se il provider non ha già impostato un default (es. i \"forced\" in spagnolo),
+            // allora proviamo ad attivare l'ultimo sottotitolo usato dall'utente.
+            // MA: se siamo su un provider spagnolo e non ci sono forced, non dobbiamo attivare nulla.
+            val currentProviderLang = UserPreferences.currentProvider?.language ?: \"\"
+            val hasDefaultAlready = video.subtitles.any { it.default }
+
+            if (!hasDefaultAlready && currentProviderLang != \"es\") {
+                if (!(video.useServerSubtitleSetting && UserPreferences.serverAutoSubtitlesDisabled)) {
+                    video.subtitles
+                        .firstOrNull { it.label.startsWith(UserPreferences.subtitleName ?: \"\") }
+                        ?.default = true
+\t\t}
+            }
+
+            PlaybackTrackPreferences.activateSource(server.name)
+"""
+          assert text.count(old) == 1, "PlayerViewModel cleanup target changed"
+          vm.write_text(text.replace(old, new, 1))
+
+      - name: Verify diff scope
+        run: |
+          git diff --check
+          git diff --name-only
+          test "$(git diff --name-only | sort | tr '\n' ' ')" = "app/src/main/java/com/streamflixreborn/streamflix/fragments/player/PlayerViewModel.kt app/src/main/java/com/streamflixreborn/streamflix/utils/PlaybackTrackPreferences.kt app/src/main/java/com/streamflixreborn/streamflix/utils/UserPreferences.kt "
+
+      - name: Commit cleanup
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add app/src/main/java/com/streamflixreborn/streamflix/fragments/player/PlayerViewModel.kt \
+                  app/src/main/java/com/streamflixreborn/streamflix/utils/PlaybackTrackPreferences.kt \
+                  app/src/main/java/com/streamflixreborn/streamflix/utils/UserPreferences.kt
+          git commit -m "chore: clean track preference integration"
+          git push origin HEAD:fix/remember-track-preferences
