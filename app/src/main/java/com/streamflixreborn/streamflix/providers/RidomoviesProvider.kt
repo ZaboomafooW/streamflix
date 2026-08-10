@@ -3,6 +3,8 @@ package com.streamflixreborn.streamflix.providers
 import com.google.gson.JsonElement
 import com.google.gson.JsonObject
 import com.google.gson.JsonParser
+import com.streamflixreborn.streamflix.BuildConfig
+import com.streamflixreborn.streamflix.R
 import com.streamflixreborn.streamflix.StreamFlixApp
 import com.streamflixreborn.streamflix.adapters.AppAdapter
 import com.streamflixreborn.streamflix.extractors.Extractor
@@ -39,7 +41,8 @@ object RidomoviesProvider : Provider {
     const val URL = "https://ridomovies.su/"
     override val baseUrl = URL
     override val name = "Ridomovies"
-    override val logo = "${URL}images/home-logo.png"
+    override val logo: String
+        get() = "android.resource://${BuildConfig.APPLICATION_ID}/${R.drawable.ic_ridomovies}"
     override val language = "en"
 
     private const val HOME = "home-rd1"
@@ -83,6 +86,7 @@ object RidomoviesProvider : Provider {
         val quality: String? = null,
         val rating: Double? = null,
         val poster: String? = null,
+        val banner: String? = null,
     )
 
     private data class Metadata(
@@ -336,8 +340,9 @@ object RidomoviesProvider : Provider {
     private fun webViewResolver() =
         resolver ?: WebViewResolver(StreamFlixApp.instance).also { resolver = it }
 
-    private fun cards(container: Element): List<Card> =
-        container.select(".movie-card, .highlight-card").mapNotNull { item ->
+    private fun cards(container: Element): List<Card> {
+        val isHighlights = container.hasClass("highlights-slider")
+        return container.select(".movie-card, .highlight-card").mapNotNull { item ->
             val link = item.selectFirst("a[href*='/movie/'], a[href*='/tv/']")
                 ?: return@mapNotNull null
             val href = absolute(link.attr("href"))
@@ -346,6 +351,10 @@ object RidomoviesProvider : Provider {
                 ?.text()?.trim()?.takeIf { it.isNotBlank() }
                 ?: link.attr("aria-label").trim().takeIf { it.isNotBlank() }
                 ?: return@mapNotNull null
+            val artwork = item.selectFirst("img")?.let {
+                asset(it.attr("src").takeIf(String::isNotBlank) ?: it.attr("data-src"))
+            }
+            val isHighlight = isHighlights || item.hasClass("highlight-card")
             Card(
                 id = match.groupValues[2],
                 title = title,
@@ -353,11 +362,11 @@ object RidomoviesProvider : Provider {
                 released = item.selectFirst(".movie-year")?.text()?.let(::year),
                 quality = item.selectFirst(".movie-quality, .quality")?.text()?.trim(),
                 rating = item.selectFirst("[class*=rating]")?.text()?.let(::number),
-                poster = item.selectFirst("img")?.let {
-                    asset(it.attr("src").takeIf(String::isNotBlank) ?: it.attr("data-src"))
-                },
+                poster = artwork.takeUnless { isHighlight },
+                banner = artwork.takeIf { isHighlight },
             )
         }.distinctBy { "${it.movie}:${it.id}" }
+    }
 
     private fun card(row: JsonObject): Card? {
         val type = row.string("type")?.lowercase(Locale.ROOT) ?: return null
@@ -380,12 +389,14 @@ object RidomoviesProvider : Provider {
 
     private fun movie(card: Card) = Movie(
         id = card.id, title = card.title, released = card.released,
-        runtime = card.runtime, quality = card.quality, rating = card.rating, poster = card.poster,
+        runtime = card.runtime, quality = card.quality, rating = card.rating,
+        poster = card.poster, banner = card.banner,
     )
 
     private fun tvShow(card: Card) = TvShow(
         id = card.id, title = card.title, released = card.released,
-        runtime = card.runtime, quality = card.quality, rating = card.rating, poster = card.poster,
+        runtime = card.runtime, quality = card.quality, rating = card.rating,
+        poster = card.poster, banner = card.banner,
     )
 
     private fun metadata(doc: Document, wantedType: String): Metadata {
@@ -477,7 +488,7 @@ object RidomoviesProvider : Provider {
                 ?: it.attr("data-server-embed")
             embed(raw)?.let { url -> addServer(result, withImdb(url, imdb), null, null) }
         }
-        return result.values.sortedBy { if (it.name.startsWith("Ridoo")) 0 else 1 }
+        return result.values.sortedBy { if (it.name.startsWith("Rapidrame")) 0 else 1 }
     }
 
     private fun addServer(
@@ -489,7 +500,8 @@ object RidomoviesProvider : Provider {
         val parsed = url.toHttpUrlOrNull() ?: return
         val key = "${parsed.host}${parsed.encodedPath.trimEnd('/')}"
         val detected = when {
-            parsed.host.contains("ridorapid", true) || parsed.host.contains("ridoo", true) -> "Ridoo"
+            parsed.host.contains("ridorapid", true) -> "Rapidrame"
+            parsed.host.contains("ridoo", true) -> "Ridoo"
             parsed.host.contains("closeload", true) -> "Closeload"
             else -> parsed.host.removePrefix("www.").substringBefore('.')
                 .replace('-', ' ').replaceFirstChar { it.titlecase(Locale.ROOT) }
