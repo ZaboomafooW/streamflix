@@ -2,5 +2,6 @@
 <resources>
     <string name="settings_preferred_audio_language_title">Preferred audio language</string>
     <string name="settings_preferred_subtitle_language_title">Preferred subtitle language</string>
-    <string name="settings_preferred_language_none_selected">None selected</string>
+    <string name="settings_preferred_audio_language_original">Original language</string>
+    <string name="settings_preferred_language_no_preference">No preference</string>
 </resources>
