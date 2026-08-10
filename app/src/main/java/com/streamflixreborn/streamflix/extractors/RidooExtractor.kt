@@ -26,9 +26,7 @@ class RidooExtractor : Extractor() {
                 link = link,
                 referer = RidomoviesProvider.URL,
             ) { candidate ->
-                val mediaUrl = candidate.toHttpUrlOrNull()
-                candidate.contains(".m3u8", ignoreCase = true) &&
-                    mediaUrl?.host?.contains("rapidrame", ignoreCase = true) == true
+                isPlayableMediaUrl(candidate)
             }
         }
 
@@ -49,6 +47,18 @@ class RidooExtractor : Extractor() {
                 "Accept-Language" to "en-US,en;q=0.9",
             ),
         )
+    }
+
+    private fun isPlayableMediaUrl(value: String): Boolean {
+        val lower = value.lowercase()
+        if (
+            lower.contains("test-videos") ||
+            lower.contains("sample-videos") ||
+            lower.contains("bigbuckbunny") ||
+            lower.contains("cdn.plyr.io")
+        ) return false
+        val path = lower.substringBefore('?').substringBefore('#')
+        return path.endsWith(".m3u8") || path.endsWith(".mp4")
     }
 
     private interface Service {
