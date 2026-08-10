@@ -60,7 +60,7 @@ class SearchTvFragment : Fragment() {
             onTvShowClickListener = { tvShow ->
 
                 if (tvShow.providerName != UserPreferences.currentProvider?.name) {
-                    UserPreferences.currentProvider = Provider.providers.keys.find { it.name == movie.providerName }
+                    UserPreferences.currentProvider = Provider.providers.keys.find { it.name == tvShow.providerName }
                     Toast.makeText(requireContext(), getString(R.string.switching_to_provider, tvShow.providerName), Toast.LENGTH_SHORT).show()
                 }
                 findNavController().navigate(
