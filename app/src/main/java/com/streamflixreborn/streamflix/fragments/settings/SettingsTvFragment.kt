@@ -243,6 +243,7 @@ class SettingsTvFragment : LeanbackPreferenceFragmentCompat() {
         (listView as? VerticalGridView)?.let { grid ->
             grid.setOnKeyInterceptListener { event ->
                 if (event.action != KeyEvent.ACTION_DOWN ||
+                    event.repeatCount != 0 ||
                     event.keyCode != KeyEvent.KEYCODE_DPAD_LEFT ||
                     screenBackStack.isEmpty()
                 ) {
@@ -263,7 +264,10 @@ class SettingsTvFragment : LeanbackPreferenceFragmentCompat() {
                 } else {
                     null
                 }
-                if (preference is SeekBarPreference && preference.isAdjustable) {
+                if (preference is SeekBarPreference &&
+                    preference.isAdjustable &&
+                    preference.value > preference.min
+                ) {
                     return@setOnKeyInterceptListener false
                 }
 
