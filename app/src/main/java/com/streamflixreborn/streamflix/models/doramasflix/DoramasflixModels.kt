@@ -30,6 +30,7 @@ data class Show(
     val nameEs: String? = null,
     val slug: String,
     val overview: String? = null,
+    val rating: Double? = null,
     @SerializedName("poster_path")
     val posterPath: String? = null,
     val poster: String? = null,
