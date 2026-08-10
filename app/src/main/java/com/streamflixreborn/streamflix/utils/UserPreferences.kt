@@ -340,7 +340,6 @@ object UserPreferences {
      * Compatibility no-op for old call sites. Subtitle memory is now entirely
      * handled by PlaybackTrackPreferences and is never stored globally.
      */
-    @Deprecated("Use source-scoped PlaybackTrackPreferences")
     var subtitleName: String?
         get() = null
         set(value) {
