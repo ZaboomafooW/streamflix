@@ -1,0 +1,76 @@
+name: Diagnose Ridomovies subtitle parser parity
+
+on:
+  pull_request:
+    branches: [ main ]
+
+permissions:
+  contents: read
+
+jobs:
+  diagnose:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install dependencies
+        run: python -m pip install --disable-pip-version-check curl_cffi beautifulsoup4
+      - name: Reproduce app subtitle parsing
+        env:
+          PYTHONUNBUFFERED: '1'
+        run: |
+          python - <<'PY'
+          import json,re
+          from urllib.parse import urljoin,urlparse
+          from curl_cffi import requests as cr
+          from bs4 import BeautifulSoup
+
+          UA='Mozilla/5.0 (Linux; Android 12; TV) AppleWebKit/537.36 Chrome/136.0.0.0 Safari/537.36'
+          tests=[
+            ('Rapidrame','https://ridorapid.closeload.top/embed-r1v560hnwl1t/','https://ridomovies.su/'),
+            ('Closeload','https://closeload.top/video/embed/oGZBTo87vFR/?imdb_id=tt30788876','https://ridomovies.su/movie/hitman-2-2025'),
+          ]
+          s=cr.Session(impersonate='chrome136')
+          for name,embed,parent in tests:
+            print('\n===',name,embed,'===')
+            r=s.get(embed,headers={'User-Agent':UA,'Referer':parent,'Accept-Language':'en-US,en;q=0.9'},timeout=30)
+            print('EMBED',r.status_code,len(r.content)); r.raise_for_status()
+            soup=BeautifulSoup(r.text,'html.parser')
+            scripts=[sc.string or sc.get_text() or '' for sc in soup.find_all('script')]
+            first_eval=next((x for x in scripts if 'eval(' in x),None)
+            print('FIRST EVAL LEN=',len(first_eval or ''))
+            candidates=[]
+            if first_eval:
+              m=re.search(r'tracks\s*:\s*(\[[^]]*]),',first_eval,re.S)
+              print('CURRENT-RIDOO-REGEX MATCH=',bool(m))
+              if m:
+                print('CURRENT-RIDOO TRACKS=',m.group(1))
+                try:candidates=json.loads(m.group(1))
+                except Exception as e:print('JSON ERROR=',repr(e))
+            all_track_arrays=[]
+            for idx,txt in enumerate(scripts):
+              for m in re.finditer(r'tracks\s*:\s*(\[[^]]*])',txt,re.S):
+                raw=m.group(1)
+                try:arr=json.loads(raw)
+                except Exception as e:
+                  print('SCRIPT',idx,'TRACK JSON ERROR',repr(e),'RAW=',raw[:1000]);continue
+                all_track_arrays.append((idx,arr))
+            print('ALL TRACK ARRAYS=',json.dumps(all_track_arrays,ensure_ascii=False,indent=2))
+            origin=f'{urlparse(embed).scheme}://{urlparse(embed).hostname}'
+            seen=set()
+            for idx,arr in all_track_arrays:
+              for t in arr:
+                if not isinstance(t,dict) or str(t.get('kind','')).lower() not in ('captions','subtitles'):continue
+                f=str(t.get('file','')).strip()
+                if not f:continue
+                u=urljoin(origin+'/',f)
+                if u in seen:continue
+                seen.add(u)
+                print('CAPTION=',t.get('label'),t.get('language'),u)
+                for headers_name,headers in [
+                  ('APP',{'User-Agent':UA,'Referer':embed,'Origin':origin,'Accept':'*/*','Accept-Language':'en-US,en;q=0.9'}),
+                  ('BROWSERLIKE',{'User-Agent':UA,'Referer':embed,'Accept':'text/vtt,*/*;q=0.8'}),
+                ]:
+                  vr=s.get(u,headers=headers,timeout=30,allow_redirects=True)
+                  print(headers_name,'VTT',vr.status_code,vr.url,vr.headers.get('content-type'),len(vr.content),'HEAD=',repr(vr.text[:120]))
+          PY
