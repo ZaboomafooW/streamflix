@@ -547,8 +547,8 @@ object TmdbUtils {
         preferredCountries.forEach { countryCode ->
             contentRatings
                 .filter { it.iso3166.equals(countryCode, ignoreCase = true) }
-                ?.mapNotNull { parseAgeRating(it.rating) }
-                ?.maxOrNull()
+                .mapNotNull { parseAgeRating(it.rating) }
+                .maxOrNull()
                 ?.let { return it }
         }
 
