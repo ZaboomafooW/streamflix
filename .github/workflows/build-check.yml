@@ -14,7 +14,7 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 10
     steps:
-      - name: Inspect live playback subtitle schema
+      - name: Inspect live playback subtitle data
         shell: bash
         run: |
           set -euo pipefail
@@ -24,35 +24,59 @@ jobs:
           ORIGIN='https://doramasflix.in'
           APP='com.asiapp.doramasgo'
           UA='Mozilla/5.0 (Linux; Android 10; Android TV) AppleWebKit/537.36 Chrome/140.0.0.0 Safari/537.36'
-          def gql(operation, variables, query):
+
+          def request(operation, variables, query):
               body=json.dumps({'operationName':operation,'variables':variables,'query':query}).encode()
               req=urllib.request.Request(API,data=body,headers={'Accept':'application/json','Content-Type':'application/json','Origin':ORIGIN,'Referer':ORIGIN+'/','User-Agent':UA})
               try:
-                  with urllib.request.urlopen(req,timeout=20) as r: raw=r.read().decode('utf-8','replace')
+                  with urllib.request.urlopen(req,timeout=20) as r:
+                      return r.status, json.loads(r.read().decode('utf-8','replace'))
               except urllib.error.HTTPError as e:
-                  print('HTTP_ERROR', e.code, e.read().decode('utf-8','replace')[:1000]); raise
-              obj=json.loads(raw)
-              if obj.get('errors'): print('GRAPHQL_ERRORS', json.dumps(obj['errors'],ensure_ascii=False)[:2000])
-              return obj
-
-          # First ask the schema directly for any subtitle-related object types.
-          introspection='''query SubtitleTypes { __schema { types { name kind fields { name type { kind name ofType { kind name } } } } } }'''
-          schema=gql('SubtitleTypes',{},introspection)
-          types=((schema.get('data') or {}).get('__schema') or {}).get('types') or []
-          subtitle_types=[t for t in types if 'subtit' in (t.get('name') or '').lower()]
-          print('SUBTITLE_TYPES', json.dumps(subtitle_types,ensure_ascii=False)[:12000])
+                  raw=e.read().decode('utf-8','replace')
+                  try: obj=json.loads(raw)
+                  except: obj={'raw':raw[:2000]}
+                  return e.code,obj
 
           MQ='''query PaginationMovie($page:Int,$limit:Int,$filter:FilterMoviesInput){paginationMovie(page:$page,limit:$limit,filter:$filter){items{_id name slug}}}'''
-          movies=((gql('PaginationMovie',{'page':1,'limit':40,'filter':{}},MQ).get('data') or {}).get('paginationMovie') or {}).get('items') or []
+          status,obj=request('PaginationMovie',{'page':1,'limit':50,'filter':{}},MQ)
+          print('CATALOG_STATUS',status)
+          movies=((obj.get('data') or {}).get('paginationMovie') or {}).get('items') or []
+          print('MOVIES',len(movies))
+
           LQ='''query MovieLinks($movie_id:ID!){getMovieLinks(id:$movie_id,app:"'''+APP+''' "){links_online{server lang link page is_recommended subtitles{__typename language_code type}}}}'''
           found=[]
+          sample_movie=None
           for m in movies:
-              obj=gql('MovieLinks',{'movie_id':m['_id']},LQ)
+              status,obj=request('MovieLinks',{'movie_id':m['_id']},LQ)
+              if status!=200:
+                  print('MOVIE_LINK_ERROR',m.get('name'),status,json.dumps(obj,ensure_ascii=False)[:1000]); continue
               links=((obj.get('data') or {}).get('getMovieLinks') or {}).get('links_online') or []
+              if links and sample_movie is None: sample_movie=m
               for link in links:
                   if link.get('subtitles'):
                       found.append({'movie':m,'link':link})
-                      print('SUBTITLE_SAMPLE', json.dumps(found[-1],ensure_ascii=False)[:5000])
-              if len(found)>=5: break
+                      print('SUBTITLE_SAMPLE', json.dumps(found[-1],ensure_ascii=False)[:6000])
+              if len(found)>=8: break
           print('SUBTITLE_SAMPLE_COUNT',len(found))
+
+          target=(found[0]['movie'] if found else sample_movie)
+          if not target:
+              print('NO_TARGET_MOVIE'); raise SystemExit(0)
+          print('FIELD_PROBE_TARGET',json.dumps(target,ensure_ascii=False))
+
+          candidates=['_id','id','link','url','file','path','src','source','embed','name','label','language','language_name','languageCode','language_code','type','format','kind','file_path','subtitle','value']
+          for field in candidates:
+              q='query Probe($movie_id:ID!){getMovieLinks(id:$movie_id,app:"'+APP+' "){links_online{subtitles{'+field+'}}}}'
+              status,obj=request('Probe',{'movie_id':target['_id']},q)
+              errors=obj.get('errors') or []
+              if status==200 and not errors:
+                  data=((obj.get('data') or {}).get('getMovieLinks') or {}).get('links_online') or []
+                  vals=[]
+                  for l in data:
+                      for s in l.get('subtitles') or []:
+                          if field in s: vals.append(s.get(field))
+                  print('FIELD_VALID',field,json.dumps(vals[:10],ensure_ascii=False))
+              else:
+                  msg=' | '.join(str(e.get('message')) for e in errors)[:800]
+                  print('FIELD_INVALID',field,status,msg)
           PY
