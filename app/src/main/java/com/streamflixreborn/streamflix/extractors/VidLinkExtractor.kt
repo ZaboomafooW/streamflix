@@ -61,10 +61,13 @@ class VidLinkExtractor : Extractor() {
 
         val stream = JSONObject(body).optJSONObject("stream")
             ?: throw Exception("VidLink stream data missing")
-
-        val source = stream.optString("playlist").takeIf { it.isNotBlank() }
-            ?: selectFileSource(stream.optJSONObject("qualities"))
-            ?: throw Exception("VidLink returned no playable source")
+        val playlist = stream.optString("playlist").takeIf { it.isNotBlank() }
+        val fileSource = selectFileSource(stream.optJSONObject("qualities"))
+        val source = if (stream.optString("type").equals("file", ignoreCase = true)) {
+            fileSource ?: playlist
+        } else {
+            playlist ?: fileSource
+        } ?: throw Exception("VidLink returned no playable source")
 
         val subtitles = mutableListOf<Video.Subtitle>()
         stream.optJSONArray("captions")?.let { captions ->
