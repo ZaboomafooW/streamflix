@@ -310,6 +310,7 @@ object PoseidonHD2Provider : Provider {
                             rating = tmdbMovie.voteAverage.toDouble(),
                             poster = tmdbMovie.posterPath?.original,
                             banner = tmdbMovie.backdropPath?.original,
+                            originalLanguage = tmdbMovie.originalLanguage,
                             genres = tmdbMovie.genres.map { Genre(it.id.toString(), it.name) },
                             cast = tmdbMovie.credits?.cast?.map { People(it.id.toString(), it.name, it.profilePath?.w500) } ?: emptyList(),
                             recommendations = tmdbMovie.recommendations?.results?.mapNotNull { multi ->
@@ -382,6 +383,7 @@ object PoseidonHD2Provider : Provider {
                         rating = tmdbTv.voteAverage.toDouble(),
                         poster = tmdbTv.posterPath?.original,
                         banner = tmdbTv.backdropPath?.original,
+                        originalLanguage = tmdbTv.originalLanguage,
                         seasons = seasons.map { season ->
                             val tmdbSeason = tmdbTv.seasons.find { it.seasonNumber == season.number }
                             season.copy(title = tmdbSeason?.name ?: season.title, poster = tmdbSeason?.posterPath?.w500 ?: season.poster)
