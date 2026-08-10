@@ -240,7 +240,7 @@ object TrackAuditLogger {
                     if (line.isBlank()) break
                 }
 
-                val bytes = exportFile().readBytes()
+                val bytes = TrackAuditLogger.exportFile().readBytes()
                 val output = socket.getOutputStream()
                 writeHeaders(output, bytes.size)
                 output.write(bytes)
@@ -320,7 +320,8 @@ object TrackAuditLogger {
     private fun sourceHost(value: String?): String? {
         val source = value?.trim()?.takeIf { it.isNotEmpty() } ?: return null
         if (source.startsWith("data:", ignoreCase = true)) return "inline-data"
-        return runCatching { java.net.URI(source).host }.getOrNull() ?: source.substringBefore('?').take(120)
+        return runCatching { java.net.URI(source).host }.getOrNull()
+            ?: source.substringBefore('?').take(120)
     }
 
     private fun errorSummary(error: Throwable): String = buildString {
