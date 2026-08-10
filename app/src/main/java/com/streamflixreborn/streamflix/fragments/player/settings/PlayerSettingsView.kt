@@ -15,7 +15,7 @@ import androidx.media3.ui.DefaultTrackNameProvider
 import androidx.media3.ui.SubtitleView
 import com.streamflixreborn.streamflix.R
 import com.streamflixreborn.streamflix.utils.OpenSubtitles
-import com.streamflixreborn.streamflix.utils.mediaServers
+import com.streamflixreborn.streamflix.utils.PlaybackLanguageContext
 import com.streamflixreborn.streamflix.utils.SubDL
 import com.streamflixreborn.streamflix.utils.UserPreferences
 import com.streamflixreborn.streamflix.utils.dp
@@ -383,7 +383,6 @@ abstract class PlayerSettingsView @JvmOverloads constructor(
         this.onServerSelected = onServerSelected
     }
 
-
     interface Item
 
     sealed class Settings : Item {
@@ -429,7 +428,7 @@ abstract class PlayerSettingsView @JvmOverloads constructor(
             }
             data object Off : Gestures() {
                 override val isSelected: Boolean get() = !UserPreferences.playerGestures
-                override val stringId: Int get() = R.string.settings_player_gestures_off
+                override val stringId: Int get() = R.string.settings_autoupdate_off
             }
         }
 
@@ -656,12 +655,17 @@ abstract class PlayerSettingsView @JvmOverloads constructor(
                                     .map { (trackIndex, trackFormat) ->
                                         val trackName = DefaultTrackNameProvider(resources)
                                             .getTrackName(trackFormat)
-                                        
-                                        val finalName = when {
+
+                                        val baseName = when {
                                             trackName.isBlank() || trackName.lowercase() == "und" || trackName.lowercase() == "unknown" -> {
                                                 if (serverTag != null) "Audio $serverTag" else "Track ${trackIndex + 1}"
                                             }
                                             else -> trackName
+                                        }
+                                        val finalName = if (PlaybackLanguageContext.isOriginalAudioTrack(trackFormat)) {
+                                            "$baseName (Original)"
+                                        } else {
+                                            baseName
                                         }
 
                                         AudioTrackInformation(
@@ -734,7 +738,6 @@ abstract class PlayerSettingsView @JvmOverloads constructor(
                     )
                     list.add(LocalSubtitles)
                     list.add(OpenSubtitles)
-                    // Add SubDL only if an API key is configured
                     if (UserPreferences.subdlApiKey.isNotEmpty()) {
                         list.add(SubDLSubtitles)
                     }
