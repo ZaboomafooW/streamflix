@@ -125,10 +125,10 @@ class PlayerViewModel(
             val video = UserPreferences.currentProvider!!.getVideo(server)
             if (video.source.isEmpty()) throw Exception("No source found")
 
-            // Preserve main's normal subtitle-default behavior when there is no
-            // scoped explicit preference to restore. The legacy global
-            // subtitleName storage is intentionally retired, so an unset value
-            // retains main's existing first-subtitle fallback behavior.
+            // LOGICA SOTTOTITOLI GLOBALE: 
+            // Se il provider non ha già impostato un default (es. i "forced" in spagnolo),
+            // allora proviamo ad attivare l'ultimo sottotitolo usato dall'utente.
+            // MA: se siamo su un provider spagnolo e non ci sono forced, non dobbiamo attivare nulla.
             val currentProviderLang = UserPreferences.currentProvider?.language ?: ""
             val hasDefaultAlready = video.subtitles.any { it.default }
 
@@ -137,12 +137,9 @@ class PlayerViewModel(
                     video.subtitles
                         .firstOrNull { it.label.startsWith(UserPreferences.subtitleName ?: "") }
                         ?.default = true
-                }
+		}
             }
 
-            // Activate the preference scope only after this source has resolved
-            // successfully, so any existing main-branch request race cannot file
-            // a later manual track choice under a source that never loaded.
             PlaybackTrackPreferences.activateSource(server.name)
 
             Log.d("PlayerViewModel", "Estrazione video completata con successo")
