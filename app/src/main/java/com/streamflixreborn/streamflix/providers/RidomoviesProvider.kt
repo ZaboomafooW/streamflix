@@ -43,6 +43,7 @@ object RidomoviesProvider : Provider {
     override val name = "Ridomovies"
     override val logo: String
         get() = "android.resource://${BuildConfig.APPLICATION_ID}/${R.drawable.ic_ridomovies}"
+    override val logoRes = R.drawable.ic_ridomovies
     override val language = "en"
 
     private const val HOME = "home-rd1"
@@ -87,6 +88,7 @@ object RidomoviesProvider : Provider {
         val rating: Double? = null,
         val poster: String? = null,
         val banner: String? = null,
+        val overview: String? = null,
     )
 
     private data class Metadata(
@@ -200,6 +202,7 @@ object RidomoviesProvider : Provider {
         val season = seasonId.substringAfterLast('/').toIntOrNull() ?: return emptyList()
         val showUrl = "${URL}tv/$slug"
         val seasonUrl = "$showUrl/season-$season"
+        val showDoc = document(showUrl)
 
         val ajax = runCatching {
             val html = json(
@@ -213,7 +216,9 @@ object RidomoviesProvider : Provider {
             html?.takeIf { it.isNotBlank() }?.let { Jsoup.parse(it, showUrl) }
         }.getOrNull()
 
-        return episodes(ajax ?: document(showUrl), slug, season)
+        val seasonDoc = ajax ?: runCatching { document(seasonUrl) }.getOrDefault(showDoc)
+        val showPoster = metadata(showDoc, "TVSeries").poster
+        return episodes(seasonDoc, slug, season, showPoster)
     }
 
     override suspend fun getGenre(id: String, page: Int): Genre = coroutineScope {
@@ -360,12 +365,46 @@ object RidomoviesProvider : Provider {
                 title = title,
                 movie = match.groupValues[1].equals("movie", true),
                 released = item.selectFirst(".movie-year")?.text()?.let(::year),
+                runtime = if (isHighlight) highlightRuntime(item) else null,
                 quality = item.selectFirst(".movie-quality, .quality")?.text()?.trim(),
                 rating = item.selectFirst("[class*=rating]")?.text()?.let(::number),
                 poster = artwork.takeUnless { isHighlight },
                 banner = artwork.takeIf { isHighlight },
+                overview = if (isHighlight) highlightOverview(item) else null,
             )
         }.distinctBy { "${it.movie}:${it.id}" }
+    }
+
+    private fun highlightOverview(item: Element): String? {
+        val selectors = listOf(
+            ".highlight-description",
+            ".movie-overview",
+            ".overview-text",
+            "[class*=description]",
+            "[class*=overview]",
+            ".highlight-content p",
+        )
+        return selectors.asSequence()
+            .flatMap { selector -> item.select(selector).asSequence() }
+            .map { it.text().trim() }
+            .filter { text ->
+                text.length >= 30 &&
+                    !text.startsWith("IMDb", true) &&
+                    !text.startsWith("Genre:", true) &&
+                    !text.startsWith("Duration:", true) &&
+                    !text.equals("Watch Now", true)
+            }
+            .maxByOrNull { it.length }
+    }
+
+    private fun highlightRuntime(item: Element): Int? {
+        item.selectFirst("[class*=duration], [class*=runtime]")
+            ?.text()?.let(::runtime)?.let { return it }
+        val value = Regex(
+            """Duration:\s*((?:\d+\s*h\s*)?\d+\s*min)""",
+            RegexOption.IGNORE_CASE,
+        ).find(item.text())?.groupValues?.getOrNull(1)
+        return runtime(value)
     }
 
     private fun card(row: JsonObject): Card? {
@@ -382,6 +421,7 @@ object RidomoviesProvider : Provider {
             quality = row.string("quality"),
             rating = row.double("imdb_rating") ?: row.double("rating"),
             poster = asset(row.string("poster_path") ?: row.string("poster")),
+            overview = row.string("overview") ?: row.string("description"),
         )
     }
 
@@ -390,13 +430,13 @@ object RidomoviesProvider : Provider {
     private fun movie(card: Card) = Movie(
         id = card.id, title = card.title, released = card.released,
         runtime = card.runtime, quality = card.quality, rating = card.rating,
-        poster = card.poster, banner = card.banner,
+        poster = card.poster, banner = card.banner, overview = card.overview,
     )
 
     private fun tvShow(card: Card) = TvShow(
         id = card.id, title = card.title, released = card.released,
         runtime = card.runtime, quality = card.quality, rating = card.rating,
-        poster = card.poster, banner = card.banner,
+        poster = card.poster, banner = card.banner, overview = card.overview,
     )
 
     private fun metadata(doc: Document, wantedType: String): Metadata {
@@ -450,7 +490,12 @@ object RidomoviesProvider : Provider {
         return values.sorted()
     }
 
-    private fun episodes(doc: Document, expectedSlug: String, expectedSeason: Int): List<Episode> =
+    private fun episodes(
+        doc: Document,
+        expectedSlug: String,
+        expectedSeason: Int,
+        fallbackPoster: String?,
+    ): List<Episode> =
         doc.select("a.episode-link[href], a[href*='/episode-']").mapNotNull { link ->
             val href = absolute(link.attr("href"))
             val match = episodePath.find(URL(href).path) ?: return@mapNotNull null
@@ -458,11 +503,18 @@ object RidomoviesProvider : Provider {
                 match.groupValues[2].toIntOrNull() != expectedSeason
             ) return@mapNotNull null
             val number = match.groupValues[3].toIntOrNull() ?: return@mapNotNull null
+            val image = link.selectFirst("img")
+            val episodePoster = image?.let {
+                asset(it.attr("src").takeIf(String::isNotBlank) ?: it.attr("data-src"))
+            } ?: fallbackPoster
             Episode(
                 id = URL(href).path.trimStart('/'),
                 number = number,
                 title = link.selectFirst(".ep-name-row, .episode-title")?.text()?.trim()
                     ?.takeIf { it.isNotBlank() } ?: "Episode $number",
+                poster = episodePoster,
+                overview = link.selectFirst(".episode-overview, .ep-overview, .episode-description")
+                    ?.text()?.trim()?.takeIf { it.isNotBlank() },
             )
         }.distinctBy { it.number }.sortedBy { it.number }
 
