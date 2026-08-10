@@ -1,9 +1,8 @@
 name: Apply Remember Track Cleanup
 
 on:
-  push:
-    branches:
-      - ci/remember-track-preferences
+  pull_request:
+  workflow_dispatch:
 
 permissions:
   contents: write
