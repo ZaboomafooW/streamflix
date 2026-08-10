@@ -17,6 +17,8 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.suspendCancellableCoroutine
 import kotlinx.coroutines.withContext
 import okhttp3.HttpUrl.Companion.toHttpUrlOrNull
+import org.json.JSONArray
+import org.json.JSONTokener
 import java.util.concurrent.atomic.AtomicBoolean
 import kotlin.coroutines.resume
 import kotlin.coroutines.resumeWithException
@@ -32,6 +34,7 @@ internal object BrowserStreamResolver {
         suspendCancellableCoroutine { continuation ->
             val handler = Handler(Looper.getMainLooper())
             val completed = AtomicBoolean(false)
+            val sourceCaptured = AtomicBoolean(false)
             val embedUrl = link.toHttpUrlOrNull()
                 ?: run {
                     continuation.resumeWithException(Exception("Invalid embed URL"))
@@ -41,10 +44,12 @@ internal object BrowserStreamResolver {
             val webView = WebView(StreamFlixApp.instance.applicationContext)
             var timeoutRunnable: Runnable? = null
             var playbackKickRunnable: Runnable? = null
+            var sourcePollRunnable: Runnable? = null
 
             fun removeCallbacks() {
                 timeoutRunnable?.let(handler::removeCallbacks)
                 playbackKickRunnable?.let(handler::removeCallbacks)
+                sourcePollRunnable?.let(handler::removeCallbacks)
             }
 
             fun destroyWebView() {
@@ -69,6 +74,84 @@ internal object BrowserStreamResolver {
                 }
             }
 
+            fun subtitlesFromJavascript(result: String?): List<Video.Subtitle> {
+                if (result.isNullOrBlank() || result == "null") return emptyList()
+                return runCatching {
+                    val decoded = JSONTokener(result).nextValue()
+                    val array = when (decoded) {
+                        is JSONArray -> decoded
+                        is String -> JSONArray(decoded)
+                        else -> JSONArray()
+                    }
+                    buildList {
+                        for (index in 0 until array.length()) {
+                            val row = array.optJSONObject(index) ?: continue
+                            val file = row.optString("file").trim()
+                            val language = row.optString("language").trim()
+                            val label = row.optString("label").trim().ifBlank { language }
+                            if (file.isBlank() || label.isBlank()) continue
+                            add(
+                                Video.Subtitle(
+                                    label = label,
+                                    file = file,
+                                    default = row.optBoolean("default", false),
+                                    initialDefault = row.optBoolean("default", false),
+                                )
+                            )
+                        }
+                    }.distinctBy { it.file }
+                }.getOrDefault(emptyList())
+            }
+
+            fun capture(url: String, headers: Map<String, String>) {
+                if (!isMediaRequest(url) || !sourceCaptured.compareAndSet(false, true)) return
+                val path = url.substringBefore('?').substringBefore('#')
+                val type = when {
+                    path.endsWith(".m3u8", ignoreCase = true) -> MimeTypes.APPLICATION_M3U8
+                    path.endsWith(".mp4", ignoreCase = true) -> MimeTypes.VIDEO_MP4
+                    else -> null
+                }
+
+                handler.post {
+                    if (completed.get()) return@post
+                    webView.evaluateJavascript(
+                        """
+                        (function() {
+                            var result = [];
+                            document.querySelectorAll('track[kind="subtitles"],track[kind="captions"]').forEach(function(t) {
+                                var file = t.src || t.getAttribute('src') || '';
+                                var language = t.srclang || t.getAttribute('srclang') || '';
+                                var label = t.label || t.getAttribute('label') || language;
+                                if (file && label) {
+                                    try { file = new URL(file, location.href).href; } catch (e) {}
+                                    result.push({file:file,label:label,language:language,default:!!t.default});
+                                }
+                            });
+                            return JSON.stringify(result);
+                        })();
+                        """.trimIndent(),
+                    ) { subtitleResult ->
+                        finish(
+                            Video(
+                                source = url,
+                                subtitles = subtitlesFromJavascript(subtitleResult),
+                                headers = headers,
+                                type = type,
+                            )
+                        )
+                    }
+                }
+            }
+
+            fun defaultHeaders(url: String): Map<String, String> = linkedMapOf<String, String>().apply {
+                put("User-Agent", NetworkClient.USER_AGENT)
+                put("Referer", "$embedOrigin/")
+                put("Origin", embedOrigin)
+                CookieManager.getInstance().getCookie(url)
+                    ?.takeIf { it.isNotBlank() }
+                    ?.let { put("Cookie", it) }
+            }
+
             webView.settings.apply {
                 javaScriptEnabled = true
                 domStorageEnabled = true
@@ -91,7 +174,7 @@ internal object BrowserStreamResolver {
                     view: WebView?,
                     request: WebResourceRequest?,
                 ): WebResourceResponse? {
-                    if (completed.get()) return null
+                    if (completed.get() || sourceCaptured.get()) return null
                     val requestUrl = request?.url?.toString().orEmpty()
                     if (requestUrl.isBlank() || !isMediaRequest(requestUrl)) {
                         return super.shouldInterceptRequest(view, request)
@@ -111,19 +194,63 @@ internal object BrowserStreamResolver {
                         ?.takeIf { it.isNotBlank() }
                         ?.let { headers["Cookie"] = it }
 
-                    val path = requestUrl.substringBefore('?').substringBefore('#')
-                    val type = when {
-                        path.endsWith(".m3u8", ignoreCase = true) -> MimeTypes.APPLICATION_M3U8
-                        path.endsWith(".mp4", ignoreCase = true) -> MimeTypes.VIDEO_MP4
-                        else -> null
-                    }
-                    finish(Video(source = requestUrl, headers = headers, type = type))
+                    capture(requestUrl, headers)
                     return null
                 }
             }
 
+            sourcePollRunnable = object : Runnable {
+                override fun run() {
+                    if (completed.get() || sourceCaptured.get()) return
+                    webView.evaluateJavascript(
+                        """
+                        (function() {
+                            var urls = [];
+                            function add(value) {
+                                if (!value || typeof value !== 'string') return;
+                                try { value = new URL(value, location.href).href; } catch (e) {}
+                                if (urls.indexOf(value) === -1) urls.push(value);
+                            }
+                            document.querySelectorAll('video').forEach(function(v) {
+                                add(v.currentSrc); add(v.src); add(v.getAttribute('src'));
+                            });
+                            document.querySelectorAll('video source,source[type*=video]').forEach(function(s) {
+                                add(s.src); add(s.getAttribute('src'));
+                            });
+                            try {
+                                performance.getEntriesByType('resource').forEach(function(entry) {
+                                    if (/\.m3u8(?:[?#]|$)/i.test(entry.name || '')) add(entry.name);
+                                });
+                            } catch (e) {}
+                            return JSON.stringify(urls);
+                        })();
+                        """.trimIndent(),
+                    ) { result ->
+                        if (!completed.get() && !sourceCaptured.get()) {
+                            val urls = runCatching {
+                                val decoded = JSONTokener(result).nextValue()
+                                val array = when (decoded) {
+                                    is JSONArray -> decoded
+                                    is String -> JSONArray(decoded)
+                                    else -> JSONArray()
+                                }
+                                buildList {
+                                    for (index in 0 until array.length()) {
+                                        array.optString(index).takeIf { it.isNotBlank() }?.let(::add)
+                                    }
+                                }
+                            }.getOrDefault(emptyList())
+                            urls.firstOrNull(isMediaRequest)?.let { capture(it, defaultHeaders(it)) }
+                        }
+                        if (!completed.get() && !sourceCaptured.get()) {
+                            handler.postDelayed(this, 750L)
+                        }
+                    }
+                }
+            }.also { handler.postDelayed(it, 1_000L) }
+
             playbackKickRunnable = Runnable {
-                if (!completed.get()) {
+                if (!completed.get() && !sourceCaptured.get()) {
                     webView.evaluateJavascript(
                         "(function(){" +
                             "var v=document.querySelector('video');" +
