@@ -38,6 +38,9 @@ class Movie(
     @Ignore
     val recommendations: List<Show> = listOf(),
     override var isFavorite: Boolean = false,
+
+    @Ignore
+    var originalLanguage: String? = null,
 ) : Show, WatchItem, AppAdapter.Item {
 
     var released = released?.toCalendar()
@@ -90,6 +93,7 @@ class Movie(
         cast: List<People> = this.cast,
         recommendations: List<Show> = this.recommendations,
         isFavorite: Boolean = this.isFavorite,
+        originalLanguage: String? = this.originalLanguage,
     ) = Movie(
         id,
         title,
@@ -108,6 +112,7 @@ class Movie(
         cast,
         recommendations,
         isFavorite,
+        originalLanguage,
     )
 
     override fun equals(other: Any?): Boolean {
