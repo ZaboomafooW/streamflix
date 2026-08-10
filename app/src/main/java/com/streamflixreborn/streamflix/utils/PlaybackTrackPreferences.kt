@@ -141,16 +141,22 @@ object PlaybackTrackPreferences {
             .apply()
     }
 
-    fun shouldResolveOriginalAudioLanguage(): Boolean =
-        settingsPrefs.getString(PREFERRED_AUDIO_LANGUAGE, AUDIO_LANGUAGE_ORIGINAL) ==
+    fun shouldResolveOriginalAudioLanguage(videoType: Video.Type): Boolean {
+        if (
+            settingsPrefs.getString(PREFERRED_AUDIO_LANGUAGE, AUDIO_LANGUAGE_ORIGINAL) !=
             AUDIO_LANGUAGE_ORIGINAL
+        ) {
+            return false
+        }
+
+        val provider = UserPreferences.currentProvider?.name ?: return false
+        val contentKey = contentKeyOf(provider, contentOf(videoType))
+        return loadTitleAudioLanguage(contentKey) == null
+    }
 
     fun activate(videoType: Video.Type, originalLanguage: String? = null) {
         val provider = UserPreferences.currentProvider?.name
-        val content = when (videoType) {
-            is Video.Type.Movie -> "movie:${videoType.id}"
-            is Video.Type.Episode -> "tv:${videoType.tvShow.id}"
-        }
+        val content = contentOf(videoType)
 
         contentScope = provider?.let { ContentScope(it, content) }
         contentPreferenceKey = contentScope?.let { scope ->
@@ -201,7 +207,6 @@ object PlaybackTrackPreferences {
             private var lastAudioPosition: Pair<Int, Int>? = null
             private var lastSubtitlePosition: Pair<Int, Int>? = null
             private var lastSubtitleOff = false
-            private var externalSubtitleActive = false
 
             override fun onMediaItemTransition(mediaItem: MediaItem?, reason: Int) {
                 resetForContext(mediaItem, player.currentTracks)
@@ -263,32 +268,31 @@ object PlaybackTrackPreferences {
                     effectiveSubtitleLanguage(),
                     existingSubtitleLanguages,
                 )
-                var builder: TrackSelectionParameters.Builder? = null
 
-                if (scopeChanged) {
-                    builder = player.trackSelectionParameters.buildUpon()
+                val builder = if (scopeChanged) {
+                    player.trackSelectionParameters.buildUpon()
                         .clearOverridesOfType(C.TRACK_TYPE_AUDIO)
                         .clearOverridesOfType(C.TRACK_TYPE_TEXT)
                         .setTrackTypeDisabled(C.TRACK_TYPE_AUDIO, false)
                         .setTrackTypeDisabled(C.TRACK_TYPE_TEXT, false)
                         .setIgnoredTextSelectionFlags(DEFAULT_TEXT_FLAGS)
+                } else {
+                    player.trackSelectionParameters.buildUpon()
                 }
 
-                builder = (builder ?: player.trackSelectionParameters.buildUpon())
-                    .setPreferredAudioLanguages(*audioLanguages.toTypedArray())
+                builder.setPreferredAudioLanguages(*audioLanguages.toTypedArray())
 
                 if (externalSubtitle) {
                     // Downloaded/local subtitles are playback-only choices. Clear
                     // embedded overrides and language preferences for this item so
                     // Media3 can honor the explicitly selected local default.
-                    builder = builder
+                    builder
                         .clearOverridesOfType(C.TRACK_TYPE_TEXT)
                         .setPreferredTextLanguages(*emptyArray())
                         .setTrackTypeDisabled(C.TRACK_TYPE_TEXT, false)
                         .setIgnoredTextSelectionFlags(DEFAULT_TEXT_FLAGS)
                 } else {
-                    builder = builder
-                        .setPreferredTextLanguages(*subtitleLanguages.toTypedArray())
+                    builder.setPreferredTextLanguages(*subtitleLanguages.toTypedArray())
                 }
 
                 mediaItem = newItem
@@ -297,9 +301,8 @@ object PlaybackTrackPreferences {
                 subtitleRestored = savedSubtitle == null
                 audioCancelled = false
                 subtitleCancelled = externalSubtitle
-                externalSubtitleActive = externalSubtitle
 
-                builder.build().let(::applyParameters)
+                applyParameters(builder.build())
                 captureState(player.trackSelectionParameters, tracks)
             }
 
@@ -752,6 +755,11 @@ object PlaybackTrackPreferences {
             (scheme == "file" || scheme == "content") &&
                 subtitle.selectionFlags and C.SELECTION_FLAG_DEFAULT != 0
         } == true
+
+    private fun contentOf(videoType: Video.Type): String = when (videoType) {
+        is Video.Type.Movie -> "movie:${videoType.id}"
+        is Video.Type.Episode -> "tv:${videoType.tvShow.id}"
+    }
 
     private fun contentKeyOf(provider: String, content: String) =
         buildString {
