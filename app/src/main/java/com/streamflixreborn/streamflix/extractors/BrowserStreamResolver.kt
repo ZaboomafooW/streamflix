@@ -40,6 +40,12 @@ internal object BrowserStreamResolver {
             val embedOrigin = "${embedUrl.scheme}://${embedUrl.host}"
             val webView = WebView(StreamFlixApp.instance.applicationContext)
             var timeoutRunnable: Runnable? = null
+            var playbackKickRunnable: Runnable? = null
+
+            fun removeCallbacks() {
+                timeoutRunnable?.let(handler::removeCallbacks)
+                playbackKickRunnable?.let(handler::removeCallbacks)
+            }
 
             fun destroyWebView() {
                 runCatching { webView.stopLoading() }
@@ -49,7 +55,7 @@ internal object BrowserStreamResolver {
 
             fun finish(video: Video? = null, error: Throwable? = null) {
                 if (!completed.compareAndSet(false, true)) return
-                timeoutRunnable?.let(handler::removeCallbacks)
+                removeCallbacks()
                 handler.post {
                     destroyWebView()
                     if (!continuation.isActive) return@post
@@ -116,6 +122,20 @@ internal object BrowserStreamResolver {
                 }
             }
 
+            playbackKickRunnable = Runnable {
+                if (!completed.get()) {
+                    webView.evaluateJavascript(
+                        "(function(){" +
+                            "var v=document.querySelector('video');" +
+                            "if(v){try{v.play();}catch(e){}}" +
+                            "document.querySelectorAll('[class*=play],[id*=play]').forEach(function(e){try{e.click();}catch(x){}});" +
+                            "return true;" +
+                        "})();",
+                        null,
+                    )
+                }
+            }.also { handler.postDelayed(it, 5_000L) }
+
             timeoutRunnable = Runnable {
                 finish(error = Exception("Timed out waiting for a playable stream request"))
             }.also { handler.postDelayed(it, timeoutMs) }
@@ -130,7 +150,7 @@ internal object BrowserStreamResolver {
 
             continuation.invokeOnCancellation {
                 if (completed.compareAndSet(false, true)) {
-                    timeoutRunnable?.let(handler::removeCallbacks)
+                    removeCallbacks()
                     handler.post { destroyWebView() }
                 }
             }
