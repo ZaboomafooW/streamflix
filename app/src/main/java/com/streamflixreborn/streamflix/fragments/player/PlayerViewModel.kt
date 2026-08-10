@@ -221,7 +221,6 @@ class PlayerViewModel(
                     lastError = e
                     lastFailedServer = candidate
                     ServerAvailability.invalidate(provider, id, videoType, candidate)
-                    currentServers = currentServers.filterNot { sameServer(it, candidate) }
                     Log.w(
                         "PlayerViewModel",
                         "Server ${candidate.name} stopped resolving: ${e.message}"
@@ -244,7 +243,8 @@ class PlayerViewModel(
                 return@launch
             }
 
-            _state.emit(State.FailedLoadingVideo(lastError, lastFailedServer))
+            val terminalServer = currentServers.lastOrNull() ?: lastFailedServer
+            _state.emit(State.FailedLoadingVideo(lastError, terminalServer))
         }.also { videoLoadJob = it }
     }
 
