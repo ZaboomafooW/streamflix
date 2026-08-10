@@ -15,7 +15,6 @@ import androidx.fragment.app.Fragment
 import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.flowWithLifecycle
 import androidx.lifecycle.lifecycleScope
-import androidx.leanback.widget.OnChildViewHolderSelectedListener
 import androidx.recyclerview.widget.RecyclerView
 import com.streamflixreborn.streamflix.R
 import com.streamflixreborn.streamflix.adapters.AppAdapter
@@ -45,7 +44,6 @@ class SearchTvFragment : Fragment() {
     private val database by lazy { AppDatabase.getInstance(requireContext()) }
     private val viewModel by viewModelsFactory { SearchViewModel(database) }
     private var isGlobalSearchChecked: Boolean = false
-    private var currentGridColumns: Int = 1
 
     private val appAdapter by lazy {
         AppAdapter().apply {
@@ -143,8 +141,6 @@ class SearchTvFragment : Fragment() {
                                     LoggingUtils.showErrorDialog(requireContext(), state.error)
                                 }
                                 binding.vgvSearch.visibility = View.INVISIBLE
-                                binding.etSearch.nextFocusDownId = binding.isLoading.btnIsLoadingRetry.id
-                                binding.isLoading.btnIsLoadingRetry.nextFocusUpId = binding.etSearch.id
                             }
                         }
                     }
@@ -180,9 +176,6 @@ class SearchTvFragment : Fragment() {
         val isIptv = UserPreferences.currentProvider is IptvProvider
         val hintStringRes = if (isIptv) R.string.search_input_hint_iptv else R.string.search_input_hint
         binding.etSearch.hint = getString(hintStringRes)
-
-        binding.llGlobalSearch.nextFocusUpId = binding.etSearch.id
-        binding.vgvSearch.nextFocusUpId = binding.llGlobalSearch.id
 
         binding.llGlobalSearch.setOnClickListener {
             isGlobalSearchChecked = !isGlobalSearchChecked
@@ -296,18 +289,6 @@ class SearchTvFragment : Fragment() {
                 stateRestorationPolicy = RecyclerView.Adapter.StateRestorationPolicy.PREVENT_WHEN_EMPTY
             }
             setItemSpacing(resources.getDimension(R.dimen.search_spacing).toInt())
-            addOnChildViewHolderSelectedListener(object : OnChildViewHolderSelectedListener() {
-                override fun onChildViewHolderSelected(
-                    parent: RecyclerView,
-                    child: RecyclerView.ViewHolder?,
-                    position: Int,
-                    subposition: Int,
-                ) {
-                    child?.itemView?.nextFocusUpId =
-                        if (position in 0 until currentGridColumns) binding.llGlobalSearch.id
-                        else View.NO_ID
-                }
-            })
         }
 
         binding.root.requestFocus()
@@ -327,8 +308,7 @@ class SearchTvFragment : Fragment() {
     }
 
     private fun displaySearch(list: List<AppAdapter.Item>, hasMore: Boolean) {
-        currentGridColumns = if (viewModel.query == "") 5 else 6
-        binding.vgvSearch.setNumColumns(currentGridColumns)
+        binding.vgvSearch.setNumColumns(if (viewModel.query == "") 5 else 6)
 
         appAdapter.submitList(list.onEach {
             when (it) {
@@ -369,8 +349,7 @@ class SearchTvFragment : Fragment() {
             }
         }
 
-        currentGridColumns = 1
-        binding.vgvSearch.setNumColumns(currentGridColumns) // La lista de categorías es una sola columna vertical
+        binding.vgvSearch.setNumColumns(1) // La lista de categorías es una sola columna vertical
         appAdapter.submitList(categories)
         appAdapter.setOnLoadMoreListener(null)
     }

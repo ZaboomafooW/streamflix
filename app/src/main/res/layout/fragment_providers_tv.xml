@@ -42,18 +42,16 @@
         app:layout_constraintTop_toTopOf="parent"
         app:layout_constraintVertical_chainStyle="packed" />
 
-    <androidx.recyclerview.widget.RecyclerView
+    <androidx.leanback.widget.HorizontalGridView
         android:id="@+id/rv_providers"
         android:layout_width="wrap_content"
         android:layout_height="wrap_content"
         android:clipChildren="false"
         android:clipToPadding="false"
-        android:orientation="horizontal"
         android:paddingStart="70dp"
         android:paddingTop="@dimen/providers_spacing"
         android:paddingEnd="70dp"
         android:paddingBottom="@dimen/providers_spacing"
-        app:layoutManager="androidx.recyclerview.widget.LinearLayoutManager"
         app:layout_constraintBottom_toBottomOf="parent"
         app:layout_constraintEnd_toEndOf="parent"
         app:layout_constraintStart_toStartOf="parent"
