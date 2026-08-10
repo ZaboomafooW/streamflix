@@ -10,7 +10,7 @@ permissions:
 
 jobs:
   build:
-    name: Trace Doramasflix playback source
+    name: Trace Doramasflix playback config
     runs-on: ubuntu-latest
     timeout-minutes: 10
 
@@ -20,50 +20,45 @@ jobs:
         with:
           ref: ${{ github.sha }}
 
-      - name: Inspect current Doramasflix movie page
+      - name: Inspect playback configuration
         shell: bash
         run: |
           set -euo pipefail
           URL='https://doramasflix.in/peliculas-online/just-for-meeting-you'
           UA='Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/140.0.0.0 Safari/537.36'
-          curl -L --compressed -A "$UA" -H 'Accept: text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8' -D headers.txt -sS "$URL" -o page.html
-          echo '=== RESPONSE ==='
-          head -n 1 headers.txt
-          echo "HTML bytes: $(wc -c < page.html)"
-          echo '=== PAGE MATCHES ==='
+          curl -L --compressed -A "$UA" -sS "$URL" -o page.html
           python3 - <<'PY'
-          import re
-          from pathlib import Path
-          text=Path('page.html').read_text(errors='replace')
-          pats=re.compile(r'primeload|filemoon|streamtape|listProblems|problem_id|links_online|graphql|fluxcedene|server',re.I)
-          for m in list(pats.finditer(text))[:80]:
-              a=max(0,m.start()-350); b=min(len(text),m.end()+650)
-              print('\n---',m.group(0),'---\n',text[a:b].replace('><','>\n<'))
-          PY
-          echo '=== SCRIPT SOURCES ==='
-          python3 - <<'PY'
-          import re, urllib.parse, urllib.request
+          import html as htmlmod, re, urllib.parse, urllib.request
           from pathlib import Path
           base='https://doramasflix.in/peliculas-online/just-for-meeting-you'
           ua='Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/140.0.0.0 Safari/537.36'
-          html=Path('page.html').read_text(errors='replace')
+          raw=Path('page.html').read_text(errors='replace')
+          decoded=htmlmod.unescape(raw).replace('\\"','"').replace('\\u0026','&').replace('\\u003d','=')
+          print('=== MOVIE ID ===')
+          for pat in [r'"_id":"([^"]+)"[^{}]{0,500}"name":"Just For Meeting You"', r'"name":"Just For Meeting You"[^{}]{0,500}"_id":"([^"]+)"']:
+              m=re.search(pat,decoded,re.I)
+              if m: print(m.group(1))
           srcs=[]
-          for src in re.findall(r'<script[^>]+src=["\']([^"\']+)', html, re.I):
-              url=urllib.parse.urljoin(base,src)
-              if url not in srcs: srcs.append(url)
-          print('scripts:',len(srcs))
-          needle=re.compile(rb'primeload|filemoon|streamtape|listProblems|problem_id|links_online|fluxcedene|graphql',re.I)
-          for i,url in enumerate(srcs):
-              print(f'[{i}] {url}')
+          for src in re.findall(r'<script[^>]+src=["\']([^"\']+)',raw,re.I):
+              u=urllib.parse.urljoin(base,src)
+              if u not in srcs: srcs.append(u)
+          patterns=[b'appConfig',b'sv7.fluxcedene',b'cloudfleir',b'GRAPHQL_ENDPOINTS',b'getMovieLinks',b'getEpisodeLinks']
+          print('=== CONFIG MATCHES ===')
+          seen=set()
+          for url in srcs:
               try:
                   req=urllib.request.Request(url,headers={'User-Agent':ua,'Referer':base})
                   data=urllib.request.urlopen(req,timeout=20).read()
-              except Exception as e:
-                  print('  ERROR',repr(e)); continue
-              matches=list(needle.finditer(data))
-              if not matches: continue
-              print('  MATCHES',len(matches),'bytes',len(data))
-              for m in matches[:30]:
-                  a=max(0,m.start()-500); b=min(len(data),m.end()+1000)
-                  print(data[a:b].decode('utf-8','replace'))
+              except Exception: continue
+              for needle in patterns:
+                  pos=0
+                  while True:
+                      p=data.find(needle,pos)
+                      if p<0: break
+                      snippet=data[max(0,p-1200):min(len(data),p+2200)].decode('utf-8','replace')
+                      key=(needle,snippet[:300])
+                      if key not in seen:
+                          seen.add(key)
+                          print('\n###',needle.decode(),'@',url,'\n',snippet)
+                      pos=p+len(needle)
           PY
