@@ -8,6 +8,7 @@ import com.google.gson.annotations.SerializedName
 import com.tanasi.retrofit_jsoup.converter.JsoupConverterFactory
 import com.streamflixreborn.streamflix.models.Video
 import com.streamflixreborn.streamflix.utils.NetworkClient
+import com.streamflixreborn.streamflix.utils.SubtitleDebugState
 import okhttp3.HttpUrl.Companion.toHttpUrlOrNull
 import okhttp3.OkHttpClient
 import org.jsoup.nodes.Document
@@ -73,6 +74,7 @@ class VixcloudExtractor(
 
     override suspend fun extract(link: String): Video {
         Log.d("VixcloudDebug", "Extracting link: $link with preferredLanguage: $preferredLanguage")
+        SubtitleDebugState.clear()
         
         val uri = link.toHttpUrlOrNull() ?: throw Exception("Invalid Vixcloud link")
         val currentMainUrl = "${uri.scheme}://${uri.host}/"
@@ -194,6 +196,8 @@ class VixcloudExtractor(
                         Log.d("SmartSubtitleLog", "--- Vixcloud Subtitle Processing START ($langCode) ---")
 
                         val lines = playlistContent.lines()
+                        val rawAudioLines = lines.filter { it.startsWith("#EXT-X-MEDIA:TYPE=AUDIO") }
+                        val rawSubtitleLines = lines.filter { it.startsWith("#EXT-X-MEDIA:TYPE=SUBTITLES") }
                         val finalLines = mutableListOf<String>()
                         val uriRegex = """URI=["']([^"']+)["']""".toRegex()
 
@@ -251,6 +255,16 @@ class VixcloudExtractor(
                                 finalLines.add(patchedLine)
                             }
                         }
+
+                        SubtitleDebugState.update(
+                            source = "Vixcloud",
+                            preferredLanguage = langCode,
+                            rawAudioLines = rawAudioLines,
+                            rawSubtitleLines = rawSubtitleLines,
+                            patchedAudioLines = finalLines.filter { it.startsWith("#EXT-X-MEDIA:TYPE=AUDIO") },
+                            patchedSubtitleLines = finalLines.filter { it.startsWith("#EXT-X-MEDIA:TYPE=SUBTITLES") },
+                        )
+
                         Log.d("SmartSubtitleLog", "--- Vixcloud Subtitle Processing END ---")
                         
                         val base64Manifest = Base64.encodeToString(finalLines.joinToString("\n").toByteArray(), Base64.NO_WRAP)
