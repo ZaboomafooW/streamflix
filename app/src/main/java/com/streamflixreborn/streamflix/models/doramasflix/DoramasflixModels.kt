@@ -52,6 +52,7 @@ data class Episode(
     @SerializedName("_id")
     val id: String,
     val name: String?,
+    val slug: String,
     @SerializedName("episode_number")
     val episodeNumber: Int?,
     @SerializedName("still_path")
