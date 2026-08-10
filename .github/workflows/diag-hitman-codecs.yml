@@ -1,0 +1,48 @@
+name: Diagnose Hitman 2 transport codecs
+
+on:
+  pull_request:
+    branches:
+      - main
+
+permissions:
+  contents: read
+
+jobs:
+  diagnose:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - run: python -m pip install --disable-pip-version-check curl_cffi beautifulsoup4
+      - name: Download live initial transport stream
+        run: |
+          python - <<'PY'
+          import re, subprocess
+          from urllib.parse import urljoin
+          from curl_cffi import requests as cr
+          from bs4 import BeautifulSoup
+          EMBED='https://closeload.top/video/embed/oGZBTo87vFR/?imdb_id=tt30788876'
+          PARENT='https://ridomovies.su/movie/hitman-2-2025'
+          UA='Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/136.0.0.0 Safari/537.36'
+          s=cr.Session(impersonate='chrome136')
+          r=s.get(EMBED,headers={'User-Agent':UA,'Referer':PARENT},timeout=30); r.raise_for_status()
+          scripts=[x.string or x.get_text() or '' for x in BeautifulSoup(r.text,'html.parser').find_all('script')]
+          setup=next(x for x in scripts if 'jwplayer("videoplayer").setup' in x)
+          var=re.search(r'sources\s*:\s*\[\{\s*file\s*:\s*([A-Za-z_$][\w$]*)',setup).group(1)
+          body=next(x for x in scripts if re.search(rf'var\s+{re.escape(var)}\s*=',x))
+          p=subprocess.run(['node','-e',body+f'\nconsole.log("__SOURCE__"+{var});'],capture_output=True,text=True,check=True)
+          source=re.search(r'__SOURCE__(https?://\S+)',p.stdout).group(1)
+          h={'User-Agent':UA,'Referer':EMBED,'Origin':'https://closeload.top','Accept':'*/*'}
+          pl=s.get(source,headers=h,timeout=30); pl.raise_for_status()
+          segs=[urljoin(source,x.strip()) for x in pl.text.splitlines() if x.strip() and not x.startswith('#')]
+          with open('hitman-first.ts','wb') as out:
+              for i,u in enumerate(segs[:8]):
+                  rr=s.get(u,headers=h,timeout=30); rr.raise_for_status(); out.write(rr.content)
+                  print(i,len(rr.content),rr.headers.get('content-type'),u)
+          print('SOURCE',source)
+          PY
+      - name: Inspect codecs
+        run: |
+          command -v ffprobe || (sudo apt-get update -qq && sudo apt-get install -y ffmpeg)
+          file hitman-first.ts
+          ffprobe -v error -show_entries stream=index,codec_name,codec_long_name,profile,codec_type,width,height,pix_fmt,level,sample_rate,channels,channel_layout:format=format_name,duration -of json hitman-first.ts
