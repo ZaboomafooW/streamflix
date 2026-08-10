@@ -156,15 +156,6 @@ object DoramasflixProvider : Provider {
 
     private fun slugFromId(id: String): String = normalizePath(id).substringAfterLast('/')
 
-    private fun backendIdFromContentId(id: String): String? = id
-        .substringAfter('?', "")
-        .split('&')
-        .firstOrNull { it.startsWith("id=") }
-        ?.substringAfter('=')
-        ?.takeIf { it.isNotBlank() }
-
-    private fun contentId(path: String, backendId: String): String = "$path?id=$backendId"
-
     private fun titleFor(show: DoramasflixShow): String {
         val translated = show.nameEs?.takeIf { it.isNotBlank() && !it.equals(show.name, ignoreCase = true) }
         return translated?.let { "${show.name} ($it)" } ?: show.name
@@ -272,6 +263,7 @@ object DoramasflixProvider : Provider {
                   ) {
                     _id
                     name
+                    slug
                     still_path
                     episode_number
                   }
@@ -310,7 +302,7 @@ object DoramasflixProvider : Provider {
                 response.data?.searchDorama.orEmpty().forEach { show ->
                     add(
                         TvShow(
-                            id = contentId(doramaId(show.slug), show.id),
+                            id = doramaId(show.slug),
                             title = titleFor(show),
                             poster = getPosterUrl(show.posterPath ?: show.poster),
                         )
@@ -319,7 +311,7 @@ object DoramasflixProvider : Provider {
                 response.data?.searchMovie.orEmpty().forEach { show ->
                     add(
                         Movie(
-                            id = contentId(movieId(show.slug), show.id),
+                            id = movieId(show.slug),
                             title = titleFor(show),
                             poster = getPosterUrl(show.posterPath ?: show.poster),
                         )
@@ -356,7 +348,7 @@ object DoramasflixProvider : Provider {
             )
             response.data?.paginationMovie?.items.orEmpty().map { show ->
                 Movie(
-                    id = contentId(movieId(show.slug), show.id),
+                    id = movieId(show.slug),
                     title = titleFor(show),
                     poster = getPosterUrl(show.posterPath ?: show.poster),
                 )
@@ -393,7 +385,7 @@ object DoramasflixProvider : Provider {
             )
             response.data?.paginationDorama?.items.orEmpty().map { show ->
                 TvShow(
-                    id = contentId(doramaId(show.slug), show.id),
+                    id = doramaId(show.slug),
                     title = titleFor(show),
                     poster = getPosterUrl(show.posterPath ?: show.poster),
                 )
@@ -416,7 +408,7 @@ object DoramasflixProvider : Provider {
             val metadata = structuredMetadata(document, "Movie", pageUrl)
 
             Movie(
-                id = contentId(movieId(slug), apiMovie.id),
+                id = movieId(slug),
                 title = title,
                 overview = metadata.description,
                 rating = metadata.rating,
@@ -448,9 +440,8 @@ object DoramasflixProvider : Provider {
                 )
             }
 
-            val backendId = apiShow?.id ?: backendIdFromContentId(id)
             TvShow(
-                id = backendId?.let { contentId(path, it) } ?: path,
+                id = path,
                 title = firstSeason?.serieName?.takeIf { it.isNotBlank() }
                     ?: apiShow?.let(::titleFor)
                     ?: slug.replace('-', ' ').replaceFirstChar { it.titlecase(Locale.ROOT) },
@@ -473,7 +464,7 @@ object DoramasflixProvider : Provider {
         return try {
             getEpisodes(slug, seasonNumber).map { episode ->
                 Episode(
-                    id = episode.id,
+                    id = episode.slug,
                     number = episode.episodeNumber ?: 0,
                     title = "Episodio ${episode.episodeNumber ?: 0}: ${episode.name.orEmpty()}".trim(),
                     poster = getPosterUrl(episode.stillPath),
@@ -487,7 +478,9 @@ object DoramasflixProvider : Provider {
     private suspend fun getPlaybackLinks(id: String, videoType: Video.Type): List<OnlineLink> {
         return when (videoType) {
             is Video.Type.Movie -> {
-                val movieBackendId = backendIdFromContentId(id) ?: id
+                val slug = slugFromId(id)
+                val movieBackendId = findMovieBySlug(slug, videoType.title)?.id
+                    ?: throw Exception("Doramasflix could not resolve the movie playback ID.")
                 val response = playbackRequest(
                     operationName = "MovieLinks",
                     variables = JSONObject().put("movie_id", movieBackendId),
@@ -507,9 +500,14 @@ object DoramasflixProvider : Provider {
             }
 
             is Video.Type.Episode -> {
+                val showSlug = slugFromId(videoType.tvShow.id)
+                val episodeBackendId = getEpisodes(showSlug, videoType.season.number)
+                    .firstOrNull { it.slug == id }
+                    ?.id
+                    ?: throw Exception("Doramasflix could not resolve the episode playback ID.")
                 val response = playbackRequest(
                     operationName = "EpisodeLinksOnline",
-                    variables = JSONObject().put("episode_id", id),
+                    variables = JSONObject().put("episode_id", episodeBackendId),
                     query = """
                         query EpisodeLinksOnline(${'$'}episode_id: ID!) {
                           getEpisodeLinks(id: ${'$'}episode_id, app: "$playbackApp") {
