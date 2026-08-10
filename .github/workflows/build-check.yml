@@ -29,28 +29,17 @@ jobs:
           settings = Path('app/src/main/java/com/streamflixreborn/streamflix/fragments/settings/SettingsTvFragment.kt')
           text = settings.read_text()
 
-          old_guard = '''                if (event.action != KeyEvent.ACTION_DOWN ||
-                    event.keyCode != KeyEvent.KEYCODE_DPAD_LEFT ||
-                    screenBackStack.isEmpty()
-                ) {'''
-          new_guard = '''                if (event.action != KeyEvent.ACTION_DOWN ||
-                    event.repeatCount != 0 ||
-                    event.keyCode != KeyEvent.KEYCODE_DPAD_LEFT ||
-                    screenBackStack.isEmpty()
-                ) {'''
-          assert old_guard in text, 'Left boundary guard did not match expected source'
-          text = text.replace(old_guard, new_guard, 1)
+          guard_line = "                    event.keyCode != KeyEvent.KEYCODE_DPAD_LEFT ||\n"
+          assert text.count(guard_line) == 1, 'Expected exactly one Left boundary guard'
+          text = text.replace(
+              guard_line,
+              "                    event.repeatCount != 0 ||\n" + guard_line,
+              1,
+          )
 
-          old_seekbar = '''                if (preference is SeekBarPreference && preference.isAdjustable) {
-                    return@setOnKeyInterceptListener false
-                }'''
-          new_seekbar = '''                if (preference is SeekBarPreference &&
-                    preference.isAdjustable &&
-                    preference.value > preference.min
-                ) {
-                    return@setOnKeyInterceptListener false
-                }'''
-          assert old_seekbar in text, 'SeekBar boundary guard did not match expected source'
+          old_seekbar = "                if (preference is SeekBarPreference && preference.isAdjustable) {\n                    return@setOnKeyInterceptListener false\n                }"
+          new_seekbar = "                if (preference is SeekBarPreference &&\n                    preference.isAdjustable &&\n                    preference.value > preference.min\n                ) {\n                    return@setOnKeyInterceptListener false\n                }"
+          assert text.count(old_seekbar) == 1, 'Expected exactly one SeekBar boundary guard'
           text = text.replace(old_seekbar, new_seekbar, 1)
           settings.write_text(text)
 
