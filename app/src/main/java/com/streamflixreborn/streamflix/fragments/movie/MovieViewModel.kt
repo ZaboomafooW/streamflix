@@ -6,8 +6,11 @@ import androidx.lifecycle.viewModelScope
 import com.streamflixreborn.streamflix.database.AppDatabase
 import com.streamflixreborn.streamflix.models.Movie
 import com.streamflixreborn.streamflix.models.TvShow
+import com.streamflixreborn.streamflix.models.Video
 import com.streamflixreborn.streamflix.utils.EpisodeManager
+import com.streamflixreborn.streamflix.utils.ServerAvailability
 import com.streamflixreborn.streamflix.utils.UserPreferences
+import com.streamflixreborn.streamflix.utils.format
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.flow.Flow
@@ -92,17 +95,30 @@ class MovieViewModel(id: String, private val database: AppDatabase) : ViewModel(
         getMovie(id)
     }
 
-
     fun getMovie(id: String) = viewModelScope.launch(Dispatchers.IO) {
         _state.emit(State.Loading)
 
         try {
-            val movie = UserPreferences.currentProvider!!.getMovie(id)
+            val provider = UserPreferences.currentProvider
+                ?: throw Exception("No provider selected")
+            val movie = provider.getMovie(id)
 
             database.movieDao().getById(id)?.let { movieDb ->
                 movie.merge(movieDb)
             }
             database.movieDao().insert(movie)
+
+            ServerAvailability.prefetch(
+                provider = provider,
+                id = movie.id,
+                videoType = Video.Type.Movie(
+                    id = movie.id,
+                    title = movie.title,
+                    releaseDate = movie.released?.format("yyyy-MM-dd") ?: "",
+                    poster = movie.poster ?: movie.banner ?: "",
+                    imdbId = movie.imdbId,
+                ),
+            )
 
             _state.emit(State.SuccessLoading(movie))
         } catch (e: Exception) {
