@@ -540,41 +540,71 @@ object DoramasflixProvider : Provider {
     }
 
     private fun getServerName(link: String): String {
-        return runCatching {
-            URL(link).host
-                .removePrefix("www.")
-                .substringBefore('.')
+        val host = runCatching { URL(link).host.lowercase(Locale.ROOT).removePrefix("www.") }
+            .getOrNull()
+            ?: return "Server"
+
+        return when (host) {
+            "do7go.com" -> "DoodStream"
+            "flaswish.com" -> "Streamwish"
+            "bysefujedu.com" -> "Filemoon"
+            "callistanise.com" -> "VidHide"
+            "jessicayeahcatch.com" -> "VOE"
+            "streamtape.com" -> "Streamtape"
+            else -> host.substringBefore('.')
                 .replaceFirstChar { it.titlecase(Locale.ROOT) }
-        }.getOrNull()?.takeIf { it.isNotBlank() } ?: "Server"
+                .takeIf { it.isNotBlank() }
+                ?: "Server"
+        }
     }
 
-    private fun isPlayableServer(link: String): Boolean {
+    private fun isPrimeload(link: String): Boolean {
         val host = runCatching { URL(link).host.lowercase(Locale.ROOT) }.getOrNull() ?: return false
-        return host != "primeload.co" && !host.endsWith(".primeload.co")
+        return host == "primeload.co" || host.endsWith(".primeload.co")
     }
 
     override suspend fun getServers(id: String, videoType: Video.Type): List<Video.Server> {
-        return try {
+        val playbackLinks = try {
             getPlaybackLinks(id, videoType)
-                .sortedByDescending { it.isRecommended == true }
-                .mapNotNull { onlineLink ->
-                    val decodedLink = onlineLink.link
-                        ?.takeIf { it.isNotBlank() }
-                        ?.let(::decodePlaybackLink)
-                        ?: return@mapNotNull null
-                    val realLink = getRealLink(decodedLink)
-                    if (!isPlayableServer(realLink)) return@mapNotNull null
-
-                    val lang = onlineLink.lang?.getLang().orEmpty()
-                    Video.Server(
-                        id = realLink,
-                        name = "${getServerName(realLink)} $lang".trim(),
-                    )
-                }
-                .distinctBy { it.id }
-        } catch (_: Exception) {
-            emptyList()
+        } catch (e: Exception) {
+            throw Exception("Doramasflix playback lookup failed: ${e.message}", e)
         }
+
+        if (playbackLinks.isEmpty()) {
+            throw Exception("Doramasflix currently has no playback sources for this title.")
+        }
+
+        var primeloadCount = 0
+        val servers = playbackLinks
+            .sortedByDescending { it.isRecommended == true }
+            .mapNotNull { onlineLink ->
+                val decodedLink = onlineLink.link
+                    ?.takeIf { it.isNotBlank() }
+                    ?.let(::decodePlaybackLink)
+                    ?: return@mapNotNull null
+                val realLink = getRealLink(decodedLink)
+                if (isPrimeload(realLink)) {
+                    primeloadCount++
+                    return@mapNotNull null
+                }
+
+                val lang = onlineLink.lang?.getLang().orEmpty()
+                Video.Server(
+                    id = realLink,
+                    name = "${getServerName(realLink)} $lang".trim(),
+                )
+            }
+            .distinctBy { it.id }
+
+        if (servers.isNotEmpty()) return servers
+
+        if (primeloadCount == playbackLinks.size) {
+            throw Exception(
+                "Doramasflix currently offers this title only on Primeload, which StreamFlix does not support yet."
+            )
+        }
+
+        throw Exception("Doramasflix currently has no supported playback sources for this title.")
     }
 
     private suspend fun getRealLink(link: String): String {
