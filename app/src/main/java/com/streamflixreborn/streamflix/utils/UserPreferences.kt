@@ -53,10 +53,6 @@ object UserPreferences {
             Context.MODE_PRIVATE,
         )
         if (::prefs.isInitialized) {
-            // The old app-wide subtitle memory cannot be safely migrated into the
-            // new provider/content/source-specific model, so discard it.
-            prefs.edit().remove("SUBTITLE_NAME").apply()
-
             debugLog { "prefs initialized: ${prefs.hashCode()}" }
 
             val jsonString = Key.PROVIDER_CACHE.getString() ?: "{}"
