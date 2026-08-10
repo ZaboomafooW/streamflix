@@ -330,7 +330,8 @@ object CB01Provider : Provider {
             runtime = tmdbMovie?.runtime ?: runtime,
             banner = tmdbMovie?.banner,
             imdbId = tmdbMovie?.imdbId,
-            cast = tmdbMovie?.cast ?: emptyList()
+            cast = tmdbMovie?.cast ?: emptyList(),
+            originalLanguage = tmdbMovie?.originalLanguage,
         )
     }
 
@@ -441,7 +442,8 @@ object CB01Provider : Provider {
             runtime = tmdbTvShow?.runtime,
             banner = tmdbTvShow?.banner,
             imdbId = tmdbTvShow?.imdbId,
-            cast = tmdbTvShow?.cast ?: emptyList()
+            cast = tmdbTvShow?.cast ?: emptyList(),
+            originalLanguage = tmdbTvShow?.originalLanguage,
         )
     }
 
@@ -596,7 +598,6 @@ object CB01Provider : Provider {
         try {
             val doc = service.getPage(uprotUrl)
             val html = doc.html()
-
             val b64Base = Regex("""decodedBaseUrl\s*=\s*atob\(["']([^"']+)["']\)""").find(html)?.groupValues?.getOrNull(1)
             val b64Val = Regex("""decodedEncryptedVal\s*=\s*atob\(["']([^"']+)["']\)""").find(html)?.groupValues?.getOrNull(1)
 
@@ -612,7 +613,6 @@ object CB01Provider : Provider {
         val uprotId = Regex("""/ms[a-zA-Z]+/([A-Za-z0-9+/=]+)""").find(url)?.groupValues?.getOrNull(1)
             ?: return null
         return callUprotApi(Keys.getUprotMseApiBase(), uprotId)
-
     }
 
 
