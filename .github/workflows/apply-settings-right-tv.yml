@@ -1,11 +1,10 @@
 name: Apply and build Settings Right TV navigation
 
 on:
-  push:
+  pull_request:
+    types: [opened]
     branches:
-      - work/settings-right-navigation
-    paths:
-      - .github/workflows/apply-settings-right-tv.yml
+      - ci/settings-right-base
 
 permissions:
   contents: write
