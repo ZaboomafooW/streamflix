@@ -11,7 +11,6 @@ import kotlinx.coroutines.Deferred
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.async
-import kotlinx.coroutines.cancel
 import kotlinx.coroutines.launch
 import java.util.concurrent.ConcurrentHashMap
 
@@ -89,6 +88,19 @@ object ServerAvailability {
             if (deferred.isCompleted) {
                 inFlight.remove(key, deferred)
             }
+        }
+    }
+
+    fun markAvailable(
+        provider: Provider,
+        id: String,
+        videoType: Video.Type,
+        server: Video.Server,
+    ) {
+        val key = key(provider, id, videoType)
+        workingServers.compute(key) { _, cached ->
+            val current = cached.orEmpty()
+            if (current.any { sameServer(it, server) }) current else current + server
         }
     }
 
