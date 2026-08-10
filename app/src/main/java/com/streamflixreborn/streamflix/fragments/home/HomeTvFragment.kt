@@ -22,12 +22,15 @@ import com.streamflixreborn.streamflix.models.Category
 import com.streamflixreborn.streamflix.models.Episode
 import com.streamflixreborn.streamflix.models.Movie
 import com.streamflixreborn.streamflix.models.TvShow
+import com.streamflixreborn.streamflix.utils.viewModelsFactory
 import kotlinx.coroutines.Runnable
 import com.streamflixreborn.streamflix.utils.CacheUtils
 import kotlinx.coroutines.launch
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.ViewModelProvider
 import com.streamflixreborn.streamflix.utils.LoggingUtils
+import com.streamflixreborn.streamflix.utils.UserPreferences
+import com.streamflixreborn.streamflix.utils.ProviderChangeNotifier
 
 class HomeTvFragment : Fragment() {
 
@@ -37,13 +40,14 @@ class HomeTvFragment : Fragment() {
     private val binding get() = _binding!!
 
     private val viewModel: HomeViewModel by lazy {
+        val providerKey = UserPreferences.currentProvider?.name ?: "default"
         val factory = object : ViewModelProvider.Factory {
             override fun <T : ViewModel> create(modelClass: Class<T>): T {
                 @Suppress("UNCHECKED_CAST")
                 return HomeViewModel(AppDatabase.getInstance(requireContext())) as T
             }
         }
-        ViewModelProvider(requireActivity(), factory)[HomeViewModel::class.java]
+        ViewModelProvider(this, factory).get(providerKey, HomeViewModel::class.java)
     }
 
     private val appAdapter = AppAdapter()
@@ -64,10 +68,61 @@ class HomeTvFragment : Fragment() {
         super.onViewCreated(view, savedInstanceState)
 
         initializeHome()
-        renderState(viewModel.state.value)
+
+        // Lightweight refresh when provider changes
+        viewLifecycleOwner.lifecycleScope.launch {
+            ProviderChangeNotifier.providerChangeFlow.flowWithLifecycle(lifecycle, Lifecycle.State.STARTED).collect {
+                viewModel.getHome()
+            }
+        }
+
+        // Initial load
+        viewModel.getHome()
 
         viewLifecycleOwner.lifecycleScope.launch {
-            viewModel.state.flowWithLifecycle(lifecycle, Lifecycle.State.STARTED).collect(::renderState)
+            viewModel.state.flowWithLifecycle(lifecycle, Lifecycle.State.STARTED).collect { state ->
+                when (state) {
+                    HomeViewModel.State.Loading -> binding.isLoading.apply {
+                        root.visibility = View.VISIBLE
+                        pbIsLoading.visibility = View.VISIBLE
+                        gIsLoadingRetry.visibility = View.GONE
+                    }
+                    is HomeViewModel.State.SuccessLoading -> {
+                        displayHome(state.categories)
+                        binding.vgvHome.visibility = View.VISIBLE
+                        binding.isLoading.root.visibility = View.GONE
+                    }
+                    is HomeViewModel.State.FailedLoading -> {
+                        val code = (state.error as? retrofit2.HttpException)?.code()
+                        if (code == 409 && !hasAutoCleared409) {
+                            hasAutoCleared409 = true
+                            CacheUtils.clearAppCache(requireContext())
+                            android.widget.Toast.makeText(requireContext(), getString(com.streamflixreborn.streamflix.R.string.clear_cache_done_409), android.widget.Toast.LENGTH_SHORT).show()
+                            viewModel.getHome()
+                            return@collect
+                        }
+                        Toast.makeText(
+                            requireContext(),
+                            state.error.message ?: "",
+                            Toast.LENGTH_SHORT
+                        ).show()
+                        binding.isLoading.apply {
+                            pbIsLoading.visibility = View.GONE
+                            gIsLoadingRetry.visibility = View.VISIBLE
+                            btnIsLoadingRetry.setOnClickListener { viewModel.getHome() }
+                            btnIsLoadingClearCache.setOnClickListener {
+                                CacheUtils.clearAppCache(requireContext())
+                                android.widget.Toast.makeText(requireContext(), getString(com.streamflixreborn.streamflix.R.string.clear_cache_done), android.widget.Toast.LENGTH_SHORT).show()
+                                viewModel.getHome()
+                            }
+                            btnIsLoadingErrorDetails.setOnClickListener {
+                                LoggingUtils.showErrorDialog(requireContext(), state.error)
+                            }
+                            binding.vgvHome.visibility = View.GONE
+                        }
+                    }
+                }
+            }
         }
     }
     
@@ -129,58 +184,6 @@ class HomeTvFragment : Fragment() {
         }
 
         binding.root.requestFocus()
-    }
-
-    private fun renderState(state: HomeViewModel.State) {
-        when (state) {
-            HomeViewModel.State.Loading -> binding.isLoading.apply {
-                root.visibility = View.VISIBLE
-                pbIsLoading.visibility = View.VISIBLE
-                gIsLoadingRetry.visibility = View.GONE
-            }
-            is HomeViewModel.State.SuccessLoading -> {
-                displayHome(state.categories)
-                binding.vgvHome.visibility = View.VISIBLE
-                binding.isLoading.root.visibility = View.GONE
-            }
-            is HomeViewModel.State.FailedLoading -> {
-                val code = (state.error as? retrofit2.HttpException)?.code()
-                if (code == 409 && !hasAutoCleared409) {
-                    hasAutoCleared409 = true
-                    CacheUtils.clearAppCache(requireContext())
-                    Toast.makeText(
-                        requireContext(),
-                        getString(R.string.clear_cache_done_409),
-                        Toast.LENGTH_SHORT
-                    ).show()
-                    viewModel.getHome()
-                    return
-                }
-                Toast.makeText(
-                    requireContext(),
-                    state.error.message ?: "",
-                    Toast.LENGTH_SHORT
-                ).show()
-                binding.isLoading.apply {
-                    pbIsLoading.visibility = View.GONE
-                    gIsLoadingRetry.visibility = View.VISIBLE
-                    btnIsLoadingRetry.setOnClickListener { viewModel.getHome() }
-                    btnIsLoadingClearCache.setOnClickListener {
-                        CacheUtils.clearAppCache(requireContext())
-                        Toast.makeText(
-                            requireContext(),
-                            getString(R.string.clear_cache_done),
-                            Toast.LENGTH_SHORT
-                        ).show()
-                        viewModel.getHome()
-                    }
-                    btnIsLoadingErrorDetails.setOnClickListener {
-                        LoggingUtils.showErrorDialog(requireContext(), state.error)
-                    }
-                    binding.vgvHome.visibility = View.GONE
-                }
-            }
-        }
     }
 
     private fun displayHome(categories: List<Category>) {
