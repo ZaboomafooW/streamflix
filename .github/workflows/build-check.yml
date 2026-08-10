@@ -9,10 +9,10 @@ permissions:
   contents: read
 
 jobs:
-  audit:
-    name: Verify Primeload player data
+  build:
+    name: Build Android TV debug APK
     runs-on: ubuntu-latest
-    timeout-minutes: 15
+    timeout-minutes: 30
 
     steps:
       - name: Checkout requested code
@@ -20,60 +20,49 @@ jobs:
         with:
           ref: ${{ github.sha }}
 
-      - name: Inspect player JSON and attestation acceptance
-        shell: bash
+      - name: Set up JDK 17
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+
+      - name: Set up Android SDK
+        uses: android-actions/setup-android@v3
+
+      - name: Install required Android SDK components
         run: |
-          set -euo pipefail
-          python3 - <<'PY'
-          import html, http.cookiejar, json, re, urllib.parse, urllib.request, urllib.error
-          UA='Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/140.0.0.0 Safari/537.36'
-          EMBED='https://primeload.co/embed/SpdeEhk2xMAn'
-          PLAYER='https://primeload.co/player/SpdeEhk2xMAn?ref=https%3A%2F%2Fdoramasflix.in%2F'
-          BASE='https://primeload.co'
-          jar=http.cookiejar.CookieJar()
-          opener=urllib.request.build_opener(urllib.request.HTTPCookieProcessor(jar))
+          yes | sdkmanager --licenses >/dev/null || true
+          sdkmanager "platforms;android-36" "ndk;26.1.10909125" "cmake;3.22.1"
 
-          def request(url,data=None,referer=PLAYER,extra=None):
-            h={'User-Agent':UA,'Referer':referer,'Origin':BASE,'Accept':'application/json, text/plain, */*'}
-            if data is not None:h['Content-Type']='application/json'
-            if extra:h.update(extra)
-            req=urllib.request.Request(url,data=(json.dumps(data).encode() if data is not None else None),headers=h)
-            try:
-              with opener.open(req,timeout=25) as r:return r.status,r.read().decode('utf-8','replace'),dict(r.headers)
-            except urllib.error.HTTPError as e:return e.code,e.read().decode('utf-8','replace'),dict(e.headers)
+      - name: Create build properties
+        run: |
+          cat > local.properties <<'EOF'
+          APP_LAYOUT=tv
+          TMDB_API_KEY=dummy-ci-key
+          SUBDL_API_KEY=dummy-ci-key
+          RABBITSTREAM_SOURCE_API=https://example.invalid/
+          EOF
 
-          st,page,_=request(PLAYER,None,EMBED,{'Accept':'text/html'})
-          print('PLAYER',st,'cookies',[(c.name,c.value[:80]) for c in jar])
-          root=re.search(r'<div id="root"([^>]*)>',page,re.I|re.S)
-          attrs=root.group(1) if root else ''
-          def attr(name):
-            m=re.search(r'data-'+re.escape(name)+r'="([^"]*)"',attrs,re.I|re.S)
-            return html.unescape(m.group(1)) if m else ''
-          session=attr('session'); challenge=json.loads(attr('challenge')); api=attr('api'); token=attr('token')
-          print('ROOT',session,api,token,json.dumps(challenge))
+      - name: Generate native source from template
+        run: |
+          sed -e 's|{{UPROT_MSFI_API_BASE}}|https://example.invalid/msfi|g' \
+              -e 's|{{UPROT_MSE_API_BASE}}|https://example.invalid/mse|g' \
+              -e 's|{{UPROT_API_KEY}}|dummy-ci-key|g' \
+              app/src/main/cpp/native-lib.cpp.template > app/src/main/cpp/native-lib.cpp
 
-          # This JSON is fetched before attestation by the real Primeload player.
-          st,pdata,_=request(api+'/player/'+token,None,PLAYER)
-          print('\nPLAYER_DATA_HTTP',st)
-          print(pdata[:30000])
+      - name: Make Gradle executable
+        run: chmod +x ./gradlew
 
-          # Retry attestation with Laravel's XSRF cookie echoed as the normal X-XSRF-TOKEN header.
-          xsrf=next((urllib.parse.unquote(c.value) for c in jar if c.name=='XSRF-TOKEN'),None)
-          print('\nXSRF_PRESENT',bool(xsrf))
-          responses=[]
-          for task in challenge.get('tasks',[]):
-            typ=task.get('type')
-            if typ=='dom_measurement':
-              style=task.get('style',''); wm=re.search(r'width:([0-9.]+)px',style); hm=re.search(r'height:([0-9.]+)px',style)
-              responses.append({'w':float(wm.group(1)) if wm else 0,'h':float(hm.group(1)) if hm else 0})
-            elif typ=='canvas_text':responses.append('0'*64)
-            elif typ=='audio_fingerprint':responses.append(0)
-            elif typ=='webgl_renderer':responses.append('ANGLE (Google, Vulkan 1.3.0)')
-            elif typ=='timing':responses.append(1)
-            else:responses.append(None)
-          body={'session_id':session,'nonce':challenge.get('nonce'),'responses':responses,'fingerprint':'0'*64}
-          extra={'X-XSRF-TOKEN':xsrf,'X-Requested-With':'XMLHttpRequest'} if xsrf else {}
-          st,raw,_=request(api+'/stream/attest',body,PLAYER,extra)
-          print('\nATTEST_WITH_XSRF',st)
-          print(raw[:12000])
-          PY
+      - name: Run unit tests
+        run: ./gradlew testDebugUnitTest --stacktrace --no-daemon
+
+      - name: Build debug APK
+        run: ./gradlew assembleDebug --stacktrace --no-daemon
+
+      - name: Upload debug APK
+        uses: actions/upload-artifact@v4
+        with:
+          name: streamflix-tv-debug-apk
+          path: app/build/outputs/apk/debug/*.apk
+          if-no-files-found: error
+          retention-days: 7
