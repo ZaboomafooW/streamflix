@@ -10,21 +10,18 @@ import com.streamflixreborn.streamflix.models.TvShow
 import com.streamflixreborn.streamflix.providers.IptvProvider
 import com.streamflixreborn.streamflix.providers.Provider
 import com.streamflixreborn.streamflix.utils.ParentalControlUtils
-import com.streamflixreborn.streamflix.utils.ProviderChangeNotifier
 import com.streamflixreborn.streamflix.utils.UserPreferences
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.ExperimentalCoroutinesApi
+import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableStateFlow
-import kotlinx.coroutines.flow.SharingStarted
-import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.emitAll
 import kotlinx.coroutines.flow.flowOn
-import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.flow.transformLatest
 import kotlinx.coroutines.launch
 
-// DEFINICIONES DE ESTADO Y RESULTADOS (Fuera de la clase para mejor acceso)
+// DEFINICIONES DE ESTADO Y RESULTADOS (Fuera de la classe per un accesso migliore)
 sealed class State {
     data object Searching : State()
     data object SearchingMore : State()
@@ -50,7 +47,7 @@ class SearchViewModel(database: AppDatabase) : ViewModel() {
 
     private val _state = MutableStateFlow<State>(State.Searching)
     @OptIn(ExperimentalCoroutinesApi::class)
-    val state: StateFlow<State> = combine(
+    val state: Flow<State> = combine(
         _state,
         _state.transformLatest { state ->
             when (state) {
@@ -106,17 +103,11 @@ class SearchViewModel(database: AppDatabase) : ViewModel() {
             else -> state
         }
     }.flowOn(Dispatchers.IO)
-        .stateIn(viewModelScope, SharingStarted.Eagerly, State.Searching)
 
     var query = ""
     private var page = 1
 
     init {
-        viewModelScope.launch {
-            ProviderChangeNotifier.providerChangeFlow.collect {
-                search("")
-            }
-        }
         search(query)
     }
 
