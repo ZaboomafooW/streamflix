@@ -55,8 +55,7 @@ class ProviderViewHolder(
         binding.ivProviderFavorite.visibility = if (provider.isFavorite) android.view.View.VISIBLE else android.view.View.GONE
 
         Glide.with(context)
-            .load(provider.logo.takeIf { it.isNotEmpty() }
-                ?: R.drawable.ic_provider_default_logo)
+            .load(providerLogo(provider))
             .error(R.drawable.ic_provider_default_logo)
             .fitCenter()
             .transition(DrawableTransitionOptions.withCrossFade())
@@ -92,8 +91,7 @@ class ProviderViewHolder(
         binding.ivProviderFavorite.visibility = if (provider.isFavorite) android.view.View.VISIBLE else android.view.View.GONE
 
         Glide.with(context)
-            .load(provider.logo.takeIf { it.isNotEmpty() }
-                ?: R.drawable.ic_provider_default_logo)
+            .load(providerLogo(provider))
             .error(R.drawable.ic_provider_default_logo)
             .transition(DrawableTransitionOptions.withCrossFade())
             .into(binding.ivProviderLogo)
@@ -104,6 +102,11 @@ class ProviderViewHolder(
             .let { it.getDisplayLanguage(it) }
             .replaceFirstChar { it.titlecase() }
     }
+
+    private fun providerLogo(provider: Provider): Any =
+        provider.provider.logoRes
+            ?: provider.logo.takeIf { it.isNotEmpty() }
+            ?: R.drawable.ic_provider_default_logo
     
     private fun toggleFavorite(provider: Provider) {
         provider.isFavorite = !provider.isFavorite
