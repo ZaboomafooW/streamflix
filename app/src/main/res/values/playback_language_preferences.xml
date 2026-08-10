@@ -1,0 +1,6 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="settings_preferred_audio_language_title">Preferred audio language</string>
+    <string name="settings_preferred_subtitle_language_title">Preferred subtitle language</string>
+    <string name="settings_preferred_language_auto">Automatic</string>
+</resources>
