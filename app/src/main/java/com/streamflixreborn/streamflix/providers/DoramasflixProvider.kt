@@ -7,6 +7,7 @@ import com.streamflixreborn.streamflix.adapters.AppAdapter
 import com.streamflixreborn.streamflix.extractors.Extractor
 import com.streamflixreborn.streamflix.models.*
 import com.streamflixreborn.streamflix.models.doramasflix.ApiResponse
+import com.streamflixreborn.streamflix.models.doramasflix.OnlineLink
 import com.streamflixreborn.streamflix.models.doramasflix.Show as DoramasflixShow
 import com.streamflixreborn.streamflix.models.doramasflix.TokenModel
 import com.streamflixreborn.streamflix.models.doramasflix.VideoToken
@@ -37,19 +38,22 @@ object DoramasflixProvider : Provider {
     override val name = "Doramasflix"
     override val baseUrl = "https://doramasflix.in"
     private const val apiUrl = "https://sv7.fluxcedene.net/"
+    private const val playbackApiUrl = "https://userapi.cloudfleir.xyz/"
+    private const val playbackApp = "com.asiapp.doramasgo"
     override val language = "es"
     override val logo = "https://doramasflix.in/img/logo.png"
-
-    private val serverReferers = listOf(
-        "$baseUrl/",
-        "https://doramasflix.co/",
-        "https://doramasflix.io/",
-    )
 
     private val client = getOkHttpClient()
 
     private val service = Retrofit.Builder()
         .baseUrl(apiUrl)
+        .addConverterFactory(GsonConverterFactory.create(Gson()))
+        .client(client)
+        .build()
+        .create(DoramasflixService::class.java)
+
+    private val playbackService = Retrofit.Builder()
+        .baseUrl(playbackApiUrl)
         .addConverterFactory(GsonConverterFactory.create(Gson()))
         .client(client)
         .build()
@@ -97,6 +101,18 @@ object DoramasflixProvider : Provider {
             @Body body: okhttp3.RequestBody,
         ): ApiResponse
 
+        @POST("graphql")
+        @Headers(
+            "Accept: application/json, text/plain, */*",
+            "Content-Type: application/json",
+        )
+        suspend fun getPlaybackResponse(
+            @Header("Origin") origin: String,
+            @Header("Referer") referer: String,
+            @Header("User-Agent") userAgent: String,
+            @Body body: okhttp3.RequestBody,
+        ): ApiResponse
+
         @GET
         suspend fun getPage(@Url url: String): Document
 
@@ -105,19 +121,27 @@ object DoramasflixProvider : Provider {
         suspend fun postApi(@Url url: String, @Body body: okhttp3.RequestBody): VideoToken
     }
 
-    private suspend fun apiRequest(
-        operationName: String,
-        variables: JSONObject,
-        query: String,
-        referer: String = "$baseUrl/",
-    ): ApiResponse {
-        val payload = JSONObject()
-            .put("operationName", operationName)
-            .put("variables", variables)
-            .put("query", query)
-            .toString()
-            .toRequestBody("application/json".toMediaType())
-        return service.getApiResponse(referer, payload)
+    private fun requestBody(operationName: String, variables: JSONObject, query: String) = JSONObject()
+        .put("operationName", operationName)
+        .put("variables", variables)
+        .put("query", query)
+        .toString()
+        .toRequestBody("application/json".toMediaType())
+
+    private suspend fun apiRequest(operationName: String, variables: JSONObject, query: String): ApiResponse {
+        return service.getApiResponse(
+            referer = "$baseUrl/",
+            body = requestBody(operationName, variables, query),
+        )
+    }
+
+    private suspend fun playbackRequest(operationName: String, variables: JSONObject, query: String): ApiResponse {
+        return playbackService.getPlaybackResponse(
+            origin = baseUrl,
+            referer = "$baseUrl/",
+            userAgent = "Mozilla/5.0 (Linux; Android 10; Android TV) AppleWebKit/537.36 Chrome/140.0.0.0 Safari/537.36",
+            body = requestBody(operationName, variables, query),
+        )
     }
 
     private fun getPosterUrl(path: String?): String? {
@@ -442,50 +466,115 @@ object DoramasflixProvider : Provider {
         }
     }
 
-    private suspend fun getServersForReferer(id: String, referer: String): List<Video.Server> {
-        val response = apiRequest(
-            operationName = "listProblemsItem",
-            variables = JSONObject().put("problem_id", id),
-            query = """
-                query listProblemsItem(${'$'}problem_id: ID!) {
-                  listProblems(filter: {problem_id: ${'$'}problem_id}) {
-                    server {
-                      link
-                      lang
-                    }
-                  }
-                }
-            """.trimIndent(),
-            referer = referer,
-        )
+    private suspend fun getPlaybackLinks(id: String, videoType: Video.Type): List<OnlineLink> {
+        return when (videoType) {
+            is Video.Type.Movie -> {
+                val response = playbackRequest(
+                    operationName = "MovieLinks",
+                    variables = JSONObject().put("movie_id", id),
+                    query = """
+                        query MovieLinks(${'$'}movie_id: ID!) {
+                          getMovieLinks(id: ${'$'}movie_id, app: "$playbackApp") {
+                            links_online {
+                              lang
+                              link
+                              page
+                              server
+                              is_recommended
+                              subtitles {
+                                language_code
+                                type
+                              }
+                            }
+                          }
+                        }
+                    """.trimIndent(),
+                )
+                response.data?.getMovieLinks?.linksOnline.orEmpty()
+            }
 
-        return response.data?.listProblems.orEmpty().mapNotNull { problem ->
-            val serverUrl = problem.server?.link?.takeIf { it.isNotBlank() } ?: return@mapNotNull null
-            val lang = problem.server.lang?.getLang().orEmpty()
-            val serverName = runCatching {
-                URL(serverUrl).host
-                    .split('.')
-                    .firstOrNull { it.isNotBlank() && it != "www" }
-                    ?.replaceFirstChar { it.titlecase(Locale.ROOT) }
-            }.getOrNull() ?: "Server"
+            is Video.Type.Episode -> {
+                val response = playbackRequest(
+                    operationName = "EpisodeLinksOnline",
+                    variables = JSONObject().put("episode_id", id),
+                    query = """
+                        query EpisodeLinksOnline(${'$'}episode_id: ID!) {
+                          getEpisodeLinks(id: ${'$'}episode_id, app: "$playbackApp") {
+                            links_online {
+                              _id
+                              server
+                              lang
+                              link
+                              is_recommended
+                              subtitles {
+                                language_code
+                                type
+                              }
+                            }
+                          }
+                        }
+                    """.trimIndent(),
+                )
+                response.data?.getEpisodeLinks?.linksOnline.orEmpty()
+            }
+        }
+    }
 
-            Video.Server(
-                id = getRealLink(serverUrl),
-                name = "$serverName $lang".trim(),
+    private fun decodePlaybackLink(link: String): String? {
+        if (!link.contains("embedshortener.co/e/")) return link
+
+        return try {
+            val token = link.substringAfter("/e/").substringBefore('?').substringBefore('#')
+            val payload = token.split('.').getOrNull(1) ?: return null
+            val payloadJson = String(
+                Base64.decode(payload, Base64.URL_SAFE or Base64.NO_WRAP or Base64.NO_PADDING)
             )
-        }.distinctBy { it.id }
+            val encodedLink = JSONObject(payloadJson).optString("link").takeIf { it.isNotBlank() }
+                ?: return null
+            String(Base64.decode(encodedLink, Base64.DEFAULT))
+                .trim()
+                .takeIf { it.startsWith("http") }
+        } catch (_: Exception) {
+            null
+        }
+    }
+
+    private fun getServerName(link: String): String {
+        return runCatching {
+            URL(link).host
+                .removePrefix("www.")
+                .substringBefore('.')
+                .replaceFirstChar { it.titlecase(Locale.ROOT) }
+        }.getOrNull()?.takeIf { it.isNotBlank() } ?: "Server"
+    }
+
+    private fun isPlayableServer(link: String): Boolean {
+        val host = runCatching { URL(link).host.lowercase(Locale.ROOT) }.getOrNull() ?: return false
+        return host != "primeload.co" && !host.endsWith(".primeload.co")
     }
 
     override suspend fun getServers(id: String, videoType: Video.Type): List<Video.Server> {
-        for (referer in serverReferers) {
-            val servers = try {
-                getServersForReferer(id, referer)
-            } catch (_: Exception) {
-                emptyList()
-            }
-            if (servers.isNotEmpty()) return servers
+        return try {
+            getPlaybackLinks(id, videoType)
+                .sortedByDescending { it.isRecommended == true }
+                .mapNotNull { onlineLink ->
+                    val decodedLink = onlineLink.link
+                        ?.takeIf { it.isNotBlank() }
+                        ?.let(::decodePlaybackLink)
+                        ?: return@mapNotNull null
+                    val realLink = getRealLink(decodedLink)
+                    if (!isPlayableServer(realLink)) return@mapNotNull null
+
+                    val lang = onlineLink.lang?.getLang().orEmpty()
+                    Video.Server(
+                        id = realLink,
+                        name = "${getServerName(realLink)} $lang".trim(),
+                    )
+                }
+                .distinctBy { it.id }
+        } catch (_: Exception) {
+            emptyList()
         }
-        return emptyList()
     }
 
     private suspend fun getRealLink(link: String): String {
