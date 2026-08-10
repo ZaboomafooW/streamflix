@@ -1,0 +1,45 @@
+name: Run Final Playback Cleanup
+
+on:
+  pull_request:
+    branches: [main]
+
+permissions:
+  contents: write
+
+jobs:
+  cleanup:
+    if: github.head_ref == 'ci/remember-track-preferences'
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout CI branch
+        uses: actions/checkout@v4
+        with:
+          ref: ci/remember-track-preferences
+          fetch-depth: 0
+
+      - name: Preserve cleanup script
+        run: cp .github/scripts/final_playback_cleanup.py /tmp/final_playback_cleanup.py
+
+      - name: Checkout feature branch
+        run: git checkout -B fix/remember-track-preferences origin/fix/remember-track-preferences
+
+      - name: Apply reviewed cleanup
+        run: python3 /tmp/final_playback_cleanup.py
+
+      - name: Validate patch
+        run: |
+          git diff --check
+          git status --short
+
+      - name: Commit cleanup to feature branch
+        run: |
+          if git diff --quiet; then
+            echo "Cleanup already applied."
+            exit 0
+          fi
+          git config user.name "ZaboomafooW"
+          git config user.email "239698314+ZaboomafooW@users.noreply.github.com"
+          git add app/src
+          git commit -m "fix: finalize playback language preference behavior"
+          git push origin HEAD:fix/remember-track-preferences
