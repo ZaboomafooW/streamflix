@@ -218,7 +218,8 @@ object GuardaFlixProvider : Provider {
             trailer = trailer,
             banner = tmdbMovie?.banner,
             runtime = tmdbMovie?.runtime ?: runtime,
-            imdbId = tmdbMovie?.imdbId
+            imdbId = tmdbMovie?.imdbId,
+            originalLanguage = tmdbMovie?.originalLanguage,
         )
     }
 
