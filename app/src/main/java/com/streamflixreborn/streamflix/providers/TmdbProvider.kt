@@ -823,26 +823,33 @@ class TmdbProvider(override val language: String) : Provider {
                 }
             }
             else -> {
-                // Per inglese (en) o altre lingue non specifiche, usiamo i server globali
-                servers.addAll(listOf(
-                    VixSrcExtractor().server(videoType),
-                    TwoEmbedExtractor().server(videoType),
-                    VidsrcNetExtractor().server(videoType),
-                    VidLinkExtractor().server(videoType),
-                    VidsrcRuExtractor().server(videoType),
-                    VidflixExtractor().server(videoType),
-                ))
+                if (lang == "en") {
+                    servers.add(VixSrcExtractor().server(videoType))
+                    servers.add(VidsrcNetExtractor().server(videoType))
+                    servers.addAll(VidrockExtractor().servers(videoType))
+                    servers.addAll(PrimeSrcExtractor().servers(videoType))
+                    servers.add(MoviesapiExtractor().server(videoType))
+                    servers.add(TwoEmbedExtractor().server(videoType))
+                    servers.add(VidLinkExtractor().server(videoType))
+                    servers.add(VidsrcRuExtractor().server(videoType))
+                } else {
+                    // Preserve the existing global fallback set for non-English TMDb languages.
+                    servers.addAll(listOf(
+                        VixSrcExtractor().server(videoType),
+                        TwoEmbedExtractor().server(videoType),
+                        VidsrcNetExtractor().server(videoType),
+                        VidLinkExtractor().server(videoType),
+                        VidsrcRuExtractor().server(videoType),
+                        VidflixExtractor().server(videoType),
+                    ))
 
-                if (videoType is Video.Type.Movie) {
-                    servers.add(2, MoviesapiExtractor().server(videoType))
-                }
+                    if (videoType is Video.Type.Movie) {
+                        servers.add(2, MoviesapiExtractor().server(videoType))
+                    }
 
-                servers.addAll(VidrockExtractor().servers(videoType))
-                servers.addAll(VidzeeExtractor().servers(videoType))
-                servers.addAll(PrimeSrcExtractor().servers(videoType))
-
-                if (language == "en") {
-                    servers.addAll(1, VideasyExtractor().servers(videoType, language))
+                    servers.addAll(VidrockExtractor().servers(videoType))
+                    servers.addAll(VidzeeExtractor().servers(videoType))
+                    servers.addAll(PrimeSrcExtractor().servers(videoType))
                 }
             }
         }
@@ -956,7 +963,7 @@ class TmdbProvider(override val language: String) : Provider {
             "fr" -> when (key) {
                 "Trending" -> "Tendances"
                 "Popular Movies" -> "Films populaires"
-                "Popular TV Shows" -> "Séries populaires"
+                "Popular TV Shows" -> "Séries TV populaires"
                 "Popular Anime" -> "Animes populaires"
                 "Popular on Netflix" -> "Populaire sur Netflix"
                 "Popular on Amazon" -> "Populaire sur Amazon"
