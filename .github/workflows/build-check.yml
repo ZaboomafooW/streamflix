@@ -88,7 +88,7 @@ jobs:
                       if (servers.isNotEmpty()) return servers
                       diagnostics += "$label:t${problems.size}/n$nullServers/b$blankLinks"
                   } catch (e: Exception) {
-                      val message = e.message.orEmpty().replace("\n", " ").take(36)
+                      val message = e.message.orEmpty().take(36)
                       diagnostics += "$label:ERR:${e.javaClass.simpleName}:$message"
                   }
               }
