@@ -1,0 +1,86 @@
+name: Patch TV navigation graph
+
+on:
+  push:
+    branches:
+      - ci/patch-tv-navigation
+
+permissions:
+  contents: write
+
+jobs:
+  patch:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout navigation branch
+        uses: actions/checkout@v4
+        with:
+          ref: fix/tv-ui-navigation
+          fetch-depth: 0
+
+      - name: Verify expected branch head
+        run: |
+          test "$(git rev-parse HEAD)" = "9cf131041c1ff61d6071fff43c267fa5b57595a4"
+
+      - name: Connect Skip Intro horizontally
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+
+          path = Path('app/src/main/java/com/streamflixreborn/streamflix/fragments/player/PlayerTvFragment.kt')
+          text = path.read_text()
+
+          old = '''            val overlayVisible = binding.layoutNextEpisodeOverlay.isVisible
+            val skipIntroVisible = isAvailableFocusTarget(controllerBinding.btnSkipIntro)
+            val rightSideDownTargetId = when {
+                skipIntroVisible -> controllerBinding.btnSkipIntro.id
+                overlayVisible -> binding.btnNextEpisodeAction.id
+                else -> defaultCenterDownTargetId
+            }
+
+            centerControls.forEach { it.nextFocusDownId = defaultCenterDownTargetId }
+            centerRightControl.nextFocusDownId = rightSideDownTargetId
+'''
+
+          new = '''            val overlayVisible = binding.layoutNextEpisodeOverlay.isVisible
+            val skipIntroVisible = isAvailableFocusTarget(controllerBinding.btnSkipIntro)
+            val centerRightDownTargetId =
+                if (overlayVisible && !skipIntroVisible) binding.btnNextEpisodeAction.id
+                else defaultCenterDownTargetId
+            val centerRightRightTargetId =
+                if (skipIntroVisible) controllerBinding.btnSkipIntro.id
+                else centerRightControl.id
+
+            centerControls.forEach { it.nextFocusDownId = defaultCenterDownTargetId }
+            centerRightControl.nextFocusDownId = centerRightDownTargetId
+            centerRightControl.nextFocusRightId = centerRightRightTargetId
+'''
+
+          if text.count(old) != 1:
+              raise SystemExit(f'Expected first focus block exactly once, found {text.count(old)}')
+          text = text.replace(old, new, 1)
+
+          old = '''            if (skipIntroVisible) {
+                controllerBinding.btnSkipIntro.nextFocusLeftId = controllerBinding.btnSkipIntro.id
+                controllerBinding.btnSkipIntro.nextFocusRightId = controllerBinding.btnSkipIntro.id
+'''
+          new = '''            if (skipIntroVisible) {
+                controllerBinding.btnSkipIntro.nextFocusLeftId = centerRightControl.id
+                controllerBinding.btnSkipIntro.nextFocusRightId = controllerBinding.btnSkipIntro.id
+'''
+
+          if text.count(old) != 1:
+              raise SystemExit(f'Expected Skip Intro focus block exactly once, found {text.count(old)}')
+          text = text.replace(old, new, 1)
+
+          path.write_text(text)
+          PY
+
+      - name: Commit navigation correction
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add app/src/main/java/com/streamflixreborn/streamflix/fragments/player/PlayerTvFragment.kt
+          git diff --cached --check
+          git commit -m "fix(tv): connect Skip Intro to horizontal player navigation" -m "- route Right from the rightmost playback control into Skip Intro when it is visible" -m "- return Left from Skip Intro to the nearest playback control" -m "- keep Down aligned with the normal below-row destination instead of overloading it as the only Skip Intro route" -m "- preserve the existing Play Next fallback when Skip Intro is not visible"
+          git push origin HEAD:fix/tv-ui-navigation
