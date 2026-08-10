@@ -10,7 +10,7 @@ permissions:
 
 jobs:
   audit:
-    name: Verify Primeload session protocol
+    name: Verify Primeload player data
     runs-on: ubuntu-latest
     timeout-minutes: 15
 
@@ -20,72 +20,60 @@ jobs:
         with:
           ref: ${{ github.sha }}
 
-      - name: Inspect authenticated loader and attestation
+      - name: Inspect player JSON and attestation acceptance
         shell: bash
         run: |
           set -euo pipefail
           python3 - <<'PY'
-          import html, json, re, urllib.parse, urllib.request, urllib.error
+          import html, http.cookiejar, json, re, urllib.parse, urllib.request, urllib.error
           UA='Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/140.0.0.0 Safari/537.36'
           EMBED='https://primeload.co/embed/SpdeEhk2xMAn'
           PLAYER='https://primeload.co/player/SpdeEhk2xMAn?ref=https%3A%2F%2Fdoramasflix.in%2F'
           BASE='https://primeload.co'
-          opener=urllib.request.build_opener(urllib.request.HTTPCookieProcessor())
-          def request(url,data=None,referer=PLAYER,accept='*/*'):
-            h={'User-Agent':UA,'Referer':referer,'Origin':BASE,'Accept':accept}
+          jar=http.cookiejar.CookieJar()
+          opener=urllib.request.build_opener(urllib.request.HTTPCookieProcessor(jar))
+
+          def request(url,data=None,referer=PLAYER,extra=None):
+            h={'User-Agent':UA,'Referer':referer,'Origin':BASE,'Accept':'application/json, text/plain, */*'}
             if data is not None:h['Content-Type']='application/json'
+            if extra:h.update(extra)
             req=urllib.request.Request(url,data=(json.dumps(data).encode() if data is not None else None),headers=h)
             try:
-              with opener.open(req,timeout=25) as r:
-                return r.status,r.read().decode('utf-8','replace'),dict(r.headers)
-            except urllib.error.HTTPError as e:
-              return e.code,e.read().decode('utf-8','replace'),dict(e.headers)
+              with opener.open(req,timeout=25) as r:return r.status,r.read().decode('utf-8','replace'),dict(r.headers)
+            except urllib.error.HTTPError as e:return e.code,e.read().decode('utf-8','replace'),dict(e.headers)
 
-          st,page,headers=request(PLAYER,None,EMBED,'text/html')
-          print('PLAYER_HTTP',st,'bytes',len(page.encode()))
+          st,page,_=request(PLAYER,None,EMBED,{'Accept':'text/html'})
+          print('PLAYER',st,'cookies',[(c.name,c.value[:80]) for c in jar])
           root=re.search(r'<div id="root"([^>]*)>',page,re.I|re.S)
           attrs=root.group(1) if root else ''
           def attr(name):
             m=re.search(r'data-'+re.escape(name)+r'="([^"]*)"',attrs,re.I|re.S)
             return html.unescape(m.group(1)) if m else ''
-          session=attr('session'); nonce=attr('nonce'); challenge_raw=attr('challenge'); api=attr('api') or BASE+'/api/v1'; token=attr('token')
-          print('ROOT session=',session,'nonce=',nonce,'api=',api,'token=',token)
-          challenge=json.loads(challenge_raw)
-          print('CHALLENGE',json.dumps(challenge))
+          session=attr('session'); challenge=json.loads(attr('challenge')); api=attr('api'); token=attr('token')
+          print('ROOT',session,api,token,json.dumps(challenge))
 
-          # Dump the small authenticated HLS loader module in full.
-          loader=BASE+'/player-dist/assets/authenticated-loader-BZp8UgCr.js'
-          st,txt,_=request(loader,None,PLAYER,'*/*')
-          print('\nAUTH_LOADER_HTTP',st,'bytes',len(txt.encode()))
-          print(txt[:50000])
+          # This JSON is fetched before attestation by the real Primeload player.
+          st,pdata,_=request(api+'/player/'+token,None,PLAYER)
+          print('\nPLAYER_DATA_HTTP',st)
+          print(pdata[:30000])
 
-          # Print focused runtime snippets from main player JS.
-          main=BASE+'/player-dist/assets/index-D9Siu3Gi.js'
-          st,js,_=request(main,None,PLAYER,'*/*')
-          print('\nMAIN_HTTP',st,'bytes',len(js.encode()))
-          for needle in ['getManifestToken','getSegmentToken','getToken',"socket.on(`", "socket.emit(`",'master_manifest','stream/data','playerData','videoData','fetchPlayer','sessionData']:
-            start=0; count=0
-            while count<6:
-              p=js.find(needle,start)
-              if p<0:break
-              print('\nMAIN_SNIP',needle,js[max(0,p-2200):min(len(js),p+6500)])
-              start=p+len(needle);count+=1
-
-          # Test whether the HTTP attestation validates actual browser fingerprints or only response shape.
+          # Retry attestation with Laravel's XSRF cookie echoed as the normal X-XSRF-TOKEN header.
+          xsrf=next((urllib.parse.unquote(c.value) for c in jar if c.name=='XSRF-TOKEN'),None)
+          print('\nXSRF_PRESENT',bool(xsrf))
           responses=[]
           for task in challenge.get('tasks',[]):
             typ=task.get('type')
             if typ=='dom_measurement':
-              style=task.get('style','')
-              wm=re.search(r'width:([0-9.]+)px',style); hm=re.search(r'height:([0-9.]+)px',style)
+              style=task.get('style',''); wm=re.search(r'width:([0-9.]+)px',style); hm=re.search(r'height:([0-9.]+)px',style)
               responses.append({'w':float(wm.group(1)) if wm else 0,'h':float(hm.group(1)) if hm else 0})
-            elif typ=='canvas_text': responses.append('0'*64)
-            elif typ=='audio_fingerprint': responses.append(0)
-            elif typ=='webgl_renderer': responses.append('ANGLE (Google, Vulkan 1.3.0)')
-            elif typ=='timing': responses.append(1)
-            else: responses.append(None)
-          payload={'session_id':session,'nonce':challenge.get('nonce'),'responses':responses,'fingerprint':'0'*64}
-          st,raw,_=request(api+'/stream/attest',payload,PLAYER,'application/json')
-          print('\nATTEST_DUMMY_HTTP',st)
+            elif typ=='canvas_text':responses.append('0'*64)
+            elif typ=='audio_fingerprint':responses.append(0)
+            elif typ=='webgl_renderer':responses.append('ANGLE (Google, Vulkan 1.3.0)')
+            elif typ=='timing':responses.append(1)
+            else:responses.append(None)
+          body={'session_id':session,'nonce':challenge.get('nonce'),'responses':responses,'fingerprint':'0'*64}
+          extra={'X-XSRF-TOKEN':xsrf,'X-Requested-With':'XMLHttpRequest'} if xsrf else {}
+          st,raw,_=request(api+'/stream/attest',body,PLAYER,extra)
+          print('\nATTEST_WITH_XSRF',st)
           print(raw[:12000])
           PY
