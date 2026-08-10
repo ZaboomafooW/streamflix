@@ -172,7 +172,6 @@ object DoramasflixProvider : Provider {
 
     private fun movieId(slug: String) = "peliculas-online/$slug"
     private fun doramaId(slug: String) = "doramas-online/$slug"
-    private fun varietyId(slug: String) = "variedades-online/$slug"
 
     private data class StructuredMetadata(
         val description: String? = null,
@@ -393,9 +392,8 @@ object DoramasflixProvider : Provider {
                 """.trimIndent(),
             )
             response.data?.paginationDorama?.items.orEmpty().map { show ->
-                val path = if (isTvShow) varietyId(show.slug) else doramaId(show.slug)
                 TvShow(
-                    id = contentId(path, show.id),
+                    id = contentId(doramaId(show.slug), show.id),
                     title = titleFor(show),
                     poster = getPosterUrl(show.posterPath ?: show.poster),
                 )
