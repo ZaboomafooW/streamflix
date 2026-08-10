@@ -20,6 +20,83 @@ jobs:
         with:
           ref: ${{ github.sha }}
 
+      - name: Inspect live Doramasflix detail markup
+        run: |
+          python3 - <<'PY'
+          import html
+          import re
+          import urllib.request
+          from html.parser import HTMLParser
+
+          urls = [
+              "https://doramasflix.in/doramas-online/meeting-you",
+              "https://doramasflix.in/peliculas-online/the-roundup-no-way-out",
+          ]
+
+          class Inspector(HTMLParser):
+              def __init__(self):
+                  super().__init__()
+                  self.stack = []
+                  self.script_type = None
+
+              @staticmethod
+              def label(tag, attrs):
+                  attrs = dict(attrs)
+                  suffix = ""
+                  if attrs.get("id"):
+                      suffix += "#" + attrs["id"]
+                  if attrs.get("class"):
+                      suffix += "." + ".".join(attrs["class"].split())
+                  return tag + suffix
+
+              def handle_starttag(self, tag, attrs):
+                  self.stack.append((tag, attrs))
+                  if tag == "script":
+                      self.script_type = dict(attrs).get("type")
+
+              def handle_endtag(self, tag):
+                  for i in range(len(self.stack) - 1, -1, -1):
+                      if self.stack[i][0] == tag:
+                          del self.stack[i:]
+                          break
+                  if tag == "script":
+                      self.script_type = None
+
+              def handle_data(self, data):
+                  text = " ".join(html.unescape(data).split())
+                  if not text:
+                      return
+                  interesting = (
+                      " online:" in text.lower()
+                      or re.fullmatch(r"[0-5](?:\.\d+)?", text)
+                      or "Meeting You" in text
+                      or "Roundup" in text
+                      or (self.script_type == "application/ld+json")
+                  )
+                  if interesting:
+                      path = " > ".join(self.label(tag, attrs) for tag, attrs in self.stack[-6:])
+                      print(f"PATH: {path}\nTEXT: {text[:1200]}\n")
+
+          for url in urls:
+              print("=" * 80)
+              print(url)
+              request = urllib.request.Request(
+                  url,
+                  headers={
+                      "User-Agent": "Mozilla/5.0 (Linux; Android 10; Android TV) AppleWebKit/537.36 Chrome/140.0.0.0 Safari/537.36",
+                      "Accept": "text/html,application/xhtml+xml",
+                  },
+              )
+              try:
+                  with urllib.request.urlopen(request, timeout=20) as response:
+                      body = response.read().decode("utf-8", errors="replace")
+                      print("HTTP", response.status, "bytes", len(body))
+                  parser = Inspector()
+                  parser.feed(body)
+              except Exception as exc:
+                  print("FETCH ERROR:", repr(exc))
+          PY
+
       - name: Set up JDK 17
         uses: actions/setup-java@v4
         with:
