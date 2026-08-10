@@ -1,0 +1,223 @@
+name: Apply and build Settings Right TV navigation
+
+on:
+  push:
+    branches:
+      - work/settings-right-navigation
+    paths:
+      - .github/workflows/apply-settings-right-tv.yml
+
+permissions:
+  contents: write
+
+jobs:
+  apply-and-build:
+    runs-on: ubuntu-24.04
+    steps:
+      - name: Checkout work branch
+        uses: actions/checkout@v4
+        with:
+          ref: work/settings-right-navigation
+          fetch-depth: 0
+
+      - name: Apply Settings Right navigation
+        run: |
+          python3 - <<'PY'
+          from pathlib import Path
+
+          path = Path('app/src/main/java/com/streamflixreborn/streamflix/fragments/settings/SettingsTvFragment.kt')
+          text = path.read_text()
+
+          old_tree = '''    override fun onPreferenceTreeClick(preference: Preference): Boolean {
+        if (preference is PreferenceScreen && !preference.key.isNullOrBlank()) {
+            screenBackStack.addLast(currentScreenState)
+            currentScreenState = SettingsScreenState(
+                rootKey = preference.key,
+                title = preference.title?.toString(),
+            )
+            settingsBackCallback.isEnabled = screenBackStack.isNotEmpty()
+            renderCurrentScreen()
+            return true
+        }
+        return super.onPreferenceTreeClick(preference)
+    }
+'''
+
+          new_tree = '''    private fun openSettingsScreen(preference: PreferenceScreen): Boolean {
+        if (preference.key.isNullOrBlank()) return false
+        screenBackStack.addLast(currentScreenState)
+        currentScreenState = SettingsScreenState(
+            rootKey = preference.key,
+            title = preference.title?.toString(),
+        )
+        settingsBackCallback.isEnabled = screenBackStack.isNotEmpty()
+        renderCurrentScreen()
+        return true
+    }
+
+    override fun onPreferenceTreeClick(preference: Preference): Boolean {
+        if (preference is PreferenceScreen && openSettingsScreen(preference)) {
+            return true
+        }
+        return super.onPreferenceTreeClick(preference)
+    }
+'''
+
+          old_view = '''    override fun onViewCreated(view: View, savedInstanceState: Bundle?) {
+        super.onViewCreated(view, savedInstanceState)
+        SettingsListStyler.attach(view, isTv = true)
+        (listView as? VerticalGridView)?.let { grid ->
+            grid.setOnKeyInterceptListener { event ->
+                if (event.action != KeyEvent.ACTION_DOWN ||
+                    event.keyCode != KeyEvent.KEYCODE_DPAD_LEFT ||
+                    screenBackStack.isEmpty()
+                ) {
+                    return@setOnKeyInterceptListener false
+                }
+
+                val focused = grid.findFocus()
+                if (focused != null &&
+                    FocusFinder.getInstance().findNextFocus(grid, focused, View.FOCUS_LEFT) != null
+                ) {
+                    return@setOnKeyInterceptListener false
+                }
+
+                val itemView = focused?.let(grid::findContainingItemView)
+                val position = itemView?.let(grid::getChildAdapterPosition) ?: -1
+                val preference = if (position >= 0) {
+                    (grid.adapter as? PreferenceGroupAdapter)?.getItem(position)
+                } else {
+                    null
+                }
+                if (preference is SeekBarPreference && preference.isAdjustable) {
+                    return@setOnKeyInterceptListener false
+                }
+
+                popSettingsScreen()
+            }
+        }
+        view.post { listView?.requestFocus() }
+    }
+'''
+
+          new_view = '''    override fun onViewCreated(view: View, savedInstanceState: Bundle?) {
+        super.onViewCreated(view, savedInstanceState)
+        SettingsListStyler.attach(view, isTv = true)
+        (listView as? VerticalGridView)?.let { grid ->
+            grid.setOnKeyInterceptListener { event ->
+                if (event.action != KeyEvent.ACTION_DOWN) {
+                    return@setOnKeyInterceptListener false
+                }
+
+                val direction = when (event.keyCode) {
+                    KeyEvent.KEYCODE_DPAD_LEFT -> View.FOCUS_LEFT
+                    KeyEvent.KEYCODE_DPAD_RIGHT -> View.FOCUS_RIGHT
+                    else -> return@setOnKeyInterceptListener false
+                }
+
+                val focused = grid.findFocus()
+                if (focused != null &&
+                    FocusFinder.getInstance().findNextFocus(grid, focused, direction) != null
+                ) {
+                    return@setOnKeyInterceptListener false
+                }
+
+                val itemView = focused?.let(grid::findContainingItemView)
+                val position = itemView?.let(grid::getChildAdapterPosition) ?: -1
+                val preference = if (position >= 0) {
+                    (grid.adapter as? PreferenceGroupAdapter)?.getItem(position)
+                } else {
+                    null
+                }
+
+                when (event.keyCode) {
+                    KeyEvent.KEYCODE_DPAD_LEFT -> {
+                        if (screenBackStack.isEmpty() ||
+                            preference is SeekBarPreference && preference.isAdjustable
+                        ) {
+                            false
+                        } else {
+                            popSettingsScreen()
+                        }
+                    }
+
+                    KeyEvent.KEYCODE_DPAD_RIGHT -> {
+                        if (preference is SeekBarPreference && preference.isAdjustable) {
+                            false
+                        } else if (preference is PreferenceScreen) {
+                            openSettingsScreen(preference)
+                        } else {
+                            false
+                        }
+                    }
+
+                    else -> false
+                }
+            }
+        }
+        view.post { listView?.requestFocus() }
+    }
+'''
+
+          if old_tree not in text:
+              raise SystemExit('Expected onPreferenceTreeClick block not found')
+          if old_view not in text:
+              raise SystemExit('Expected onViewCreated block not found')
+
+          text = text.replace(old_tree, new_tree, 1).replace(old_view, new_view, 1)
+          path.write_text(text)
+          PY
+
+      - name: Set up JDK 17
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+
+      - name: Set up Android SDK
+        uses: android-actions/setup-android@v3
+
+      - name: Install Android SDK components
+        run: |
+          yes | sdkmanager --licenses >/dev/null || true
+          sdkmanager "platforms;android-36" "ndk;26.1.10909125" "cmake;3.22.1"
+
+      - name: Configure TV build
+        run: |
+          cat > local.properties <<'EOF'
+          APP_LAYOUT=tv
+          TMDB_API_KEY=dummy-ci-key
+          SUBDL_API_KEY=dummy-ci-key
+          RABBITSTREAM_SOURCE_API=https://example.invalid/
+          EOF
+          test "$(grep '^APP_LAYOUT=' local.properties)" = 'APP_LAYOUT=tv'
+
+      - name: Generate native source
+        run: |
+          sed -e 's|{{UPROT_MSFI_API_BASE}}|https://example.invalid/msfi|g' \
+              -e 's|{{UPROT_MSE_API_BASE}}|https://example.invalid/mse|g' \
+              -e 's|{{UPROT_API_KEY}}|dummy-ci-key|g' \
+              app/src/main/cpp/native-lib.cpp.template > app/src/main/cpp/native-lib.cpp
+
+      - name: Test and build TV APK
+        run: |
+          chmod +x ./gradlew
+          ./gradlew testDebugUnitTest --stacktrace --no-daemon
+          ./gradlew assembleDebug --stacktrace --no-daemon
+          sha256sum app/build/outputs/apk/debug/app-debug.apk
+
+      - name: Commit tested Settings change
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add app/src/main/java/com/streamflixreborn/streamflix/fragments/settings/SettingsTvFragment.kt
+          git commit -m "fix(tv): enter Settings submenus with Right"
+          git push origin HEAD:work/settings-right-navigation
+
+      - name: Upload TV APK
+        uses: actions/upload-artifact@v4
+        with:
+          name: streamflix-tv-settings-right-navigation-apk
+          path: app/build/outputs/apk/debug/app-debug.apk
+          if-no-files-found: error
+          retention-days: 7
