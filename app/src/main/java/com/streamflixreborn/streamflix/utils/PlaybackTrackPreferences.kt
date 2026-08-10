@@ -8,6 +8,7 @@ import androidx.media3.common.Player
 import androidx.media3.common.TrackSelectionOverride
 import androidx.media3.common.TrackSelectionParameters
 import androidx.media3.common.Tracks
+import androidx.preference.PreferenceManager
 import com.streamflixreborn.streamflix.BuildConfig
 import com.streamflixreborn.streamflix.StreamFlixApp
 import com.streamflixreborn.streamflix.models.Video
@@ -17,10 +18,9 @@ import org.json.JSONObject
  * Remembers explicit Audio/Subtitle choices for exactly one playback context:
  * provider + movie/TV show + playback-source name.
  *
- * Matching is deterministic. Labels and language values are compared exactly;
- * no language normalization, semantic matching, or cross-source inference is
- * performed. Track position is used only to disambiguate otherwise-identical
- * tracks.
+ * Global language preferences are delegated to Media3's built-in track selection.
+ * Exact per-title choices are restored above those preferences when available.
+ * Track position is used only to disambiguate otherwise-identical tracks.
  */
 object PlaybackTrackPreferences {
 
@@ -115,6 +115,10 @@ object PlaybackTrackPreferences {
         )
     }
 
+    private val settingsPrefs by lazy {
+        PreferenceManager.getDefaultSharedPreferences(StreamFlixApp.instance)
+    }
+
     fun activate(videoType: Video.Type) {
         val provider = UserPreferences.currentProvider?.name
         val content = when (videoType) {
@@ -138,6 +142,8 @@ object PlaybackTrackPreferences {
     }
 
     fun bind(player: Player): Player.Listener {
+        applyPreferredLanguages(player)
+
         val listener = object : Player.Listener {
             private var mediaItem: MediaItem? = null
             private var activeScope: String? = null
@@ -301,6 +307,26 @@ object PlaybackTrackPreferences {
         return listener
     }
 
+    private fun applyPreferredLanguages(player: Player) {
+        val preferredAudioLanguage = settingsPrefs
+            .getString(PREFERRED_AUDIO_LANGUAGE, null)
+            ?.takeIf { it.isNotBlank() }
+        val preferredSubtitleLanguage = settingsPrefs
+            .getString(PREFERRED_SUBTITLE_LANGUAGE, null)
+            ?.takeIf { it.isNotBlank() }
+
+        if (preferredAudioLanguage == null && preferredSubtitleLanguage == null) return
+
+        val builder = player.trackSelectionParameters.buildUpon()
+        preferredAudioLanguage?.let(builder::setPreferredAudioLanguage)
+        preferredSubtitleLanguage?.let(builder::setPreferredTextLanguage)
+
+        val parameters = builder.build()
+        if (parameters != player.trackSelectionParameters) {
+            player.trackSelectionParameters = parameters
+        }
+    }
+
     private fun TrackRef.override() = TrackSelectionOverride(
         group.mediaTrackGroup,
         listOf(trackIndex),
@@ -417,6 +443,9 @@ object PlaybackTrackPreferences {
     private const val MODE_TRACK = "track"
     private const val DEFAULT_TEXT_FLAGS = 0
     private const val SUBTITLE_OFF_FLAGS = C.SELECTION_FLAG_FORCED.inv()
+
+    private const val PREFERRED_AUDIO_LANGUAGE = "PREFERRED_AUDIO_LANGUAGE"
+    private const val PREFERRED_SUBTITLE_LANGUAGE = "PREFERRED_SUBTITLE_LANGUAGE"
 
     private const val LABEL = "label"
     private const val LANGUAGE = "language"
