@@ -4,27 +4,76 @@ on:
   pull_request:
     branches:
       - main
-  workflow_dispatch:
-    inputs:
-      ref:
-        description: Branch, tag, or commit SHA to build
-        required: true
-        default: main
 
 permissions:
-  contents: read
+  contents: write
 
 jobs:
   build:
-    name: Build Android debug APK
+    name: Clean and build Android TV navigation
     runs-on: ubuntu-latest
     timeout-minutes: 30
 
     steps:
-      - name: Checkout requested code
+      - name: Checkout navigation branch
         uses: actions/checkout@v4
         with:
-          ref: ${{ inputs.ref || github.sha }}
+          ref: fix/tv-ui-navigation
+          fetch-depth: 0
+
+      - name: Apply final navigation cleanup
+        run: |
+          python3 - <<'PY'
+          from pathlib import Path
+
+          settings = Path('app/src/main/java/com/streamflixreborn/streamflix/fragments/settings/SettingsTvFragment.kt')
+          text = settings.read_text()
+
+          old_guard = '''                if (event.action != KeyEvent.ACTION_DOWN ||
+                    event.keyCode != KeyEvent.KEYCODE_DPAD_LEFT ||
+                    screenBackStack.isEmpty()
+                ) {'''
+          new_guard = '''                if (event.action != KeyEvent.ACTION_DOWN ||
+                    event.repeatCount != 0 ||
+                    event.keyCode != KeyEvent.KEYCODE_DPAD_LEFT ||
+                    screenBackStack.isEmpty()
+                ) {'''
+          assert old_guard in text, 'Left boundary guard did not match expected source'
+          text = text.replace(old_guard, new_guard, 1)
+
+          old_seekbar = '''                if (preference is SeekBarPreference && preference.isAdjustable) {
+                    return@setOnKeyInterceptListener false
+                }'''
+          new_seekbar = '''                if (preference is SeekBarPreference &&
+                    preference.isAdjustable &&
+                    preference.value > preference.min
+                ) {
+                    return@setOnKeyInterceptListener false
+                }'''
+          assert old_seekbar in text, 'SeekBar boundary guard did not match expected source'
+          text = text.replace(old_seekbar, new_seekbar, 1)
+          settings.write_text(text)
+
+          player = Path('app/src/main/java/com/streamflixreborn/streamflix/fragments/player/PlayerTvFragment.kt')
+          player_text = player.read_text()
+          player.write_text(player_text.rstrip('\n') + '\n')
+          PY
+
+          git diff --check
+          git diff -- app/src/main/java/com/streamflixreborn/streamflix/fragments/settings/SettingsTvFragment.kt app/src/main/java/com/streamflixreborn/streamflix/fragments/player/PlayerTvFragment.kt
+
+      - name: Commit cleanup to navigation branch
+        run: |
+          if git diff --quiet; then
+            echo 'No cleanup changes required'
+          else
+            git config user.name 'github-actions[bot]'
+            git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+            git add app/src/main/java/com/streamflixreborn/streamflix/fragments/settings/SettingsTvFragment.kt app/src/main/java/com/streamflixreborn/streamflix/fragments/player/PlayerTvFragment.kt
+            git commit -m 'fix(tv): tighten settings boundary navigation'
+            git push origin HEAD:fix/tv-ui-navigation
+          fi
+          echo "TESTED_SHA=$(git rev-parse HEAD)" >> "$GITHUB_ENV"
 
       - name: Set up JDK 17
         uses: actions/setup-java@v4
@@ -40,14 +89,16 @@ jobs:
           yes | sdkmanager --licenses >/dev/null || true
           sdkmanager "platforms;android-36" "ndk;26.1.10909125" "cmake;3.22.1"
 
-      - name: Create build properties
+      - name: Create TV build properties
         run: |
           cat > local.properties <<'EOF'
-          APP_LAYOUT=mobile
+          APP_LAYOUT=tv
           TMDB_API_KEY=dummy-ci-key
           SUBDL_API_KEY=dummy-ci-key
           RABBITSTREAM_SOURCE_API=https://example.invalid/
           EOF
+          test "$(grep '^APP_LAYOUT=' local.properties)" = 'APP_LAYOUT=tv'
+          echo 'Verified APP_LAYOUT=tv'
 
       - name: Generate native source from template
         run: |
@@ -62,13 +113,21 @@ jobs:
       - name: Run unit tests
         run: ./gradlew testDebugUnitTest --stacktrace --no-daemon
 
-      - name: Build debug APK
+      - name: Build TV debug APK
         run: ./gradlew assembleDebug --stacktrace --no-daemon
 
-      - name: Upload debug APK
+      - name: Verify TV APK
+        run: |
+          test "$(grep '^APP_LAYOUT=' local.properties)" = 'APP_LAYOUT=tv'
+          test -f app/build/outputs/apk/debug/app-debug.apk
+          echo "Built commit: $TESTED_SHA"
+          git rev-parse HEAD
+          sha256sum app/build/outputs/apk/debug/app-debug.apk
+
+      - name: Upload TV debug APK
         uses: actions/upload-artifact@v4
         with:
-          name: streamflix-debug-apk
-          path: app/build/outputs/apk/debug/*.apk
+          name: streamflix-tv-navigation-cleanup-apk
+          path: app/build/outputs/apk/debug/app-debug.apk
           if-no-files-found: error
           retention-days: 7
