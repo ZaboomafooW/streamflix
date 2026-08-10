@@ -85,6 +85,7 @@ class SettingsTvFragment : LeanbackPreferenceFragmentCompat() {
     private data class SettingsScreenState(
         val rootKey: String?,
         val title: String?,
+        val focusPreferenceKey: String? = null,
     )
 
     private val DEFAULT_DOMAIN_VALUE = "streamingunity.cc"
@@ -197,7 +198,7 @@ class SettingsTvFragment : LeanbackPreferenceFragmentCompat() {
 
     override fun onPreferenceTreeClick(preference: Preference): Boolean {
         if (preference is PreferenceScreen && !preference.key.isNullOrBlank()) {
-            screenBackStack.addLast(currentScreenState)
+            screenBackStack.addLast(currentScreenState.copy(focusPreferenceKey = preference.key))
             currentScreenState = SettingsScreenState(
                 rootKey = preference.key,
                 title = preference.title?.toString(),
@@ -234,7 +235,17 @@ class SettingsTvFragment : LeanbackPreferenceFragmentCompat() {
             displaySettings()
         }
         applyScreenTitle()
-        view?.post { listView?.requestFocus() }
+        val focusPreferenceKey = currentScreenState.focusPreferenceKey
+        view?.post {
+            val grid = listView as? VerticalGridView
+            val focusPosition = focusPreferenceKey?.let { key ->
+                (grid?.adapter as? PreferenceGroupAdapter)?.getPreferenceAdapterPosition(key)
+            } ?: -1
+            if (grid != null && focusPosition >= 0) {
+                grid.setSelectedPosition(focusPosition)
+            }
+            listView?.requestFocus()
+        }
     }
 
     override fun onViewCreated(view: View, savedInstanceState: Bundle?) {
@@ -243,7 +254,6 @@ class SettingsTvFragment : LeanbackPreferenceFragmentCompat() {
         (listView as? VerticalGridView)?.let { grid ->
             grid.setOnKeyInterceptListener { event ->
                 if (event.action != KeyEvent.ACTION_DOWN ||
-                    event.repeatCount != 0 ||
                     event.keyCode != KeyEvent.KEYCODE_DPAD_LEFT ||
                     screenBackStack.isEmpty()
                 ) {
@@ -251,12 +261,6 @@ class SettingsTvFragment : LeanbackPreferenceFragmentCompat() {
                 }
 
                 val focused = grid.findFocus()
-                if (focused != null &&
-                    FocusFinder.getInstance().findNextFocus(grid, focused, View.FOCUS_LEFT) != null
-                ) {
-                    return@setOnKeyInterceptListener false
-                }
-
                 val itemView = focused?.let(grid::findContainingItemView)
                 val position = itemView?.let(grid::getChildAdapterPosition) ?: -1
                 val preference = if (position >= 0) {
@@ -264,9 +268,19 @@ class SettingsTvFragment : LeanbackPreferenceFragmentCompat() {
                 } else {
                     null
                 }
-                if (preference is SeekBarPreference &&
-                    preference.isAdjustable &&
-                    preference.value > preference.min
+                if (preference is SeekBarPreference && preference.isAdjustable) {
+                    if (preference.value > preference.min) {
+                        return@setOnKeyInterceptListener false
+                    }
+                    if (event.repeatCount != 0) {
+                        return@setOnKeyInterceptListener true
+                    }
+                } else if (event.repeatCount != 0) {
+                    return@setOnKeyInterceptListener false
+                }
+
+                if (focused != null &&
+                    FocusFinder.getInstance().findNextFocus(grid, focused, View.FOCUS_LEFT) != null
                 ) {
                     return@setOnKeyInterceptListener false
                 }
