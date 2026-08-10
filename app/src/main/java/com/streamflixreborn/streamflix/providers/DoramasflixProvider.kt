@@ -199,12 +199,8 @@ object DoramasflixProvider : Provider {
             } else null
     }
 
-    private suspend fun findDoramaBySlug(slug: String, titleHint: String? = null): DoramasflixShow? {
-        val input = titleHint?.takeIf { it.isNotBlank() } ?: slug.replace('-', ' ')
-        return searchAll(input).data?.searchDorama?.firstOrNull { it.slug == slug }
-            ?: if (titleHint != null) {
-                searchAll(slug.replace('-', ' ')).data?.searchDorama?.firstOrNull { it.slug == slug }
-            } else null
+    private suspend fun findDoramaBySlug(slug: String): DoramasflixShow? {
+        return searchAll(slug.replace('-', ' ')).data?.searchDorama?.firstOrNull { it.slug == slug }
     }
 
     private suspend fun getSeasons(slug: String): List<com.streamflixreborn.streamflix.models.doramasflix.Season> {
@@ -214,7 +210,6 @@ object DoramasflixProvider : Provider {
             query = """
                 query listSeasons(${'$'}slug: String!) {
                   listSeasons(sort: NUMBER_ASC, filter: {serie_slug: ${'$'}slug}) {
-                    _id
                     slug
                     season_number
                     poster_path
@@ -247,13 +242,9 @@ object DoramasflixProvider : Provider {
                     _id
                     name
                     slug
-                    serie_name
-                    serie_id
                     still_path
                     season_number
                     episode_number
-                    languages
-                    backdrop
                     __typename
                   }
                 }
@@ -368,7 +359,6 @@ object DoramasflixProvider : Provider {
                           slug
                           poster_path
                           poster
-                          isTVShow
                           __typename
                         }
                       }
@@ -389,7 +379,7 @@ object DoramasflixProvider : Provider {
 
     override suspend fun getMovie(id: String): Movie {
         val path = normalizePath(id)
-        val slug = slugFromId(path)
+        val slug = slugFromId(id)
         return try {
             val document = serviceHtml.getPage("$baseUrl/$path")
             val pageTitle = document.selectFirst("h1")?.text()?.takeIf { it.isNotBlank() }
@@ -417,7 +407,7 @@ object DoramasflixProvider : Provider {
 
     override suspend fun getTvShow(id: String): TvShow {
         val path = normalizePath(id)
-        val slug = slugFromId(path)
+        val slug = slugFromId(id)
         return try {
             val seasonsData = getSeasons(slug)
             val apiShow = findDoramaBySlug(slug)
@@ -478,13 +468,7 @@ object DoramasflixProvider : Provider {
                             links_online {
                               lang
                               link
-                              page
-                              server
                               is_recommended
-                              subtitles {
-                                language_code
-                                type
-                              }
                             }
                           }
                         }
@@ -501,15 +485,9 @@ object DoramasflixProvider : Provider {
                         query EpisodeLinksOnline(${'$'}episode_id: ID!) {
                           getEpisodeLinks(id: ${'$'}episode_id, app: "$playbackApp") {
                             links_online {
-                              _id
-                              server
                               lang
                               link
                               is_recommended
-                              subtitles {
-                                language_code
-                                type
-                              }
                             }
                           }
                         }
