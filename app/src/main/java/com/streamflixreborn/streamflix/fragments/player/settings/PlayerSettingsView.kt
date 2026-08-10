@@ -29,6 +29,11 @@ import com.streamflixreborn.streamflix.utils.setRgb
 import com.streamflixreborn.streamflix.utils.supportedTrackFormats
 import kotlin.math.roundToInt
 
+private val FORCED_SUBTITLE_LABEL = Regex(
+    pattern = "(^|[^\\p{L}\\p{N}])forced([^\\p{L}\\p{N}]|$)",
+    option = RegexOption.IGNORE_CASE,
+)
+
 abstract class PlayerSettingsView @JvmOverloads constructor(
     context: Context,
     attrs: AttributeSet? = null,
@@ -708,7 +713,11 @@ abstract class PlayerSettingsView @JvmOverloads constructor(
                             .filter { it.type == C.TRACK_TYPE_TEXT }
                             .flatMap { trackGroup ->
                                 trackGroup.supportedTrackFormats
-                                    .filter { it.format.selectionFlags and C.SELECTION_FLAG_FORCED == 0 }
+                                    .filter { item ->
+                                        val format = item.format
+                                        format.selectionFlags and C.SELECTION_FLAG_FORCED == 0 &&
+                                            !FORCED_SUBTITLE_LABEL.containsMatchIn(format.label.orEmpty())
+                                    }
                                     .map { (trackIndex, trackFormat) ->
                                         TextTrackInformation(
                                             name = DefaultTrackNameProvider(resources)

@@ -21,7 +21,8 @@ import java.util.Locale
  * - a per-title Audio language chosen explicitly by the user;
  * - the known original Audio language;
  * - a learned global Audio fallback from choices on other titles;
- * - one learned global Subtitle state (Off or language + same-language variant);
+ * - one learned global Subtitle state (Off/None or language + same-language variant);
+ * - automatic Forced subtitles behind Off/None, matched only to the actually selected Audio;
  * - narrow source-specific exact fallbacks for tracks whose intent cannot be represented by
  *   language alone, such as anonymous tracks or commentary/descriptive Audio.
  *
@@ -84,7 +85,6 @@ object PlaybackTrackPreferences {
         STANDARD,
         CC,
         SDH,
-        FORCED,
     }
 
     private sealed interface SubtitlePreference {
@@ -266,17 +266,15 @@ object PlaybackTrackPreferences {
                     subtitleOff && !lastSubtitleOff -> {
                         clearSubtitleExact()
                         saveGlobalSubtitleOff()
-                        subtitleCancelled = true
+                        subtitleCancelled = false
 
-                        // "Off" in the learned model means all captions are off, including forced
-                        // tracks. Apply that immediately instead of waiting for the next Player.
+                        // Off/None is a user-facing state, not literal text-track disablement.
+                        // Behind it, show only a Forced track matching the actually selected Audio.
                         applyParameters(
-                            parameters.buildUpon()
-                                .clearOverridesOfType(C.TRACK_TYPE_TEXT)
-                                .setPreferredTextLanguages(*emptyArray())
-                                .setTrackTypeDisabled(C.TRACK_TYPE_TEXT, true)
-                                .setIgnoredTextSelectionFlags(DEFAULT_TEXT_FLAGS)
-                                .build()
+                            applyAutomaticForcedSubtitle(
+                                parameters.buildUpon(),
+                                tracks,
+                            ).build()
                         )
                     }
                 }
@@ -413,6 +411,17 @@ object PlaybackTrackPreferences {
                     }
                 }
 
+                if (
+                    !subtitleCancelled &&
+                    !exactSubtitleApplied &&
+                    subtitlePreference == null
+                ) {
+                    builder = applyAutomaticForcedSubtitle(
+                        builder ?: player.trackSelectionParameters.buildUpon(),
+                        tracks,
+                    )
+                }
+
                 builder?.build()?.let(::applyParameters)
             }
 
@@ -481,11 +490,7 @@ object PlaybackTrackPreferences {
         }
 
         when (val preference = globalSubtitlePreference) {
-            SubtitlePreference.Unset -> builder
-                .setPreferredTextLanguages(*existingSubtitleLanguages.toTypedArray())
-                .setTrackTypeDisabled(C.TRACK_TYPE_TEXT, false)
-                .setIgnoredTextSelectionFlags(DEFAULT_TEXT_FLAGS)
-
+            SubtitlePreference.Unset,
             SubtitlePreference.Off -> builder
                 .clearOverridesOfType(C.TRACK_TYPE_TEXT)
                 .setPreferredTextLanguages(*emptyArray())
@@ -535,6 +540,9 @@ object PlaybackTrackPreferences {
     }
 
     private fun rememberManualSubtitleSelection(track: TrackRef) {
+        // Forced subtitles are automatic behavior behind Off/None, never a preference.
+        if (isForcedSubtitle(track.format)) return
+
         val language = canonicalLanguage(track.format.language)
             ?: languageFromLabel(track.format.label)
 
@@ -625,6 +633,7 @@ object PlaybackTrackPreferences {
         language: String,
         variant: SubtitleVariant,
     ): TrackRef? = allSupportedTracks(tracks, C.TRACK_TYPE_TEXT)
+        .filter { ref -> !isForcedSubtitle(ref.format) }
         .filter { ref -> trackMatchesLanguage(ref.format, language) }
         .filter { ref -> subtitleVariant(ref.format) == variant }
         .let { candidates ->
@@ -633,8 +642,6 @@ object PlaybackTrackPreferences {
         }
 
     private fun subtitleVariant(format: Format): SubtitleVariant {
-        if (isForcedSubtitle(format)) return SubtitleVariant.FORCED
-
         val label = normalizeLabel(format.label.orEmpty())
         return when {
             containsWord(label, "sdh") -> SubtitleVariant.SDH
@@ -642,6 +649,45 @@ object PlaybackTrackPreferences {
             else -> SubtitleVariant.STANDARD
         }
     }
+
+    /**
+     * Off/None means "Forced only". Match Forced subtitles to the language of the track that is
+     * actually selected for Audio. No provider, source, or title metadata participates here.
+     */
+    private fun applyAutomaticForcedSubtitle(
+        builder: TrackSelectionParameters.Builder,
+        tracks: Tracks,
+    ): TrackSelectionParameters.Builder {
+        builder
+            .clearOverridesOfType(C.TRACK_TYPE_TEXT)
+            .setPreferredTextLanguages(*emptyArray())
+            .setTrackTypeDisabled(C.TRACK_TYPE_TEXT, true)
+            .setIgnoredTextSelectionFlags(DEFAULT_TEXT_FLAGS)
+
+        val audioLanguage = selectedAudioLanguage(tracks) ?: return builder
+        val forcedTrack = forcedSubtitleTrack(tracks, audioLanguage) ?: return builder
+
+        return builder
+            .setOverrideForType(forcedTrack.override())
+            .setTrackTypeDisabled(C.TRACK_TYPE_TEXT, false)
+    }
+
+    private fun selectedAudioLanguage(tracks: Tracks): String? =
+        allSupportedTracks(tracks, C.TRACK_TYPE_AUDIO)
+            .firstOrNull { track -> track.group.isTrackSelected(track.trackIndex) }
+            ?.format
+            ?.let { format ->
+                canonicalLanguage(format.language) ?: languageFromLabel(format.label)
+            }
+
+    private fun forcedSubtitleTrack(tracks: Tracks, audioLanguage: String): TrackRef? =
+        allSupportedTracks(tracks, C.TRACK_TYPE_TEXT)
+            .filter { track -> isForcedSubtitle(track.format) }
+            .filter { track -> trackMatchesLanguage(track.format, audioLanguage) }
+            .let { candidates ->
+                candidates.firstOrNull { track -> track.group.isTrackSelected(track.trackIndex) }
+                    ?: candidates.firstOrNull()
+            }
 
     /**
      * Media3 owns language matching whenever tracks expose language metadata. Some extractor tracks
@@ -809,6 +855,7 @@ object PlaybackTrackPreferences {
         val track = prefs.getString(subtitleTrackKey(scope), null)
             ?.let(SavedTrack::decode)
             ?: return null
+        if (track.forced) return null
         return SavedSubtitleTrack(track, revision)
     }
 
@@ -861,6 +908,7 @@ object PlaybackTrackPreferences {
     }
 
     private fun saveSubtitleExact(value: SavedTrack) {
+        if (value.forced) return
         val scope = scopeKey ?: return
         val saved = SavedSubtitleTrack(value, globalSubtitleRevision)
         savedSubtitle = saved
@@ -979,9 +1027,15 @@ object PlaybackTrackPreferences {
             }
         }
 
-        if (
+        val storedSubtitleVariant = prefs.getString(GLOBAL_SUBTITLE_VARIANT, null)
+        if (storedSubtitleVariant == "FORCED") {
+            editor
+                .putString(GLOBAL_SUBTITLE_MODE, MODE_OFF)
+                .remove(GLOBAL_SUBTITLE_LANGUAGE)
+                .remove(GLOBAL_SUBTITLE_VARIANT)
+        } else if (
             prefs.getString(GLOBAL_SUBTITLE_MODE, null) == MODE_LANGUAGE &&
-            prefs.getString(GLOBAL_SUBTITLE_VARIANT, null) == null
+            storedSubtitleVariant == null
         ) {
             editor.putString(GLOBAL_SUBTITLE_VARIANT, SubtitleVariant.STANDARD.name)
         }
@@ -996,7 +1050,7 @@ object PlaybackTrackPreferences {
     private fun JSONObject.nullableString(name: String): String? =
         if (!has(name) || isNull(name)) null else getString(name)
 
-    private const val CURRENT_SCHEMA_VERSION = 3
+    private const val CURRENT_SCHEMA_VERSION = 4
     private const val SCHEMA_VERSION_KEY = "schema_version"
 
     private const val GLOBAL_AUDIO_FALLBACK_LANGUAGE = "global_audio_fallback_language"
