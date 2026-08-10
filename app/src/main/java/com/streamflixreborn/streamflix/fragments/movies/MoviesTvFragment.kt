@@ -7,8 +7,6 @@ import android.view.ViewGroup
 import android.widget.Toast
 import androidx.fragment.app.Fragment
 import androidx.lifecycle.Lifecycle
-import androidx.lifecycle.ViewModel
-import androidx.lifecycle.ViewModelProvider
 import androidx.lifecycle.flowWithLifecycle
 import androidx.lifecycle.lifecycleScope
 import androidx.recyclerview.widget.RecyclerView
@@ -20,6 +18,7 @@ import com.streamflixreborn.streamflix.models.Movie
 import com.streamflixreborn.streamflix.providers.Provider
 import com.streamflixreborn.streamflix.utils.UserPreferences
 import com.streamflixreborn.streamflix.utils.CacheUtils
+import com.streamflixreborn.streamflix.utils.viewModelsFactory
 import kotlinx.coroutines.launch
 
 class MoviesTvFragment : Fragment() {
@@ -30,15 +29,7 @@ class MoviesTvFragment : Fragment() {
     private val binding get() = _binding!!
 
     private val database by lazy { AppDatabase.getInstance(requireContext()) }
-    private val viewModel: MoviesViewModel by lazy {
-        val factory = object : ViewModelProvider.Factory {
-            override fun <T : ViewModel> create(modelClass: Class<T>): T {
-                @Suppress("UNCHECKED_CAST")
-                return MoviesViewModel(database) as T
-            }
-        }
-        ViewModelProvider(requireActivity(), factory)[MoviesViewModel::class.java]
-    }
+    private val viewModel by viewModelsFactory { MoviesViewModel(database) }
 
     private val appAdapter = AppAdapter()
 
@@ -55,10 +46,55 @@ class MoviesTvFragment : Fragment() {
         super.onViewCreated(view, savedInstanceState)
 
         initializeMovies()
-        renderState(viewModel.state.value)
 
         viewLifecycleOwner.lifecycleScope.launch {
-            viewModel.state.flowWithLifecycle(lifecycle, Lifecycle.State.STARTED).collect(::renderState)
+            viewModel.state.flowWithLifecycle(lifecycle, Lifecycle.State.STARTED).collect { state ->
+                when (state) {
+                    MoviesViewModel.State.Loading -> binding.isLoading.apply {
+                        root.visibility = View.VISIBLE
+                        pbIsLoading.visibility = View.VISIBLE
+                        gIsLoadingRetry.visibility = View.GONE
+                    }
+                    MoviesViewModel.State.LoadingMore -> appAdapter.isLoading = true
+                    is MoviesViewModel.State.SuccessLoading -> {
+                        displayMovies(state.movies, state.hasMore)
+                        appAdapter.isLoading = false
+                        binding.vgvMovies.visibility = View.VISIBLE
+                        binding.isLoading.root.visibility = View.GONE
+                    }
+                    is MoviesViewModel.State.FailedLoading -> {
+                        val code = (state.error as? retrofit2.HttpException)?.code()
+                        if (code == 409 && !hasAutoCleared409) {
+                            hasAutoCleared409 = true
+                            CacheUtils.clearAppCache(requireContext())
+                            android.widget.Toast.makeText(requireContext(), getString(com.streamflixreborn.streamflix.R.string.clear_cache_done_409), android.widget.Toast.LENGTH_SHORT).show()
+                            if (appAdapter.isLoading) appAdapter.isLoading = false
+                            viewModel.getMovies()
+                            return@collect
+                        }
+                        Toast.makeText(
+                            requireContext(),
+                            state.error.message ?: "",
+                            Toast.LENGTH_SHORT
+                        ).show()
+                        if (appAdapter.isLoading) {
+                            appAdapter.isLoading = false
+                        } else {
+                            binding.isLoading.apply {
+                                pbIsLoading.visibility = View.GONE
+                                gIsLoadingRetry.visibility = View.VISIBLE
+                                btnIsLoadingRetry.setOnClickListener { viewModel.getMovies() }
+                                btnIsLoadingClearCache.setOnClickListener {
+                                    CacheUtils.clearAppCache(requireContext())
+                                    android.widget.Toast.makeText(requireContext(), getString(com.streamflixreborn.streamflix.R.string.clear_cache_done), android.widget.Toast.LENGTH_SHORT).show()
+                                    viewModel.getMovies()
+                                }
+                                binding.vgvMovies.visibility = View.GONE
+                            }
+                        }
+                    }
+                }
+            }
         }
     }
 
@@ -77,62 +113,6 @@ class MoviesTvFragment : Fragment() {
         }
 
         binding.root.requestFocus()
-    }
-
-    private fun renderState(state: MoviesViewModel.State) {
-        when (state) {
-            MoviesViewModel.State.Loading -> binding.isLoading.apply {
-                root.visibility = View.VISIBLE
-                pbIsLoading.visibility = View.VISIBLE
-                gIsLoadingRetry.visibility = View.GONE
-            }
-            MoviesViewModel.State.LoadingMore -> appAdapter.isLoading = true
-            is MoviesViewModel.State.SuccessLoading -> {
-                displayMovies(state.movies, state.hasMore)
-                appAdapter.isLoading = false
-                binding.vgvMovies.visibility = View.VISIBLE
-                binding.isLoading.root.visibility = View.GONE
-            }
-            is MoviesViewModel.State.FailedLoading -> {
-                val code = (state.error as? retrofit2.HttpException)?.code()
-                if (code == 409 && !hasAutoCleared409) {
-                    hasAutoCleared409 = true
-                    CacheUtils.clearAppCache(requireContext())
-                    Toast.makeText(
-                        requireContext(),
-                        getString(R.string.clear_cache_done_409),
-                        Toast.LENGTH_SHORT
-                    ).show()
-                    if (appAdapter.isLoading) appAdapter.isLoading = false
-                    viewModel.getMovies()
-                    return
-                }
-                Toast.makeText(
-                    requireContext(),
-                    state.error.message ?: "",
-                    Toast.LENGTH_SHORT
-                ).show()
-                if (appAdapter.isLoading) {
-                    appAdapter.isLoading = false
-                } else {
-                    binding.isLoading.apply {
-                        pbIsLoading.visibility = View.GONE
-                        gIsLoadingRetry.visibility = View.VISIBLE
-                        btnIsLoadingRetry.setOnClickListener { viewModel.getMovies() }
-                        btnIsLoadingClearCache.setOnClickListener {
-                            CacheUtils.clearAppCache(requireContext())
-                            Toast.makeText(
-                                requireContext(),
-                                getString(R.string.clear_cache_done),
-                                Toast.LENGTH_SHORT
-                            ).show()
-                            viewModel.getMovies()
-                        }
-                        binding.vgvMovies.visibility = View.GONE
-                    }
-                }
-            }
-        }
     }
 
     private fun displayMovies(movies: List<Movie>, hasMore: Boolean) {
