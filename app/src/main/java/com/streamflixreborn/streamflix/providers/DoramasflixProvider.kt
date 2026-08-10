@@ -41,7 +41,7 @@ object DoramasflixProvider : Provider {
     private const val playbackApiUrl = "https://userapi.cloudfleir.xyz/"
     private const val playbackApp = "com.asiapp.doramasgo"
     override val language = "es"
-    override val logo = "https://doramasflix.in/img/logo.png"
+    override val logo = "https://assets.seriesapi.co/brands/doramasflix/websites/6a651fa138cbd16df74343be/logo/logo-1785013866419.png"
 
     private val client = getOkHttpClient()
 
@@ -164,8 +164,13 @@ object DoramasflixProvider : Provider {
     private fun movieId(slug: String) = "peliculas-online/$slug"
     private fun doramaId(slug: String) = "doramas-online/$slug"
 
-    private fun structuredDescription(document: Document, type: String, pageUrl: String): String? {
-        return document.select("script[type=application/ld+json]")
+    private data class StructuredMetadata(
+        val description: String? = null,
+        val rating: Double? = null,
+    )
+
+    private fun structuredMetadata(document: Document, type: String, pageUrl: String): StructuredMetadata {
+        val data = document.select("script[type=application/ld+json]")
             .asSequence()
             .mapNotNull { script ->
                 runCatching { JSONObject(script.data()) }.getOrNull()
@@ -173,9 +178,16 @@ object DoramasflixProvider : Provider {
             .firstOrNull { data ->
                 data.optString("@type") == type && data.optString("url") == pageUrl
             }
-            ?.optString("description")
-            ?.trim()
-            ?.takeIf { it.isNotBlank() }
+            ?: return StructuredMetadata()
+
+        val description = data.optString("description")
+            .trim()
+            .takeIf { it.isNotBlank() }
+        val rating = data.optJSONObject("aggregateRating")
+            ?.optDouble("ratingValue", Double.NaN)
+            ?.takeIf { !it.isNaN() }
+
+        return StructuredMetadata(description = description, rating = rating)
     }
 
     private suspend fun searchAll(input: String): ApiResponse = apiRequest(
@@ -188,7 +200,6 @@ object DoramasflixProvider : Provider {
                 slug
                 name
                 name_es
-                rating
                 poster_path
                 poster
                 __typename
@@ -198,7 +209,6 @@ object DoramasflixProvider : Provider {
                 slug
                 name
                 name_es
-                rating
                 poster_path
                 poster
                 __typename
@@ -403,12 +413,13 @@ object DoramasflixProvider : Provider {
             val apiMovie = findMovieBySlug(slug, pageTitle)
                 ?: throw Exception("No se pudo resolver la película en la API de Doramasflix.")
             val title = pageTitle ?: titleFor(apiMovie)
+            val metadata = structuredMetadata(document, "Movie", pageUrl)
 
             Movie(
                 id = apiMovie.id,
                 title = title,
-                overview = structuredDescription(document, "Movie", pageUrl),
-                rating = apiMovie.rating,
+                overview = metadata.description,
+                rating = metadata.rating,
                 poster = getPosterUrl(apiMovie.posterPath ?: apiMovie.poster),
             )
         } catch (e: Exception) {
@@ -424,9 +435,9 @@ object DoramasflixProvider : Provider {
             val seasonsData = getSeasons(slug)
             val apiShow = findDoramaBySlug(slug)
             val firstSeason = seasonsData.firstOrNull()
-            val pageDescription = runCatching { serviceHtml.getPage(pageUrl) }
+            val pageMetadata = runCatching { serviceHtml.getPage(pageUrl) }
                 .getOrNull()
-                ?.let { document -> structuredDescription(document, "TVSeries", pageUrl) }
+                ?.let { document -> structuredMetadata(document, "TVSeries", pageUrl) }
 
             val seasons = seasonsData.map { season ->
                 Season(
@@ -442,8 +453,8 @@ object DoramasflixProvider : Provider {
                 title = firstSeason?.serieName?.takeIf { it.isNotBlank() }
                     ?: apiShow?.let(::titleFor)
                     ?: slug.replace('-', ' ').replaceFirstChar { it.titlecase(Locale.ROOT) },
-                overview = pageDescription ?: firstSeason?.overview,
-                rating = apiShow?.rating,
+                overview = pageMetadata?.description ?: firstSeason?.overview,
+                rating = pageMetadata?.rating,
                 poster = getPosterUrl(firstSeason?.posterPath ?: apiShow?.posterPath ?: apiShow?.poster),
                 banner = getPosterUrl(firstSeason?.serieBackdropPath ?: firstSeason?.backdrop),
                 trailer = firstSeason?.trailer,
