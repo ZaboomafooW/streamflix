@@ -125,7 +125,6 @@ class PlayerViewModel(
 
             TrackAuditLogger.recordServers(servers)
 
-            // LOG POTENZIATO: Mostra tutti i server disponibili per il player
             Log.i("StreamFlixES", "[SERVERS LIST] -> Provider: ${UserPreferences.currentProvider!!.name}")
             Log.i("StreamFlixES", "[SERVERS LIST] -> Found ${servers.size} servers: ${servers.joinToString { it.name }}")
 
