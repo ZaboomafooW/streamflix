@@ -26,15 +26,27 @@ class RidooExtractor : Extractor() {
         val embedOrigin = "${embedUrl.scheme}://${embedUrl.host}"
 
         if (embedUrl.host.contains("ridorapid", ignoreCase = true)) {
-            return runCatching { extractRapidrame(link, embedOrigin) }
-                .getOrElse {
-                    BrowserStreamResolver.resolve(
-                        link = link,
-                        referer = RidomoviesProvider.URL,
-                    ) { candidate ->
-                        isHlsUrl(candidate)
-                    }
+            val document = Service.build(embedOrigin, RidomoviesProvider.URL).get(link)
+            val subtitles = parseCaptions(document, embedOrigin)
+
+            return runCatching {
+                extractRapidrame(
+                    document = document,
+                    link = link,
+                    embedOrigin = embedOrigin,
+                    subtitles = subtitles,
+                )
+            }.getOrElse {
+                val resolved = BrowserStreamResolver.resolve(
+                    link = link,
+                    referer = RidomoviesProvider.URL,
+                ) { candidate ->
+                    isHlsUrl(candidate)
                 }
+                resolved.copy(
+                    subtitles = (subtitles + resolved.subtitles).distinctBy { subtitle -> subtitle.file },
+                )
+            }
         }
 
         val document = Service.build(embedOrigin, RidomoviesProvider.URL).get(link)
@@ -50,8 +62,12 @@ class RidooExtractor : Extractor() {
         )
     }
 
-    private suspend fun extractRapidrame(link: String, embedOrigin: String): Video {
-        val document = Service.build(embedOrigin, RidomoviesProvider.URL).get(link)
+    private fun extractRapidrame(
+        document: Document,
+        link: String,
+        embedOrigin: String,
+        subtitles: List<Video.Subtitle>,
+    ): Video {
         val script = document.select("script")
             .asSequence()
             .map { it.data().ifBlank { it.html() } }
@@ -65,7 +81,7 @@ class RidooExtractor : Extractor() {
 
         return Video(
             source = playlist,
-            subtitles = parseCaptions(script, unpacked, embedOrigin),
+            subtitles = subtitles,
             headers = mediaHeaders(link, embedOrigin),
             type = MimeTypes.APPLICATION_M3U8,
         )
@@ -112,44 +128,49 @@ class RidooExtractor : Extractor() {
     }
 
     private fun parseCaptions(
-        script: String,
-        unpacked: String,
+        document: Document,
         embedOrigin: String,
     ): List<Video.Subtitle> {
-        val tracksJson = sequenceOf(script, unpacked)
-            .mapNotNull { source ->
+        val trackArrays = document.select("script")
+            .asSequence()
+            .map { it.data().ifBlank { it.html() } }
+            .flatMap { source ->
                 Regex(
-                    """tracks\s*:\s*(\[[^]]*]),""",
+                    """tracks\s*:\s*(\[[^]]*])""",
                     RegexOption.DOT_MATCHES_ALL,
-                ).find(source)?.groupValues?.getOrNull(1)
+                ).findAll(source).map { it.groupValues[1] }
             }
-            .firstOrNull()
-            ?: return emptyList()
 
-        return runCatching {
-            JsonParser.parseString(tracksJson).asJsonArray.mapNotNull { element ->
-                val track = element.takeIf { it.isJsonObject }?.asJsonObject ?: return@mapNotNull null
-                val kind = track.get("kind")?.takeIf { it.isJsonPrimitive }?.asString.orEmpty()
-                if (!kind.equals("captions", true) && !kind.equals("subtitles", true)) {
-                    return@mapNotNull null
+        return trackArrays.flatMap { tracksJson ->
+            runCatching {
+                JsonParser.parseString(tracksJson).asJsonArray.mapNotNull { element ->
+                    val track = element.takeIf { it.isJsonObject }?.asJsonObject ?: return@mapNotNull null
+                    val kind = track.get("kind")?.takeIf { it.isJsonPrimitive }?.asString.orEmpty()
+                    if (!kind.equals("captions", true) && !kind.equals("subtitles", true)) {
+                        return@mapNotNull null
+                    }
+
+                    val file = track.get("file")?.takeIf { it.isJsonPrimitive }?.asString
+                        ?.trim()?.takeIf { it.isNotBlank() }
+                        ?: return@mapNotNull null
+                    val language = track.get("language")?.takeIf { it.isJsonPrimitive }?.asString
+                        ?.trim().orEmpty()
+                    val label = track.get("label")?.takeIf { it.isJsonPrimitive }?.asString
+                        ?.trim().orEmpty().ifBlank { language }.ifBlank { "Subtitle" }
+                    val isDefault = track.get("default")
+                        ?.takeIf { it.isJsonPrimitive }
+                        ?.asBoolean
+                        ?: false
+
+                    Video.Subtitle(
+                        label = label,
+                        file = absolute(file, embedOrigin),
+                        default = isDefault,
+                        initialDefault = isDefault,
+                    )
                 }
-
-                val file = track.get("file")?.takeIf { it.isJsonPrimitive }?.asString
-                    ?.trim()?.takeIf { it.isNotBlank() }
-                    ?: return@mapNotNull null
-                val language = track.get("language")?.takeIf { it.isJsonPrimitive }?.asString
-                    ?.trim().orEmpty()
-                val label = track.get("label")?.takeIf { it.isJsonPrimitive }?.asString
-                    ?.trim().orEmpty().ifBlank { language }.ifBlank { "Subtitle" }
-
-                Video.Subtitle(
-                    label = label,
-                    file = absolute(file, embedOrigin),
-                    default = false,
-                    initialDefault = false,
-                )
-            }.distinctBy { it.file }
-        }.getOrDefault(emptyList())
+            }.getOrDefault(emptyList()).asSequence()
+        }.distinctBy { it.file }.toList()
     }
 
     private fun absolute(value: String, origin: String): String = when {
