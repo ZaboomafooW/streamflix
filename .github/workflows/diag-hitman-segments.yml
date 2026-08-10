@@ -1,0 +1,99 @@
+name: Diagnose Hitman 2 Closeload segments
+
+on:
+  push:
+    branches:
+      - diag/ridomovies-hitman-segments
+
+permissions:
+  contents: read
+
+jobs:
+  diagnose:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install HTTP dependency
+        run: python -m pip install --disable-pip-version-check curl_cffi beautifulsoup4
+      - name: Inspect live Closeload source and segments
+        env:
+          PYTHONUNBUFFERED: '1'
+        run: |
+          python - <<'PY'
+          import base64, re, binascii
+          from urllib.parse import urljoin
+          from curl_cffi import requests as cr
+          from bs4 import BeautifulSoup
+
+          EMBED='https://closeload.top/video/embed/oGZBTo87vFR/?imdb_id=tt30788876'
+          PARENT='https://ridomovies.su/movie/hitman-2-2025'
+          ORIGIN='https://closeload.top'
+          UA='Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/136.0.0.0 Safari/537.36'
+
+          s=cr.Session(impersonate='chrome136')
+          embed_headers={'User-Agent':UA,'Referer':PARENT,'Accept-Language':'en-US,en;q=0.9'}
+          r=s.get(EMBED,headers=embed_headers,timeout=30)
+          print('EMBED',r.status_code,r.url,r.headers.get('content-type'),len(r.content))
+          r.raise_for_status()
+          soup=BeautifulSoup(r.text,'html.parser')
+          scripts=[x.string or x.get_text() or '' for x in soup.find_all('script')]
+          setup=next(x for x in scripts if 'jwplayer("videoplayer").setup' in x)
+          m=re.search(r'sources\s*:\s*\[\{\s*file\s*:\s*([A-Za-z_$][\w$]*)',setup)
+          var=m.group(1)
+          src_script=next(x for x in scripts if re.search(rf'var\s+{re.escape(var)}\s*=',x))
+          parts_m=re.search(rf'var\s+{re.escape(var)}\s*=\s*\w+\(\[(.*?)\]\)',src_script,re.S)
+          parts=re.findall(r'["\']([^"\']+)["\']',parts_m.group(1))
+          encoded=''.join(parts)
+
+          # Current Closeload function observed on the live page:
+          # Caesar +15 over encoded text, atob x3, then rolling XOR/unmix.
+          shifted=''.join(chr((ord(c)-65+15)%26+65) if 'A'<=c<='Z' else chr((ord(c)-97+15)%26+97) if 'a'<=c<='z' else c for c in encoded)
+          data=shifted.encode()
+          for _ in range(3):
+              data=base64.b64decode(data)
+          acc=200
+          out=bytearray()
+          for b in data:
+              acc=(acc+11)%256
+              plain=b ^ acc
+              acc=(acc+b)%256
+              out.append(plain)
+          source=out.decode('utf-8').strip()
+          print('SOURCE',source)
+
+          media_headers={'User-Agent':UA,'Referer':EMBED,'Origin':ORIGIN,'Accept':'*/*'}
+          pl=s.get(source,headers=media_headers,timeout=30)
+          print('PLAYLIST',pl.status_code,pl.url,pl.headers.get('content-type'),len(pl.content))
+          pl.raise_for_status()
+          lines=[x.strip() for x in pl.text.splitlines() if x.strip()]
+          segments=[urljoin(source,x) for x in lines if not x.startswith('#')]
+          durations=[float(x.split(':',1)[1].split(',',1)[0]) for x in lines if x.startswith('#EXTINF:')]
+          print('SEGMENT COUNT',len(segments),'DURATION COUNT',len(durations),'FIRST DURS',durations[:8])
+
+          def identify(data):
+              if not data: return 'empty'
+              if len(data)>=3 and data[:3]==b'ID3': return 'ID3'
+              if len(data)>=8 and data[4:8]==b'ftyp': return 'ISO-BMFF/MP4'
+              if data[0]==0x47:
+                  sync=sum(1 for off in range(0,min(len(data),188*10),188) if data[off]==0x47)
+                  return f'MPEG-TS(sync={sync})'
+              if data[:2]==b'\xff\xd8': return 'JPEG'
+              return 'unknown'
+
+          for i,u in enumerate(segments[:8]):
+              rr=s.get(u,headers=media_headers,timeout=30)
+              print(f'SEG {i} status={rr.status_code} type={rr.headers.get("content-type")} len={len(rr.content)} enc={rr.headers.get("content-encoding")} range={rr.headers.get("accept-ranges")} identify={identify(rr.content)} url={rr.url}')
+              print('  first64=',binascii.hexlify(rr.content[:64]).decode())
+
+          # Compare request contexts for the first two segments.
+          variants={
+              'app_headers':media_headers,
+              'referer_only':{'User-Agent':UA,'Referer':EMBED,'Accept':'*/*'},
+              'playlist_referer':{'User-Agent':UA,'Referer':source,'Origin':ORIGIN,'Accept':'*/*'},
+              'no_context':{'User-Agent':UA,'Accept':'*/*'},
+          }
+          for label,h in variants.items():
+              for i,u in enumerate(segments[:2]):
+                  rr=s.get(u,headers=h,timeout=30)
+                  print(f'CTX {label} seg={i} status={rr.status_code} type={rr.headers.get("content-type")} len={len(rr.content)} identify={identify(rr.content)}')
+          PY
