@@ -10,7 +10,6 @@ import com.streamflixreborn.streamflix.utils.CustomTabHelper
 import com.streamflixreborn.streamflix.utils.EpisodeManager
 import com.streamflixreborn.streamflix.utils.OpenSubtitles
 import com.streamflixreborn.streamflix.utils.PlaybackTrackPreferences
-import com.streamflixreborn.streamflix.utils.TmdbUtils
 import com.streamflixreborn.streamflix.utils.UserPreferences
 import com.streamflixreborn.streamflix.utils.format
 import kotlinx.coroutines.Dispatchers
@@ -34,8 +33,6 @@ class PlayerViewModel(
 
     private val _playPreviousOrNextEpisode = MutableSharedFlow<Video.Type.Episode>()
     val playPreviousOrNextEpisode: SharedFlow<Video.Type.Episode> = _playPreviousOrNextEpisode
-
-    private var resolvedTvOriginalAudioLanguage: Pair<String, String>? = null
 
     init {
         startPlayback(videoType, id)
@@ -67,7 +64,8 @@ class PlayerViewModel(
                 poster = ep.tvShow.poster,
                 banner = ep.tvShow.banner,
                 releaseDate = ep.tvShow.releaseDate,
-                imdbId = ep.tvShow.imdbId
+                imdbId = ep.tvShow.imdbId,
+                originalLanguage = ep.tvShow.originalLanguage,
             ),
             season = Video.Type.Episode.Season(
                 number = ep.season.number,
@@ -100,40 +98,14 @@ class PlayerViewModel(
         getSubtitles(episode)
     }
 
-    private fun startPlayback(videoType: Video.Type, id: String) =
-        viewModelScope.launch(Dispatchers.IO) {
-            val originalAudioLanguage = resolveOriginalAudioLanguage(videoType)
-            PlaybackTrackPreferences.activate(videoType, originalAudioLanguage)
-            loadServers(videoType, id)
-        }
+    private fun startPlayback(videoType: Video.Type, id: String) {
+        PlaybackTrackPreferences.activate(videoType, originalAudioLanguage(videoType))
+        getServers(videoType, id)
+    }
 
-    private suspend fun resolveOriginalAudioLanguage(videoType: Video.Type): String? {
-        if (!UserPreferences.enableTmdb) return null
-        if (!PlaybackTrackPreferences.shouldResolveOriginalAudioLanguage(videoType)) return null
-
-        val providerLanguage = UserPreferences.currentProvider?.language
-        return when (videoType) {
-            is Video.Type.Movie -> TmdbUtils.getMovieOriginalLanguage(
-                title = videoType.title,
-                year = videoType.releaseDate.substringBefore('-').toIntOrNull(),
-                language = providerLanguage,
-            )
-
-            is Video.Type.Episode -> {
-                resolvedTvOriginalAudioLanguage
-                    ?.takeIf { it.first == videoType.tvShow.id }
-                    ?.second
-                    ?: TmdbUtils.getTvShowOriginalLanguage(
-                        title = videoType.tvShow.title,
-                        year = videoType.tvShow.releaseDate
-                            ?.substringBefore('-')
-                            ?.toIntOrNull(),
-                        language = providerLanguage,
-                    )?.also { language ->
-                        resolvedTvOriginalAudioLanguage = videoType.tvShow.id to language
-                    }
-            }
-        }
+    private fun originalAudioLanguage(videoType: Video.Type): String? = when (videoType) {
+        is Video.Type.Movie -> videoType.originalLanguage
+        is Video.Type.Episode -> videoType.tvShow.originalLanguage
     }
 
     private fun getServers(videoType: Video.Type, id: String) =
