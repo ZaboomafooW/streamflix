@@ -86,7 +86,7 @@ object TrackAuditLogger {
                             JSONObject()
                                 .put("id", server.id)
                                 .put("name", server.name)
-                                .put("sourceHost", sourceHost(server.src))
+                                .putNullable("sourceHost", sourceHost(server.src))
                         )
                     }
                 },
@@ -112,7 +112,7 @@ object TrackAuditLogger {
         val entry = baseEntry(content, key, "extraction_failed")
             .put("serverId", server.id)
             .put("serverName", server.name)
-            .put("sourceHost", sourceHost(server.src))
+            .putNullable("sourceHost", sourceHost(server.src))
             .put("error", errorSummary(error))
         upsert(entry)
     }
@@ -166,7 +166,7 @@ object TrackAuditLogger {
         val entry = baseEntry(content, key, "tracks_loaded")
             .put("serverId", serverId)
             .put("serverName", serverName)
-            .put("sourceHost", sourceHost(server?.src))
+            .putNullable("sourceHost", sourceHost(server?.src))
             .put("preferredAudioLanguages", JSONArray(parameters.preferredAudioLanguages))
             .put("preferredTextLanguages", JSONArray(parameters.preferredTextLanguages))
             .put("textTrackDisabled", parameters.disabledTrackTypes.contains(C.TRACK_TYPE_TEXT))
