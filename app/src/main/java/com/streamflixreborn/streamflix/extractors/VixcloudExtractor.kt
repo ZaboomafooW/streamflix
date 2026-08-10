@@ -35,6 +35,9 @@ class VixcloudExtractor(
             .build()
 
         private val retrofitCache = mutableMapOf<String, VixcloudExtractorService>()
+        private val FORCED_YES = Regex("""\bFORCED=YES\b""", RegexOption.IGNORE_CASE)
+        private val FORCED_ATTRIBUTE = Regex("""\bFORCED=(?:YES|NO)\b""", RegexOption.IGNORE_CASE)
+        private val LANGUAGE_ATTRIBUTE = Regex("""\bLANGUAGE="[^"]*"""", RegexOption.IGNORE_CASE)
 
         private fun getService(baseUrl: String): VixcloudExtractorService {
             return retrofitCache.getOrPut(baseUrl) {
@@ -322,11 +325,5 @@ class VixcloudExtractor(
             @SerializedName("token") val token: String?,
             @SerializedName("expires") val expires: String?
         )
-    }
-
-    private companion object Regexes {
-        val FORCED_YES = Regex("""\bFORCED=YES\b""", RegexOption.IGNORE_CASE)
-        val FORCED_ATTRIBUTE = Regex("""\bFORCED=(?:YES|NO)\b""", RegexOption.IGNORE_CASE)
-        val LANGUAGE_ATTRIBUTE = Regex("""\bLANGUAGE="[^"]*"""", RegexOption.IGNORE_CASE)
     }
 }
