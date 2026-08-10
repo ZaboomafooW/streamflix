@@ -16,6 +16,7 @@ import android.text.style.ForegroundColorSpan
 import android.util.DisplayMetrics
 import android.util.Log
 import android.util.TypedValue
+import android.view.FocusFinder
 import android.view.Gravity
 import android.view.KeyEvent
 import android.view.LayoutInflater
@@ -37,6 +38,7 @@ import androidx.preference.EditTextPreference
 import androidx.preference.ListPreference
 import androidx.preference.Preference
 import androidx.preference.PreferenceCategory
+import androidx.preference.PreferenceGroupAdapter
 import androidx.preference.PreferenceManager
 import androidx.preference.PreferenceScreen
 import androidx.preference.SeekBarPreference
@@ -238,13 +240,34 @@ class SettingsTvFragment : LeanbackPreferenceFragmentCompat() {
     override fun onViewCreated(view: View, savedInstanceState: Bundle?) {
         super.onViewCreated(view, savedInstanceState)
         SettingsListStyler.attach(view, isTv = true)
-        (listView as? VerticalGridView)?.setOnUnhandledKeyListener { event ->
-            if (event.action == KeyEvent.ACTION_DOWN &&
-                event.keyCode == KeyEvent.KEYCODE_DPAD_LEFT
-            ) {
+        (listView as? VerticalGridView)?.let { grid ->
+            grid.setOnKeyInterceptListener { event ->
+                if (event.action != KeyEvent.ACTION_DOWN ||
+                    event.keyCode != KeyEvent.KEYCODE_DPAD_LEFT ||
+                    screenBackStack.isEmpty()
+                ) {
+                    return@setOnKeyInterceptListener false
+                }
+
+                val focused = grid.findFocus()
+                if (focused != null &&
+                    FocusFinder.getInstance().findNextFocus(grid, focused, View.FOCUS_LEFT) != null
+                ) {
+                    return@setOnKeyInterceptListener false
+                }
+
+                val itemView = focused?.let(grid::findContainingItemView)
+                val position = itemView?.let(grid::getChildAdapterPosition) ?: -1
+                val preference = if (position >= 0) {
+                    (grid.adapter as? PreferenceGroupAdapter)?.getItem(position)
+                } else {
+                    null
+                }
+                if (preference is SeekBarPreference && preference.isAdjustable) {
+                    return@setOnKeyInterceptListener false
+                }
+
                 popSettingsScreen()
-            } else {
-                false
             }
         }
         view.post { listView?.requestFocus() }
