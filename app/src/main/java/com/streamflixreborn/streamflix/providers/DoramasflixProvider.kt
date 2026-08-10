@@ -156,6 +156,15 @@ object DoramasflixProvider : Provider {
 
     private fun slugFromId(id: String): String = normalizePath(id).substringAfterLast('/')
 
+    private fun backendIdFromContentId(id: String): String? = id
+        .substringAfter('?', "")
+        .split('&')
+        .firstOrNull { it.startsWith("id=") }
+        ?.substringAfter('=')
+        ?.takeIf { it.isNotBlank() }
+
+    private fun contentId(path: String, backendId: String): String = "$path?id=$backendId"
+
     private fun titleFor(show: DoramasflixShow): String {
         val translated = show.nameEs?.takeIf { it.isNotBlank() && !it.equals(show.name, ignoreCase = true) }
         return translated?.let { "${show.name} ($it)" } ?: show.name
@@ -163,6 +172,7 @@ object DoramasflixProvider : Provider {
 
     private fun movieId(slug: String) = "peliculas-online/$slug"
     private fun doramaId(slug: String) = "doramas-online/$slug"
+    private fun varietyId(slug: String) = "variedades-online/$slug"
 
     private data class StructuredMetadata(
         val description: String? = null,
@@ -308,7 +318,7 @@ object DoramasflixProvider : Provider {
                 response.data?.searchDorama.orEmpty().forEach { show ->
                     add(
                         TvShow(
-                            id = doramaId(show.slug),
+                            id = contentId(doramaId(show.slug), show.id),
                             title = titleFor(show),
                             poster = getPosterUrl(show.posterPath ?: show.poster),
                         )
@@ -317,7 +327,7 @@ object DoramasflixProvider : Provider {
                 response.data?.searchMovie.orEmpty().forEach { show ->
                     add(
                         Movie(
-                            id = movieId(show.slug),
+                            id = contentId(movieId(show.slug), show.id),
                             title = titleFor(show),
                             poster = getPosterUrl(show.posterPath ?: show.poster),
                         )
@@ -355,7 +365,7 @@ object DoramasflixProvider : Provider {
             )
             response.data?.paginationMovie?.items.orEmpty().map { show ->
                 Movie(
-                    id = movieId(show.slug),
+                    id = contentId(movieId(show.slug), show.id),
                     title = titleFor(show),
                     poster = getPosterUrl(show.posterPath ?: show.poster),
                 )
@@ -392,8 +402,9 @@ object DoramasflixProvider : Provider {
                 """.trimIndent(),
             )
             response.data?.paginationDorama?.items.orEmpty().map { show ->
+                val path = if (isTvShow) varietyId(show.slug) else doramaId(show.slug)
                 TvShow(
-                    id = if (isTvShow) show.slug else doramaId(show.slug),
+                    id = contentId(path, show.id),
                     title = titleFor(show),
                     poster = getPosterUrl(show.posterPath ?: show.poster),
                 )
@@ -416,7 +427,7 @@ object DoramasflixProvider : Provider {
             val metadata = structuredMetadata(document, "Movie", pageUrl)
 
             Movie(
-                id = apiMovie.id,
+                id = contentId(movieId(slug), apiMovie.id),
                 title = title,
                 overview = metadata.description,
                 rating = metadata.rating,
@@ -448,8 +459,9 @@ object DoramasflixProvider : Provider {
                 )
             }
 
+            val backendId = apiShow?.id ?: backendIdFromContentId(id)
             TvShow(
-                id = apiShow?.id ?: path,
+                id = backendId?.let { contentId(path, it) } ?: path,
                 title = firstSeason?.serieName?.takeIf { it.isNotBlank() }
                     ?: apiShow?.let(::titleFor)
                     ?: slug.replace('-', ' ').replaceFirstChar { it.titlecase(Locale.ROOT) },
@@ -486,9 +498,10 @@ object DoramasflixProvider : Provider {
     private suspend fun getPlaybackLinks(id: String, videoType: Video.Type): List<OnlineLink> {
         return when (videoType) {
             is Video.Type.Movie -> {
+                val movieBackendId = backendIdFromContentId(id) ?: id
                 val response = playbackRequest(
                     operationName = "MovieLinks",
-                    variables = JSONObject().put("movie_id", id),
+                    variables = JSONObject().put("movie_id", movieBackendId),
                     query = """
                         query MovieLinks(${'$'}movie_id: ID!) {
                           getMovieLinks(id: ${'$'}movie_id, app: "$playbackApp") {
