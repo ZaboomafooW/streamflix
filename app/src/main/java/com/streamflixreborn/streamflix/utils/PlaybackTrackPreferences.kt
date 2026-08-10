@@ -314,12 +314,16 @@ object PlaybackTrackPreferences {
 
                 if (!audioRestored && !audioCancelled) {
                     savedAudio?.let { saved ->
-                        exactTrack(tracks, C.TRACK_TYPE_AUDIO, saved)?.let { track ->
-                            builder = (builder ?: player.trackSelectionParameters.buildUpon())
-                                .setOverrideForType(track.override())
-                                .setTrackTypeDisabled(C.TRACK_TYPE_AUDIO, false)
+                        if (!exactPreferenceApplies(C.TRACK_TYPE_AUDIO, saved)) {
                             audioRestored = true
-                            exactAudioApplied = true
+                        } else {
+                            exactTrack(tracks, C.TRACK_TYPE_AUDIO, saved)?.let { track ->
+                                builder = (builder ?: player.trackSelectionParameters.buildUpon())
+                                    .setOverrideForType(track.override())
+                                    .setTrackTypeDisabled(C.TRACK_TYPE_AUDIO, false)
+                                audioRestored = true
+                                exactAudioApplied = true
+                            }
                         }
                     }
                 }
@@ -338,13 +342,17 @@ object PlaybackTrackPreferences {
                         }
 
                         is SavedSubtitle.Track -> {
-                            exactTrack(tracks, C.TRACK_TYPE_TEXT, saved.value)?.let { track ->
-                                builder = (builder ?: player.trackSelectionParameters.buildUpon())
-                                    .setOverrideForType(track.override())
-                                    .setTrackTypeDisabled(C.TRACK_TYPE_TEXT, false)
-                                    .setIgnoredTextSelectionFlags(DEFAULT_TEXT_FLAGS)
+                            if (!exactPreferenceApplies(C.TRACK_TYPE_TEXT, saved.value)) {
                                 subtitleRestored = true
-                                exactSubtitleApplied = true
+                            } else {
+                                exactTrack(tracks, C.TRACK_TYPE_TEXT, saved.value)?.let { track ->
+                                    builder = (builder ?: player.trackSelectionParameters.buildUpon())
+                                        .setOverrideForType(track.override())
+                                        .setTrackTypeDisabled(C.TRACK_TYPE_TEXT, false)
+                                        .setIgnoredTextSelectionFlags(DEFAULT_TEXT_FLAGS)
+                                    subtitleRestored = true
+                                    exactSubtitleApplied = true
+                                }
                             }
                         }
                     }
@@ -453,6 +461,16 @@ object PlaybackTrackPreferences {
         }
     }
 
+    private fun exactPreferenceApplies(type: Int, saved: SavedTrack): Boolean {
+        val savedLanguage = eligiblePreferenceLanguage(type, saved) ?: return true
+        val titleLanguage = when (type) {
+            C.TRACK_TYPE_AUDIO -> titleAudioLanguage
+            C.TRACK_TYPE_TEXT -> titleSubtitleLanguage
+            else -> null
+        }
+        return titleLanguage == null || languageMatches(savedLanguage, titleLanguage)
+    }
+
     private fun seedGlobalSubtitleLanguageIfNeeded(language: String) {
         if (settingsPrefs.getBoolean(PREFERRED_SUBTITLE_LANGUAGE_INITIALIZED, false)) return
 
@@ -473,6 +491,30 @@ object PlaybackTrackPreferences {
         if (type == C.TRACK_TYPE_TEXT && isForcedSubtitle(format)) return null
         if (type == C.TRACK_TYPE_AUDIO && isNonPrimaryAudio(format)) return null
         return canonicalLanguage(format.language) ?: languageFromLabel(format.label)
+    }
+
+    private fun eligiblePreferenceLanguage(type: Int, saved: SavedTrack): String? {
+        val label = normalizeLabel(saved.label.orEmpty())
+        if (
+            type == C.TRACK_TYPE_TEXT &&
+            (saved.forced || containsWord(label, "forced"))
+        ) {
+            return null
+        }
+        if (
+            type == C.TRACK_TYPE_AUDIO &&
+            (
+                saved.roleFlags and C.ROLE_FLAG_COMMENTARY != 0 ||
+                    saved.roleFlags and C.ROLE_FLAG_DESCRIBES_VIDEO != 0 ||
+                    containsWord(label, "commentary") ||
+                    containsWord(label, "descriptive") ||
+                    label.contains("audio description") ||
+                    label.contains("audio described")
+            )
+        ) {
+            return null
+        }
+        return canonicalLanguage(saved.language) ?: languageFromLabel(saved.label)
     }
 
     private fun canonicalLanguage(language: String?): String? {
