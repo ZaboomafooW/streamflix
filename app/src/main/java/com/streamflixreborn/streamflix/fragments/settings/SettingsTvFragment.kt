@@ -17,6 +17,7 @@ import android.util.DisplayMetrics
 import android.util.Log
 import android.util.TypedValue
 import android.view.Gravity
+import android.view.KeyEvent
 import android.view.LayoutInflater
 import android.widget.EditText
 import android.widget.ImageView
@@ -30,6 +31,7 @@ import androidx.activity.OnBackPressedCallback
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.constraintlayout.widget.Group
 import androidx.leanback.preference.LeanbackPreferenceFragmentCompat
+import androidx.leanback.widget.VerticalGridView
 import androidx.lifecycle.lifecycleScope
 import androidx.preference.EditTextPreference
 import androidx.preference.ListPreference
@@ -185,10 +187,7 @@ class SettingsTvFragment : LeanbackPreferenceFragmentCompat() {
         super.onCreate(savedInstanceState)
         settingsBackCallback = object : OnBackPressedCallback(false) {
             override fun handleOnBackPressed() {
-                if (screenBackStack.isEmpty()) return
-                currentScreenState = screenBackStack.removeLast()
-                settingsBackCallback.isEnabled = screenBackStack.isNotEmpty()
-                renderCurrentScreen()
+                popSettingsScreen()
             }
         }
         requireActivity().onBackPressedDispatcher.addCallback(this, settingsBackCallback)
@@ -219,6 +218,14 @@ class SettingsTvFragment : LeanbackPreferenceFragmentCompat() {
         activity?.title = currentScreenState.title ?: getString(R.string.player_settings_title)
     }
 
+    private fun popSettingsScreen(): Boolean {
+        if (screenBackStack.isEmpty()) return false
+        currentScreenState = screenBackStack.removeLast()
+        settingsBackCallback.isEnabled = screenBackStack.isNotEmpty()
+        renderCurrentScreen()
+        return true
+    }
+
     private fun renderCurrentScreen() {
         setPreferencesFromResource(R.xml.settings_tv, currentScreenState.rootKey)
         if (::backupRestoreManager.isInitialized) {
@@ -231,6 +238,15 @@ class SettingsTvFragment : LeanbackPreferenceFragmentCompat() {
     override fun onViewCreated(view: View, savedInstanceState: Bundle?) {
         super.onViewCreated(view, savedInstanceState)
         SettingsListStyler.attach(view, isTv = true)
+        (listView as? VerticalGridView)?.setOnUnhandledKeyListener { event ->
+            if (event.action == KeyEvent.ACTION_DOWN &&
+                event.keyCode == KeyEvent.KEYCODE_DPAD_LEFT
+            ) {
+                popSettingsScreen()
+            } else {
+                false
+            }
+        }
         view.post { listView?.requestFocus() }
     }
 
