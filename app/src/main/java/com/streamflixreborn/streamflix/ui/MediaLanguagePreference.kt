@@ -5,6 +5,7 @@ import android.util.AttributeSet
 import androidx.preference.ListPreference
 import androidx.preference.Preference
 import com.streamflixreborn.streamflix.R
+import com.streamflixreborn.streamflix.utils.PlaybackTrackPreferences
 import java.util.Locale
 
 class MediaLanguagePreference(
@@ -26,7 +27,7 @@ class MediaLanguagePreference(
             .sortedBy { (_, displayName) -> displayName.lowercase(displayLocale) }
 
         entries = buildList<CharSequence> {
-            add(context.getString(R.string.settings_preferred_language_auto))
+            add(context.getString(R.string.settings_preferred_language_none_selected))
             addAll(languages.map { it.second })
         }.toTypedArray()
 
@@ -38,7 +39,12 @@ class MediaLanguagePreference(
         summaryProvider = Preference.SummaryProvider<ListPreference> { preference ->
             val index = preference.findIndexOfValue(preference.value)
             preference.entries.getOrNull(index)
-                ?: context.getString(R.string.settings_preferred_language_auto)
+                ?: context.getString(R.string.settings_preferred_language_none_selected)
+        }
+
+        setOnPreferenceChangeListener { preference, _ ->
+            PlaybackTrackPreferences.markGlobalLanguagePreferenceInitialized(preference.key)
+            true
         }
     }
 }
