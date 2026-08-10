@@ -1,0 +1,38 @@
+name: Diagnose Hitman 2 real Closeload master
+
+on:
+  pull_request:
+    branches: [ main ]
+
+permissions:
+  contents: read
+
+jobs:
+  diagnose:
+    runs-on: ubuntu-latest
+    timeout-minutes: 8
+    steps:
+      - uses: actions/checkout@v4
+      - name: Fetch decoded live master
+        run: |
+          python - <<'PY'
+          import urllib.request,re
+          url='https://srv13.cdnimages3047.shop/hls/hitman2-2025-webdl-tt30788876mp4-oGZBTo87vFR.mp4/txt/master.txt'
+          req=urllib.request.Request(url,headers={
+            'User-Agent':'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 Chrome/136.0.0.0 Safari/537.36',
+            'Referer':'https://closeload.top/video/embed/oGZBTo87vFR/?imdb_id=tt30788876',
+            'Origin':'https://closeload.top',
+            'Accept':'*/*',
+          })
+          try:
+            with urllib.request.urlopen(req,timeout=30) as r:
+              body=r.read().decode('utf-8','replace')
+              print('STATUS',r.status)
+              print('FINAL',r.geturl())
+              print('CONTENT-TYPE',r.headers.get('content-type'))
+              print('BODY\n',body[:30000])
+              print('EXT-X-MEDIA',re.findall(r'#EXT-X-MEDIA:[^\n]+',body))
+              print('EXT-X-STREAM-INF',re.findall(r'#EXT-X-STREAM-INF:[^\n]+',body))
+          except Exception as e:
+            print('ERROR',repr(e));raise
+          PY
