@@ -1,0 +1,94 @@
+name: Diagnose Hitman 2 Closeload runtime
+
+on:
+  pull_request:
+    branches: [ main ]
+
+permissions:
+  contents: read
+
+jobs:
+  diagnose:
+    runs-on: ubuntu-latest
+    timeout-minutes: 12
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install Selenium
+        run: python -m pip install --disable-pip-version-check selenium
+      - name: Trace live Closeload runtime
+        env:
+          PYTHONUNBUFFERED: '1'
+        run: |
+          python - <<'PY'
+          import json,time
+          from selenium import webdriver
+          from selenium.webdriver.chrome.options import Options
+
+          EMBED='https://closeload.top/video/embed/oGZBTo87vFR/?imdb_id=tt30788876'
+          REFERER='https://ridomovies.su/movie/hitman-2-2025'
+          opts=Options()
+          for arg in ['--headless=new','--no-sandbox','--disable-dev-shm-usage','--autoplay-policy=no-user-gesture-required','--mute-audio']:
+              opts.add_argument(arg)
+          opts.set_capability('goog:loggingPrefs',{'performance':'ALL','browser':'ALL'})
+          d=webdriver.Chrome(options=opts)
+          d.execute_cdp_cmd('Network.enable',{})
+          d.execute_cdp_cmd('Network.setExtraHTTPHeaders',{'headers':{'Referer':REFERER}})
+          d.get(EMBED)
+          time.sleep(3)
+
+          def js(code):
+              try:return d.execute_script(code)
+              except Exception as e:return 'ERR '+repr(e)
+
+          print('URL=',d.current_url)
+          print('TITLE=',d.title)
+          print('COOKIES=',json.dumps(d.get_cookies(),indent=2))
+          print('JW TYPE=',js('return typeof jwplayer'))
+          print('JW PLAYERS=',js("return typeof jwplayer==='function'?jwplayer().getEnvironment?JSON.stringify(jwplayer().getEnvironment()):'jw':null"))
+          print('STATE BEFORE=',js("return typeof jwplayer==='function'?jwplayer('videoplayer').getState():null"))
+          print('PLAYLIST BEFORE=',js("return typeof jwplayer==='function'?JSON.stringify(jwplayer('videoplayer').getPlaylist()):null"))
+          print('AUDIO BEFORE=',js("return typeof jwplayer==='function'?JSON.stringify(jwplayer('videoplayer').getAudioTracks()):null"))
+          print('CAPTIONS BEFORE=',js("return typeof jwplayer==='function'?JSON.stringify(jwplayer('videoplayer').getCaptionsList()):null"))
+          print('PLAY CALL=',js("if(typeof jwplayer==='function'){jwplayer('videoplayer').play(true);return jwplayer('videoplayer').getState()}return null"))
+          time.sleep(12)
+          print('STATE AFTER=',js("return typeof jwplayer==='function'?jwplayer('videoplayer').getState():null"))
+          print('POSITION=',js("return typeof jwplayer==='function'?jwplayer('videoplayer').getPosition():null"))
+          print('DURATION=',js("return typeof jwplayer==='function'?jwplayer('videoplayer').getDuration():null"))
+          print('PLAYLIST AFTER=',js("return typeof jwplayer==='function'?JSON.stringify(jwplayer('videoplayer').getPlaylist()):null"))
+          print('AUDIO AFTER=',js("return typeof jwplayer==='function'?JSON.stringify(jwplayer('videoplayer').getAudioTracks()):null"))
+          print('CAPTIONS AFTER=',js("return typeof jwplayer==='function'?JSON.stringify(jwplayer('videoplayer').getCaptionsList()):null"))
+          print('COOKIES AFTER=',json.dumps(d.get_cookies(),indent=2))
+
+          reqs={}
+          responses=[]
+          for ent in d.get_log('performance'):
+              try:m=json.loads(ent['message'])['message']
+              except:continue
+              method=m.get('method'); p=m.get('params',{})
+              if method=='Network.requestWillBeSent':
+                  req=p.get('request',{}); rid=p.get('requestId'); u=req.get('url','')
+                  if any(x in u.lower() for x in ['master.txt','.m3u8','.ts','.vtt','playerinit','ajax','hash','playmix','hls8']):
+                      reqs[rid]={'url':u,'method':req.get('method'),'headers':req.get('headers',{}),'postData':req.get('postData')}
+              elif method=='Network.responseReceived':
+                  rid=p.get('requestId'); resp=p.get('response',{})
+                  if rid in reqs:
+                      responses.append((rid,resp.get('status'),resp.get('url'),resp.get('mimeType'),resp.get('headers',{})))
+
+          print('MATCHED REQUESTS=')
+          for rid,req in reqs.items():
+              print(json.dumps({'requestId':rid,**req},ensure_ascii=False))
+          print('MATCHED RESPONSES=')
+          for row in responses:
+              print(json.dumps({'requestId':row[0],'status':row[1],'url':row[2],'mime':row[3],'headers':row[4]},ensure_ascii=False))
+
+          for rid,req in reqs.items():
+              if any(x in req['url'].lower() for x in ['master.txt','.m3u8']):
+                  try:
+                      body=d.execute_cdp_cmd('Network.getResponseBody',{'requestId':rid})
+                      print('BODY',req['url'],repr(body.get('body','')[:5000]))
+                  except Exception as e:
+                      print('BODY ERROR',req['url'],repr(e))
+
+          print('BROWSER LOGS=',json.dumps(d.get_log('browser')[-50:],ensure_ascii=False,indent=2))
+          d.quit()
+          PY
