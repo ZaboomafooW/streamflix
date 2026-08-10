@@ -12,7 +12,7 @@ jobs:
   probe:
     runs-on: ubuntu-latest
     steps:
-      - name: Verify current Doramasflix variety routes and embedded metadata
+      - name: Compare current Doramasflix variety detail routes
         shell: bash
         run: |
           set -euo pipefail
@@ -29,36 +29,29 @@ jobs:
             echo "$path -> $status"
             FILE="$tmp" python3 - <<'PY'
           import html
+          import json
           import os
           import re
 
           raw = html.unescape(open(os.environ['FILE'], encoding='utf-8').read())
-          for field in ('isTVShow', '_id', 'slug', '__typename'):
-              matches = []
-              for match in re.finditer(re.escape(field), raw, flags=re.I):
-                  start = max(0, match.start() - 100)
-                  end = min(len(raw), match.end() + 180)
-                  snippet = re.sub(r'\s+', ' ', raw[start:end])
-                  if snippet not in matches:
-                      matches.append(snippet)
-                  if len(matches) >= 5:
-                      break
-              print(field, matches)
+          target = 'better-late-than-single'
+          positions = [m.start() for m in re.finditer(target, raw, flags=re.I)]
+          print('target_occurrences', len(positions))
+          for pos in positions[:8]:
+              print('TARGET', re.sub(r'\s+', ' ', raw[max(0,pos-500):min(len(raw),pos+900)]))
+
+          scripts = re.findall(r'<script[^>]+type=["\']application/ld\+json["\'][^>]*>(.*?)</script>', raw, flags=re.I|re.S)
+          for payload in scripts:
+              try:
+                  data = json.loads(html.unescape(payload))
+              except Exception:
+                  continue
+              if isinstance(data, dict) and data.get('@type') in ('TVSeries', 'Movie'):
+                  print('JSONLD', json.dumps({k:data.get(k) for k in ('@type','name','url','description','aggregateRating')}, ensure_ascii=False))
           PY
             rm -f "$tmp"
           }
 
-          inspect_page 'VARIETY DETAIL' '/variedades-online/better-late-than-single'
-          inspect_page 'DORAMA DETAIL' '/doramas-online/our-sticky-love'
-          inspect_page 'MOVIE DETAIL' '/peliculas-online/just-for-meeting-you'
-
-          echo '=== WRONG ROUTES ==='
-          for path in \
-            '/doramas-online/better-late-than-single' \
-            '/better-late-than-single'; do
-            printf '%s -> ' "$path"
-            curl --silent --show-error --location --output /dev/null \
-              --write-out '%{http_code} %{url_effective}\n' \
-              -A "$UA" \
-              "$SITE$path"
-          done
+          inspect_page 'CANONICAL VARIETY' '/variedades-online/better-late-than-single'
+          inspect_page 'ALTERNATE DORAMA' '/doramas-online/better-late-than-single'
+          inspect_page 'BARE SLUG' '/better-late-than-single'
