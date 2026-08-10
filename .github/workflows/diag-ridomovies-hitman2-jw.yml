@@ -1,0 +1,106 @@
+name: Diagnose Hitman 2 Closeload JWPlayer
+
+on:
+  pull_request:
+    branches: [ main ]
+
+permissions:
+  contents: read
+
+jobs:
+  diagnose:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+      - run: python -m pip install --disable-pip-version-check curl_cffi beautifulsoup4 selenium
+      - name: Trace Closeload JWPlayer exactly
+        env:
+          PYTHONUNBUFFERED: '1'
+        run: |
+          python - <<'PY'
+          import json, re, time
+          from urllib.parse import urljoin
+          from curl_cffi import requests as cr
+          from bs4 import BeautifulSoup
+
+          DETAIL='https://ridomovies.su/movie/hitman-2-2025'
+          EMBED='https://closeload.top/video/embed/oGZBTo87vFR/?imdb_id=tt30788876'
+          UA='Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/136.0.0.0 Safari/537.36'
+          s=cr.Session(impersonate='chrome136')
+          r=s.get(EMBED,headers={'User-Agent':UA,'Referer':DETAIL,'Accept-Language':'en-US,en;q=0.9'},timeout=30)
+          print('EMBED',r.status_code,r.url,r.headers.get('content-type'),len(r.content))
+          r.raise_for_status()
+          html=r.text
+          soup=BeautifulSoup(html,'html.parser')
+
+          content_urls=[]
+          for sc in soup.find_all('script'):
+              txt=sc.string or sc.get_text() or ''
+              if 'contentUrl' in txt:
+                  m=re.search(r'"contentUrl"\s*:\s*"([^"]+)"',txt)
+                  if m: content_urls.append(m.group(1).replace('\\/','/'))
+          print('JSONLD CONTENT URLS=',content_urls)
+
+          setup='\n'.join((sc.string or sc.get_text() or '') for sc in soup.find_all('script') if 'jwplayer("videoplayer").setup' in (sc.string or sc.get_text() or ''))
+          print('JW SETUP=',setup[:12000])
+          tm=re.search(r'tracks\s*:\s*(\[[^\]]*\])',setup,re.S)
+          print('TRACKS RAW=',tm.group(1) if tm else None)
+
+          for src in content_urls:
+              for referer in [EMBED,'https://closeload.top/']:
+                  rr=s.get(src,headers={'User-Agent':UA,'Referer':referer,'Origin':'https://closeload.top','Accept':'*/*'},timeout=30,allow_redirects=True)
+                  print('\nMASTER FETCH referer=',referer,'status=',rr.status_code,'final=',rr.url,'type=',rr.headers.get('content-type'),'bytes=',len(rr.content))
+                  print(rr.text[:12000] if len(rr.content)<200000 else rr.text[:12000])
+                  if rr.text.startswith('#EXTM3U'):
+                      print('EXT-X-MEDIA=',re.findall(r'#EXT-X-MEDIA:[^\n]+',rr.text))
+                      print('EXT-X-STREAM-INF=',re.findall(r'#EXT-X-STREAM-INF:[^\n]+',rr.text))
+
+          from selenium import webdriver
+          from selenium.webdriver.chrome.options import Options
+          opts=Options()
+          for a in ['--headless=new','--no-sandbox','--disable-dev-shm-usage','--autoplay-policy=no-user-gesture-required','--mute-audio']:
+              opts.add_argument(a)
+          opts.set_capability('goog:loggingPrefs',{'performance':'ALL','browser':'ALL'})
+          d=webdriver.Chrome(options=opts)
+          d.execute_cdp_cmd('Network.enable',{})
+          d.execute_cdp_cmd('Network.setExtraHTTPHeaders',{'headers':{'Referer':DETAIL}})
+          d.get(EMBED)
+          time.sleep(5)
+          def js(expr):
+              try: return d.execute_script(expr)
+              except Exception as e: return 'ERR '+repr(e)
+          print('\nJW TYPE=',js('return typeof jwplayer'))
+          print('JW STATE BEFORE=',js("return typeof jwplayer==='function'?jwplayer('videoplayer').getState():null"))
+          print('JW PLAYLIST BEFORE=',js("return typeof jwplayer==='function'?JSON.stringify(jwplayer('videoplayer').getPlaylist()):null"))
+          print('JW AUDIO BEFORE=',js("return typeof jwplayer==='function'?JSON.stringify(jwplayer('videoplayer').getAudioTracks()):null"))
+          print('JW CAPTIONS BEFORE=',js("return typeof jwplayer==='function'?JSON.stringify(jwplayer('videoplayer').getCaptionsList()):null"))
+          print('JW PLAY CALL=',js("if(typeof jwplayer==='function'){jwplayer('videoplayer').play(true); return jwplayer('videoplayer').getState()} return null"))
+          time.sleep(12)
+          print('JW STATE AFTER=',js("return typeof jwplayer==='function'?jwplayer('videoplayer').getState():null"))
+          print('JW POSITION=',js("return typeof jwplayer==='function'?jwplayer('videoplayer').getPosition():null"))
+          print('JW DURATION=',js("return typeof jwplayer==='function'?jwplayer('videoplayer').getDuration():null"))
+          print('JW AUDIO AFTER=',js("return typeof jwplayer==='function'?JSON.stringify(jwplayer('videoplayer').getAudioTracks()):null"))
+          print('JW CAPTIONS AFTER=',js("return typeof jwplayer==='function'?JSON.stringify(jwplayer('videoplayer').getCaptionsList()):null"))
+
+          requests=[]; responses=[]
+          for ent in d.get_log('performance'):
+              try: msg=json.loads(ent['message'])['message']
+              except Exception: continue
+              method=msg.get('method')
+              p=msg.get('params',{})
+              if method=='Network.requestWillBeSent':
+                  req=p.get('request',{}); u=req.get('url',''); low=u.lower()
+                  if any(x in low for x in ['master.txt','.m3u8','.ts','.mp4','/hls/','playlist']) or req.get('method')=='POST':
+                      requests.append((req.get('method'),u,req.get('headers',{}).get('Referer'),p.get('type')))
+              elif method=='Network.responseReceived':
+                  resp=p.get('response',{}); u=resp.get('url',''); low=u.lower()
+                  if any(x in low for x in ['master.txt','.m3u8','.ts','.mp4','/hls/','playlist']):
+                      responses.append((int(resp.get('status',0)),u,resp.get('mimeType'),p.get('type')))
+          print('\nNETWORK REQUESTS')
+          for x in requests: print(x)
+          print('\nNETWORK RESPONSES')
+          for x in responses: print(x)
+          print('\nBROWSER LOGS=',d.get_log('browser')[-50:])
+          d.quit()
+          PY
