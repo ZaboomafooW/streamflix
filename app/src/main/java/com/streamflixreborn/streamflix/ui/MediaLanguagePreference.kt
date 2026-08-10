@@ -3,6 +3,7 @@ package com.streamflixreborn.streamflix.ui
 import android.content.Context
 import android.util.AttributeSet
 import androidx.preference.ListPreference
+import androidx.preference.Preference
 import com.streamflixreborn.streamflix.R
 import java.util.Locale
 
@@ -34,7 +35,7 @@ class MediaLanguagePreference(
             addAll(languages.map { it.first })
         }.toTypedArray()
 
-        summaryProvider = SummaryProvider<MediaLanguagePreference> { preference ->
+        summaryProvider = Preference.SummaryProvider<ListPreference> { preference ->
             val index = preference.findIndexOfValue(preference.value)
             preference.entries.getOrNull(index)
                 ?: context.getString(R.string.settings_preferred_language_auto)
