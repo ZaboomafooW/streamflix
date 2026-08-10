@@ -20,6 +20,65 @@ jobs:
         with:
           ref: ${{ github.sha }}
 
+      - name: Inspect live Doramasflix rating and logo metadata
+        run: |
+          python3 - <<'PY'
+          import json
+          import re
+          import urllib.request
+          from html import unescape
+
+          UA = "Mozilla/5.0 (Linux; Android 10; Android TV) AppleWebKit/537.36 Chrome/140.0.0.0 Safari/537.36"
+
+          def fetch(url):
+              req = urllib.request.Request(url, headers={"User-Agent": UA, "Accept": "text/html,application/xhtml+xml"})
+              with urllib.request.urlopen(req, timeout=20) as response:
+                  return response.status, response.read().decode("utf-8", errors="replace")
+
+          urls = [
+              "https://doramasflix.in/peliculas-online/just-for-meeting-you",
+              "https://doramasflix.in/doramas-online/unlock-your-love",
+              "https://doramasflix.in/peliculas-online/unlock-your-love",
+          ]
+
+          for url in urls:
+              print("=" * 100)
+              print("DETAIL", url)
+              try:
+                  status, body = fetch(url)
+                  print("HTTP", status, "bytes", len(body))
+                  blocks = re.findall(r'<script[^>]+type=["\']application/ld\+json["\'][^>]*>(.*?)</script>', body, flags=re.I|re.S)
+                  print("JSONLD_BLOCKS", len(blocks))
+                  for i, raw in enumerate(blocks):
+                      try:
+                          data = json.loads(unescape(raw).strip())
+                          print("JSONLD", i, json.dumps(data, ensure_ascii=False)[:6000])
+                      except Exception as exc:
+                          print("JSONLD_PARSE_ERROR", i, repr(exc), raw[:1000])
+              except Exception as exc:
+                  print("FETCH_ERROR", repr(exc))
+
+          print("=" * 100)
+          print("HOME LOGO METADATA")
+          try:
+              status, body = fetch("https://doramasflix.in/")
+              print("HTTP", status, "bytes", len(body))
+              for pattern_name, pattern in [
+                  ("ICON", r'<link[^>]+rel=["\'][^"\']*(?:icon|apple-touch-icon)[^"\']*["\'][^>]*>'),
+                  ("IMG", r'<img[^>]+(?:logo|doramasflix)[^>]*>'),
+                  ("OG_IMAGE", r'<meta[^>]+property=["\']og:image["\'][^>]*>'),
+              ]:
+                  print(pattern_name)
+                  for match in re.findall(pattern, body, flags=re.I):
+                      print(match[:1500])
+              for m in re.finditer(r'https?://[^"\'<> ]+\.(?:png|webp|jpg|jpeg|svg)', body, flags=re.I):
+                  url = m.group(0)
+                  if "logo" in url.lower() or "icon" in url.lower() or "doramas" in url.lower():
+                      print("ASSET", url[:1500])
+          except Exception as exc:
+              print("HOME_FETCH_ERROR", repr(exc))
+          PY
+
       - name: Set up JDK 17
         uses: actions/setup-java@v4
         with:
