@@ -48,10 +48,11 @@ class CloseloadExtractor : Extractor() {
             referer = RidomoviesProvider.URL,
             timeoutMs = 15_000L,
         ) { candidate ->
-            isPlayableMediaUrl(candidate)
+            isCloseloadHlsUrl(candidate)
         }
         return resolved.copy(
             subtitles = (subtitles + resolved.subtitles).distinctBy { subtitle -> subtitle.file },
+            type = MimeTypes.APPLICATION_M3U8,
         )
     }
 
@@ -95,7 +96,7 @@ class CloseloadExtractor : Extractor() {
         val definitionSource = definition.first
         val match = definition.second
         val decoderName = match.groupValues[1]
-        if (!definitionSource.contains("function $decoderName")) return null
+        val decoderBody = extractFunctionBody(definitionSource, decoderName) ?: return null
 
         val encoded = Regex("""["']([^"']+)["']""")
             .findAll(match.groupValues[2])
@@ -104,60 +105,100 @@ class CloseloadExtractor : Extractor() {
             .takeIf { it.isNotBlank() }
             ?: return null
 
-        val shift = Regex(
-            """\(\s*o\s*-\s*base\s*\+\s*(\d+)\s*\)\s*%\s*26""",
-        ).find(definitionSource)?.groupValues?.getOrNull(1)?.toIntOrNull()
-            ?: return null
-        val base64Passes = Regex(
-            """\bresult\s*=\s*atob\s*\(\s*result\s*\)\s*;""",
-        ).findAll(definitionSource).count().takeIf { it > 0 }
-            ?: return null
+        val operations = parseDecoderOperations(decoderBody) ?: return null
         val accumulatorStart = Regex(
             """\bvar\s+acc\s*=\s*(\d+)\s*;""",
-        ).find(definitionSource)?.groupValues?.getOrNull(1)?.toIntOrNull()
+        ).find(decoderBody)?.groupValues?.getOrNull(1)?.toIntOrNull()
             ?: return null
         val accumulatorStep = Regex(
             """\bacc\s*=\s*\(\s*acc\s*\+\s*(\d+)\s*\)\s*%\s*256\s*;""",
-        ).find(definitionSource)?.groupValues?.getOrNull(1)?.toIntOrNull()
+        ).find(decoderBody)?.groupValues?.getOrNull(1)?.toIntOrNull()
             ?: return null
-        if (!Regex("""\bplain\s*=\s*b\s*\^\s*acc\s*;""").containsMatchIn(definitionSource)) {
+        if (!Regex("""\bplain\s*=\s*b\s*\^\s*acc\s*;""").containsMatchIn(decoderBody)) {
             return null
         }
 
         return runCatching {
-            decodeRollingXorSource(
+            decodeRotatingSource(
                 encoded = encoded,
-                shift = shift,
-                base64Passes = base64Passes,
+                operations = operations,
                 accumulatorStart = accumulatorStart,
                 accumulatorStep = accumulatorStep,
             )
         }.getOrNull()?.takeIf(::isPotentialStaticUrl)
     }
 
-    private fun decodeRollingXorSource(
+    private enum class DecoderOperationType {
+        REVERSE,
+        CAESAR_SHIFT,
+        BASE64_DECODE,
+    }
+
+    private data class DecoderOperation(
+        val position: Int,
+        val type: DecoderOperationType,
+        val shift: Int = 0,
+    )
+
+    private fun parseDecoderOperations(functionBody: String): List<DecoderOperation>? {
+        val operations = mutableListOf<DecoderOperation>()
+
+        Regex(
+            """\bresult\s*=\s*result\.split\(\s*['"]\s*['"]\s*\)\s*\.reverse\(\s*\)\s*\.join\(\s*['"]\s*['"]\s*\)\s*;?""",
+        ).findAll(functionBody).forEach { match ->
+            operations += DecoderOperation(
+                position = match.range.first,
+                type = DecoderOperationType.REVERSE,
+            )
+        }
+
+        val replaceRegex = Regex(
+            """\bresult\s*=\s*result\.replace\s*\(.*?\}\s*\)\s*;?""",
+            RegexOption.DOT_MATCHES_ALL,
+        )
+        replaceRegex.findAll(functionBody).forEach { match ->
+            val shift = Regex(
+                """\(\s*o\s*-\s*base\s*\+\s*(\d+)\s*\)\s*%\s*26""",
+            ).find(match.value)?.groupValues?.getOrNull(1)?.toIntOrNull()
+                ?: return null
+            operations += DecoderOperation(
+                position = match.range.first,
+                type = DecoderOperationType.CAESAR_SHIFT,
+                shift = shift,
+            )
+        }
+
+        Regex(
+            """\bresult\s*=\s*atob\s*\(\s*result\s*\)\s*;?""",
+        ).findAll(functionBody).forEach { match ->
+            operations += DecoderOperation(
+                position = match.range.first,
+                type = DecoderOperationType.BASE64_DECODE,
+            )
+        }
+
+        if (operations.none { it.type == DecoderOperationType.BASE64_DECODE }) return null
+        return operations.sortedBy { it.position }
+    }
+
+    private fun decodeRotatingSource(
         encoded: String,
-        shift: Int,
-        base64Passes: Int,
+        operations: List<DecoderOperation>,
         accumulatorStart: Int,
         accumulatorStep: Int,
     ): String {
-        var value = encoded.map { char ->
-            when (char) {
-                in 'A'..'Z' -> 'A' + (char - 'A' + shift) % 26
-                in 'a'..'z' -> 'a' + (char - 'a' + shift) % 26
-                else -> char
-            }
-        }.joinToString("")
-
-        var decoded = ByteArray(0)
-        repeat(base64Passes) { pass ->
-            decoded = Base64.decode(value, Base64.DEFAULT)
-            if (pass < base64Passes - 1) {
-                value = String(decoded, Charsets.ISO_8859_1)
+        var result = encoded
+        operations.forEach { operation ->
+            result = when (operation.type) {
+                DecoderOperationType.REVERSE -> result.reversed()
+                DecoderOperationType.CAESAR_SHIFT -> caesarShift(result, operation.shift)
+                DecoderOperationType.BASE64_DECODE -> {
+                    String(Base64.decode(result, Base64.DEFAULT), Charsets.ISO_8859_1)
+                }
             }
         }
 
+        val decoded = result.toByteArray(Charsets.ISO_8859_1)
         var accumulator = accumulatorStart
         val plain = ByteArray(decoded.size)
         decoded.forEachIndexed { index, byte ->
@@ -167,6 +208,84 @@ class CloseloadExtractor : Extractor() {
             accumulator = (accumulator + valueAtIndex) % 256
         }
         return String(plain, Charsets.UTF_8).trim()
+    }
+
+    private fun caesarShift(value: String, shift: Int): String = value.map { char ->
+        when (char) {
+            in 'A'..'Z' -> 'A' + (char - 'A' + shift) % 26
+            in 'a'..'z' -> 'a' + (char - 'a' + shift) % 26
+            else -> char
+        }
+    }.joinToString("")
+
+    private fun extractFunctionBody(source: String, functionName: String): String? {
+        val signature = Regex(
+            """\bfunction\s+${Regex.escape(functionName)}\s*\([^)]*\)\s*\{""",
+        ).find(source) ?: return null
+        val bodyStart = signature.range.last + 1
+        var depth = 1
+        var index = bodyStart
+        var quote: Char? = null
+        var escaped = false
+        var lineComment = false
+        var blockComment = false
+
+        while (index < source.length) {
+            val char = source[index]
+            val next = source.getOrNull(index + 1)
+
+            if (lineComment) {
+                if (char == '\n' || char == '\r') lineComment = false
+                index++
+                continue
+            }
+            if (blockComment) {
+                if (char == '*' && next == '/') {
+                    blockComment = false
+                    index += 2
+                } else {
+                    index++
+                }
+                continue
+            }
+            if (quote != null) {
+                if (escaped) {
+                    escaped = false
+                } else if (char == '\\') {
+                    escaped = true
+                } else if (char == quote) {
+                    quote = null
+                }
+                index++
+                continue
+            }
+
+            when {
+                char == '/' && next == '/' -> {
+                    lineComment = true
+                    index += 2
+                }
+                char == '/' && next == '*' -> {
+                    blockComment = true
+                    index += 2
+                }
+                char == '\'' || char == '"' || char == '`' -> {
+                    quote = char
+                    index++
+                }
+                char == '{' -> {
+                    depth++
+                    index++
+                }
+                char == '}' -> {
+                    depth--
+                    if (depth == 0) return source.substring(bodyStart, index)
+                    index++
+                }
+                else -> index++
+            }
+        }
+        return null
     }
 
     private fun extractLegacySource(document: Document): String? {
@@ -408,6 +527,15 @@ class CloseloadExtractor : Extractor() {
         if (!lower.startsWith("http") || lower.contains("master.txt")) return false
         val path = lower.substringBefore('?').substringBefore('#')
         return path.endsWith(".m3u8") || path.endsWith(".mp4")
+    }
+
+    private fun isCloseloadHlsUrl(value: String): Boolean {
+        val url = value.trim().toHttpUrlOrNull() ?: return false
+        val host = url.host.lowercase(Locale.ROOT)
+        val path = url.encodedPath.lowercase(Locale.ROOT)
+        return Regex("""^(?:srv\d+\.)?cdnimages\d+\.shop$""").matches(host) &&
+            path.contains("/hls/") &&
+            path.endsWith("/txt/master.txt")
     }
 
     private fun isPotentialStaticUrl(value: String): Boolean {
