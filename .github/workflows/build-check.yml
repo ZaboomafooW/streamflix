@@ -10,7 +10,7 @@ permissions:
 
 jobs:
   build:
-    name: Trace Doramasflix playback config
+    name: Verify Doramasflix playback endpoint
     runs-on: ubuntu-latest
     timeout-minutes: 10
 
@@ -20,45 +20,41 @@ jobs:
         with:
           ref: ${{ github.sha }}
 
-      - name: Inspect playback configuration
+      - name: Query current movie links
         shell: bash
         run: |
           set -euo pipefail
-          URL='https://doramasflix.in/peliculas-online/just-for-meeting-you'
           UA='Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/140.0.0.0 Safari/537.36'
-          curl -L --compressed -A "$UA" -sS "$URL" -o page.html
-          python3 - <<'PY'
-          import html as htmlmod, re, urllib.parse, urllib.request
+          REFERER='https://doramasflix.in/peliculas-online/just-for-meeting-you'
+          cat > payload.json <<'JSON'
+          {
+            "operationName": "MovieLinks",
+            "variables": {"movie_id": "6a78e51c56e57b5ffbb0b2c6"},
+            "query": "query MovieLinks($movie_id: ID!) { getMovieLinks(id: $movie_id, app: \"com.asiapp.doramasgo\") { links_online { lang link page server is_recommended subtitles { language_code type } } } }"
+          }
+          JSON
+
+          for ENDPOINT in \
+            'https://sv7.fluxcedene.net/graphql' \
+            'https://userapi.cloudfleir.xyz/graphql'
+          do
+            echo "=== $ENDPOINT ==="
+            CODE=$(curl -L --compressed -A "$UA" \
+              -H 'Accept: application/json, text/plain, */*' \
+              -H 'Content-Type: application/json' \
+              -H 'Origin: https://doramasflix.in' \
+              -H "Referer: $REFERER" \
+              --data-binary @payload.json \
+              -sS -o response.json -w '%{http_code}' "$ENDPOINT" || true)
+            echo "HTTP $CODE"
+            python3 - <<'PY'
+          import json
           from pathlib import Path
-          base='https://doramasflix.in/peliculas-online/just-for-meeting-you'
-          ua='Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/140.0.0.0 Safari/537.36'
-          raw=Path('page.html').read_text(errors='replace')
-          decoded=htmlmod.unescape(raw).replace('\\"','"').replace('\\u0026','&').replace('\\u003d','=')
-          print('=== MOVIE ID ===')
-          for pat in [r'"_id":"([^"]+)"[^{}]{0,500}"name":"Just For Meeting You"', r'"name":"Just For Meeting You"[^{}]{0,500}"_id":"([^"]+)"']:
-              m=re.search(pat,decoded,re.I)
-              if m: print(m.group(1))
-          srcs=[]
-          for src in re.findall(r'<script[^>]+src=["\']([^"\']+)',raw,re.I):
-              u=urllib.parse.urljoin(base,src)
-              if u not in srcs: srcs.append(u)
-          patterns=[b'appConfig',b'sv7.fluxcedene',b'cloudfleir',b'GRAPHQL_ENDPOINTS',b'getMovieLinks',b'getEpisodeLinks']
-          print('=== CONFIG MATCHES ===')
-          seen=set()
-          for url in srcs:
-              try:
-                  req=urllib.request.Request(url,headers={'User-Agent':ua,'Referer':base})
-                  data=urllib.request.urlopen(req,timeout=20).read()
-              except Exception: continue
-              for needle in patterns:
-                  pos=0
-                  while True:
-                      p=data.find(needle,pos)
-                      if p<0: break
-                      snippet=data[max(0,p-1200):min(len(data),p+2200)].decode('utf-8','replace')
-                      key=(needle,snippet[:300])
-                      if key not in seen:
-                          seen.add(key)
-                          print('\n###',needle.decode(),'@',url,'\n',snippet)
-                      pos=p+len(needle)
+          raw = Path('response.json').read_text(errors='replace') if Path('response.json').exists() else ''
+          try:
+              obj = json.loads(raw)
+              print(json.dumps(obj, ensure_ascii=False, indent=2)[:12000])
+          except Exception:
+              print(raw[:12000])
           PY
+          done
