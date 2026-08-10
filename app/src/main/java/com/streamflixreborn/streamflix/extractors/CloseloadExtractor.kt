@@ -2,13 +2,13 @@ package com.streamflixreborn.streamflix.extractors
 
 import android.util.Base64
 import androidx.media3.common.MimeTypes
+import com.google.gson.JsonParser
 import com.streamflixreborn.streamflix.models.Video
 import com.streamflixreborn.streamflix.providers.RidomoviesProvider
 import com.streamflixreborn.streamflix.utils.JsUnpacker
 import com.streamflixreborn.streamflix.utils.NetworkClient
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
-import okhttp3.FormBody
 import okhttp3.HttpUrl.Companion.toHttpUrlOrNull
 import okhttp3.Request
 import org.jsoup.Jsoup
@@ -21,18 +21,6 @@ class CloseloadExtractor : Extractor() {
     override val mainUrl = "https://closeload.top/"
 
     override suspend fun extract(link: String): Video {
-        extractStaticVideo(link)?.let { return it }
-
-        return BrowserStreamResolver.resolve(
-            link = link,
-            referer = RidomoviesProvider.URL,
-            timeoutMs = 15_000L,
-        ) { candidate ->
-            isPlayableMediaUrl(candidate)
-        }
-    }
-
-    private suspend fun extractStaticVideo(link: String): Video? = runCatching {
         val embedUrl = link.toHttpUrlOrNull()
             ?: throw Exception("Invalid Closeload embed URL")
         val origin = "${embedUrl.scheme}://${embedUrl.host}"
@@ -44,9 +32,144 @@ class CloseloadExtractor : Extractor() {
                 .header("Accept-Language", "en-US,en;q=0.9")
                 .header("Referer", RidomoviesProvider.URL)
                 .build(),
-        ) ?: return@runCatching null
+        ) ?: throw Exception("Can't load Closeload embed page")
 
         val document = Jsoup.parse(html, link).apply { setBaseUri(link) }
+        val subtitles = parseSubtitles(document, origin)
+
+        extractStaticVideo(
+            link = link,
+            document = document,
+            subtitles = subtitles,
+        )?.let { return it }
+
+        val resolved = BrowserStreamResolver.resolve(
+            link = link,
+            referer = RidomoviesProvider.URL,
+            timeoutMs = 15_000L,
+        ) { candidate ->
+            isPlayableMediaUrl(candidate)
+        }
+        return resolved.copy(
+            subtitles = (subtitles + resolved.subtitles).distinctBy { subtitle -> subtitle.file },
+        )
+    }
+
+    private suspend fun extractStaticVideo(
+        link: String,
+        document: Document,
+        subtitles: List<Video.Subtitle>,
+    ): Video? = runCatching {
+        val source = decodeCurrentSource(document)
+            ?: extractLegacySource(document)
+            ?: return@runCatching null
+
+        resolveStaticCandidate(
+            source = source,
+            link = link,
+            subtitles = subtitles,
+        )
+    }.getOrNull()
+
+    private fun decodeCurrentSource(document: Document): String? {
+        val scripts = document.select("script")
+            .map { it.data().ifBlank { it.html() } }
+        val setupScript = scripts.firstOrNull {
+            it.contains("jwplayer(\"videoplayer\").setup") ||
+                it.contains("jwplayer('videoplayer').setup")
+        } ?: return null
+
+        val sourceVar = Regex(
+            """sources\s*:\s*\[\{\s*file\s*:\s*([A-Za-z_$][\w$]*)""",
+        ).find(setupScript)?.groupValues?.getOrNull(1) ?: return null
+
+        val definitionRegex = Regex(
+            """\b(?:var|let|const)\s+${Regex.escape(sourceVar)}\s*=\s*([A-Za-z_$][\w$]*)\s*\(\s*\[(.*?)]\s*\)\s*;""",
+            RegexOption.DOT_MATCHES_ALL,
+        )
+        val definition = scripts.asSequence()
+            .mapNotNull { source -> definitionRegex.find(source)?.let { source to it } }
+            .firstOrNull()
+            ?: return null
+
+        val definitionSource = definition.first
+        val match = definition.second
+        val decoderName = match.groupValues[1]
+        if (!definitionSource.contains("function $decoderName")) return null
+
+        val encoded = Regex("""["']([^"']+)["']""")
+            .findAll(match.groupValues[2])
+            .map { it.groupValues[1] }
+            .joinToString("")
+            .takeIf { it.isNotBlank() }
+            ?: return null
+
+        val shift = Regex(
+            """\(\s*o\s*-\s*base\s*\+\s*(\d+)\s*\)\s*%\s*26""",
+        ).find(definitionSource)?.groupValues?.getOrNull(1)?.toIntOrNull()
+            ?: return null
+        val base64Passes = Regex(
+            """\bresult\s*=\s*atob\s*\(\s*result\s*\)\s*;""",
+        ).findAll(definitionSource).count().takeIf { it > 0 }
+            ?: return null
+        val accumulatorStart = Regex(
+            """\bvar\s+acc\s*=\s*(\d+)\s*;""",
+        ).find(definitionSource)?.groupValues?.getOrNull(1)?.toIntOrNull()
+            ?: return null
+        val accumulatorStep = Regex(
+            """\bacc\s*=\s*\(\s*acc\s*\+\s*(\d+)\s*\)\s*%\s*256\s*;""",
+        ).find(definitionSource)?.groupValues?.getOrNull(1)?.toIntOrNull()
+            ?: return null
+        if (!Regex("""\bplain\s*=\s*b\s*\^\s*acc\s*;""").containsMatchIn(definitionSource)) {
+            return null
+        }
+
+        return runCatching {
+            decodeRollingXorSource(
+                encoded = encoded,
+                shift = shift,
+                base64Passes = base64Passes,
+                accumulatorStart = accumulatorStart,
+                accumulatorStep = accumulatorStep,
+            )
+        }.getOrNull()?.takeIf(::isPotentialStaticUrl)
+    }
+
+    private fun decodeRollingXorSource(
+        encoded: String,
+        shift: Int,
+        base64Passes: Int,
+        accumulatorStart: Int,
+        accumulatorStep: Int,
+    ): String {
+        var value = encoded.map { char ->
+            when (char) {
+                in 'A'..'Z' -> 'A' + (char - 'A' + shift) % 26
+                in 'a'..'z' -> 'a' + (char - 'a' + shift) % 26
+                else -> char
+            }
+        }.joinToString("")
+
+        var decoded = ByteArray(0)
+        repeat(base64Passes) { pass ->
+            decoded = Base64.decode(value, Base64.DEFAULT)
+            if (pass < base64Passes - 1) {
+                value = String(decoded, Charsets.ISO_8859_1)
+            }
+        }
+
+        var accumulator = accumulatorStart
+        val plain = ByteArray(decoded.size)
+        decoded.forEachIndexed { index, byte ->
+            val valueAtIndex = byte.toInt() and 0xFF
+            accumulator = (accumulator + accumulatorStep) % 256
+            plain[index] = (valueAtIndex xor accumulator).toByte()
+            accumulator = (accumulator + valueAtIndex) % 256
+        }
+        return String(plain, Charsets.UTF_8).trim()
+    }
+
+    private fun extractLegacySource(document: Document): String? {
         val script = document.select("script")
             .asSequence()
             .map { it.data().ifBlank { it.html() } }
@@ -55,87 +178,11 @@ class CloseloadExtractor : Extractor() {
                 .asSequence()
                 .map { it.data().ifBlank { it.html() } }
                 .firstOrNull { it.contains("eval(") }
-            ?: html
+            ?: return null
 
         val unpacker = JsUnpacker(script)
         val unpacked = if (unpacker.detect()) unpacker.unpack() ?: script else script
 
-        initializePlayer(unpacked, link, origin)
-
-        val source = decodeCurrentPlaylist(unpacked)
-            ?: extractLegacySource(unpacked)
-            ?: return@runCatching null
-
-        resolveStaticCandidate(
-            source = source,
-            link = link,
-            subtitles = parseSubtitles(document),
-        )
-    }.getOrNull()
-
-    private suspend fun initializePlayer(unpacked: String, link: String, origin: String) {
-        val hash = Regex("""\bhash\s*:\s*["']([^"']+)["']""")
-            .find(unpacked)?.groupValues?.getOrNull(1)?.trim().orEmpty()
-        val endpoint = Regex("""\burl\s*:\s*["']([^"']+)["']""")
-            .find(unpacked)?.groupValues?.getOrNull(1)?.trim().orEmpty()
-        if (hash.isBlank() || endpoint.isBlank()) return
-
-        val target = absolute(endpoint, origin)
-        val body = FormBody.Builder().add("hash", hash).build()
-        val request = Request.Builder()
-            .url(target)
-            .post(body)
-            .header("User-Agent", NetworkClient.USER_AGENT)
-            .header("Accept", "*/*")
-            .header("Accept-Language", "en-US,en;q=0.9")
-            .header("Referer", link)
-            .header("Origin", origin)
-            .header("X-Requested-With", "XMLHttpRequest")
-            .build()
-
-        withContext(Dispatchers.IO) {
-            NetworkClient.default.newCall(request).execute().use { response ->
-                if (!response.isSuccessful) {
-                    throw Exception("Closeload player initialization failed with HTTP ${response.code}")
-                }
-            }
-        }
-    }
-
-    private fun decodeCurrentPlaylist(unpacked: String): String? {
-        val partsBlock = Regex(
-            """[\w_]+\s*=\s*[\w_]+\(\[(.*?)]\)""",
-            RegexOption.DOT_MATCHES_ALL,
-        ).find(unpacked)?.groupValues?.getOrNull(1) ?: return null
-
-        val encoded = Regex("""["']([^"']+)["']""")
-            .findAll(partsBlock)
-            .map { it.groupValues[1] }
-            .joinToString("")
-            .takeIf { it.isNotBlank() }
-            ?: return null
-
-        return runCatching { base64Rot13ReverseUnmix(encoded) }
-            .getOrNull()
-            ?.trim()
-            ?.takeIf(::isPotentialStaticUrl)
-    }
-
-    private fun base64Rot13ReverseUnmix(value: String): String {
-        var decoded = Base64.decode(value, Base64.DEFAULT)
-        decoded.forEachIndexed { index, byte ->
-            val char = (byte.toInt() and 0xFF).toChar()
-            decoded[index] = when (char) {
-                in 'A'..'Z' -> ('A'.code + (char.code - 'A'.code + 13) % 26).toByte()
-                in 'a'..'z' -> ('a'.code + (char.code - 'a'.code + 13) % 26).toByte()
-                else -> byte
-            }
-        }
-        decoded = decoded.reversedArray()
-        return String(unmixLoop(decoded, 399756995L, 5), Charsets.UTF_8).trim()
-    }
-
-    private fun extractLegacySource(unpacked: String): String? {
         var magicNum = 399756995L
         var offset = 5
         Regex("""(\d+)\s*%\s*\(\s*i\s*\+\s*(\d+)\s*\)""")
@@ -148,13 +195,15 @@ class CloseloadExtractor : Extractor() {
         val inputs = mutableListOf<String>()
         Regex("""myPlayer\.src\(\{\s*src:\s*(\w+)\s*,""")
             .find(unpacked)
-            ?.groupValues
-            ?.getOrNull(1)
+            ?.groups
+            ?.get(1)
+            ?.value
             ?.let { varName ->
                 Regex("""var\s+$varName\s*=\s*dc_hello\("([^"]+)"\)""")
                     .find(unpacked)
-                    ?.groupValues
-                    ?.getOrNull(1)
+                    ?.groups
+                    ?.get(1)
+                    ?.value
                     ?.let(inputs::add)
             }
 
@@ -213,8 +262,53 @@ class CloseloadExtractor : Extractor() {
         return direct?.let { video(it, link, subtitles) }
     }
 
-    private fun parseSubtitles(document: Document): List<Video.Subtitle> =
-        document.select("track[src]").mapNotNull { track ->
+    private fun parseSubtitles(
+        document: Document,
+        origin: String,
+    ): List<Video.Subtitle> {
+        val scriptTracks = document.select("script")
+            .asSequence()
+            .map { it.data().ifBlank { it.html() } }
+            .flatMap { source ->
+                Regex(
+                    """tracks\s*:\s*(\[[^]]*])""",
+                    RegexOption.DOT_MATCHES_ALL,
+                ).findAll(source).map { it.groupValues[1] }
+            }
+            .flatMap { tracksJson ->
+                runCatching {
+                    JsonParser.parseString(tracksJson).asJsonArray.mapNotNull { element ->
+                        val track = element.takeIf { it.isJsonObject }?.asJsonObject
+                            ?: return@mapNotNull null
+                        val kind = track.get("kind")?.takeIf { it.isJsonPrimitive }?.asString.orEmpty()
+                        if (!kind.equals("captions", true) && !kind.equals("subtitles", true)) {
+                            return@mapNotNull null
+                        }
+
+                        val file = track.get("file")?.takeIf { it.isJsonPrimitive }?.asString
+                            ?.trim()?.takeIf { it.isNotBlank() }
+                            ?: return@mapNotNull null
+                        val language = track.get("language")?.takeIf { it.isJsonPrimitive }?.asString
+                            ?.trim().orEmpty()
+                        val label = track.get("label")?.takeIf { it.isJsonPrimitive }?.asString
+                            ?.trim().orEmpty().ifBlank { language }.ifBlank { "Subtitle" }
+                        val isDefault = track.get("default")
+                            ?.takeIf { it.isJsonPrimitive }
+                            ?.asBoolean
+                            ?: false
+
+                        Video.Subtitle(
+                            label = label,
+                            file = absolute(file, origin),
+                            default = isDefault,
+                            initialDefault = isDefault,
+                        )
+                    }
+                }.getOrDefault(emptyList()).asSequence()
+            }
+            .toList()
+
+        val htmlTracks = document.select("track[src]").mapNotNull { track ->
             val file = track.absUrl("src").ifBlank { track.attr("src") }
                 .trim().takeIf { it.isNotBlank() }
                 ?: return@mapNotNull null
@@ -223,11 +317,14 @@ class CloseloadExtractor : Extractor() {
                 .ifBlank { "Subtitle" }
             Video.Subtitle(
                 label = label,
-                file = file,
+                file = absolute(file, origin),
                 default = track.hasAttr("default"),
                 initialDefault = track.hasAttr("default"),
             )
-        }.distinctBy { it.file }
+        }
+
+        return (scriptTracks + htmlTracks).distinctBy { it.file }
+    }
 
     private suspend fun requestText(request: Request): String? = withContext(Dispatchers.IO) {
         runCatching {
