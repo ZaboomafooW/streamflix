@@ -31,6 +31,8 @@ class TvShowViewModel(
     private val fallbackBanner: String? = null,
 ) : ViewModel() {
 
+    private var prefetchedEpisodeKey: String? = null
+
     private fun episodeSeasonKey(episode: Episode): String? {
         return episode.id.substringBeforeLast("/", "")
             .takeIf { it.isNotBlank() }
@@ -297,6 +299,9 @@ class TvShowViewModel(
         val provider = UserPreferences.currentProvider ?: return
         val episode = tvShow.episodeToWatch ?: return
         val season = episode.season ?: return
+        val key = "${provider.name}|${provider.language}|${provider.baseUrl}|${episode.id}|${season.number}"
+        if (prefetchedEpisodeKey == key) return
+        prefetchedEpisodeKey = key
 
         ServerAvailability.prefetch(
             provider = provider,
