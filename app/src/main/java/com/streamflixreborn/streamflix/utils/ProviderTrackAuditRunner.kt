@@ -34,7 +34,7 @@ import java.util.Locale
 object ProviderTrackAuditRunner {
 
     private const val MAX_TITLES = 10
-    private const val EXTRACTION_TIMEOUT_MS = 20_000L
+    private const val REQUEST_TIMEOUT_MS = 20_000L
     private const val TRACK_TIMEOUT_MS = 15_000L
 
     data class Progress(
@@ -121,9 +121,11 @@ object ProviderTrackAuditRunner {
                     failures = failures,
                 )
 
-                val videoType = runCatching {
-                    withContext(Dispatchers.IO) { resolveVideoType(provider, item) }
-                }.getOrNull()
+                val videoType = withTimeoutOrNull(REQUEST_TIMEOUT_MS) {
+                    runCatching {
+                        withContext(Dispatchers.IO) { resolveVideoType(provider, item) }
+                    }.getOrNull()
+                }
 
                 if (videoType == null) {
                     failures++
@@ -133,7 +135,7 @@ object ProviderTrackAuditRunner {
                 TrackAuditLogger.beginContent(videoType, originalLanguage(videoType))
 
                 _progress.value = _progress.value?.copy(phase = "Finding servers")
-                val servers = withTimeoutOrNull(EXTRACTION_TIMEOUT_MS) {
+                val servers = withTimeoutOrNull(REQUEST_TIMEOUT_MS) {
                     withContext(Dispatchers.IO) {
                         provider.getServers(videoType.idForPlayback(), videoType)
                     }
@@ -159,7 +161,7 @@ object ProviderTrackAuditRunner {
                     TrackAuditLogger.beginServer(server)
 
                     val videoResult = runCatching {
-                        withTimeoutOrNull(EXTRACTION_TIMEOUT_MS) {
+                        withTimeoutOrNull(REQUEST_TIMEOUT_MS) {
                             withContext(Dispatchers.IO) { provider.getVideo(server) }
                         } ?: throw IllegalStateException("Extraction timed out")
                     }
@@ -209,25 +211,27 @@ object ProviderTrackAuditRunner {
         val orderedCategories = categories.sortedBy { category ->
             when (category.name) {
                 Category.FEATURED -> 0
-                Category.CONTINUE_WATCHING,
-                Category.FAVORITE_MOVIES,
-                Category.FAVORITE_TV_SHOWS -> 2
                 else -> 1
             }
         }
 
         return orderedCategories
             .asSequence()
-            .filterNot { category ->
-                category.name == Category.CONTINUE_WATCHING ||
-                    category.name == Category.FAVORITE_MOVIES ||
-                    category.name == Category.FAVORITE_TV_SHOWS
-            }
+            .filterNot { isPersonalCategory(it.name) }
             .flatMap { it.list.asSequence() }
             .filter { it is Movie || it is TvShow }
             .distinctBy(::itemKey)
             .take(MAX_TITLES)
             .toList()
+    }
+
+    private fun isPersonalCategory(name: String): Boolean {
+        val value = name.trim()
+        return value.equals(Category.CONTINUE_WATCHING, ignoreCase = true) ||
+            value.equals(Category.FAVORITE_MOVIES, ignoreCase = true) ||
+            value.equals(Category.FAVORITE_TV_SHOWS, ignoreCase = true) ||
+            value.contains("continue watching", ignoreCase = true) ||
+            value.contains("favorite", ignoreCase = true)
     }
 
     private suspend fun resolveVideoType(provider: Provider, item: AppAdapter.Item): Video.Type? =
