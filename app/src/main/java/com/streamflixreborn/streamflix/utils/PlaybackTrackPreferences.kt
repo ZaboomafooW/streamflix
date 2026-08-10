@@ -84,17 +84,17 @@ object PlaybackTrackPreferences {
         val position: Pair<Int, Int>
             get() = groupIndex to trackIndex
 
-        fun saved(): SavedTrack {
-            val format = group.getTrackFormat(trackIndex)
-            return SavedTrack(
-                label = format.label,
-                language = format.language,
-                roleFlags = format.roleFlags,
-                forced = format.selectionFlags and C.SELECTION_FLAG_FORCED != 0,
-                groupIndex = groupIndex,
-                trackIndex = trackIndex,
-            )
-        }
+        val format: Format
+            get() = group.getTrackFormat(trackIndex)
+
+        fun saved(): SavedTrack = SavedTrack(
+            label = format.label,
+            language = format.language,
+            roleFlags = format.roleFlags,
+            forced = format.selectionFlags and C.SELECTION_FLAG_FORCED != 0,
+            groupIndex = groupIndex,
+            trackIndex = trackIndex,
+        )
     }
 
     @Volatile
@@ -118,6 +118,11 @@ object PlaybackTrackPreferences {
 
     private val settingsPrefs by lazy {
         PreferenceManager.getDefaultSharedPreferences(StreamFlixApp.instance)
+    }
+
+    fun markGlobalLanguagePreferenceInitialized(preferenceKey: String?) {
+        val initializedKey = initializationKey(preferenceKey) ?: return
+        settingsPrefs.edit().putBoolean(initializedKey, true).apply()
     }
 
     fun activate(videoType: Video.Type) {
@@ -197,6 +202,7 @@ object PlaybackTrackPreferences {
                 val audio = currentOverride(parameters, tracks, C.TRACK_TYPE_AUDIO)
                 if (audio?.position != lastAudioPosition && audio != null) {
                     saveAudio(audio.saved())
+                    seedGlobalLanguageIfNeeded(C.TRACK_TYPE_AUDIO, audio.format)
                     audioCancelled = true
                 }
 
@@ -206,6 +212,7 @@ object PlaybackTrackPreferences {
                 when {
                     subtitle?.position != lastSubtitlePosition && subtitle != null -> {
                         saveSubtitle(subtitle.saved())
+                        seedGlobalLanguageIfNeeded(C.TRACK_TYPE_TEXT, subtitle.format)
                         subtitleCancelled = true
                     }
 
@@ -365,6 +372,91 @@ object PlaybackTrackPreferences {
     private fun preferredLanguage(key: String) = settingsPrefs
         .getString(key, null)
         ?.takeIf { it.isNotBlank() }
+
+    private fun seedGlobalLanguageIfNeeded(type: Int, format: Format) {
+        val (preferenceKey, initializedKey) = globalPreferenceKeys(type) ?: return
+        if (settingsPrefs.getBoolean(initializedKey, false)) return
+
+        if (!settingsPrefs.getString(preferenceKey, null).isNullOrBlank()) {
+            settingsPrefs.edit().putBoolean(initializedKey, true).apply()
+            return
+        }
+
+        val language = eligibleGlobalLanguage(type, format) ?: return
+        settingsPrefs.edit()
+            .putString(preferenceKey, language)
+            .putBoolean(initializedKey, true)
+            .apply()
+    }
+
+    private fun eligibleGlobalLanguage(type: Int, format: Format): String? {
+        if (type == C.TRACK_TYPE_TEXT && isForcedSubtitle(format)) return null
+        if (type == C.TRACK_TYPE_AUDIO && isNonPrimaryAudio(format)) return null
+        return canonicalLanguage(format.language) ?: languageFromLabel(format.label)
+    }
+
+    private fun canonicalLanguage(language: String?): String? {
+        val primary = language
+            ?.trim()
+            ?.replace('_', '-')
+            ?.substringBefore('-')
+            ?.lowercase(Locale.ROOT)
+            ?.takeIf { it.isNotBlank() && it != "und" }
+            ?: return null
+
+        return Locale.getISOLanguages().firstOrNull { languageCode ->
+            languageCode.equals(primary, ignoreCase = true) ||
+                runCatching {
+                    Locale.forLanguageTag(languageCode).isO3Language.equals(primary, ignoreCase = true)
+                }.getOrDefault(false)
+        }
+    }
+
+    private fun languageFromLabel(label: String?): String? {
+        val normalizedLabel = normalizeLabel(label ?: return null)
+        if (normalizedLabel.isBlank()) return null
+
+        val matches = Locale.getISOLanguages().mapNotNull { languageCode ->
+            val score = languageAliases(languageCode).maxOfOrNull { alias ->
+                when {
+                    alias.length <= 2 && normalizedLabel == alias -> alias.length
+                    alias.length > 2 && containsWord(normalizedLabel, alias) -> alias.length
+                    else -> 0
+                }
+            } ?: 0
+            if (score > 0) languageCode to score else null
+        }
+
+        val bestScore = matches.maxOfOrNull { it.second } ?: return null
+        return matches
+            .filter { it.second == bestScore }
+            .map { it.first }
+            .distinct()
+            .singleOrNull()
+    }
+
+    private fun isNonPrimaryAudio(format: Format): Boolean {
+        if (format.roleFlags and C.ROLE_FLAG_COMMENTARY != 0) return true
+        if (format.roleFlags and C.ROLE_FLAG_DESCRIBES_VIDEO != 0) return true
+
+        val label = normalizeLabel(format.label.orEmpty())
+        return containsWord(label, "commentary") ||
+            containsWord(label, "descriptive") ||
+            label.contains("audio description") ||
+            label.contains("audio described")
+    }
+
+    private fun globalPreferenceKeys(type: Int): Pair<String, String>? = when (type) {
+        C.TRACK_TYPE_AUDIO -> PREFERRED_AUDIO_LANGUAGE to PREFERRED_AUDIO_LANGUAGE_INITIALIZED
+        C.TRACK_TYPE_TEXT -> PREFERRED_SUBTITLE_LANGUAGE to PREFERRED_SUBTITLE_LANGUAGE_INITIALIZED
+        else -> null
+    }
+
+    private fun initializationKey(preferenceKey: String?): String? = when (preferenceKey) {
+        PREFERRED_AUDIO_LANGUAGE -> PREFERRED_AUDIO_LANGUAGE_INITIALIZED
+        PREFERRED_SUBTITLE_LANGUAGE -> PREFERRED_SUBTITLE_LANGUAGE_INITIALIZED
+        else -> null
+    }
 
     private fun preferredLanguageOrder(
         preferredLanguage: String?,
@@ -627,6 +719,8 @@ object PlaybackTrackPreferences {
 
     private const val PREFERRED_AUDIO_LANGUAGE = "PREFERRED_AUDIO_LANGUAGE"
     private const val PREFERRED_SUBTITLE_LANGUAGE = "PREFERRED_SUBTITLE_LANGUAGE"
+    private const val PREFERRED_AUDIO_LANGUAGE_INITIALIZED = "PREFERRED_AUDIO_LANGUAGE_INITIALIZED"
+    private const val PREFERRED_SUBTITLE_LANGUAGE_INITIALIZED = "PREFERRED_SUBTITLE_LANGUAGE_INITIALIZED"
 
     private val NON_WORD = Regex("[^\\p{L}\\p{N}]+")
 
