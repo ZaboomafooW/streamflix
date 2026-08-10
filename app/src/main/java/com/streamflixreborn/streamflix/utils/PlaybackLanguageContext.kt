@@ -22,24 +22,47 @@ object PlaybackLanguageContext {
         val originalLanguage = originalAudioLanguage ?: return false
         if (isAlternateAudio(format)) return false
 
-        val trackLanguage = canonicalLanguage(format.language) ?: return false
-        return trackLanguage == originalLanguage
+        val metadataLanguage = canonicalLanguage(format.language)
+        if (metadataLanguage != null) return metadataLanguage == originalLanguage
+
+        return labelMatchesLanguage(format.label, originalLanguage)
     }
 
     private fun isAlternateAudio(format: Format): Boolean {
         if (format.roleFlags and C.ROLE_FLAG_COMMENTARY != 0) return true
         if (format.roleFlags and C.ROLE_FLAG_DESCRIBES_VIDEO != 0) return true
 
-        val label = format.label
-            ?.lowercase(Locale.ROOT)
-            ?.replace(NON_WORD, " ")
-            ?.trim()
-            .orEmpty()
-
+        val label = normalizeLabel(format.label.orEmpty())
         return containsWord(label, "commentary") ||
             containsWord(label, "descriptive") ||
             label.contains("audio description") ||
             label.contains("audio described")
+    }
+
+    private fun labelMatchesLanguage(label: String?, language: String): Boolean {
+        val normalizedLabel = normalizeLabel(label ?: return false)
+        if (normalizedLabel.isBlank()) return false
+
+        return languageAliases(language).any { alias ->
+            normalizedLabel == alias ||
+                normalizedLabel.startsWith("$alias ") ||
+                normalizedLabel.endsWith(" $alias") ||
+                normalizedLabel.contains(" $alias ")
+        }
+    }
+
+    private fun languageAliases(language: String): Set<String> {
+        val canonical = canonicalLanguage(language) ?: return emptySet()
+        val locale = Locale.forLanguageTag(canonical)
+
+        return buildSet {
+            add(locale.language)
+            runCatching { locale.isO3Language }.getOrNull()?.let(::add)
+            add(locale.getDisplayLanguage(Locale.ENGLISH))
+            add(locale.getDisplayLanguage(locale))
+            add(locale.getDisplayLanguage(Locale.getDefault()))
+        }.map(::normalizeLabel)
+            .filterTo(linkedSetOf()) { it.isNotBlank() }
     }
 
     private fun canonicalLanguage(language: String?): String? {
@@ -58,6 +81,11 @@ object PlaybackLanguageContext {
                 }.getOrDefault(false)
         }
     }
+
+    private fun normalizeLabel(value: String): String = value
+        .lowercase(Locale.ROOT)
+        .replace(NON_WORD, " ")
+        .trim()
 
     private fun containsWord(normalizedLabel: String, word: String): Boolean =
         normalizedLabel == word ||
