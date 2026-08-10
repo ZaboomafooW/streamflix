@@ -1,0 +1,278 @@
+name: Apply Final Playback Language Cleanup
+
+on:
+  pull_request:
+    branches: [main]
+
+permissions:
+  contents: write
+
+jobs:
+  cleanup:
+    if: github.head_ref == 'ci/remember-track-preferences'
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout feature branch
+        uses: actions/checkout@v4
+        with:
+          ref: fix/remember-track-preferences
+          fetch-depth: 0
+
+      - name: Apply reviewed cleanup
+        shell: bash
+        run: |
+          python3 <<'PY'
+          from pathlib import Path
+          import re
+
+          ROOT = Path('.')
+
+          def load(path):
+              return (ROOT / path).read_text()
+
+          def save(path, text):
+              (ROOT / path).write_text(text)
+
+          def replace_once(path, old, new):
+              text = load(path)
+              count = text.count(old)
+              if count != 1:
+                  raise SystemExit(f'{path}: expected one match, found {count}: {old[:80]!r}')
+              save(path, text.replace(old, new, 1))
+
+          # 1) Audio: a normal language choice supersedes every older source-specific exact
+          # choice for this title. This prevents stale commentary/anonymous tracks from
+          # resurrecting after the user returns to Original or chooses another normal language.
+          p = 'app/src/main/java/com/streamflixreborn/streamflix/utils/PlaybackTrackPreferences.kt'
+          replace_once(
+              p,
+              'savedAudio?.takeIf(::audioExactApplies)?.let { saved ->',
+              'savedAudio?.let { saved ->',
+          )
+          replace_once(
+              p,
+              '''        clearAudioExact()\n\n        if (\n            originalAudioLanguage != null &&''',
+              '''        clearAllAudioExactForContent()\n\n        if (\n            originalAudioLanguage != null &&''',
+          )
+          replace_once(
+              p,
+              '''    private fun audioExactApplies(saved: SavedTrack): Boolean {\n        val titleLanguage = titleAudioLanguage ?: return true\n        val savedLanguage = canonicalLanguage(saved.language) ?: languageFromLabel(saved.label)\n        return savedLanguage != null && languageMatches(savedLanguage, titleLanguage)\n    }\n\n''',
+              '',
+          )
+          replace_once(
+              p,
+              '''    private fun clearAudioExact() {\n        val scope = scopeKey ?: return\n        savedAudio = null\n        prefs.edit().remove(audioKey(scope)).apply()\n    }\n''',
+              '''    private fun clearAllAudioExactForContent() {\n        val contentKey = contentPreferenceKey ?: return\n        val prefix = audioKey(contentKey)\n        val editor = prefs.edit()\n        prefs.all.keys\n            .filter { key -> key.startsWith(prefix) }\n            .forEach(editor::remove)\n        editor.apply()\n        savedAudio = null\n    }\n''',
+          )
+
+          # 2) Subtitle Off: use Media3's native disabled track type as the actual state.
+          # Keep recognition of the old ignored-flags value only as an upgrade/runtime bridge.
+          text = load(p)
+          expected = text.count('.setIgnoredTextSelectionFlags(SUBTITLE_OFF_FLAGS)')
+          if expected != 2:
+              raise SystemExit(f'{p}: expected 2 legacy Off applications, found {expected}')
+          text = text.replace(
+              '.setIgnoredTextSelectionFlags(SUBTITLE_OFF_FLAGS)',
+              '.setIgnoredTextSelectionFlags(DEFAULT_TEXT_FLAGS)',
+          )
+          save(p, text)
+          replace_once(
+              p,
+              '''    private fun isSubtitleOff(parameters: TrackSelectionParameters) =\n        parameters.ignoredTextSelectionFlags == SUBTITLE_OFF_FLAGS\n''',
+              '''    private fun isSubtitleOff(parameters: TrackSelectionParameters) =\n        parameters.disabledTrackTypes.contains(C.TRACK_TYPE_TEXT) ||\n            parameters.ignoredTextSelectionFlags == LEGACY_SUBTITLE_OFF_FLAGS\n''',
+          )
+          replace_once(
+              p,
+              '    private const val SUBTITLE_OFF_FLAGS = C.SELECTION_FLAG_FORCED.inv()\n',
+              '    private const val LEGACY_SUBTITLE_OFF_FLAGS = C.SELECTION_FLAG_FORCED.inv()\n',
+          )
+
+          # 3) Player subtitle UI: use Media3 native text disabling and delete the retired
+          # subtitleName preference writes.
+          ps = 'app/src/main/java/com/streamflixreborn/streamflix/fragments/player/settings/PlayerSettingsView.kt'
+          replace_once(
+              ps,
+              '''                    player.trackSelectionParameters = player.trackSelectionParameters\n                        .buildUpon()\n                        .clearOverridesOfType(C.TRACK_TYPE_TEXT)\n                        .setIgnoredTextSelectionFlags(C.SELECTION_FLAG_FORCED.inv())\n                        .build()\n                    UserPreferences.subtitleName = null\n''',
+              '''                    player.trackSelectionParameters = player.trackSelectionParameters\n                        .buildUpon()\n                        .clearOverridesOfType(C.TRACK_TYPE_TEXT)\n                        .setTrackTypeDisabled(C.TRACK_TYPE_TEXT, true)\n                        .setIgnoredTextSelectionFlags(0)\n                        .build()\n''',
+          )
+          replace_once(
+              ps,
+              '                    UserPreferences.subtitleName = (subtitle.language ?: subtitle.label).substringBefore(" ")\n',
+              '',
+          )
+
+          # Downloaded/local subtitles remain playback-only; remove writes to the retired global
+          # subtitleName preference from both player implementations.
+          for pf in [
+              'app/src/main/java/com/streamflixreborn/streamflix/fragments/player/PlayerTvFragment.kt',
+              'app/src/main/java/com/streamflixreborn/streamflix/fragments/player/PlayerMobileFragment.kt',
+          ]:
+              lines = load(pf).splitlines(keepends=True)
+              out = []
+              i = 0
+              removed = 0
+              while i < len(lines):
+                  line = lines[i]
+                  if 'UserPreferences.subtitleName =' not in line:
+                      out.append(line)
+                      i += 1
+                      continue
+                  removed += 1
+                  if '.substringBefore(' in line:
+                      i += 1
+                      continue
+                  i += 1
+                  while i < len(lines):
+                      if '.substringBefore(' in lines[i]:
+                          i += 1
+                          break
+                      i += 1
+              if removed != 2:
+                  raise SystemExit(f'{pf}: expected to remove 2 subtitleName writes, removed {removed}')
+              save(pf, ''.join(out))
+
+          # 4) Remove the retired VOE/Vidnest/Vidzy subtitle-default setting from remaining code.
+          up = 'app/src/main/java/com/streamflixreborn/streamflix/utils/UserPreferences.kt'
+          replace_once(
+              up,
+              '''    var serverAutoSubtitlesDisabled: Boolean\n        get() = Key.SERVER_AUTO_SUBTITLES_DISABLED.getBoolean() ?: true\n        set(value) {\n            Key.SERVER_AUTO_SUBTITLES_DISABLED.setBoolean(value)\n        }\n\n''',
+              '',
+          )
+          replace_once(
+              up,
+              '''    /**\n     * Compatibility no-op for old call sites. Subtitle memory is now entirely\n     * handled by PlaybackTrackPreferences and is never stored globally.\n     */\n    var subtitleName: String?\n        get() = null\n        set(value) {\n            // Deliberately ignored.\n        }\n\n''',
+              '',
+          )
+          replace_once(up, '        SERVER_AUTO_SUBTITLES_DISABLED,\n', '')
+
+          settings_block = '''        findPreference<SwitchPreference>("SERVER_AUTO_SUBTITLES_DISABLED")?.apply {\n            isChecked = UserPreferences.serverAutoSubtitlesDisabled\n            setOnPreferenceChangeListener { _, newValue ->\n                UserPreferences.serverAutoSubtitlesDisabled = newValue as Boolean\n                true\n            }\n        }\n\n'''
+          settings_checked = '        findPreference<SwitchPreference>("SERVER_AUTO_SUBTITLES_DISABLED")?.isChecked = UserPreferences.serverAutoSubtitlesDisabled\n'
+          stv = 'app/src/main/java/com/streamflixreborn/streamflix/fragments/settings/SettingsTvFragment.kt'
+          sm = 'app/src/main/java/com/streamflixreborn/streamflix/fragments/settings/SettingsMobileFragment.kt'
+          replace_once(stv, settings_block, '')
+          replace_once(stv, settings_checked, '')
+          replace_once(sm, settings_block, '')
+          # Mobile only has the binding block; tolerate no separate refresh line.
+
+          # The model flag existed solely for that retired setting and no longer has call sites.
+          video = 'app/src/main/java/com/streamflixreborn/streamflix/models/Video.kt'
+          replace_once(video, '    val useServerSubtitleSetting: Boolean = false,\n', '')
+
+          # 5) Preserve original-language metadata through TV-show -> season -> episode navigation.
+          svh = 'app/src/main/java/com/streamflixreborn/streamflix/adapters/viewholders/SeasonViewHolder.kt'
+          text = load(svh)
+          needle = '                        tvShowBanner = season.tvShow?.banner,\n'
+          if text.count(needle) != 2:
+              raise SystemExit(f'{svh}: expected 2 season navigation banner args')
+          text = text.replace(
+              needle,
+              needle + '                        tvShowOriginalLanguage = season.tvShow?.originalLanguage,\n',
+          )
+          save(svh, text)
+
+          for nav in [
+              'app/src/main/res/navigation/nav_main_graph_tv.xml',
+              'app/src/main/res/navigation/nav_main_graph_mobile.xml',
+          ]:
+              replace_once(
+                  nav,
+                  '''        <argument\n            android:name="tvShowBanner"\n            app:argType="string"\n            app:nullable="true" />\n        <argument\n            android:name="seasonId"''',
+                  '''        <argument\n            android:name="tvShowBanner"\n            app:argType="string"\n            app:nullable="true" />\n        <argument\n            android:name="tvShowOriginalLanguage"\n            app:argType="string"\n            app:nullable="true" />\n        <argument\n            android:name="seasonId"''',
+              )
+
+          for frag in [
+              'app/src/main/java/com/streamflixreborn/streamflix/fragments/season/SeasonTvFragment.kt',
+              'app/src/main/java/com/streamflixreborn/streamflix/fragments/season/SeasonMobileFragment.kt',
+          ]:
+              replace_once(
+                  frag,
+                  '''            args.seasonId,\n            args.tvShowId,\n            database,''',
+                  '''            args.seasonId,\n            args.tvShowId,\n            args.tvShowOriginalLanguage,\n            database,''',
+              )
+
+          svm = 'app/src/main/java/com/streamflixreborn/streamflix/fragments/season/SeasonViewModel.kt'
+          replace_once(
+              svm,
+              '''class SeasonViewModel(\n    seasonId: String,\n    private val tvShowId: String,\n    private val database: AppDatabase,\n)''',
+              '''class SeasonViewModel(\n    seasonId: String,\n    private val tvShowId: String,\n    private val tvShowOriginalLanguage: String?,\n    private val database: AppDatabase,\n)''',
+          )
+          replace_once(
+              svm,
+              '''                    }.sortedBy { it.number }.onEach {\n                        it.tvShow = tvShow\n                        it.season = season\n                    }''',
+              '''                    }.sortedBy { it.number }.onEach { episode ->\n                        episode.tvShow = tvShow?.copy(\n                            originalLanguage = episode.tvShow?.originalLanguage\n                                ?: tvShowOriginalLanguage,\n                        ) ?: episode.tvShow\n                        episode.season = season\n                    }''',
+          )
+          replace_once(
+              svm,
+              '            val tvShow = TvShow(tvShowId)\n',
+              '            val tvShow = TvShow(tvShowId, originalLanguage = tvShowOriginalLanguage)\n',
+          )
+          replace_once(
+              svm,
+              '            EpisodeManager.addEpisodes(EpisodeManager.convertToVideoTypeEpisodes(episodes, database, seasonNumber))\n',
+              '''            EpisodeManager.addEpisodes(\n                EpisodeManager.convertToVideoTypeEpisodes(\n                    episodes,\n                    database,\n                    seasonNumber,\n                    tvShowOriginalLanguage,\n                )\n            )\n''',
+          )
+
+          em = 'app/src/main/java/com/streamflixreborn/streamflix/utils/EpisodeManager.kt'
+          # Both DB and in-memory fallback contexts inherit the original language carried by the
+          # current player/navigation type.
+          text = load(em)
+          needle = '                imdbId = storedTvShow.imdbId\n'
+          if text.count(needle) != 1:
+              raise SystemExit(f'{em}: stored TV show context shape changed')
+          text = text.replace(needle, needle + '                originalLanguage = type.tvShow.originalLanguage,\n', 1)
+          needle = '            imdbId = type.tvShow.imdbId\n'
+          if text.count(needle) != 1:
+              raise SystemExit(f'{em}: fallback TV show context shape changed')
+          text = text.replace(needle, needle + '            originalLanguage = type.tvShow.originalLanguage,\n', 1)
+          save(em, text)
+          replace_once(
+              em,
+              '            addEpisodes(convertToVideoTypeEpisodes(episodesFromDb, database, seasonNumber))\n',
+              '''            addEpisodes(\n                convertToVideoTypeEpisodes(\n                    episodesFromDb,\n                    database,\n                    seasonNumber,\n                    type.tvShow.originalLanguage,\n                )\n            )\n''',
+          )
+          replace_once(
+              em,
+              '        mergeEpisodes(convertToVideoTypeEpisodes(nextSeasonEpisodes, database, seasonToLoad.number))\n',
+              '''        mergeEpisodes(\n            convertToVideoTypeEpisodes(\n                nextSeasonEpisodes,\n                database,\n                seasonToLoad.number,\n                currentEpisode.tvShow.originalLanguage,\n            )\n        )\n''',
+          )
+          replace_once(
+              em,
+              '''    fun convertToVideoTypeEpisodes(episodes: List<com.streamflixreborn.streamflix.models.Episode>, database: AppDatabase, seasonNumber: Int): List<Episode> {''',
+              '''    fun convertToVideoTypeEpisodes(\n        episodes: List<com.streamflixreborn.streamflix.models.Episode>,\n        database: AppDatabase,\n        seasonNumber: Int,\n        originalLanguage: String? = null,\n    ): List<Episode> {''',
+          )
+          replace_once(
+              em,
+              '''                    imdbId = tvShowFromDb?.imdbId ?: ep.tvShow?.imdbId\n                ),''',
+              '''                    imdbId = tvShowFromDb?.imdbId ?: ep.tvShow?.imdbId,\n                    originalLanguage = ep.tvShow?.originalLanguage ?: originalLanguage,\n                ),''',
+          )
+
+          # Sanity checks: retired systems have no call sites left in application code.
+          for token in ['UserPreferences.subtitleName', 'serverAutoSubtitlesDisabled', 'useServerSubtitleSetting']:
+              hits = []
+              for file in Path('app/src').rglob('*'):
+                  if file.is_file() and file.suffix in {'.kt', '.xml'}:
+                      try:
+                          if token in file.read_text():
+                              hits.append(str(file))
+                      except UnicodeDecodeError:
+                          pass
+              if hits:
+                  raise SystemExit(f'retired token {token!r} still present in: {hits}')
+          PY
+
+      - name: Validate patch
+        run: |
+          git diff --check
+          git status --short
+
+      - name: Commit cleanup to feature branch
+        run: |
+          if git diff --quiet; then
+            echo "Cleanup already applied."
+            exit 0
+          fi
+          git config user.name "ZaboomafooW"
+          git config user.email "239698314+ZaboomafooW@users.noreply.github.com"
+          git add app/src
+          git commit -m "fix: finalize playback language preference behavior"
+          git push origin HEAD:fix/remember-track-preferences
