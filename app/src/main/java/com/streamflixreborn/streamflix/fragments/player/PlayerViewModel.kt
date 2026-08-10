@@ -103,9 +103,13 @@ class PlayerViewModel(
         getServers(videoType, id)
     }
 
-    private fun originalAudioLanguage(videoType: Video.Type): String? = when (videoType) {
-        is Video.Type.Movie -> videoType.originalLanguage
-        is Video.Type.Episode -> videoType.tvShow.originalLanguage
+    private fun originalAudioLanguage(videoType: Video.Type): String? {
+        if (!UserPreferences.enableTmdb) return null
+
+        return when (videoType) {
+            is Video.Type.Movie -> videoType.originalLanguage
+            is Video.Type.Episode -> videoType.tvShow.originalLanguage
+        }
     }
 
     private fun getServers(videoType: Video.Type, id: String) = viewModelScope.launch(Dispatchers.IO) {
@@ -223,7 +227,7 @@ class PlayerViewModel(
         _subtitleState.emit(SubtitleState.DownloadingOpenSubtitle)
         try {
             val uri = OpenSubtitles.download(subtitle)
-            Log.d("PlayerViewModel", "Download OpenSubtitles completato: $uri")
+            Log.d("PlayerViewModel", "Download OpenSubtitles completado: $uri")
             _subtitleState.emit(SubtitleState.SuccessDownloadingOpenSubtitle(subtitle, uri))
         } catch (e: Exception) {
             Log.e("PlayerViewModel", "Errore download OpenSubtitles: ", e)
