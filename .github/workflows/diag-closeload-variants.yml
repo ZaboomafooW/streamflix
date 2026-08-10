@@ -1,0 +1,70 @@
+name: Diagnose Closeload decoder variants
+
+on:
+  pull_request:
+    branches:
+      - main
+
+permissions:
+  contents: read
+
+jobs:
+  diagnose:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - run: python -m pip install --disable-pip-version-check curl_cffi beautifulsoup4
+      - name: Sample decoder variants
+        env:
+          PYTHONUNBUFFERED: '1'
+        run: |
+          python - <<'PY'
+          import re, subprocess, time
+          from curl_cffi import requests as cr
+          from bs4 import BeautifulSoup
+
+          EMBED='https://closeload.top/video/embed/oGZBTo87vFR/?imdb_id=tt30788876'
+          PARENT='https://ridomovies.su/movie/hitman-2-2025'
+          UA='Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/136.0.0.0 Safari/537.36'
+          signatures={}
+
+          def pos(body, needle):
+              p=body.find(needle)
+              return p if p >= 0 else 999999
+
+          for i in range(30):
+              s=cr.Session(impersonate='chrome136')
+              u=EMBED+f'&_diag={int(time.time()*1000)}_{i}'
+              r=s.get(u,headers={'User-Agent':UA,'Referer':PARENT,'Accept-Language':'en-US,en;q=0.9','Cache-Control':'no-cache'},timeout=30)
+              r.raise_for_status()
+              scripts=[x.string or x.get_text() or '' for x in BeautifulSoup(r.text,'html.parser').find_all('script')]
+              setup=next(x for x in scripts if 'jwplayer("videoplayer").setup' in x)
+              var=re.search(r'sources\s*:\s*\[\{\s*file\s*:\s*([A-Za-z_$][\w$]*)',setup).group(1)
+              body=next(x for x in scripts if re.search(rf'var\s+{re.escape(var)}\s*=',x))
+              shift_m=re.search(r'\(\s*o\s*-\s*base\s*\+\s*(\d+)\s*\)\s*%\s*26',body)
+              acc_m=re.search(r'var\s+acc\s*=\s*(\d+)\s*;',body)
+              step_m=re.search(r'acc\s*=\s*\(\s*acc\s*\+\s*(\d+)\s*\)\s*%\s*256',body)
+              reverse_positions=[m.start() for m in re.finditer(r"split\('\'\)\.reverse\(\)\.join\('\'\)",body)]
+              atob_positions=[m.start() for m in re.finditer(r'\bresult\s*=\s*atob\s*\(\s*result\s*\)',body)]
+              replace_positions=[m.start() for m in re.finditer(r'\bresult\s*=\s*result\.replace',body)]
+              ops=[]
+              ops += [(p,'reverse') for p in reverse_positions]
+              ops += [(p,'shift') for p in replace_positions]
+              ops += [(p,'base64') for p in atob_positions]
+              ops='>'.join(x[1] for x in sorted(ops))
+              sig=(ops,
+                   int(shift_m.group(1)) if shift_m else None,
+                   len(atob_positions),
+                   int(acc_m.group(1)) if acc_m else None,
+                   int(step_m.group(1)) if step_m else None)
+              signatures[sig]=signatures.get(sig,0)+1
+
+              js=body+f'\nconsole.log("__SOURCE__"+{var});\n'
+              p=subprocess.run(['node','-e',js],capture_output=True,text=True,timeout=10)
+              source=re.search(r'__SOURCE__(https?://\S+)',p.stdout)
+              print(f'{i:02d} sig={sig} source={source.group(1) if source else "EVAL_FAILED"}')
+
+          print('\nUNIQUE SIGNATURES')
+          for sig,count in sorted(signatures.items(),key=lambda x:(str(x[0]),x[1])):
+              print(count,sig)
+          PY
