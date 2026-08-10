@@ -11,8 +11,16 @@ data class Video(
     val type: String? = null,
     val extraBuffering: Boolean = false,
     val useServerSubtitleSetting: Boolean = false,
-    val maintainToken: Boolean = false
+    val maintainToken: Boolean = false,
+    val tokenSession: TokenSession? = null,
 ) : Serializable {
+
+    data class TokenSession(
+        val initialQuery: String?,
+        val refreshUrl: String?,
+        val referer: String,
+        val expiresAtMillis: Long?,
+    ) : Serializable
 
     sealed class Type : Parcelable, Serializable {
         @Parcelize
