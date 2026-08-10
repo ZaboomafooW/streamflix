@@ -1,5 +1,6 @@
 package com.streamflixreborn.streamflix.fragments.player.settings
 
+import android.app.AlertDialog
 import android.content.Context
 import android.content.res.ColorStateList
 import android.util.AttributeSet
@@ -7,11 +8,14 @@ import android.view.LayoutInflater
 import android.view.View
 import android.view.ViewGroup
 import androidx.core.content.ContextCompat
+import androidx.media3.common.C
+import androidx.media3.ui.DefaultTrackNameProvider
 import androidx.recyclerview.widget.RecyclerView
 import com.streamflixreborn.streamflix.R
 import com.streamflixreborn.streamflix.databinding.ItemSettingTvBinding
 import com.streamflixreborn.streamflix.databinding.ViewPlayerSettingsTvBinding
 import com.streamflixreborn.streamflix.ui.SpacingItemDecoration
+import com.streamflixreborn.streamflix.utils.SubtitleDebugState
 import com.streamflixreborn.streamflix.utils.dp
 import com.streamflixreborn.streamflix.utils.margin
 import com.streamflixreborn.streamflix.utils.UserPreferences
@@ -158,6 +162,97 @@ class PlayerSettingsTvView @JvmOverloads constructor(
             else -> settingsAdapter
         }
         binding.rvSettings.requestFocus()
+
+        if (setting == Setting.SUBTITLES) {
+            showSubtitleDebugIfAvailable()
+        }
+    }
+
+    private fun showSubtitleDebugIfAvailable() {
+        if (Settings.Server.selected?.name?.contains("Vixcloud", ignoreCase = true) != true) return
+
+        val snapshot = SubtitleDebugState.snapshot() ?: return
+        val currentPlayer = player ?: return
+        val trackNameProvider = DefaultTrackNameProvider(resources)
+
+        val report = buildString {
+            appendLine("Source: ${snapshot.source}")
+            appendLine("Requested language: ${snapshot.preferredLanguage ?: "null"}")
+
+            appendLine()
+            appendLine("RAW HLS AUDIO")
+            if (snapshot.rawAudioLines.isEmpty()) {
+                appendLine("(none)")
+            } else {
+                snapshot.rawAudioLines.forEachIndexed { index, line ->
+                    appendLine("A${index + 1}: $line")
+                }
+            }
+
+            appendLine()
+            appendLine("RAW HLS SUBTITLES")
+            if (snapshot.rawSubtitleLines.isEmpty()) {
+                appendLine("(none)")
+            } else {
+                snapshot.rawSubtitleLines.forEachIndexed { index, line ->
+                    appendLine("S${index + 1}: $line")
+                }
+            }
+
+            appendLine()
+            appendLine("PATCHED HLS SUBTITLES")
+            if (snapshot.patchedSubtitleLines.isEmpty()) {
+                appendLine("(none)")
+            } else {
+                snapshot.patchedSubtitleLines.forEachIndexed { index, line ->
+                    appendLine("S${index + 1}: $line")
+                }
+            }
+
+            appendLine()
+            appendLine("MEDIA3 TEXT TRACKS")
+            var media3TrackCount = 0
+            currentPlayer.currentTracks.groups.forEachIndexed { groupIndex, group ->
+                if (group.type != C.TRACK_TYPE_TEXT) return@forEachIndexed
+
+                for (trackIndex in 0 until group.length) {
+                    media3TrackCount++
+                    val format = group.getTrackFormat(trackIndex)
+                    val selectionFlagNames = mutableListOf<String>()
+                    if ((format.selectionFlags and C.SELECTION_FLAG_DEFAULT) != 0) {
+                        selectionFlagNames.add("DEFAULT")
+                    }
+                    if ((format.selectionFlags and C.SELECTION_FLAG_FORCED) != 0) {
+                        selectionFlagNames.add("FORCED")
+                    }
+
+                    appendLine("T$media3TrackCount: group=$groupIndex track=$trackIndex")
+                    appendLine("  Media3 name=${trackNameProvider.getTrackName(format)}")
+                    appendLine("  id=${format.id ?: "null"}")
+                    appendLine("  label=${format.label ?: "null"}")
+                    appendLine("  language=${format.language ?: "null"}")
+                    appendLine("  mime=${format.sampleMimeType ?: "null"}")
+                    appendLine("  codecs=${format.codecs ?: "null"}")
+                    appendLine(
+                        "  selectionFlags=${format.selectionFlags}" +
+                            if (selectionFlagNames.isEmpty()) "" else " (${selectionFlagNames.joinToString()})"
+                    )
+                    appendLine("  roleFlags=${format.roleFlags}")
+                    appendLine("  selected=${group.isTrackSelected(trackIndex)}")
+                    appendLine("  supported=${group.isTrackSupported(trackIndex)}")
+                }
+            }
+
+            if (media3TrackCount == 0) {
+                appendLine("(none)")
+            }
+        }.trim()
+
+        AlertDialog.Builder(context)
+            .setTitle("Vixcloud subtitle debug")
+            .setMessage(report)
+            .setPositiveButton(android.R.string.ok, null)
+            .show()
     }
 
     fun hide() {
