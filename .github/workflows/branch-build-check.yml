@@ -11,6 +11,12 @@ on:
 jobs:
   build:
     runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        app_layout:
+          - tv
+          - mobile
     steps:
       - name: Checkout
         uses: actions/checkout@v4
@@ -23,8 +29,8 @@ jobs:
 
       - name: Create local properties
         run: |
-          cat > local.properties <<'EOF'
-          APP_LAYOUT=tv
+          cat > local.properties <<EOF
+          APP_LAYOUT=${{ matrix.app_layout }}
           TMDB_API_KEY=test
           SUBDL_API_KEY=test
           RABBITSTREAM_SOURCE_API=test
