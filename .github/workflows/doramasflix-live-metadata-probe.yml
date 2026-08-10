@@ -1,0 +1,84 @@
+name: Doramasflix Live Metadata Probe
+
+on:
+  pull_request:
+    branches: [main]
+
+permissions:
+  contents: read
+
+jobs:
+  probe:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Probe Doramasflix metadata and logo
+        shell: bash
+        run: |
+          set -u
+          API='https://sv7.fluxcedene.net/graphql'
+          SITE='https://doramasflix.in'
+          QUERY='query searchAll($input: String!) { searchDorama(input: $input, limit: 32) { _id slug name name_es rating poster_path poster __typename } searchMovie(input: $input, limit: 32) { _id slug name name_es rating poster_path poster __typename } }'
+
+          probe_title() {
+            title="$1"
+            payload="$(jq -nc --arg input "$title" --arg query "$QUERY" '{operationName:"searchAll",variables:{input:$input},query:$query}')"
+            echo "=== TITLE: $title ==="
+            for ua in 'okhttp/4.12.0' 'Mozilla/5.0 (Linux; Android 10; Android TV) AppleWebKit/537.36 Chrome/140.0.0.0 Safari/537.36'; do
+              echo "--- UA: $ua"
+              tmp="$(mktemp)"
+              status="$(curl --silent --show-error --location --output "$tmp" --write-out '%{http_code}' \
+                -H 'Accept: application/json, text/plain, */*' \
+                -H 'Content-Type: application/json' \
+                -H "Referer: $SITE/" \
+                -H "Origin: $SITE" \
+                -H "User-Agent: $ua" \
+                --data "$payload" "$API" || true)"
+              echo "HTTP $status"
+              if [ "$status" = '200' ]; then
+                jq -c '{errors, data:{searchDorama:(.data.searchDorama // [] | map({id:._id,slug,name,name_es,rating,ratingType:(.rating|type),__typename})),searchMovie:(.data.searchMovie // [] | map({id:._id,slug,name,name_es,rating,ratingType:(.rating|type),__typename}))}}' "$tmp" || cat "$tmp"
+                rm -f "$tmp"
+                break
+              else
+                head -c 800 "$tmp"; echo
+              fi
+              rm -f "$tmp"
+            done
+          }
+
+          probe_title 'Just For Meeting You'
+          probe_title 'Unlock Your Love'
+          probe_title 'Our Sticky Love'
+
+          echo '=== CURRENT SITE PAGES ==='
+          for url in \
+            "$SITE/peliculas-online/just-for-meeting-you" \
+            "$SITE/doramas-online/unlock-your-love" \
+            "$SITE/doramas-online/our-sticky-love"; do
+            echo "--- $url"
+            tmp="$(mktemp)"
+            status="$(curl --silent --show-error --location --output "$tmp" --write-out '%{http_code}' -A 'Mozilla/5.0' "$url" || true)"
+            echo "HTTP $status"
+            if [ "$status" = '200' ]; then
+              grep -oE '<script type="application/ld\+json">[^<]+' "$tmp" | head -2 || true
+              grep -oiE '.{0,80}(rating|valoraci[oó]n).{0,120}' "$tmp" | head -10 || true
+            else
+              head -c 500 "$tmp"; echo
+            fi
+            rm -f "$tmp"
+          done
+
+          echo '=== LOGO DISCOVERY ==='
+          tmp="$(mktemp)"
+          status="$(curl --silent --show-error --location --output "$tmp" --write-out '%{http_code}' -A 'Mozilla/5.0' "$SITE/" || true)"
+          echo "Homepage HTTP $status"
+          if [ "$status" = '200' ]; then
+            grep -oiE '<(img|link)[^>]+(logo|icon)[^>]*>' "$tmp" | head -30 || true
+            grep -oE 'https?://[^"'"'"'<> ]+|/_next/[^"'"'"'<> ]+|/[^"'"'"'<> ]*(logo|icon)[^"'"'"'<> ]*' "$tmp" | grep -Ei 'logo|icon' | sort -u | head -40 || true
+          fi
+          rm -f "$tmp"
+
+          echo '=== DIRECT LOGO CANDIDATES ==='
+          for path in '/img/logo.png' '/logo.png' '/logo.svg' '/favicon.ico'; do
+            echo -n "$path -> "
+            curl --silent --show-error --location --output /dev/null --write-out '%{http_code} %{content_type} %{url_effective}\n' -A 'Mozilla/5.0' "$SITE$path" || true
+          done
