@@ -164,6 +164,20 @@ object DoramasflixProvider : Provider {
     private fun movieId(slug: String) = "peliculas-online/$slug"
     private fun doramaId(slug: String) = "doramas-online/$slug"
 
+    private fun structuredDescription(document: Document, type: String, pageUrl: String): String? {
+        return document.select("script[type=application/ld+json]")
+            .asSequence()
+            .mapNotNull { script ->
+                runCatching { JSONObject(script.data()) }.getOrNull()
+            }
+            .firstOrNull { data ->
+                data.optString("@type") == type && data.optString("url") == pageUrl
+            }
+            ?.optString("description")
+            ?.trim()
+            ?.takeIf { it.isNotBlank() }
+    }
+
     private suspend fun searchAll(input: String): ApiResponse = apiRequest(
         operationName = "searchAll",
         variables = JSONObject().put("input", input),
@@ -174,6 +188,7 @@ object DoramasflixProvider : Provider {
                 slug
                 name
                 name_es
+                rating
                 poster_path
                 poster
                 __typename
@@ -183,6 +198,7 @@ object DoramasflixProvider : Provider {
                 slug
                 name
                 name_es
+                rating
                 poster_path
                 poster
                 __typename
@@ -380,24 +396,19 @@ object DoramasflixProvider : Provider {
     override suspend fun getMovie(id: String): Movie {
         val path = normalizePath(id)
         val slug = slugFromId(id)
+        val pageUrl = "$baseUrl/$path"
         return try {
-            val document = serviceHtml.getPage("$baseUrl/$path")
+            val document = serviceHtml.getPage(pageUrl)
             val pageTitle = document.selectFirst("h1")?.text()?.takeIf { it.isNotBlank() }
             val apiMovie = findMovieBySlug(slug, pageTitle)
                 ?: throw Exception("No se pudo resolver la película en la API de Doramasflix.")
             val title = pageTitle ?: titleFor(apiMovie)
-            val overviewPrefix = "Ver $title online:"
-            val overview = document.select("p")
-                .asSequence()
-                .map { it.text().trim() }
-                .firstOrNull { it.startsWith(overviewPrefix, ignoreCase = true) }
-                ?.substringAfter(':')
-                ?.trim()
 
             Movie(
                 id = apiMovie.id,
                 title = title,
-                overview = overview,
+                overview = structuredDescription(document, "Movie", pageUrl),
+                rating = apiMovie.rating,
                 poster = getPosterUrl(apiMovie.posterPath ?: apiMovie.poster),
             )
         } catch (e: Exception) {
@@ -408,10 +419,14 @@ object DoramasflixProvider : Provider {
     override suspend fun getTvShow(id: String): TvShow {
         val path = normalizePath(id)
         val slug = slugFromId(id)
+        val pageUrl = "$baseUrl/$path"
         return try {
             val seasonsData = getSeasons(slug)
             val apiShow = findDoramaBySlug(slug)
             val firstSeason = seasonsData.firstOrNull()
+            val pageDescription = runCatching { serviceHtml.getPage(pageUrl) }
+                .getOrNull()
+                ?.let { document -> structuredDescription(document, "TVSeries", pageUrl) }
 
             val seasons = seasonsData.map { season ->
                 Season(
@@ -427,7 +442,8 @@ object DoramasflixProvider : Provider {
                 title = firstSeason?.serieName?.takeIf { it.isNotBlank() }
                     ?: apiShow?.let(::titleFor)
                     ?: slug.replace('-', ' ').replaceFirstChar { it.titlecase(Locale.ROOT) },
-                overview = firstSeason?.overview,
+                overview = pageDescription ?: firstSeason?.overview,
+                rating = apiShow?.rating,
                 poster = getPosterUrl(firstSeason?.posterPath ?: apiShow?.posterPath ?: apiShow?.poster),
                 banner = getPosterUrl(firstSeason?.serieBackdropPath ?: firstSeason?.backdrop),
                 trailer = firstSeason?.trailer,
