@@ -10,7 +10,7 @@ permissions:
 
 jobs:
   build:
-    name: Inspect Doramasflix shortened embeds
+    name: Inspect PlayerFlix bootstrap
     runs-on: ubuntu-latest
     timeout-minutes: 10
 
@@ -20,14 +20,12 @@ jobs:
         with:
           ref: ${{ github.sha }}
 
-      - name: Resolve current movie links
+      - name: Inspect shortened player pages
         shell: bash
         run: |
           set -euo pipefail
-          UA='Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/140.0.0.0 Safari/537.36'
-          REFERER='https://doramasflix.in/peliculas-online/just-for-meeting-you'
           python3 - <<'PY'
-          import json, urllib.request
+          import html, json, re, urllib.parse, urllib.request
           endpoint='https://userapi.cloudfleir.xyz/graphql'
           referer='https://doramasflix.in/peliculas-online/just-for-meeting-you'
           ua='Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/140.0.0.0 Safari/537.36'
@@ -40,36 +38,40 @@ jobs:
             'User-Agent':ua,'Accept':'application/json, text/plain, */*','Content-Type':'application/json',
             'Origin':'https://doramasflix.in','Referer':referer})
           with urllib.request.urlopen(req,timeout=20) as r:
-            obj=json.load(r)
-          links=obj['data']['getMovieLinks']['links_online']
-          with open('links.tsv','w') as f:
-            for x in links:
-              f.write(f"{x.get('server','')}\t{1 if x.get('is_recommended') else 0}\t{x.get('link','')}\n")
-          print('links returned:',len(links))
-          PY
+            links=json.load(r)['data']['getMovieLinks']['links_online']
 
-          n=0
-          while IFS=$'\t' read -r SERVER RECOMMENDED LINK; do
-            n=$((n+1))
-            echo "=== LINK $n server=$SERVER recommended=$RECOMMENDED ==="
-            RESULT=$(curl -L --compressed -A "$UA" -H "Referer: $REFERER" -sS -o "short-$n.html" -w '%{http_code}\t%{url_effective}' "$LINK" || true)
-            CODE=${RESULT%%$'\t'*}
-            EFFECTIVE=${RESULT#*$'\t'}
-            echo "HTTP $CODE"
-            python3 - "$EFFECTIVE" "short-$n.html" <<'PY'
-          import re, sys
-          from pathlib import Path
-          from urllib.parse import urlparse
-          url=sys.argv[1]
-          path=Path(sys.argv[2])
-          p=urlparse(url)
-          print('effective host:',p.netloc)
-          print('effective path prefix:',p.path[:80])
-          text=path.read_text(errors='replace') if path.exists() else ''
-          print('body bytes:',len(text.encode(errors='replace')))
-          for pat in [r'<title[^>]*>(.*?)</title>',r'(?:window\.)?location(?:\.href|\.replace)?\s*[=(]\s*["\']([^"\']+)',r'<iframe[^>]+src=["\']([^"\']+)',r'(?:data-url|data-src)=["\']([^"\']+)']:
-            m=re.search(pat,text,re.I|re.S)
-            if m:
-              print('body target:',re.sub(r'\s+',' ',m.group(1))[:300])
+          for idx,item in enumerate(links,1):
+            link=item['link']
+            req=urllib.request.Request(link,headers={'User-Agent':ua,'Referer':referer,'Accept':'text/html,*/*'})
+            with urllib.request.urlopen(req,timeout=20) as r:
+              raw=r.read().decode('utf-8','replace')
+            text=html.unescape(raw)
+            print(f'\n=== LINK {idx} server={item.get("server")} recommended={item.get("is_recommended")} bytes={len(raw.encode())} ===')
+
+            print('--- external scripts ---')
+            for src in re.findall(r'<script[^>]+src=["\']([^"\']+)', text, re.I):
+              print(urllib.parse.urljoin(link,src))
+
+            print('--- domains/urls in HTML ---')
+            urls=[]
+            for u in re.findall(r'https?://[^\s"\'<>\\]+', text, re.I):
+              u=u.rstrip(');,]')
+              if u not in urls: urls.append(u)
+            for u in urls[:50]:
+              p=urllib.parse.urlparse(u)
+              print(p.scheme+'://'+p.netloc+p.path[:120])
+
+            print('--- inline script clues ---')
+            scripts=re.findall(r'<script(?:\s[^>]*)?>(.*?)</script>', text, re.I|re.S)
+            clue=re.compile(r'fetch|ajax|axios|atob|decode|decrypt|iframe|player|source|embed|token|location|url|api',re.I)
+            for s in scripts:
+              if clue.search(s):
+                cleaned=re.sub(r'\s+',' ',s).strip()
+                print(cleaned[:5000])
+
+            print('--- attribute clues ---')
+            for m in re.finditer(r'(?:src|href|data-[\w-]+)=["\']([^"\']+)["\']',text,re.I):
+              val=m.group(1)
+              if any(k in val.lower() for k in ('api','embed','player','video','source','link','token')):
+                print(val[:500])
           PY
-          done < links.tsv
