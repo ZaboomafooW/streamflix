@@ -151,6 +151,7 @@ class HomeTvFragment : Fragment() {
     }
 
     private fun displayAuditProgress(progress: ProviderTrackAuditRunner.Progress?) {
+        if (_binding == null) return
         if (progress == null) {
             dismissAuditDialog()
             return
@@ -252,10 +253,10 @@ class HomeTvFragment : Fragment() {
     }
 
     override fun onDestroyView() {
-        super.onDestroyView()
         dismissAuditDialog()
         appAdapter.onSaveInstanceState(binding.vgvHome)
         _binding = null
+        super.onDestroyView()
     }
 
 
