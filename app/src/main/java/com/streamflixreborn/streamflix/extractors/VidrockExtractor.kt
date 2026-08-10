@@ -70,9 +70,9 @@ class VidrockExtractor : Extractor() {
             initialUrl.contains("hls2.vdrk.site", ignoreCase = true) ||
             serverEntry.key.equals("Atlas", ignoreCase = true)
         ) {
-            resolveCdnSource(service, initialUrl) ?: ResolvedSource(initialUrl, defaultHeaders(initialUrl))
+            resolveCdnSource(service, initialUrl) ?: ResolvedSource(initialUrl, defaultHeaders())
         } else {
-            ResolvedSource(initialUrl, defaultHeaders(initialUrl))
+            ResolvedSource(initialUrl, defaultHeaders())
         }
 
         return Video(
@@ -95,7 +95,7 @@ class VidrockExtractor : Extractor() {
 
         val selected = qualities
             .filter { it.url.isNotBlank() }
-            .maxByOrNull { it.resolution }
+            .maxByOrNull { it.resolution.toIntOrNull() ?: 0 }
             ?: return null
 
         val finalUrl = if (selected.url.startsWith(PROXY_PREFIX)) {
@@ -114,19 +114,10 @@ class VidrockExtractor : Extractor() {
         )
     }
 
-    private fun defaultHeaders(url: String): Map<String, String> {
-        return if (url.contains("67streams", ignoreCase = true)) {
-            mapOf(
-                "Referer" to "$mainUrl/",
-                "Origin" to mainUrl,
-            )
-        } else {
-            mapOf(
-                "Referer" to "$mainUrl/",
-                "Origin" to mainUrl,
-            )
-        }
-    }
+    private fun defaultHeaders(): Map<String, String> = mapOf(
+        "Referer" to "$mainUrl/",
+        "Origin" to mainUrl,
+    )
 
     private fun encryptAndEncode(data: String): String {
         val key = passphrase.toByteArray(Charsets.UTF_8)
@@ -163,7 +154,7 @@ class VidrockExtractor : Extractor() {
     }
 
     data class QualitySource(
-        val resolution: Int = 0,
+        val resolution: String = "",
         val url: String = "",
     )
 
