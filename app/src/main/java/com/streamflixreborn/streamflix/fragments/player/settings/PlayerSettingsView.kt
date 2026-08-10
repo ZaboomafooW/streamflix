@@ -724,10 +724,11 @@ abstract class PlayerSettingsView @JvmOverloads constructor(
                                             !FORCED_SUBTITLE_LABEL.containsMatchIn(format.label.orEmpty())
                                     }
                                     .map { (trackIndex, trackFormat) ->
+                                        val trackName = DefaultTrackNameProvider(resources)
+                                            .getTrackName(trackFormat)
                                         TextTrackInformation(
-                                            name = DefaultTrackNameProvider(resources)
-                                                .getTrackName(trackFormat),
-                                            label = trackFormat.label ?: "",
+                                            name = trackName,
+                                            label = trackName,
                                             language = trackFormat.language?.replaceFirstChar { it.titlecase() },
 
                                             trackGroup = trackGroup,
