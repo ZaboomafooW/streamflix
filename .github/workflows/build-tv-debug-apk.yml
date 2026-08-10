@@ -1,0 +1,67 @@
+name: Build TV Debug APK
+
+on:
+  push:
+    branches:
+      - ci/remember-track-preferences
+    paths:
+      - .tv-debug-build-trigger
+
+permissions:
+  contents: read
+
+jobs:
+  build:
+    name: Build TV debug APK
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up JDK 17 and Gradle cache
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+          cache: gradle
+
+      - name: Ensure Android SDK pieces
+        shell: bash
+        run: |
+          set -euo pipefail
+          SDKMANAGER="$ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager"
+          missing=()
+          [[ -d "$ANDROID_HOME/platforms/android-36" ]] || missing+=("platforms;android-36")
+          [[ -d "$ANDROID_HOME/ndk/26.1.10909125" ]] || missing+=("ndk;26.1.10909125")
+          [[ -d "$ANDROID_HOME/cmake/3.22.1" ]] || missing+=("cmake;3.22.1")
+          if (( ${#missing[@]} )); then
+            yes | "$SDKMANAGER" --licenses >/dev/null || true
+            "$SDKMANAGER" "${missing[@]}"
+          fi
+
+      - name: Configure TV build
+        run: |
+          cat > local.properties <<EOF
+          APP_LAYOUT=tv
+          TMDB_API_KEY=dummy-ci-key
+          SUBDL_API_KEY=dummy-ci-key
+          RABBITSTREAM_SOURCE_API=https://example.invalid/
+          EOF
+          sed -e 's|{{UPROT_MSFI_API_BASE}}|https://example.invalid/msfi|g' \
+              -e 's|{{UPROT_MSE_API_BASE}}|https://example.invalid/mse|g' \
+              -e 's|{{UPROT_API_KEY}}|dummy-ci-key|g' \
+              app/src/main/cpp/native-lib.cpp.template > app/src/main/cpp/native-lib.cpp
+
+      - name: Build TV debug APK
+        run: |
+          chmod +x ./gradlew
+          ./gradlew assembleDebug --build-cache --no-daemon
+
+      - name: Upload TV debug APK
+        uses: actions/upload-artifact@v4
+        with:
+          name: streamflix-tv-debug-apk
+          path: app/build/outputs/apk/debug/*.apk
+          if-no-files-found: error
+          retention-days: 7
