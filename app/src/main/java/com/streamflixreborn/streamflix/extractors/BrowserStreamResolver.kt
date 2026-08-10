@@ -106,7 +106,7 @@ internal object BrowserStreamResolver {
                     val headers = linkedMapOf<String, String>()
                     headers["User-Agent"] = header("User-Agent") ?: NetworkClient.USER_AGENT
                     headers["Referer"] = header("Referer") ?: "$embedOrigin/"
-                    headers["Origin"] = header("Origin") ?: embedOrigin
+                    header("Origin")?.let { headers["Origin"] = it }
                     CookieManager.getInstance().getCookie(requestUrl)
                         ?.takeIf { it.isNotBlank() }
                         ?.let { headers["Cookie"] = it }
