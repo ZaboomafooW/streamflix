@@ -26,7 +26,7 @@ class VidnestExtractor : Extractor() {
 
             val rawFile = Regex("""file\s*:\s*"([^"]+)"""").find(obj)?.groupValues?.get(1)
             val label = Regex("""label\s*:\s*"([^"]+)"""").find(obj)?.groupValues?.get(1)
-            val isDefault = Regex(""""default"\s*:\s*(true|false)""")
+            val default = Regex(""""default"\s*:\s*(true|false)""")
                 .find(obj)?.groupValues?.get(1)?.toBoolean() ?: false
 
             if (rawFile == null || label == null) return@mapNotNull null
@@ -37,8 +37,8 @@ class VidnestExtractor : Extractor() {
             Video.Subtitle(
                 file = file,
                 label = label,
-                initialDefault = isDefault,
-                default = isDefault,
+                initialDefault = default,
+                default = default
             )
         }.toList()
     }
@@ -50,7 +50,8 @@ class VidnestExtractor : Extractor() {
         val scriptTags = doc.select("script[type=text/javascript]")
 
         var m3u8: String? = null
-        var subtitles: List<Video.Subtitle> = emptyList()
+
+        var subtitles : List<Video.Subtitle> = emptyList();
 
         for (script in scriptTags) {
             val scriptData = script.data()
@@ -71,7 +72,7 @@ class VidnestExtractor : Extractor() {
 
         return Video(
             source = m3u8,
-            subtitles = subtitles,
+            subtitles = subtitles
         )
     }
 
