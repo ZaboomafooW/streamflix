@@ -1,27 +1,20 @@
 package com.streamflixreborn.streamflix.extractors
 
-import android.os.Handler
-import android.os.Looper
-import android.webkit.ConsoleMessage
-import android.webkit.WebChromeClient
-import android.webkit.WebResourceRequest
-import android.webkit.WebResourceResponse
-import android.webkit.WebSettings
-import android.webkit.WebView
-import android.webkit.WebViewClient
-import com.streamflixreborn.streamflix.StreamFlixApp
+import android.net.Uri
+import androidx.media3.common.MimeTypes
 import com.streamflixreborn.streamflix.models.Video
 import kotlinx.coroutines.Dispatchers
-import kotlinx.coroutines.suspendCancellableCoroutine
 import kotlinx.coroutines.withContext
+import okhttp3.OkHttpClient
+import okhttp3.Request
 import org.json.JSONObject
-import kotlin.coroutines.resume
-import kotlin.coroutines.resumeWithException
 
 class VidLinkExtractor : Extractor() {
 
     override val name = "VidLink"
     override val mainUrl = "https://vidlink.pro"
+
+    private val client = OkHttpClient.Builder().build()
 
     fun server(videoType: Video.Type): Video.Server {
         return Video.Server(
@@ -34,101 +27,118 @@ class VidLinkExtractor : Extractor() {
         )
     }
 
-    override suspend fun extract(link: String): Video {
-        return withContext(Dispatchers.Main) {
-            suspendCancellableCoroutine { continuation ->
-                val webView = WebView(StreamFlixApp.instance.applicationContext)
-                
-                // Configure WebView settings
-                webView.settings.javaScriptEnabled = true
+    override suspend fun extract(link: String): Video = withContext(Dispatchers.IO) {
+        val uri = Uri.parse(link)
+        val segments = uri.pathSegments
+        val type = segments.firstOrNull() ?: throw Exception("Invalid VidLink URL")
+        val tmdbId = segments.getOrNull(1) ?: throw Exception("Missing VidLink TMDB id")
+        val encryptedId = encryptTmdbId(tmdbId)
 
-                // Timeout handler
-                val timeoutHandler = Handler(Looper.getMainLooper())
-                val timeoutRunnable = Runnable {
-                    if (continuation.isActive) {
-                        continuation.resumeWithException(Exception("Timeout waiting for stream"))
-                        webView.destroy()
-                    }
-                }
-                timeoutHandler.postDelayed(timeoutRunnable, 30000) // 30 seconds timeout
+        val apiUrl = when (type) {
+            "movie" -> "$mainUrl/api/b/movie/${Uri.encode(encryptedId)}"
+            "tv" -> {
+                val season = segments.getOrNull(2) ?: throw Exception("Missing VidLink season")
+                val episode = segments.getOrNull(3) ?: throw Exception("Missing VidLink episode")
+                "$mainUrl/api/b/tv/${Uri.encode(encryptedId)}/$season/$episode"
+            }
+            else -> throw Exception("Unsupported VidLink media type: $type")
+        }
 
-                continuation.invokeOnCancellation {
-                    webView.stopLoading()
-                    webView.destroy()
-                }
+        val request = Request.Builder()
+            .url(apiUrl)
+            .header("Accept", "*/*")
+            .header("User-Agent", USER_AGENT)
+            .header("Referer", "$mainUrl/")
+            .header("Origin", mainUrl)
+            .build()
 
-                webView.webViewClient = object : WebViewClient() {
-                    
-                    override fun onPageFinished(view: WebView?, url: String?) {
-                        super.onPageFinished(view, url)
-                        
-                        // Inject JavaScript to intercept the network response
-                        val jsInterceptor = """
-                            (function() {
-                                const originalFetch = window.fetch;
-                                window.fetch = async function(...args) {
-                                    const response = await originalFetch(...args);
-                                    const clone = response.clone();
-                                    const url = response.url;
-                                    
-                                    if (url.includes('/api/b/')) {
-                                        clone.json().then(data => {
-                                             window.Android.onStreamFound(JSON.stringify(data));
-                                        }).catch(err => {});
-                                    }
-                                    return response;
-                                };
-                            })();
-                        """.trimIndent()
-                        
-                        view?.evaluateJavascript(jsInterceptor, null)
-                    }
-                }
+        val body = client.newCall(request).execute().use { response ->
+            if (!response.isSuccessful) {
+                throw Exception("VidLink API returned HTTP ${response.code}")
+            }
+            response.body?.string() ?: throw Exception("VidLink API returned an empty body")
+        }
 
-                // Add JavaScript Interface
-                webView.addJavascriptInterface(object : Any() {
-                    @android.webkit.JavascriptInterface
-                    fun onStreamFound(jsonData: String) {
-                        timeoutHandler.removeCallbacks(timeoutRunnable)
-                        if (continuation.isActive) {
-                            try {
-                                val json = JSONObject(jsonData)
-                                if (json.has("stream")) {
-                                    val stream = json.getJSONObject("stream")
-                                    val playlist = stream.optString("playlist")
-                                    
-                                    val captionsList = mutableListOf<Video.Subtitle>()
-                                    val captions = stream.optJSONArray("captions")
-                                    if (captions != null) {
-                                        for (i in 0 until captions.length()) {
-                                            val cap = captions.getJSONObject(i)
-                                            val id = cap.optString("id")
-                                            val lang = cap.optString("language")
-                                            captionsList.add(Video.Subtitle(lang, id))
-                                        }
-                                    }
-                                    
-                                    val video = Video(
-                                        source = playlist,
-                                        subtitles = captionsList,
-                                        headers = mapOf("Referer" to mainUrl)
-                                    )
-                                    continuation.resume(video)
-                                } else {
-                                     continuation.resumeWithException(Exception("Stream data missing in response"))
-                                }
-                            } catch (e: Exception) {
-                                continuation.resumeWithException(e)
-                            } finally {
-                                Handler(Looper.getMainLooper()).post { webView.destroy() }
-                            }
-                        }
-                    }
-                }, "Android")
+        val stream = JSONObject(body).optJSONObject("stream")
+            ?: throw Exception("VidLink stream data missing")
 
-                // Start loading the page
-                webView.loadUrl(link)
+        val source = stream.optString("playlist").takeIf { it.isNotBlank() }
+            ?: selectFileSource(stream.optJSONObject("qualities"))
+            ?: throw Exception("VidLink returned no playable source")
+
+        val subtitles = mutableListOf<Video.Subtitle>()
+        stream.optJSONArray("captions")?.let { captions ->
+            for (i in 0 until captions.length()) {
+                val caption = captions.optJSONObject(i) ?: continue
+                val file = caption.optString("url").ifBlank { caption.optString("id") }
+                if (file.isBlank()) continue
+                val label = caption.optString("language")
+                    .ifBlank { caption.optString("label") }
+                    .ifBlank { "Unknown" }
+                subtitles += Video.Subtitle(label = label, file = file)
             }
         }
+
+        val headers = mutableMapOf(
+            "Referer" to "$mainUrl/",
+            "Origin" to mainUrl,
+            "User-Agent" to USER_AGENT,
+        )
+        stream.optJSONObject("headers")?.let { responseHeaders ->
+            responseHeaders.keys().forEach { key ->
+                responseHeaders.optString(key).takeIf { it.isNotBlank() }?.let { value ->
+                    headers[key] = value
+                }
+            }
+        }
+
+        Video(
+            source = source,
+            subtitles = subtitles,
+            headers = headers,
+            type = when {
+                source.contains(".m3u8", ignoreCase = true) -> MimeTypes.APPLICATION_M3U8
+                source.contains(".mp4", ignoreCase = true) -> MimeTypes.VIDEO_MP4
+                else -> null
+            },
+        )
+    }
+
+    private fun selectFileSource(qualities: JSONObject?): String? {
+        if (qualities == null) return null
+
+        return qualities.keys().asSequence()
+            .mapNotNull { quality ->
+                val entry = qualities.optJSONObject(quality) ?: return@mapNotNull null
+                val url = entry.optString("url").takeIf { it.isNotBlank() } ?: return@mapNotNull null
+                val height = Regex("(\\d{3,4})").find(quality)?.groupValues?.get(1)?.toIntOrNull() ?: 0
+                height to url
+            }
+            .maxByOrNull { it.first }
+            ?.second
+    }
+
+    private fun encryptTmdbId(tmdbId: String): String {
+        val request = Request.Builder()
+            .url("https://enc-dec.app/api/enc-vidlink?text=${Uri.encode(tmdbId)}")
+            .header("Accept", "application/json")
+            .header("User-Agent", USER_AGENT)
+            .build()
+
+        val body = client.newCall(request).execute().use { response ->
+            if (!response.isSuccessful) {
+                throw Exception("VidLink id encryption returned HTTP ${response.code}")
+            }
+            response.body?.string() ?: throw Exception("VidLink id encryption returned an empty body")
+        }
+
+        return JSONObject(body).optString("result")
+            .takeIf { it.isNotBlank() }
+            ?: throw Exception("VidLink id encryption failed")
+    }
+
+    companion object {
+        private const val USER_AGENT =
+            "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/137.0.0.0 Safari/537.36"
     }
 }
