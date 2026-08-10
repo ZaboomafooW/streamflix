@@ -101,12 +101,12 @@
 
         <PreferenceCategory android:title="@string/player_settings">
 
-            <com.streamflixreborn.streamflix.ui.MediaLanguagePreference
+            <com.streamflixreborn.streamflix.ui.AudioLanguagePreference
                 android:key="PREFERRED_AUDIO_LANGUAGE"
                 android:title="@string/settings_preferred_audio_language_title"
-                android:defaultValue="" />
+                android:defaultValue="__original__" />
 
-            <com.streamflixreborn.streamflix.ui.MediaLanguagePreference
+            <com.streamflixreborn.streamflix.ui.SubtitleLanguagePreference
                 android:key="PREFERRED_SUBTITLE_LANGUAGE"
                 android:title="@string/settings_preferred_subtitle_language_title"
                 android:defaultValue="" />
