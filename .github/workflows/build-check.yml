@@ -10,7 +10,7 @@ permissions:
 
 jobs:
   build:
-    name: Inspect PlayerFlix bootstrap
+    name: Inspect PlayerFlix player code
     runs-on: ubuntu-latest
     timeout-minutes: 10
 
@@ -20,58 +20,35 @@ jobs:
         with:
           ref: ${{ github.sha }}
 
-      - name: Inspect shortened player pages
+      - name: Inspect player JavaScript
         shell: bash
         run: |
           set -euo pipefail
           python3 - <<'PY'
-          import html, json, re, urllib.parse, urllib.request
-          endpoint='https://userapi.cloudfleir.xyz/graphql'
-          referer='https://doramasflix.in/peliculas-online/just-for-meeting-you'
+          import re, urllib.request
+          base='https://embedshortener.co'
           ua='Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/140.0.0.0 Safari/537.36'
-          payload={
-            'operationName':'MovieLinks',
-            'variables':{'movie_id':'6a78e51c56e57b5ffbb0b2c6'},
-            'query':'query MovieLinks($movie_id: ID!) { getMovieLinks(id: $movie_id, app: "com.asiapp.doramasgo") { links_online { lang link page server is_recommended subtitles { language_code type } } } }'
-          }
-          req=urllib.request.Request(endpoint,data=json.dumps(payload).encode(),headers={
-            'User-Agent':ua,'Accept':'application/json, text/plain, */*','Content-Type':'application/json',
-            'Origin':'https://doramasflix.in','Referer':referer})
-          with urllib.request.urlopen(req,timeout=20) as r:
-            links=json.load(r)['data']['getMovieLinks']['links_online']
-
-          for idx,item in enumerate(links,1):
-            link=item['link']
-            req=urllib.request.Request(link,headers={'User-Agent':ua,'Referer':referer,'Accept':'text/html,*/*'})
+          chunks=[
+            '/_next/static/chunks/1dd913f12ce72da3.js',
+            '/_next/static/chunks/a6dad97d9634a72d.js',
+            '/_next/static/chunks/3a3b09373d56723f.js',
+          ]
+          needles=re.compile(r'fetch|axios|token|server|decode|decrypt|embed|iframe|externalLink|Player|api/',re.I)
+          for path in chunks:
+            url=base+path
+            req=urllib.request.Request(url,headers={'User-Agent':ua,'Referer':base+'/'})
             with urllib.request.urlopen(req,timeout=20) as r:
-              raw=r.read().decode('utf-8','replace')
-            text=html.unescape(raw)
-            print(f'\n=== LINK {idx} server={item.get("server")} recommended={item.get("is_recommended")} bytes={len(raw.encode())} ===')
-
-            print('--- external scripts ---')
-            for src in re.findall(r'<script[^>]+src=["\']([^"\']+)', text, re.I):
-              print(urllib.parse.urljoin(link,src))
-
-            print('--- domains/urls in HTML ---')
-            urls=[]
-            for u in re.findall(r'https?://[^\s"\'<>\\]+', text, re.I):
-              u=u.rstrip(');,]')
-              if u not in urls: urls.append(u)
-            for u in urls[:50]:
-              p=urllib.parse.urlparse(u)
-              print(p.scheme+'://'+p.netloc+p.path[:120])
-
-            print('--- inline script clues ---')
-            scripts=re.findall(r'<script(?:\s[^>]*)?>(.*?)</script>', text, re.I|re.S)
-            clue=re.compile(r'fetch|ajax|axios|atob|decode|decrypt|iframe|player|source|embed|token|location|url|api',re.I)
-            for s in scripts:
-              if clue.search(s):
-                cleaned=re.sub(r'\s+',' ',s).strip()
-                print(cleaned[:5000])
-
-            print('--- attribute clues ---')
-            for m in re.finditer(r'(?:src|href|data-[\w-]+)=["\']([^"\']+)["\']',text,re.I):
-              val=m.group(1)
-              if any(k in val.lower() for k in ('api','embed','player','video','source','link','token')):
-                print(val[:500])
+              text=r.read().decode('utf-8','replace')
+            print(f'\n=== {url} bytes={len(text.encode())} ===')
+            matches=list(needles.finditer(text))
+            print('matches:',len(matches))
+            emitted=[]
+            for m in matches:
+              a=max(0,m.start()-1000); b=min(len(text),m.end()+2200)
+              snippet=text[a:b]
+              key=snippet[:250]
+              if key in emitted: continue
+              emitted.append(key)
+              print('\n---',m.group(0),'---\n',snippet[:5000])
+              if len(emitted)>=30: break
           PY
