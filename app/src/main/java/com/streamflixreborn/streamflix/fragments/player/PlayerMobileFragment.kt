@@ -821,16 +821,6 @@ class PlayerMobileFragment : Fragment() {
                     is Video.Type.Episode -> database.episodeDao().getById(videoType.id)
                 }
 
-                watchItem?.apply {
-                    isWatched = false
-                    watchedDate = null
-                    watchHistory = WatchItem.WatchHistory(
-                        lastEngagementTimeUtcMillis = System.currentTimeMillis(),
-                        lastPlaybackPositionMillis = player.currentPosition,
-                        durationMillis = player.duration
-                    )
-                }
-
                 when (videoType) {
                     is Video.Type.Movie -> {
                         val provider = UserPreferences.currentProvider ?: return@listener
