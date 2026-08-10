@@ -108,12 +108,7 @@ class PlayerViewModel(
         is Video.Type.Episode -> videoType.tvShow.originalLanguage
     }
 
-    private fun getServers(videoType: Video.Type, id: String) =
-        viewModelScope.launch(Dispatchers.IO) {
-            loadServers(videoType, id)
-        }
-
-    private suspend fun loadServers(videoType: Video.Type, id: String) {
+    private fun getServers(videoType: Video.Type, id: String) = viewModelScope.launch(Dispatchers.IO) {
         Log.d("PlayerViewModel", "Inizio ricerca server per ID: $id")
         lastVideoType = videoType
         lastId = id
