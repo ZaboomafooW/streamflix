@@ -8,11 +8,11 @@ import retrofit2.Retrofit
 import retrofit2.converter.gson.GsonConverterFactory
 import retrofit2.http.GET
 import retrofit2.http.Url
+import java.net.URLDecoder
 import javax.crypto.Cipher
 import javax.crypto.spec.IvParameterSpec
 import javax.crypto.spec.SecretKeySpec
 
-// https://github.com/yogesh-hacker/MediaVanced/blob/main/sites/vidrock.py
 class VidrockExtractor : Extractor() {
 
     override val name = "Vidrock"
@@ -32,20 +32,16 @@ class VidrockExtractor : Extractor() {
         }
 
         return try {
-            val service = Service.build(mainUrl)
-            val response = service.getStreams(apiUrl)
-
+            val response = Service.build(mainUrl).getStreams(apiUrl)
             response.mapNotNull { (serverName, data) ->
-                val videoUrl = data["url"] ?: return@mapNotNull null
-                if (videoUrl.isEmpty()) return@mapNotNull null
-
+                val videoUrl = data["url"]?.takeIf { it.isNotBlank() } ?: return@mapNotNull null
                 Video.Server(
                     id = "$serverName-$videoUrl (Vidrock)",
                     name = "$serverName (Vidrock)",
-                    src = "$apiUrl#$serverName"
+                    src = "$apiUrl#$serverName",
                 )
             }
-        } catch (e: Exception) {
+        } catch (_: Exception) {
             emptyList()
         }
     }
@@ -57,41 +53,79 @@ class VidrockExtractor : Extractor() {
     override suspend fun extract(link: String): Video {
         val serverName = link.substringAfter("#", "").takeIf { it != link }
         val apiLink = link.substringBefore("#")
-
         val service = Service.build(mainUrl)
         val response = service.getStreams(apiLink)
 
-        val serverEntry = if (!serverName.isNullOrEmpty()) {
+        val serverEntry = if (!serverName.isNullOrBlank()) {
             response.entries.find { it.key.equals(serverName, ignoreCase = true) }
         } else {
-            response.entries.find { it.value["url"]?.isNotEmpty() == true }
-        } ?: error("No video sources found")
+            response.entries.find { it.value["url"]?.isNotBlank() == true }
+        } ?: throw Exception("No Vidrock video sources found")
 
-        val actualServerName = serverEntry.key
-        var videoUrl = serverEntry.value["url"]!!
-        var type = MimeTypes.APPLICATION_M3U8
+        val initialUrl = serverEntry.value["url"]
+            ?.takeIf { it.isNotBlank() }
+            ?: throw Exception("Vidrock server returned an empty URL")
 
-        if (actualServerName.equals("Atlas", ignoreCase = true)) {
-            val qualities = try {
-                service.getAtlasQualities(videoUrl)
-            } catch (e: Exception) {
-                emptyList()
-            }
-            val highest = qualities.maxByOrNull { it.resolution }
-            if (highest != null) {
-                videoUrl = highest.url
-                type = MimeTypes.VIDEO_MP4
-            }
+        val resolved = if (
+            initialUrl.contains("hls2.vdrk.site", ignoreCase = true) ||
+            serverEntry.key.equals("Atlas", ignoreCase = true)
+        ) {
+            resolveCdnSource(service, initialUrl) ?: ResolvedSource(initialUrl, defaultHeaders(initialUrl))
+        } else {
+            ResolvedSource(initialUrl, defaultHeaders(initialUrl))
         }
 
         return Video(
-            source = videoUrl,
-            headers = mapOf(
-                "Referer" to "$mainUrl/",
-                "Origin" to mainUrl
-            ),
-            type = type
+            source = resolved.url,
+            headers = resolved.headers,
+            type = if (resolved.url.contains(".mp4", ignoreCase = true)) {
+                MimeTypes.VIDEO_MP4
+            } else {
+                MimeTypes.APPLICATION_M3U8
+            },
         )
+    }
+
+    private suspend fun resolveCdnSource(service: Service, url: String): ResolvedSource? {
+        val qualities = try {
+            service.getQualities(url)
+        } catch (_: Exception) {
+            emptyList()
+        }
+
+        val selected = qualities
+            .filter { it.url.isNotBlank() }
+            .maxByOrNull { it.resolution }
+            ?: return null
+
+        val finalUrl = if (selected.url.startsWith(PROXY_PREFIX)) {
+            val encodedPath = selected.url.removePrefix(PROXY_PREFIX).removePrefix("/")
+            URLDecoder.decode(encodedPath, Charsets.UTF_8.name())
+        } else {
+            selected.url
+        }
+
+        return ResolvedSource(
+            url = finalUrl,
+            headers = mapOf(
+                "Referer" to "https://lok-lok.cc/",
+                "Origin" to "https://lok-lok.cc",
+            ),
+        )
+    }
+
+    private fun defaultHeaders(url: String): Map<String, String> {
+        return if (url.contains("67streams", ignoreCase = true)) {
+            mapOf(
+                "Referer" to "$mainUrl/",
+                "Origin" to mainUrl,
+            )
+        } else {
+            mapOf(
+                "Referer" to "$mainUrl/",
+                "Origin" to mainUrl,
+            )
+        }
     }
 
     private fun encryptAndEncode(data: String): String {
@@ -112,12 +146,12 @@ class VidrockExtractor : Extractor() {
         companion object {
             fun build(baseUrl: String): Service {
                 val client = OkHttpClient.Builder().build()
-                val retrofit = Retrofit.Builder()
+                return Retrofit.Builder()
                     .baseUrl(baseUrl)
                     .addConverterFactory(GsonConverterFactory.create())
                     .client(client)
                     .build()
-                return retrofit.create(Service::class.java)
+                    .create(Service::class.java)
             }
         }
 
@@ -125,11 +159,20 @@ class VidrockExtractor : Extractor() {
         suspend fun getStreams(@Url url: String): Map<String, Map<String, String>>
 
         @GET
-        suspend fun getAtlasQualities(@Url url: String): List<AtlasQuality>
+        suspend fun getQualities(@Url url: String): List<QualitySource>
     }
 
-    data class AtlasQuality(
-        val resolution: Int,
-        val url: String
+    data class QualitySource(
+        val resolution: Int = 0,
+        val url: String = "",
     )
+
+    private data class ResolvedSource(
+        val url: String,
+        val headers: Map<String, String>,
+    )
+
+    companion object {
+        private const val PROXY_PREFIX = "https://proxy.vidrock.store/"
+    }
 }
