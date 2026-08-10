@@ -4,7 +4,9 @@ import android.content.Intent
 import android.content.pm.PackageManager
 import android.os.Build
 import android.os.Bundle
+import android.view.KeyEvent
 import android.view.View
+import android.view.ViewGroup
 import android.widget.Toast
 import androidx.activity.OnBackPressedCallback
 import androidx.activity.viewModels
@@ -12,6 +14,7 @@ import androidx.fragment.app.FragmentActivity
 import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.flowWithLifecycle
 import androidx.lifecycle.lifecycleScope
+import androidx.navigation.NavController
 import androidx.navigation.fragment.NavHostFragment
 import androidx.navigation.navOptions
 import com.bumptech.glide.Glide
@@ -43,6 +46,7 @@ class MainTvActivity : FragmentActivity() {
     private val viewModel by viewModels<MainViewModel>()
 
     private lateinit var updateAppDialog: UpdateAppTvDialog
+    private var navigationContentDescendantFocusability = ViewGroup.FOCUS_BEFORE_DESCENDANTS
 
     override fun attachBaseContext(newBase: android.content.Context) {
         super.attachBaseContext(AppLanguageManager.wrap(newBase))
@@ -90,7 +94,9 @@ class MainTvActivity : FragmentActivity() {
             }
         }
 
+        navigationContentDescendantFocusability = binding.navMainFragment.descendantFocusability
         binding.navMain.setupWithNavController(navController)
+        configureNavigationRail(navController)
         updateNavigationVisibility()
 
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
@@ -132,7 +138,10 @@ class MainTvActivity : FragmentActivity() {
                     binding.navMain.visibility = View.VISIBLE
                     updateNavigationVisibility()
                 }
-                else -> binding.navMain.visibility = View.GONE
+                else -> {
+                    binding.navMain.visibility = View.GONE
+                    setNavigationContentFocusBlocked(false)
+                }
             }
         }
 
@@ -194,6 +203,79 @@ class MainTvActivity : FragmentActivity() {
             header.tvNavigationHeaderTitle.setTextColor(palette.tvHeaderPrimary)
             header.tvNavigationHeaderSubtitle.setTextColor(palette.tvHeaderSecondary)
         }
+    }
+
+    private fun configureNavigationRail(navController: NavController) {
+        binding.navMain.setOnItemFocusedListener { item ->
+            setNavigationContentFocusBlocked(true)
+            if (item.itemId != binding.navMain.selectedItemId) {
+                binding.navMain.selectedItemId = item.itemId
+            }
+        }
+
+        binding.navMain.menuView.forEach { child, _ ->
+            child.setOnKeyListener { source, keyCode, event ->
+                if (event.action != KeyEvent.ACTION_DOWN || event.repeatCount != 0) {
+                    return@setOnKeyListener false
+                }
+
+                when (keyCode) {
+                    KeyEvent.KEYCODE_DPAD_RIGHT,
+                    KeyEvent.KEYCODE_DPAD_CENTER,
+                    KeyEvent.KEYCODE_ENTER,
+                    KeyEvent.KEYCODE_NUMPAD_ENTER -> enterNavigationContent(source, navController)
+                    else -> false
+                }
+            }
+        }
+
+        binding.navMain.headerView?.setOnKeyListener { source, keyCode, event ->
+            if (event.action == KeyEvent.ACTION_DOWN &&
+                event.repeatCount == 0 &&
+                keyCode == KeyEvent.KEYCODE_DPAD_RIGHT
+            ) {
+                enterNavigationContent(source, navController)
+            } else {
+                false
+            }
+        }
+    }
+
+    private fun enterNavigationContent(source: View, navController: NavController): Boolean {
+        setNavigationContentFocusBlocked(false)
+
+        val target = when (navController.currentDestination?.id) {
+            R.id.search -> binding.navMainFragment.findViewById<View>(R.id.et_search)
+            else -> source.focusSearch(View.FOCUS_RIGHT)
+        }
+
+        if (target != null &&
+            target !== source &&
+            !isNavigationRailView(target) &&
+            target.requestFocus()
+        ) {
+            return true
+        }
+
+        setNavigationContentFocusBlocked(true)
+        return true
+    }
+
+    private fun setNavigationContentFocusBlocked(blocked: Boolean) {
+        binding.navMainFragment.descendantFocusability = if (blocked) {
+            ViewGroup.FOCUS_BLOCK_DESCENDANTS
+        } else {
+            navigationContentDescendantFocusability
+        }
+    }
+
+    private fun isNavigationRailView(view: View): Boolean {
+        var current: View? = view
+        while (current != null) {
+            if (current === binding.navMain) return true
+            current = current.parent as? View
+        }
+        return false
     }
     
     private fun updateNavigationVisibility() {
