@@ -12,41 +12,48 @@ jobs:
   probe:
     runs-on: ubuntu-latest
     steps:
-      - name: Verify current Doramasflix variety classification and routes
+      - name: Verify current Doramasflix variety routes and embedded metadata
         shell: bash
         run: |
           set -euo pipefail
 
-          API='https://sv7.fluxcedene.net/graphql'
           SITE='https://doramasflix.in'
           UA='Mozilla/5.0 (Linux; Android 10; Android TV) AppleWebKit/537.36 Chrome/140.0.0.0 Safari/537.36'
 
-          request_graphql() {
-            operation="$1"
-            variables="$2"
-            query="$3"
-            payload="$(jq -nc --arg operation "$operation" --argjson variables "$variables" --arg query "$query" '{operationName:$operation,variables:$variables,query:$query}')"
-            curl --fail-with-body --silent --show-error --location \
-              -H 'Accept: application/json, text/plain, */*' \
-              -H 'Content-Type: application/json' \
-              -H "Origin: $SITE" \
-              -H "Referer: $SITE/" \
-              -H "User-Agent: $UA" \
-              --data "$payload" \
-              "$API"
+          inspect_page() {
+            label="$1"
+            path="$2"
+            tmp="$(mktemp)"
+            echo "=== $label ==="
+            status="$(curl --silent --show-error --location --output "$tmp" --write-out '%{http_code} %{url_effective}' -A "$UA" "$SITE$path")"
+            echo "$path -> $status"
+            FILE="$tmp" python3 - <<'PY'
+          import html
+          import os
+          import re
+
+          raw = html.unescape(open(os.environ['FILE'], encoding='utf-8').read())
+          for field in ('isTVShow', '_id', 'slug', '__typename'):
+              matches = []
+              for match in re.finditer(re.escape(field), raw, flags=re.I):
+                  start = max(0, match.start() - 100)
+                  end = min(len(raw), match.end() + 180)
+                  snippet = re.sub(r'\s+', ' ', raw[start:end])
+                  if snippet not in matches:
+                      matches.append(snippet)
+                  if len(matches) >= 5:
+                      break
+              print(field, matches)
+          PY
+            rm -f "$tmp"
           }
 
-          echo '=== SEARCH RESULT ==='
-          SEARCH_QUERY='query searchAll($input: String!) { searchDorama(input: $input, limit: 32) { _id slug name name_es isTVShow __typename } searchMovie(input: $input, limit: 32) { _id slug name name_es __typename } }'
-          request_graphql 'searchAll' '{"input":"Better Late Than Single"}' "$SEARCH_QUERY" | jq -c '.'
+          inspect_page 'VARIETY DETAIL' '/variedades-online/better-late-than-single'
+          inspect_page 'DORAMA DETAIL' '/doramas-online/our-sticky-love'
+          inspect_page 'MOVIE DETAIL' '/peliculas-online/just-for-meeting-you'
 
-          echo '=== VARIETY PAGE RESULTS ==='
-          PAGE_QUERY='query PaginationDorama($page: Int, $limit: Int, $filter: FilterDoramasInput) { paginationDorama(page: $page, limit: $limit, filter: $filter) { items { _id slug name name_es isTVShow __typename } } }'
-          request_graphql 'PaginationDorama' '{"page":1,"limit":20,"filter":{"isTVShow":true}}' "$PAGE_QUERY" | jq -c '.data.paginationDorama.items[:5]'
-
-          echo '=== ROUTE STATUS ==='
+          echo '=== WRONG ROUTES ==='
           for path in \
-            '/variedades-online/better-late-than-single' \
             '/doramas-online/better-late-than-single' \
             '/better-late-than-single'; do
             printf '%s -> ' "$path"
