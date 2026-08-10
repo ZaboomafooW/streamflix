@@ -12,6 +12,7 @@ import androidx.media3.exoplayer.source.DefaultMediaSourceFactory
 import com.streamflixreborn.streamflix.adapters.AppAdapter
 import com.streamflixreborn.streamflix.models.Category
 import com.streamflixreborn.streamflix.models.Movie
+import com.streamflixreborn.streamflix.models.Season
 import com.streamflixreborn.streamflix.models.TvShow
 import com.streamflixreborn.streamflix.models.Video
 import com.streamflixreborn.streamflix.providers.IptvProvider
@@ -21,7 +22,6 @@ import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.SupervisorJob
-import kotlinx.coroutines.cancelAndJoin
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
@@ -30,14 +30,7 @@ import kotlinx.coroutines.withContext
 import kotlinx.coroutines.withTimeoutOrNull
 import java.util.Locale
 
-/**
- * Temporary TV validation harness.
- *
- * When a provider home screen is opened this runner audits a small sample of the provider's actual
- * top/home titles without making the tester open each title manually. Extraction still goes through
- * the real provider and Media3 pipelines so the resulting TrackAuditLogger data reflects runtime
- * behavior rather than static assumptions.
- */
+/** Temporary TV validation harness for automatically sampling a provider's home titles. */
 object ProviderTrackAuditRunner {
 
     private const val MAX_TITLES = 10
@@ -63,11 +56,7 @@ object ProviderTrackAuditRunner {
     private var runningProvider: String? = null
     private val completedThisSession = mutableSetOf<String>()
 
-    fun startIfNeeded(
-        context: Context,
-        provider: Provider,
-        categories: List<Category>,
-    ) {
+    fun startIfNeeded(context: Context, provider: Provider, categories: List<Category>) {
         if (provider is IptvProvider) return
         if (provider.name in completedThisSession) return
         if (runningProvider == provider.name && job?.isActive == true) return
@@ -93,9 +82,7 @@ object ProviderTrackAuditRunner {
     }
 
     fun dismissFinishedProgress() {
-        if (_progress.value?.finished == true) {
-            _progress.value = null
-        }
+        if (_progress.value?.finished == true) _progress.value = null
     }
 
     private suspend fun auditProvider(
@@ -124,11 +111,7 @@ object ProviderTrackAuditRunner {
 
         try {
             items.forEachIndexed { index, item ->
-                val displayTitle = when (item) {
-                    is Movie -> item.title
-                    is TvShow -> item.title
-                    else -> "Unknown"
-                }
+                val displayTitle = itemTitle(item)
                 _progress.value = Progress(
                     provider = provider.name,
                     completed = index,
@@ -139,27 +122,15 @@ object ProviderTrackAuditRunner {
                 )
 
                 val videoType = runCatching {
-                    withContext(Dispatchers.IO) {
-                        resolveVideoType(provider, item)
-                    }
+                    withContext(Dispatchers.IO) { resolveVideoType(provider, item) }
                 }.getOrNull()
 
                 if (videoType == null) {
                     failures++
-                    TrackAuditLogger.recordAuditFailure(
-                        providerName = provider.name,
-                        contentId = itemId(item),
-                        contentTitle = displayTitle,
-                        stage = "resolve_title",
-                        error = "Could not resolve a playable movie/episode",
-                    )
                     return@forEachIndexed
                 }
 
-                TrackAuditLogger.beginContent(
-                    videoType = videoType,
-                    originalLanguage = originalLanguage(videoType),
-                )
+                TrackAuditLogger.beginContent(videoType, originalLanguage(videoType))
 
                 _progress.value = _progress.value?.copy(phase = "Finding servers")
                 val servers = withTimeoutOrNull(EXTRACTION_TIMEOUT_MS) {
@@ -179,9 +150,7 @@ object ProviderTrackAuditRunner {
                 }
 
                 TrackAuditLogger.recordServers(servers)
-
                 val serversToProbe = selectServersForProbe(servers, seenServerNames)
-                var titleHadTracks = false
 
                 for ((serverIndex, server) in serversToProbe.withIndex()) {
                     _progress.value = _progress.value?.copy(
@@ -191,31 +160,23 @@ object ProviderTrackAuditRunner {
 
                     val videoResult = runCatching {
                         withTimeoutOrNull(EXTRACTION_TIMEOUT_MS) {
-                            withContext(Dispatchers.IO) {
-                                provider.getVideo(server)
-                            }
+                            withContext(Dispatchers.IO) { provider.getVideo(server) }
                         } ?: throw IllegalStateException("Extraction timed out")
                     }
 
-                    val video = videoResult.getOrElse { error ->
+                    if (videoResult.isFailure) {
                         failures++
-                        TrackAuditLogger.recordExtractionFailure(server, error)
+                        TrackAuditLogger.recordExtractionFailure(
+                            server,
+                            videoResult.exceptionOrNull() ?: IllegalStateException("Unknown extraction failure"),
+                        )
                         continue
                     }
 
+                    val video = videoResult.getOrThrow()
                     val loaded = probeMedia3Tracks(context, video, server)
-                    if (!loaded) failures++ else titleHadTracks = true
+                    if (!loaded) failures++
                     seenServerNames += server.name.lowercase(Locale.ROOT)
-                }
-
-                if (!titleHadTracks) {
-                    TrackAuditLogger.recordAuditFailure(
-                        providerName = provider.name,
-                        contentId = videoType.idForPlayback(),
-                        contentTitle = displayTitle,
-                        stage = "media3_tracks",
-                        error = "No probed server produced Media3 audio/text tracks",
-                    )
                 }
 
                 _progress.value = Progress(
@@ -286,10 +247,11 @@ object ProviderTrackAuditRunner {
             is TvShow -> {
                 val show = runCatching { provider.getTvShow(item.id) }.getOrDefault(item)
                 val season = show.seasons
-                    .sortedWith(compareBy<com.streamflixreborn.streamflix.models.Season> { it.number == 0 }.thenBy { it.number })
+                    .sortedWith(compareBy<Season> { it.number == 0 }.thenBy { it.number })
                     .firstOrNull()
                     ?: return null
-                val episodes = runCatching { provider.getEpisodesBySeason(season.id) }.getOrDefault(emptyList())
+                val episodes = runCatching { provider.getEpisodesBySeason(season.id) }
+                    .getOrDefault(emptyList())
                 val episode = episodes.sortedBy { it.number }.firstOrNull() ?: return null
 
                 Video.Type.Episode(
@@ -359,41 +321,44 @@ object ProviderTrackAuditRunner {
 
             override fun onPlayerError(error: PlaybackException) {
                 if (!result.isCompleted) {
-                    TrackAuditLogger.recordPlaybackFailure(server, error)
+                    TrackAuditLogger.recordExtractionFailure(server, error)
                     result.complete(false)
                 }
             }
         }
 
-        player.addListener(listener)
-        player.setMediaItem(
-            MediaItem.Builder()
-                .setUri(video.source)
-                .setMimeType(video.type)
-                .setSubtitleConfigurations(
-                    video.subtitles.map { subtitle ->
-                        MediaItem.SubtitleConfiguration.Builder(android.net.Uri.parse(subtitle.file))
-                            .setMimeType(subtitle.file.toSubtitleMimeType())
-                            .setLabel(subtitle.label)
-                            .setSelectionFlags(if (subtitle.default) C.SELECTION_FLAG_DEFAULT else 0)
-                            .build()
-                    }
-                )
-                .build()
-        )
-        player.prepare()
-        player.playWhenReady = false
-
-        val loaded = withTimeoutOrNull(TRACK_TIMEOUT_MS) { result.await() }
-        if (loaded == null) {
-            TrackAuditLogger.recordPlaybackFailure(
-                server,
-                IllegalStateException("Timed out waiting for Media3 tracks"),
+        return try {
+            player.addListener(listener)
+            player.setMediaItem(
+                MediaItem.Builder()
+                    .setUri(video.source)
+                    .setMimeType(video.type)
+                    .setSubtitleConfigurations(
+                        video.subtitles.map { subtitle ->
+                            MediaItem.SubtitleConfiguration.Builder(android.net.Uri.parse(subtitle.file))
+                                .setMimeType(subtitle.file.toSubtitleMimeType())
+                                .setLabel(subtitle.label)
+                                .setSelectionFlags(if (subtitle.default) C.SELECTION_FLAG_DEFAULT else 0)
+                                .build()
+                        }
+                    )
+                    .build()
             )
+            player.prepare()
+            player.playWhenReady = false
+
+            val loaded = withTimeoutOrNull(TRACK_TIMEOUT_MS) { result.await() }
+            if (loaded == null) {
+                TrackAuditLogger.recordExtractionFailure(
+                    server,
+                    IllegalStateException("Timed out waiting for Media3 tracks"),
+                )
+            }
+            loaded == true
+        } finally {
+            player.removeListener(listener)
+            player.release()
         }
-        player.removeListener(listener)
-        player.release()
-        return loaded == true
     }
 
     private fun itemKey(item: AppAdapter.Item): String = when (item) {
@@ -402,10 +367,10 @@ object ProviderTrackAuditRunner {
         else -> item.toString()
     }
 
-    private fun itemId(item: AppAdapter.Item): String = when (item) {
-        is Movie -> item.id
-        is TvShow -> item.id
-        else -> "unknown"
+    private fun itemTitle(item: AppAdapter.Item): String = when (item) {
+        is Movie -> item.title
+        is TvShow -> item.title
+        else -> "Unknown"
     }
 
     private fun originalLanguage(videoType: Video.Type): String? = when (videoType) {
