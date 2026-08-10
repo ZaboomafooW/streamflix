@@ -5,19 +5,19 @@ import android.util.Log
 import androidx.media3.common.MimeTypes
 import com.google.gson.Gson
 import com.google.gson.annotations.SerializedName
-import com.tanasi.retrofit_jsoup.converter.JsoupConverterFactory
 import com.streamflixreborn.streamflix.models.Video
 import com.streamflixreborn.streamflix.utils.NetworkClient
 import com.streamflixreborn.streamflix.utils.SubtitleDebugState
+import com.tanasi.retrofit_jsoup.converter.JsoupConverterFactory
 import okhttp3.HttpUrl.Companion.toHttpUrlOrNull
-import okhttp3.OkHttpClient
+import okhttp3.Request
 import org.jsoup.nodes.Document
 import retrofit2.Retrofit
 import retrofit2.http.GET
+import retrofit2.http.Header
 import retrofit2.http.Headers
 import retrofit2.http.Url
-import retrofit2.http.Header
-import okhttp3.Request
+import java.util.Locale
 import java.util.concurrent.TimeUnit
 
 class VixcloudExtractor(
@@ -72,30 +72,88 @@ class VixcloudExtractor(
         return jsonString
     }
 
+    /**
+     * Vixcloud sometimes exposes a Forced subtitle only through its NAME/LANGUAGE convention while
+     * incorrectly advertising FORCED=NO, for example NAME="Italian [Forced]" and
+     * LANGUAGE="forced-ita". Normalize only that Vixcloud-specific malformed metadata and leave
+     * DEFAULT/AUTOSELECT untouched so Media3 and the player's preference policy own selection.
+     */
+    private fun normalizeForcedSubtitleLine(line: String): String {
+        if (!line.startsWith("#EXT-X-MEDIA:TYPE=SUBTITLES")) return line
+
+        val name = hlsQuotedAttribute(line, "NAME")
+        val rawLanguage = hlsQuotedAttribute(line, "LANGUAGE")
+        val forced = FORCED_YES.containsMatchIn(line) ||
+            name?.contains("forced", ignoreCase = true) == true ||
+            rawLanguage?.startsWith("forced-", ignoreCase = true) == true
+
+        if (!forced) return line
+
+        var normalized = if (FORCED_ATTRIBUTE.containsMatchIn(line)) {
+            FORCED_ATTRIBUTE.replace(line, "FORCED=YES")
+        } else {
+            "$line,FORCED=YES"
+        }
+
+        rawLanguage
+            ?.takeIf { it.startsWith("forced-", ignoreCase = true) }
+            ?.let(::canonicalVixLanguage)
+            ?.let { language ->
+                normalized = LANGUAGE_ATTRIBUTE.replace(normalized, "LANGUAGE=\"$language\"")
+            }
+
+        return normalized
+    }
+
+    private fun hlsQuotedAttribute(line: String, attribute: String): String? =
+        Regex("""\b${Regex.escape(attribute)}="([^"]*)"""", RegexOption.IGNORE_CASE)
+            .find(line)
+            ?.groupValues
+            ?.getOrNull(1)
+
+    private fun canonicalVixLanguage(value: String): String? {
+        val primary = value
+            .trim()
+            .lowercase(Locale.ROOT)
+            .removePrefix("forced-")
+            .substringBefore('-')
+            .takeIf { it.isNotBlank() }
+            ?: return null
+
+        return Locale.getISOLanguages().firstOrNull { languageCode ->
+            languageCode.equals(primary, ignoreCase = true) ||
+                runCatching {
+                    Locale.forLanguageTag(languageCode).isO3Language.equals(primary, ignoreCase = true)
+                }.getOrDefault(false)
+        }
+    }
+
     override suspend fun extract(link: String): Video {
         Log.d("VixcloudDebug", "Extracting link: $link with preferredLanguage: $preferredLanguage")
         SubtitleDebugState.clear()
-        
+
         val uri = link.toHttpUrlOrNull() ?: throw Exception("Invalid Vixcloud link")
         val currentMainUrl = "${uri.scheme}://${uri.host}/"
         val referer = customReferer ?: currentMainUrl
-        
+
         val service = getService(currentMainUrl)
         val source = try {
-            service.getSource(uri.encodedPath + if (uri.encodedQuery != null) "?" + uri.encodedQuery else "", referer = referer)
+            service.getSource(
+                uri.encodedPath + if (uri.encodedQuery != null) "?" + uri.encodedQuery else "",
+                referer = referer,
+            )
         } catch (e: Exception) {
             Log.e("VixcloudDebug", "Failed to get source from $link: ${e.message}")
             throw e
         }
 
         val scriptText = source.body().selectFirst("script")?.data() ?: ""
-        
+
         var videoJson = scriptText
             .substringAfter("window.video = ", "")
             .substringBefore(";", "")
             .trim()
-        
-        // Fallback: Prova a cercare window.video senza spazi o con altre varianti
+
         if (videoJson.isEmpty()) {
             videoJson = scriptText
                 .substringAfter("window.video=", "")
@@ -117,19 +175,17 @@ class VixcloudExtractor(
             .substringAfter("params: {", "")
             .substringBefore("},", "")
             .trim()
-        
-        // Altro fallback per i parametri
+
         val tokenFallback = scriptText.substringAfter("token: \"", "").substringBefore("\"")
         val expiresFallback = scriptText.substringAfter("expires: \"", "").substringBefore("\"")
 
-        var masterPlaylistJson: String
+        val masterPlaylistJson: String
         if (paramsObjectContent.isNotEmpty()) {
-            var processedParams = sanitizeJsonKeysAndQuotes(paramsObjectContent)
-            processedParams = processedParams.trim()
+            var processedParams = sanitizeJsonKeysAndQuotes(paramsObjectContent).trim()
             if (processedParams.endsWith(",")) {
                 processedParams = processedParams.dropLast(1).trim()
             }
-            masterPlaylistJson = "{${processedParams}}"
+            masterPlaylistJson = "{$processedParams}"
         } else {
             masterPlaylistJson = "{}"
         }
@@ -149,7 +205,7 @@ class VixcloudExtractor(
         } else if (tokenFallback.isNotEmpty()) {
             masterParams["token"] = tokenFallback
         }
-        
+
         if (masterPlaylist?.expires != null) {
             masterParams["expires"] = masterPlaylist.expires
         } else if (expiresFallback.isNotEmpty()) {
@@ -163,7 +219,9 @@ class VixcloudExtractor(
 
         if (hasBParam) masterParams["b"] = "1"
         if (currentParams.containsKey("canPlayFHD")) masterParams["h"] = "1"
-        
+
+        // Keep Vixcloud's request-language parameter because it can affect which asset the server
+        // returns. It is not authoritative track metadata and must not be used to select tracks.
         preferredLanguage?.let { masterParams["language"] = it }
 
         val baseUrl = "https://${uri.host}/playlist/${windowVideo.id}"
@@ -172,8 +230,11 @@ class VixcloudExtractor(
         masterParams.forEach { (key, value) -> httpUrlBuilder.addQueryParameter(key, value) }
         val finalUrl = httpUrlBuilder.build().toString()
 
-        val finalHeaders = mutableMapOf("Referer" to currentMainUrl, "User-Agent" to "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/150.0.0.0 Safari/537.36")
-        
+        val finalHeaders = mutableMapOf(
+            "Referer" to currentMainUrl,
+            "User-Agent" to "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/150.0.0.0 Safari/537.36",
+        )
+
         preferredLanguage?.let { lang ->
             finalHeaders["Accept-Language"] = if (lang == "en") "en-US,en;q=0.9" else "it-IT,it;q=0.9"
             finalHeaders["Cookie"] = "language=$lang"
@@ -181,106 +242,64 @@ class VixcloudExtractor(
 
         var videoSource = finalUrl
 
-        if (preferredLanguage != null) {
-            try {
-                val headersBuilder = okhttp3.Headers.Builder()
-                finalHeaders.forEach { (k, v) -> headersBuilder.add(k, v) }
-                val request = Request.Builder().url(finalUrl).headers(headersBuilder.build()).build()
-                client.newCall(request).execute().use { response ->
-                    if (response.isSuccessful && response.body != null) {
-                        var playlistContent = response.body!!.string()
-                        val langCode = preferredLanguage
-                        val altLangCode = if (langCode == "en") "eng" else if (langCode == "it") "ita" else langCode
-                        val baseUri = response.request.url
-                        
-                        Log.d("SmartSubtitleLog", "--- Vixcloud Subtitle Processing START ($langCode) ---")
+        try {
+            val headersBuilder = okhttp3.Headers.Builder()
+            finalHeaders.forEach { (key, value) -> headersBuilder.add(key, value) }
+            val request = Request.Builder().url(finalUrl).headers(headersBuilder.build()).build()
 
-                        val lines = playlistContent.lines()
-                        val rawAudioLines = lines.filter { it.startsWith("#EXT-X-MEDIA:TYPE=AUDIO") }
-                        val rawSubtitleLines = lines.filter { it.startsWith("#EXT-X-MEDIA:TYPE=SUBTITLES") }
-                        val finalLines = mutableListOf<String>()
-                        val uriRegex = """URI=["']([^"']+)["']""".toRegex()
+            client.newCall(request).execute().use { response ->
+                if (response.isSuccessful && response.body != null) {
+                    val playlistContent = response.body!!.string()
+                    val baseUri = response.request.url
+                    val lines = playlistContent.lines()
+                    val rawAudioLines = lines.filter { it.startsWith("#EXT-X-MEDIA:TYPE=AUDIO") }
+                    val rawSubtitleLines = lines.filter { it.startsWith("#EXT-X-MEDIA:TYPE=SUBTITLES") }
+                    val uriRegex = """URI=["']([^"']+)["']""".toRegex()
 
-                        for (line in lines) {
-                            var patchedLine = line
-                            
-                            if (line.startsWith("#")) {
-                                patchedLine = uriRegex.replace(line) { matchResult ->
-                                    val relative = matchResult.groupValues[1]
-                                    if (relative.startsWith("http") || relative.startsWith("data:")) matchResult.value
-                                    else "URI=\"${baseUri.resolve(relative) ?: relative}\""
-                                }
-                            } else if (line.isNotBlank() && !line.startsWith("#")) {
-                                patchedLine = baseUri.resolve(line)?.toString() ?: line
-                            }
+                    val finalLines = lines.map { line ->
+                        var patchedLine = line
 
-                            if (patchedLine.startsWith("#EXT-X-MEDIA:TYPE=AUDIO")) {
-                                patchedLine = patchedLine.replace(Regex("DEFAULT=YES", RegexOption.IGNORE_CASE), "DEFAULT=NO")
-                                                         .replace(Regex("AUTOSELECT=YES", RegexOption.IGNORE_CASE), "AUTOSELECT=NO")
-                                
-                                val isTargetAudio = patchedLine.contains("LANGUAGE=\"$langCode\"", ignoreCase = true) || 
-                                                    patchedLine.contains("NAME=\"$langCode\"", ignoreCase = true) ||
-                                                    (langCode == "it" && patchedLine.contains("Italian", ignoreCase = true)) ||
-                                                    (langCode == "en" && patchedLine.contains("English", ignoreCase = true))
-                                
-                                if (isTargetAudio) {
-                                    patchedLine = patchedLine.replace("DEFAULT=NO", "DEFAULT=YES")
-                                                             .replace("AUTOSELECT=NO", "AUTOSELECT=YES")
-                                }
-                                finalLines.add(patchedLine)
-                            } else if (patchedLine.startsWith("#EXT-X-MEDIA:TYPE=SUBTITLES")) {
-                                val trackName = patchedLine.substringAfter("NAME=\"", "Unknown").substringBefore("\"")
-                                val trackLang = patchedLine.substringAfter("LANGUAGE=\"", "").substringBefore("\"")
-                                
-                                // RESET SEMPRE
-                                patchedLine = patchedLine.replace(Regex("DEFAULT=YES", RegexOption.IGNORE_CASE), "DEFAULT=NO")
-                                                         .replace(Regex("AUTOSELECT=YES", RegexOption.IGNORE_CASE), "AUTOSELECT=NO")
-                                
-                                // LOGICA: Se il nome contiene "forced" E la lingua è quella giusta, ATTIVA.
-                                val isForced = trackName.contains("forced", ignoreCase = true) || trackLang.contains("forced", ignoreCase = true) || patchedLine.contains("FORCED=YES", ignoreCase = true)
-                                val isRightLanguage = trackLang.contains(langCode, ignoreCase = true) || 
-                                                      trackName.contains(langCode, ignoreCase = true) ||
-                                                      (langCode == "it" && trackName.contains("Italian", ignoreCase = true)) ||
-                                                      (langCode == "en" && trackName.contains("English", ignoreCase = true))
-
-                                if (isForced && isRightLanguage) {
-                                    patchedLine = patchedLine.replace("DEFAULT=NO", "DEFAULT=YES")
-                                                             .replace("AUTOSELECT=NO", "AUTOSELECT=YES")
-                                    Log.i("SmartSubtitleLog", "[Vixcloud] ENABLED Forced: $trackName")
+                        if (line.startsWith("#")) {
+                            patchedLine = uriRegex.replace(line) { matchResult ->
+                                val relative = matchResult.groupValues[1]
+                                if (relative.startsWith("http") || relative.startsWith("data:")) {
+                                    matchResult.value
                                 } else {
-                                    Log.d("SmartSubtitleLog", "[Vixcloud] Disabled: $trackName")
+                                    "URI=\"${baseUri.resolve(relative) ?: relative}\""
                                 }
-                                finalLines.add(patchedLine)
-                            } else {
-                                finalLines.add(patchedLine)
                             }
+                        } else if (line.isNotBlank()) {
+                            patchedLine = baseUri.resolve(line)?.toString() ?: line
                         }
 
-                        SubtitleDebugState.update(
-                            source = "Vixcloud",
-                            preferredLanguage = langCode,
-                            rawAudioLines = rawAudioLines,
-                            rawSubtitleLines = rawSubtitleLines,
-                            patchedAudioLines = finalLines.filter { it.startsWith("#EXT-X-MEDIA:TYPE=AUDIO") },
-                            patchedSubtitleLines = finalLines.filter { it.startsWith("#EXT-X-MEDIA:TYPE=SUBTITLES") },
-                        )
-
-                        Log.d("SmartSubtitleLog", "--- Vixcloud Subtitle Processing END ---")
-                        
-                        val base64Manifest = Base64.encodeToString(finalLines.joinToString("\n").toByteArray(), Base64.NO_WRAP)
-                        videoSource = "data:application/vnd.apple.mpegurl;base64,$base64Manifest"
+                        normalizeForcedSubtitleLine(patchedLine)
                     }
+
+                    SubtitleDebugState.update(
+                        source = "Vixcloud",
+                        preferredLanguage = preferredLanguage,
+                        rawAudioLines = rawAudioLines,
+                        rawSubtitleLines = rawSubtitleLines,
+                        patchedAudioLines = finalLines.filter { it.startsWith("#EXT-X-MEDIA:TYPE=AUDIO") },
+                        patchedSubtitleLines = finalLines.filter { it.startsWith("#EXT-X-MEDIA:TYPE=SUBTITLES") },
+                    )
+
+                    val base64Manifest = Base64.encodeToString(
+                        finalLines.joinToString("\n").toByteArray(),
+                        Base64.NO_WRAP,
+                    )
+                    videoSource = "data:application/vnd.apple.mpegurl;base64,$base64Manifest"
                 }
-            } catch (e: Exception) {
-                Log.e("VixcloudDebug", "Error in patching: ${e.message}")
             }
+        } catch (e: Exception) {
+            Log.e("VixcloudDebug", "Error normalizing playlist: ${e.message}")
         }
 
         return Video(
             source = videoSource,
-            subtitles = listOf(),
+            subtitles = emptyList(),
             type = MimeTypes.APPLICATION_M3U8,
-            headers = finalHeaders
+            headers = finalHeaders,
         )
     }
 
@@ -303,5 +322,11 @@ class VixcloudExtractor(
             @SerializedName("token") val token: String?,
             @SerializedName("expires") val expires: String?
         )
+    }
+
+    private companion object Regexes {
+        val FORCED_YES = Regex("""\bFORCED=YES\b""", RegexOption.IGNORE_CASE)
+        val FORCED_ATTRIBUTE = Regex("""\bFORCED=(?:YES|NO)\b""", RegexOption.IGNORE_CASE)
+        val LANGUAGE_ATTRIBUTE = Regex("""\bLANGUAGE="[^"]*"""", RegexOption.IGNORE_CASE)
     }
 }
