@@ -10,7 +10,7 @@ permissions:
 
 jobs:
   audit:
-    name: Audit Doramasflix playback hosts
+    name: Trace Doramasflix unknown playback hosts
     runs-on: ubuntu-latest
     timeout-minutes: 15
 
@@ -20,155 +20,49 @@ jobs:
         with:
           ref: ${{ github.sha }}
 
-      - name: Audit live Doramasflix hosts and Primeload
+      - name: Trace live host implementations
         shell: bash
         run: |
           set -euo pipefail
           python3 - <<'PY'
-          import base64, json, re, urllib.parse, urllib.request, urllib.error
-          from collections import Counter
-
+          import re, urllib.parse, urllib.request, urllib.error
           UA='Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/140.0.0.0 Safari/537.36'
-          SITE='https://doramasflix.in'
-          PLAY='https://userapi.cloudfleir.xyz/graphql'
-          CATALOG='https://sv7.fluxcedene.net/graphql'
-          APP='com.asiapp.doramasgo'
-
-          def req(url, data=None, headers=None):
-              h={'User-Agent':UA, 'Accept':'*/*'}
-              if headers: h.update(headers)
-              r=urllib.request.Request(url, data=data, headers=h)
-              with urllib.request.urlopen(r, timeout=25) as x:
-                  return x.read(), x.headers
-
-          def gql(url, operation, variables, query, referer=SITE+'/'):
-              body=json.dumps({'operationName':operation,'variables':variables,'query':query}).encode()
-              raw,_=req(url, body, {'Content-Type':'application/json','Origin':SITE,'Referer':referer})
-              return json.loads(raw)
-
-          def decode_short(link):
-              if 'embedshortener.co/e/' not in link:
-                  return link
-              token=urllib.parse.urlparse(link).path.split('/e/',1)[1]
-              parts=token.split('.')
-              if len(parts)<2: return None
-              p=parts[1]
-              payload=base64.urlsafe_b64decode(p+'='*((4-len(p)%4)%4))
-              obj=json.loads(payload)
-              enc=obj.get('link')
-              if not enc: return None
-              return base64.b64decode(enc+'='*((4-len(enc)%4)%4)).decode()
-
-          # 1) Try current catalog endpoint with browser-equivalent headers.
-          movies=[]; doramas=[]
-          try:
-              q='''query PaginationMovie($page: Int, $limit: Int, $filter: FilterMoviesInput) { paginationMovie(page:$page, limit:$limit, filter:$filter) { items { _id name slug } } }'''
-              out=gql(CATALOG,'PaginationMovie',{'page':1,'limit':20,'filter':{}},q)
-              movies=(out.get('data') or {}).get('paginationMovie',{}).get('items') or []
-              print('CATALOG_MOVIES',len(movies))
-          except Exception as e:
-              print('CATALOG_MOVIES_ERROR',repr(e))
-          try:
-              q='''query PaginationDorama($page: Int, $limit: Int, $filter: FilterDoramasInput) { paginationDorama(page:$page, limit:$limit, filter:$filter) { items { _id name slug isTVShow } } }'''
-              out=gql(CATALOG,'PaginationDorama',{'page':1,'limit':20,'filter':{'isTVShow':False}},q)
-              doramas=(out.get('data') or {}).get('paginationDorama',{}).get('items') or []
-              print('CATALOG_DORAMAS',len(doramas))
-          except Exception as e:
-              print('CATALOG_DORAMAS_ERROR',repr(e))
-
-          # Always include the verified movie control.
-          controls=[{'_id':'6a78e51c56e57b5ffbb0b2c6','name':'Just For Meeting You','slug':'just-for-meeting-you','kind':'movie'}]
-          samples=[]
-          for m in movies[:15]: samples.append({**m,'kind':'movie'})
-          # For doramas, page source may not be episode IDs; try first-season episode lookup only when catalog works.
-          for d in doramas[:10]: samples.append({**d,'kind':'dorama'})
-          # de-dupe control/catalog
-          seen=set(); uniq=[]
-          for x in controls+samples:
-              k=(x.get('_id'),x.get('kind'))
-              if k not in seen:
-                  seen.add(k); uniq.append(x)
-
-          hosts=Counter(); examples={}; failures=[]
-          def audit_links(label, item_id, kind, referer):
-              if kind=='movie':
-                  q=f'''query MovieLinks($movie_id: ID!) {{ getMovieLinks(id:$movie_id, app:"{APP}") {{ links_online {{ link server lang is_recommended }} }} }}'''
-                  out=gql(PLAY,'MovieLinks',{'movie_id':item_id},q,referer)
-                  links=((out.get('data') or {}).get('getMovieLinks') or {}).get('links_online') or []
-              else:
-                  q=f'''query EpisodeLinksOnline($episode_id: ID!) {{ getEpisodeLinks(id:$episode_id, app:"{APP}") {{ links_online {{ link server lang is_recommended }} }} }}'''
-                  out=gql(PLAY,'EpisodeLinksOnline',{'episode_id':item_id},q,referer)
-                  links=((out.get('data') or {}).get('getEpisodeLinks') or {}).get('links_online') or []
-              print('ITEM',kind,label,'links=',len(links))
-              for ent in links:
-                  raw=ent.get('link') or ''
-                  try: real=decode_short(raw) or raw
-                  except Exception as e: real=raw; print('DECODE_ERROR',label,repr(e))
-                  host=urllib.parse.urlparse(real).hostname or '(none)'
-                  hosts[host]+=1
-                  examples.setdefault(host,real)
-                  print(' HOST',host,'server=',ent.get('server'),'recommended=',ent.get('is_recommended'))
-
-          for x in uniq:
-              if x['kind']!='movie':
-                  continue
-              try:
-                  audit_links(x.get('name') or x.get('slug'),x['_id'],'movie',f"{SITE}/peliculas-online/{x.get('slug','')}")
-              except Exception as e:
-                  failures.append((x.get('name'),repr(e)))
-
-          # If sv7 works, resolve episodes for several doramas and audit first episode.
-          if doramas:
-              for d in doramas[:8]:
-                  try:
-                      qs='''query listSeasons($slug: String!) { listSeasons(sort: NUMBER_ASC, filter: {serie_slug:$slug}) { season_number } }'''
-                      so=gql(CATALOG,'listSeasons',{'slug':d['slug']},qs)
-                      seasons=(so.get('data') or {}).get('listSeasons') or []
-                      if not seasons: continue
-                      sn=seasons[0]['season_number']
-                      qe='''query listEpisodes($slug: String!, $season_number: Int!) { listEpisodes(sort: NUMBER_ASC, filter: {serie_slug:$slug, season_number:$season_number}) { _id name episode_number } }'''
-                      eo=gql(CATALOG,'listEpisodes',{'slug':d['slug'],'season_number':sn},qe)
-                      eps=(eo.get('data') or {}).get('listEpisodes') or []
-                      if eps:
-                          ep=eps[0]
-                          audit_links(f"{d.get('name')} S{sn}E{ep.get('episode_number')}",ep['_id'],'episode',f"{SITE}/doramas-online/{d['slug']}")
-                  except Exception as e:
-                      failures.append((d.get('name'),repr(e)))
-
-          print('\nHOST_COUNTS')
-          for h,c in hosts.most_common(): print(c,h,examples[h])
-          print('FAILURES',failures[:20])
-
-          # 2) Trace the verified Primeload embed page and loaded JS.
-          prime=examples.get('primeload.co') or 'https://primeload.co/embed/SpdeEhk2xMAn'
-          print('\nPRIMELOAD_TRACE',prime)
-          try:
-              raw,_=req(prime,headers={'Referer':SITE+'/peliculas-online/just-for-meeting-you'})
-              text=raw.decode('utf-8','replace')
-              print('PRIME_HTML_BYTES',len(raw))
-              for needle in ['m3u8','sources','source','file:', 'fetch(', '/api/', 'eval(function', 'jwplayer', 'videojs']:
-                  for m in list(re.finditer(re.escape(needle),text,re.I))[:4]:
-                      a=max(0,m.start()-500); b=min(len(text),m.start()+1600)
-                      print('PRIME_HTML_SNIP',needle,text[a:b].replace('\n',' ')[:2200])
+          REF='https://doramasflix.in/'
+          samples={
+            'primeload':'https://primeload.co/embed/SpdeEhk2xMAn',
+            'unknown_byse':'https://bysefujedu.com/e/cc1cexlwqc8h',
+            'unknown_callistanise':'https://callistanise.com/embed/rlh5wkumnnmr',
+            'known_filemoon':'https://filemoon.sx/e/cc1cexlwqc8h',
+          }
+          opener=urllib.request.build_opener(urllib.request.HTTPCookieProcessor())
+          def fetch(url, referer=REF):
+            req=urllib.request.Request(url,headers={'User-Agent':UA,'Referer':referer,'Accept':'text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8'})
+            with opener.open(req,timeout=25) as r:
+              return r.read().decode('utf-8','replace'),r.geturl(),dict(r.headers)
+          for name,url in samples.items():
+            print('\n===== TRACE',name,url,'=====')
+            try:
+              text,final,headers=fetch(url)
+              print('FINAL',final,'BYTES',len(text.encode()),'SERVER',headers.get('Server'),'CTYPE',headers.get('Content-Type'))
+              print('HTML',text[:12000].replace('\r',''))
               scripts=[]
               for src in re.findall(r'<script[^>]+src=["\']([^"\']+)',text,re.I):
-                  u=urllib.parse.urljoin(prime,src)
-                  if u not in scripts: scripts.append(u)
-              print('PRIME_SCRIPTS',scripts)
-              for u in scripts[:20]:
-                  try:
-                      js,_=req(u,headers={'Referer':prime})
-                      jt=js.decode('utf-8','replace')
-                      hits=[]
-                      for needle in ['m3u8','sources','file:', 'fetch(', '/api/', 'eval(function','atob(','CryptoJS']:
-                          p=jt.lower().find(needle.lower())
-                          if p>=0: hits.append((p,needle))
-                      if hits:
-                          print('PRIME_JS',u,'bytes',len(js))
-                          for p,n in sorted(hits)[:10]:
-                              print('PRIME_JS_SNIP',n,jt[max(0,p-700):min(len(jt),p+2400)][:3200])
-                  except Exception as e:
-                      print('PRIME_SCRIPT_ERROR',u,repr(e))
-          except Exception as e:
-              print('PRIMELOAD_ERROR',repr(e))
+                u=urllib.parse.urljoin(final,src)
+                if u not in scripts: scripts.append(u)
+              print('SCRIPTS',scripts)
+              for u in scripts[:12]:
+                try:
+                  jt,jfinal,_=fetch(u,final)
+                  needles=['m3u8','sources','file:', 'fetch(', '/api/', 'pass_md5','embed_frame_url','challenge_id','eval(function','jwplayer','videojs','atob(','CryptoJS']
+                  hits=[]
+                  for n in needles:
+                    p=jt.lower().find(n.lower())
+                    if p>=0:hits.append((p,n))
+                  if hits:
+                    print('JS',u,'FINAL',jfinal,'BYTES',len(jt.encode()))
+                    for p,n in sorted(hits)[:8]:
+                      print('JS_SNIP',n,jt[max(0,p-800):min(len(jt),p+2600)][:3600])
+                except Exception as e: print('JS_ERR',u,repr(e))
+            except Exception as e:
+              print('TRACE_ERR',name,repr(e))
           PY
