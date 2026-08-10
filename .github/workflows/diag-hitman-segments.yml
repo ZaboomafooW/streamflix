@@ -4,6 +4,9 @@ on:
   push:
     branches:
       - diag/ridomovies-hitman-segments
+  pull_request:
+    branches:
+      - main
 
 permissions:
   contents: read
@@ -45,8 +48,6 @@ jobs:
           parts=re.findall(r'["\']([^"\']+)["\']',parts_m.group(1))
           encoded=''.join(parts)
 
-          # Current Closeload function observed on the live page:
-          # Caesar +15 over encoded text, atob x3, then rolling XOR/unmix.
           shifted=''.join(chr((ord(c)-65+15)%26+65) if 'A'<=c<='Z' else chr((ord(c)-97+15)%26+97) if 'a'<=c<='z' else c for c in encoded)
           data=shifted.encode()
           for _ in range(3):
@@ -85,7 +86,6 @@ jobs:
               print(f'SEG {i} status={rr.status_code} type={rr.headers.get("content-type")} len={len(rr.content)} enc={rr.headers.get("content-encoding")} range={rr.headers.get("accept-ranges")} identify={identify(rr.content)} url={rr.url}')
               print('  first64=',binascii.hexlify(rr.content[:64]).decode())
 
-          # Compare request contexts for the first two segments.
           variants={
               'app_headers':media_headers,
               'referer_only':{'User-Agent':UA,'Referer':EMBED,'Accept':'*/*'},
