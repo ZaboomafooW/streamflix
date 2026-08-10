@@ -411,18 +411,19 @@ class StreamingCommunityProvider(private val _language: String? = null) : Provid
         val tmdbMovie = tmdbMovieDeferred.await()
 
         return@coroutineScope Movie(
-            id = id, title = tmdbMovie?.title ?: title.name, overview = tmdbMovie?.overview ?: title.plot, released = title.lastAirDate, rating = title.score?.toDoubleOrNull(), quality = title.quality, runtime = title.runtime, 
-            poster = getImageLink(title.images.find { img -> img.type == "poster" }?.filename), banner = getImageLink(title.images.find { img -> img.type == "background" }?.filename), 
-            genres = title.genres?.map { Genre(id = it.id, name = it.name) } ?: listOf(), 
+            id = id, title = tmdbMovie?.title ?: title.name, overview = tmdbMovie?.overview ?: title.plot, released = title.lastAirDate, rating = title.score?.toDoubleOrNull(), quality = title.quality, runtime = title.runtime,
+            poster = getImageLink(title.images.find { img -> img.type == "poster" }?.filename), banner = getImageLink(title.images.find { img -> img.type == "background" }?.filename),
+            genres = title.genres?.map { Genre(id = it.id, name = it.name) } ?: listOf(),
             cast = title.actors?.map { actor ->
                 val tmdbPerson = tmdbMovie?.cast?.find { p -> p.name.equals(actor.name, ignoreCase = true) }
                 People(id = actor.name, name = actor.name, image = tmdbPerson?.image)
-            } ?: listOf(), 
-            trailer = title.trailers?.find { t -> t.youtubeId != "" }?.youtubeId?.let { yid -> "https://youtube.com/watch?v=$yid" }, 
-            recommendations = res.props.sliders?.find { it.titles.isNotEmpty() }?.titles?.map { 
+            } ?: listOf(),
+            trailer = title.trailers?.find { t -> t.youtubeId != "" }?.youtubeId?.let { yid -> "https://youtube.com/watch?v=$yid" },
+            recommendations = res.props.sliders?.find { it.titles.isNotEmpty() }?.titles?.map {
                 if (it.type == "movie") Movie(id = it.id + "-" + it.slug, title = it.name, rating = it.score?.toDoubleOrNull(), poster = getImageLink(it.images.find { img -> img.type == "poster" }?.filename))
                 else TvShow(id = it.id + "-" + it.slug, title = it.name, rating = it.score?.toDoubleOrNull(), poster = getImageLink(it.images.find { img -> img.type == "poster" }?.filename))
-            } ?: listOf()
+            } ?: listOf(),
+            originalLanguage = tmdbMovie?.originalLanguage,
         )
     }
 
@@ -456,22 +457,24 @@ class StreamingCommunityProvider(private val _language: String? = null) : Provid
         val tmdbShowDeferred = async { title.tmdbId?.let { TmdbUtils.getTvShowById(it, language = language) } }
         val tmdbShow = tmdbShowDeferred.await()
 
-        return@coroutineScope TvShow(id = id, title = tmdbShow?.title ?: title.name, overview = tmdbShow?.overview ?: title.plot, released = title.lastAirDate, rating = title.score?.toDoubleOrNull(), quality = title.quality, 
-            poster = getImageLink(title.images.find { img -> img.type == "poster" }?.filename), banner = getImageLink(title.images.find { img -> img.type == "background" }?.filename), 
-            genres = title.genres?.map { Genre(id = it.id, name = it.name) } ?: listOf(), 
+        return@coroutineScope TvShow(id = id, title = tmdbShow?.title ?: title.name, overview = tmdbShow?.overview ?: title.plot, released = title.lastAirDate, rating = title.score?.toDoubleOrNull(), quality = title.quality,
+            poster = getImageLink(title.images.find { img -> img.type == "poster" }?.filename), banner = getImageLink(title.images.find { img -> img.type == "background" }?.filename),
+            genres = title.genres?.map { Genre(id = it.id, name = it.name) } ?: listOf(),
             cast = title.actors?.map { actor ->
                 val tmdbPerson = tmdbShow?.cast?.find { p -> p.name.equals(actor.name, ignoreCase = true) }
                 People(id = actor.name, name = actor.name, image = tmdbPerson?.image)
-            } ?: listOf(), 
-            trailer = title.trailers?.find { t -> t.youtubeId != "" }?.youtubeId?.let { yid -> "https://youtube.com/watch?v=$yid" }, 
+            } ?: listOf(),
+            trailer = title.trailers?.find { t -> t.youtubeId != "" }?.youtubeId?.let { yid -> "https://youtube.com/watch?v=$yid" },
             recommendations = res.props.sliders?.find { it.titles.isNotEmpty() }?.titles?.map {
                 if (it.type == "movie") Movie(id = it.id + "-" + it.slug, title = it.name, rating = it.score?.toDoubleOrNull(), poster = getImageLink(it.images.find { img -> img.type == "poster" }?.filename))
                 else TvShow(id = it.id + "-" + it.slug, title = it.name, rating = it.score?.toDoubleOrNull(), poster = getImageLink(it.images.find { img -> img.type == "poster" }?.filename))
-            } ?: listOf(), 
+            } ?: listOf(),
             seasons = title.seasons?.map { s ->
                 val seasonNumber = s.number.toIntOrNull() ?: (title.seasons.indexOf(s) + 1)
                 Season(id = "$id/season-${s.number}", number = seasonNumber, title = s.name, poster = tmdbShow?.seasons?.find { ts -> ts.number == seasonNumber }?.poster)
-        } ?: listOf())
+            } ?: listOf(),
+            originalLanguage = tmdbShow?.originalLanguage,
+        )
     }
 
     override suspend fun getEpisodesBySeason(seasonId: String): List<Episode> {
