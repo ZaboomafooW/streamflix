@@ -23,7 +23,7 @@ jobs:
           PYTHONUNBUFFERED: '1'
         run: |
           python - <<'PY'
-          import base64, re, binascii
+          import re, binascii, subprocess, tempfile, pathlib
           from urllib.parse import urljoin
           from curl_cffi import requests as cr
           from bs4 import BeautifulSoup
@@ -34,32 +34,26 @@ jobs:
           UA='Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/136.0.0.0 Safari/537.36'
 
           s=cr.Session(impersonate='chrome136')
-          embed_headers={'User-Agent':UA,'Referer':PARENT,'Accept-Language':'en-US,en;q=0.9'}
-          r=s.get(EMBED,headers=embed_headers,timeout=30)
+          r=s.get(EMBED,headers={'User-Agent':UA,'Referer':PARENT,'Accept-Language':'en-US,en;q=0.9'},timeout=30)
           print('EMBED',r.status_code,r.url,r.headers.get('content-type'),len(r.content))
           r.raise_for_status()
           soup=BeautifulSoup(r.text,'html.parser')
           scripts=[x.string or x.get_text() or '' for x in soup.find_all('script')]
           setup=next(x for x in scripts if 'jwplayer("videoplayer").setup' in x)
-          m=re.search(r'sources\s*:\s*\[\{\s*file\s*:\s*([A-Za-z_$][\w$]*)',setup)
-          var=m.group(1)
+          var=re.search(r'sources\s*:\s*\[\{\s*file\s*:\s*([A-Za-z_$][\w$]*)',setup).group(1)
           src_script=next(x for x in scripts if re.search(rf'var\s+{re.escape(var)}\s*=',x))
-          parts_m=re.search(rf'var\s+{re.escape(var)}\s*=\s*\w+\(\[(.*?)\]\)',src_script,re.S)
-          parts=re.findall(r'["\']([^"\']+)["\']',parts_m.group(1))
-          encoded=''.join(parts)
+          print('SOURCE VAR',var)
+          print('SOURCE SCRIPT BEGIN\n'+src_script+'\nSOURCE SCRIPT END')
 
-          shifted=''.join(chr((ord(c)-65+15)%26+65) if 'A'<=c<='Z' else chr((ord(c)-97+15)%26+97) if 'a'<=c<='z' else c for c in encoded)
-          data=shifted.encode()
-          for _ in range(3):
-              data=base64.b64decode(data)
-          acc=200
-          out=bytearray()
-          for b in data:
-              acc=(acc+11)%256
-              plain=b ^ acc
-              acc=(acc+b)%256
-              out.append(plain)
-          source=out.decode('utf-8').strip()
+          js = src_script + f'\nconsole.log("__SOURCE__" + {var});\n'
+          p=subprocess.run(['node','-e',js],capture_output=True,text=True,timeout=30)
+          print('NODE RC',p.returncode)
+          print('NODE STDOUT',p.stdout)
+          print('NODE STDERR',p.stderr)
+          m=re.search(r'__SOURCE__(https?://\S+)',p.stdout)
+          if not m:
+              raise RuntimeError('Could not evaluate current Closeload source decoder')
+          source=m.group(1).strip()
           print('SOURCE',source)
 
           media_headers={'User-Agent':UA,'Referer':EMBED,'Origin':ORIGIN,'Accept':'*/*'}
