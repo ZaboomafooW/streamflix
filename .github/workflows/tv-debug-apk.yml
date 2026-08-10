@@ -1,54 +1,49 @@
-name: Progressive TMDb Fixture TV Debug APK
+name: Progressive TMDb Fixture Artifact Handoff
 
 on:
-  push:
+  pull_request:
     branches:
-      - test/hide-unavailable-servers-tv-apk
+      - fix/hide-unavailable-servers
 
 jobs:
-  build-tv-debug:
+  handoff-tv-debug:
     runs-on: ubuntu-latest
+    permissions:
+      actions: read
+      contents: read
+    env:
+      GH_TOKEN: ${{ github.token }}
+      BUILD_COMMIT: 59b8776ff7e2dc1e3c00360d67ba628ff1b717fa
+      ARTIFACT_NAME: streamflix-progressive-tmdb-fixture-tv-debug
     steps:
-      - name: Checkout test candidate
-        uses: actions/checkout@v4
-        with:
-          ref: 92d8f1c9a1235350373bad6ca11fdd7d4a694216
-
-      - name: Verify candidate SHA
+      - name: Locate existing build
+        id: build
         run: |
-          test "$(git rev-parse HEAD)" = "92d8f1c9a1235350373bad6ca11fdd7d4a694216"
+          run_id="$(gh run list \
+            --repo "$GITHUB_REPOSITORY" \
+            --commit "$BUILD_COMMIT" \
+            --event push \
+            --limit 1 \
+            --json databaseId \
+            --jq '.[0].databaseId')"
+          test -n "$run_id"
+          echo "run_id=$run_id" >> "$GITHUB_OUTPUT"
 
-      - name: Set up JDK 17
-        uses: actions/setup-java@v4
-        with:
-          distribution: temurin
-          java-version: '17'
+      - name: Wait for existing build
+        run: gh run watch "${{ steps.build.outputs.run_id }}" --repo "$GITHUB_REPOSITORY" --exit-status
 
-      - name: Configure TV debug build
+      - name: Download existing APK artifact
         run: |
-          cat > local.properties <<EOF
-          APP_LAYOUT=tv
-          TMDB_API_KEY=
-          SUBDL_API_KEY=
-          RABBITSTREAM_SOURCE_API=
-          EOF
+          mkdir -p handoff
+          gh run download "${{ steps.build.outputs.run_id }}" \
+            --repo "$GITHUB_REPOSITORY" \
+            --name "$ARTIFACT_NAME" \
+            --dir handoff
+          test -f handoff/app-debug.apk
 
-      - name: Generate native source
-        run: |
-          sed -e 's|{{UPROT_MSFI_API_BASE}}||g' \
-              -e 's|{{UPROT_MSE_API_BASE}}||g' \
-              -e 's|{{UPROT_API_KEY}}||g' \
-              app/src/main/cpp/native-lib.cpp.template > app/src/main/cpp/native-lib.cpp
-
-      - name: Test and build TV Debug APK
-        run: |
-          chmod +x ./gradlew
-          ./gradlew testDebugUnitTest assembleDebug --stacktrace
-          test -f app/build/outputs/apk/debug/app-debug.apk
-
-      - name: Upload TV Debug APK
+      - name: Re-expose TV Debug APK
         uses: actions/upload-artifact@v4
         with:
-          name: streamflix-progressive-tmdb-fixture-tv-debug
-          path: app/build/outputs/apk/debug/app-debug.apk
+          name: streamflix-progressive-tmdb-fixture-tv-debug-handoff
+          path: handoff/app-debug.apk
           if-no-files-found: error
