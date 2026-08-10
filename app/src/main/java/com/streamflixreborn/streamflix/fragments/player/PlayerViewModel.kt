@@ -377,7 +377,7 @@ class PlayerViewModel(
     }
 
     fun downloadSubDLSubtitle(subtitle: SubDL.Subtitle) = viewModelScope.launch(Dispatchers.IO) {
-        Log.d("PlayerViewModel", "Inizio download sottotitolo SubDL")
+        Log.d("PlayerViewModel", "Inizio download sottotitolo SubDL: ${subtitle.name}")
         _subtitleState.emit(SubtitleState.DownloadingSubDLSubtitle)
         try {
             val uri = SubDL.download(subtitle)
