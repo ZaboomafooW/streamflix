@@ -1,0 +1,193 @@
+name: Apply native TV navigation patch
+
+on:
+  pull_request:
+    branches:
+      - ci/native-tv-navigation-patch
+
+permissions:
+  contents: write
+
+jobs:
+  patch:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout navigation branch
+        uses: actions/checkout@v4
+        with:
+          ref: fix/tv-ui-navigation
+          fetch-depth: 0
+
+      - name: Verify upstream baseline
+        run: test "$(git rev-parse HEAD)" = "4aaa3ac34b5ca20251176958d9437fdcc67569d6"
+
+      - name: Remove hardcoded player focus routing
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+          import re
+
+          path = Path('app/src/main/java/com/streamflixreborn/streamflix/fragments/player/PlayerTvFragment.kt')
+          text = path.read_text()
+
+          ready_line = '                        binding.pvPlayer.controller.binding.exoPlayPause.nextFocusDownId = -1\n'
+          if text.count(ready_line) != 1:
+              raise SystemExit(f'Expected STATE_READY focus override once, found {text.count(ready_line)}')
+          text = text.replace(ready_line, '', 1)
+
+          for call in (
+              '            updateNextEpisodeOverlayFocusBindings(true)\n',
+              '            updateNextEpisodeOverlayFocusBindings(false)\n',
+          ):
+              if text.count(call) != 1:
+                  raise SystemExit(f'Expected overlay focus call once: {call!r}; found {text.count(call)}')
+              text = text.replace(call, '', 1)
+
+          nested = '''                if (binding.layoutNextEpisodeOverlay.isVisible) {
+                    updateNextEpisodeOverlayFocusBindings(true)
+                }
+'''
+          if text.count(nested) != 2:
+              raise SystemExit(f'Expected two Skip Intro overlay focus refresh blocks, found {text.count(nested)}')
+          text = text.replace(nested, '')
+
+          pattern = re.compile(
+              r'        private fun updateNextEpisodeOverlayFocusBindings\(overlayVisible: Boolean\) \{.*?\n        \}\n\n        private fun showSkipIntroButton\(show: Boolean\) \{',
+              re.S,
+          )
+          matches = pattern.findall(text)
+          if len(matches) != 1:
+              raise SystemExit(f'Expected one overlay focus function, found {len(matches)}')
+          text = pattern.sub('        private fun showSkipIntroButton(show: Boolean) {', text, count=1)
+
+          if 'nextFocus' in text:
+              raise SystemExit('PlayerTvFragment still contains explicit nextFocus routing')
+
+          path.write_text(text)
+          PY
+
+      - name: Remove hardcoded player focus attributes
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+
+          expected = {
+              Path('app/src/main/res/layout/content_exo_controller_tv.xml'): 20,
+              Path('app/src/main/res/layout/fragment_player_tv.xml'): 4,
+          }
+          for path, expected_count in expected.items():
+              lines = path.read_text().splitlines(keepends=True)
+              count = sum('android:nextFocus' in line for line in lines)
+              if count != expected_count:
+                  raise SystemExit(f'{path}: expected {expected_count} nextFocus attributes, found {count}')
+              path.write_text(''.join(line for line in lines if 'android:nextFocus' not in line))
+          PY
+
+      - name: Let Search use native spatial focus
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+
+          kt = Path('app/src/main/java/com/streamflixreborn/streamflix/fragments/search/SearchTvFragment.kt')
+          text = kt.read_text()
+
+          text = text.replace('import androidx.leanback.widget.OnChildViewHolderSelectedListener\n', '')
+          text = text.replace('    private var currentGridColumns: Int = 1\n', '')
+
+          simple_focus_lines = [line for line in text.splitlines(keepends=True) if 'nextFocusUpId' in line or 'nextFocusDownId' in line]
+          if len(simple_focus_lines) != 5:
+              raise SystemExit(f'Expected 5 runtime nextFocus assignment lines in SearchTvFragment, found {len(simple_focus_lines)}')
+          text = ''.join(
+              line for line in text.splitlines(keepends=True)
+              if 'nextFocusUpId' not in line and 'nextFocusDownId' not in line
+          )
+
+          listener = '''            addOnChildViewHolderSelectedListener(object : OnChildViewHolderSelectedListener() {
+                override fun onChildViewHolderSelected(
+                    parent: RecyclerView,
+                    child: RecyclerView.ViewHolder?,
+                    position: Int,
+                    subposition: Int,
+                ) {
+                    child?.itemView?.nextFocusUpId =
+                        if (position in 0 until currentGridColumns) binding.llGlobalSearch.id
+                        else View.NO_ID
+                }
+            })
+'''
+          # The nextFocusUpId line above was already removed, so remove the listener from the original text shape instead.
+          listener_pattern_start = '            addOnChildViewHolderSelectedListener(object : OnChildViewHolderSelectedListener() {\n'
+          if listener_pattern_start in text:
+              start = text.index(listener_pattern_start)
+              end_marker = '            })\n'
+              end = text.index(end_marker, start) + len(end_marker)
+              text = text[:start] + text[end:]
+
+          old = '''        currentGridColumns = if (viewModel.query == "") 5 else 6
+        binding.vgvSearch.setNumColumns(currentGridColumns)
+'''
+          if text.count(old) != 1:
+              raise SystemExit(f'Expected displaySearch column block once, found {text.count(old)}')
+          text = text.replace(old, '        binding.vgvSearch.setNumColumns(if (viewModel.query == "") 5 else 6)\n', 1)
+
+          old = '''        currentGridColumns = 1
+        binding.vgvSearch.setNumColumns(currentGridColumns) // La lista de categorías es una sola columna vertical
+'''
+          if text.count(old) != 1:
+              raise SystemExit(f'Expected displayGlobalSearch column block once, found {text.count(old)}')
+          text = text.replace(old, '        binding.vgvSearch.setNumColumns(1) // La lista de categorías es una sola columna vertical\n', 1)
+
+          if 'nextFocus' in text or 'OnChildViewHolderSelectedListener' in text or 'currentGridColumns' in text:
+              raise SystemExit('SearchTvFragment still contains hardcoded directional focus routing')
+
+          kt.write_text(text)
+
+          xml = Path('app/src/main/res/layout/fragment_search_tv.xml')
+          lines = xml.read_text().splitlines(keepends=True)
+          next_focus_count = sum('android:nextFocus' in line for line in lines)
+          if next_focus_count != 4:
+              raise SystemExit(f'Expected 4 Search XML nextFocus attributes, found {next_focus_count}')
+          text = ''.join(line for line in lines if 'android:nextFocus' not in line)
+
+          anchor = '''        android:descendantFocusability="afterDescendants"
+        android:padding="16dp"
+'''
+          if text.count(anchor) != 1:
+              raise SystemExit(f'Expected Search grid anchor once, found {text.count(anchor)}')
+          text = text.replace(
+              anchor,
+              anchor + '        app:focusOutFront="true"\n',
+              1,
+          )
+          xml.write_text(text)
+          PY
+
+      - name: Verify patch scope
+        run: |
+          git diff --check
+          git diff --name-only
+          test "$(git diff --name-only | wc -l)" -eq 5
+          test -n "$(git diff -- app/src/main/java/com/streamflixreborn/streamflix/fragments/player/PlayerTvFragment.kt)"
+          test -n "$(git diff -- app/src/main/res/layout/content_exo_controller_tv.xml)"
+          test -n "$(git diff -- app/src/main/res/layout/fragment_player_tv.xml)"
+          test -n "$(git diff -- app/src/main/java/com/streamflixreborn/streamflix/fragments/search/SearchTvFragment.kt)"
+          test -n "$(git diff -- app/src/main/res/layout/fragment_search_tv.xml)"
+
+      - name: Commit and push navigation fix
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add \
+            app/src/main/java/com/streamflixreborn/streamflix/fragments/player/PlayerTvFragment.kt \
+            app/src/main/res/layout/content_exo_controller_tv.xml \
+            app/src/main/res/layout/fragment_player_tv.xml \
+            app/src/main/java/com/streamflixreborn/streamflix/fragments/search/SearchTvFragment.kt \
+            app/src/main/res/layout/fragment_search_tv.xml
+          git commit \
+            -m "fix(tv): restore native spatial focus navigation" \
+            -m "- preserve Media3 controller entry behavior, including Play/Pause as the initial focused control" \
+            -m "- remove explicit player nextFocus mappings and runtime focus rewrites so visible, enabled controls participate in Android spatial focus naturally" \
+            -m "- remove hardcoded Search control and first-row focus destinations" \
+            -m "- allow the Search results grid to release focus through its top boundary so Android can find the visible controls above it" \
+            -m "- leave unrelated TV rows and grids at upstream behavior until device testing demonstrates a concrete navigation problem"
+          git push origin HEAD:fix/tv-ui-navigation
