@@ -383,6 +383,7 @@ abstract class PlayerSettingsView @JvmOverloads constructor(
         this.onServerSelected = onServerSelected
     }
 
+
     interface Item
 
     sealed class Settings : Item {
@@ -428,7 +429,7 @@ abstract class PlayerSettingsView @JvmOverloads constructor(
             }
             data object Off : Gestures() {
                 override val isSelected: Boolean get() = !UserPreferences.playerGestures
-                override val stringId: Int get() = R.string.settings_autoupdate_off
+                override val stringId: Int get() = R.string.settings_player_gestures_off
             }
         }
 
@@ -738,6 +739,7 @@ abstract class PlayerSettingsView @JvmOverloads constructor(
                     )
                     list.add(LocalSubtitles)
                     list.add(OpenSubtitles)
+                    // Add SubDL only if an API key is configured
                     if (UserPreferences.subdlApiKey.isNotEmpty()) {
                         list.add(SubDLSubtitles)
                     }
