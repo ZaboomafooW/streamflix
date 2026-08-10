@@ -8,8 +8,11 @@ import com.streamflixreborn.streamflix.models.Episode
 import com.streamflixreborn.streamflix.models.Movie
 import com.streamflixreborn.streamflix.models.Season
 import com.streamflixreborn.streamflix.models.TvShow
+import com.streamflixreborn.streamflix.models.Video
 import com.streamflixreborn.streamflix.utils.ArtworkRepair
+import com.streamflixreborn.streamflix.utils.ServerAvailability
 import com.streamflixreborn.streamflix.utils.UserPreferences
+import com.streamflixreborn.streamflix.utils.format
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.flow.Flow
@@ -72,7 +75,7 @@ class TvShowViewModel(
                             seasons
                                 .lastOrNull { season ->
                                     season.episodes.lastOrNull()?.isWatched == true ||
-                                            season.episodes.any { it.isWatched }
+                                        season.episodes.any { it.isWatched }
                                 }?.let { season ->
                                     if (season.episodes.lastOrNull()?.isWatched == true) {
                                         val next = seasons.getOrNull(seasons.indexOf(season) + 1)
@@ -81,7 +84,7 @@ class TvShowViewModel(
                                 }
                                 ?: seasons.firstOrNull { season ->
                                     season.episodes.isEmpty() ||
-                                            season.episodes.lastOrNull()?.isWatched == false
+                                        season.episodes.lastOrNull()?.isWatched == false
                                 }
                         }
 
@@ -141,33 +144,34 @@ class TvShowViewModel(
             is State.SuccessLoading -> {
                 val moviesById = moviesDb.associateBy { it.id }
                 val tvShowsById = tvShowsDb.associateBy { it.id }
-                State.SuccessLoading(
-                    tvShow = state.tvShow.copy(
-                        seasons = (state.tvShow.seasons
-                            .takeIf { seasons -> seasons.flatMap { it.episodes } != episodesDb }
-                            ?.map { season ->
-                                season.copy(
-                                    episodes = episodesForSeason(episodesDb, season)
-                                )
-                            }
-                            ?: state.tvShow.seasons)
-                            .sortedWith(::compareSeasonsForDisplay),
-                        recommendations = state.tvShow.recommendations.map { show ->
-                            when (show) {
-                                is Movie -> moviesById[show.id]
-                                    ?.takeIf { !show.isSame(it) }
-                                    ?.let { show.copy().merge(it) }
-                                    ?: show
-                                is TvShow -> tvShowsById[show.id]
-                                    ?.takeIf { !show.isSame(it) }
-                                    ?.let { show.copy().merge(it) }
-                                    ?: show
-                            }
-                        },
-                    ).also { tvShow ->
-                        tvShowDb?.let { tvShow.merge(it) }
-                    }
-                )
+                val resolvedTvShow = state.tvShow.copy(
+                    seasons = (state.tvShow.seasons
+                        .takeIf { seasons -> seasons.flatMap { it.episodes } != episodesDb }
+                        ?.map { season ->
+                            season.copy(
+                                episodes = episodesForSeason(episodesDb, season)
+                            )
+                        }
+                        ?: state.tvShow.seasons)
+                        .sortedWith(::compareSeasonsForDisplay),
+                    recommendations = state.tvShow.recommendations.map { show ->
+                        when (show) {
+                            is Movie -> moviesById[show.id]
+                                ?.takeIf { !show.isSame(it) }
+                                ?.let { show.copy().merge(it) }
+                                ?: show
+                            is TvShow -> tvShowsById[show.id]
+                                ?.takeIf { !show.isSame(it) }
+                                ?.let { show.copy().merge(it) }
+                                ?: show
+                        }
+                    },
+                ).also { tvShow ->
+                    tvShowDb?.let { tvShow.merge(it) }
+                }
+
+                prefetchEpisode(resolvedTvShow)
+                State.SuccessLoading(resolvedTvShow)
             }
             else -> state
         }
@@ -182,7 +186,7 @@ class TvShowViewModel(
     private val _seasonState = MutableStateFlow<SeasonState>(SeasonState.Loading)
 
     sealed class SeasonState {
-        data object Loading :  SeasonState()
+        data object Loading : SeasonState()
         data class SuccessLoading(
             val tvShow: TvShow,
             val season: Season,
@@ -221,7 +225,6 @@ class TvShowViewModel(
         val seasonNumber: Int,
         val partNumber: Int,
     )
-
 
     fun getTvShow(id: String) = viewModelScope.launch(Dispatchers.IO) {
         _state.emit(State.Loading)
@@ -288,5 +291,35 @@ class TvShowViewModel(
             Log.e("TvShowViewModel", "getSeason: ", e)
             _seasonState.emit(SeasonState.FailedLoading(e))
         }
+    }
+
+    private fun prefetchEpisode(tvShow: TvShow) {
+        val provider = UserPreferences.currentProvider ?: return
+        val episode = tvShow.episodeToWatch ?: return
+        val season = episode.season ?: return
+
+        ServerAvailability.prefetch(
+            provider = provider,
+            id = episode.id,
+            videoType = Video.Type.Episode(
+                id = episode.id,
+                number = episode.number,
+                title = episode.title,
+                poster = episode.poster,
+                overview = episode.overview,
+                tvShow = Video.Type.Episode.TvShow(
+                    id = tvShow.id,
+                    title = tvShow.title,
+                    poster = tvShow.poster,
+                    banner = tvShow.banner,
+                    releaseDate = tvShow.released?.format("yyyy-MM-dd"),
+                    imdbId = tvShow.imdbId,
+                ),
+                season = Video.Type.Episode.Season(
+                    number = season.number,
+                    title = season.title,
+                ),
+            ),
+        )
     }
 }
