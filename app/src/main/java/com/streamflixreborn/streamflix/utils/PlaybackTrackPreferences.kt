@@ -143,9 +143,24 @@ object PlaybackTrackPreferences {
     }
 
     fun bind(player: Player): Player.Listener {
+        val initialParameters = player.trackSelectionParameters
+        val existingAudioLanguages = initialParameters.preferredAudioLanguages.toList()
+        val existingSubtitleLanguages = initialParameters.preferredTextLanguages.toList()
         val preferredAudioLanguage = preferredLanguage(PREFERRED_AUDIO_LANGUAGE)
         val preferredSubtitleLanguage = preferredLanguage(PREFERRED_SUBTITLE_LANGUAGE)
-        applyPreferredLanguages(player, preferredAudioLanguage, preferredSubtitleLanguage)
+        val audioLanguages = preferredLanguageOrder(preferredAudioLanguage, existingAudioLanguages)
+        val subtitleLanguages = preferredLanguageOrder(
+            preferredSubtitleLanguage,
+            existingSubtitleLanguages,
+        )
+
+        applyPreferredLanguages(
+            player = player,
+            preferredAudioLanguage = preferredAudioLanguage,
+            preferredSubtitleLanguage = preferredSubtitleLanguage,
+            audioLanguages = audioLanguages,
+            subtitleLanguages = subtitleLanguages,
+        )
 
         val listener = object : Player.Listener {
             private var mediaItem: MediaItem? = null
@@ -158,6 +173,7 @@ object PlaybackTrackPreferences {
             private var lastAudioPosition: Pair<Int, Int>? = null
             private var lastSubtitlePosition: Pair<Int, Int>? = null
             private var lastSubtitleOff = false
+            private var externalSubtitleActive = false
 
             override fun onMediaItemTransition(mediaItem: MediaItem?, reason: Int) {
                 resetForContext(mediaItem, player.currentTracks)
@@ -209,6 +225,7 @@ object PlaybackTrackPreferences {
                 if (!scopeChanged && !itemChanged) return
 
                 val externalSubtitle = hasLocalDefaultSubtitle(newItem)
+                val leavingExternalSubtitle = externalSubtitleActive && !externalSubtitle
                 var builder: TrackSelectionParameters.Builder? = null
 
                 if (scopeChanged) {
@@ -218,14 +235,20 @@ object PlaybackTrackPreferences {
                         .setTrackTypeDisabled(C.TRACK_TYPE_AUDIO, false)
                         .setTrackTypeDisabled(C.TRACK_TYPE_TEXT, false)
                         .setIgnoredTextSelectionFlags(DEFAULT_TEXT_FLAGS)
-                } else if (externalSubtitle) {
+                }
+
+                if (externalSubtitle) {
                     // Downloaded/local subtitles are playback-only choices. Clear
-                    // any embedded override and do not restore over the external
-                    // default for this MediaItem.
-                    builder = player.trackSelectionParameters.buildUpon()
+                    // embedded overrides and language preferences for this item so
+                    // Media3 can honor the explicitly selected local default.
+                    builder = (builder ?: player.trackSelectionParameters.buildUpon())
                         .clearOverridesOfType(C.TRACK_TYPE_TEXT)
+                        .setPreferredTextLanguages(*emptyArray())
                         .setTrackTypeDisabled(C.TRACK_TYPE_TEXT, false)
                         .setIgnoredTextSelectionFlags(DEFAULT_TEXT_FLAGS)
+                } else if (leavingExternalSubtitle) {
+                    builder = (builder ?: player.trackSelectionParameters.buildUpon())
+                        .setPreferredTextLanguages(*subtitleLanguages.toTypedArray())
                 }
 
                 mediaItem = newItem
@@ -234,6 +257,7 @@ object PlaybackTrackPreferences {
                 subtitleRestored = savedSubtitle == null
                 audioCancelled = false
                 subtitleCancelled = externalSubtitle
+                externalSubtitleActive = externalSubtitle
 
                 builder?.build()?.let(::applyParameters)
                 captureState(player.trackSelectionParameters, tracks)
@@ -342,16 +366,30 @@ object PlaybackTrackPreferences {
         .getString(key, null)
         ?.takeIf { it.isNotBlank() }
 
+    private fun preferredLanguageOrder(
+        preferredLanguage: String?,
+        existingLanguages: List<String>,
+    ): List<String> = buildList {
+        preferredLanguage?.let(::add)
+        addAll(existingLanguages)
+    }.distinctBy { it.lowercase(Locale.ROOT) }
+
     private fun applyPreferredLanguages(
         player: Player,
         preferredAudioLanguage: String?,
         preferredSubtitleLanguage: String?,
+        audioLanguages: List<String>,
+        subtitleLanguages: List<String>,
     ) {
         if (preferredAudioLanguage == null && preferredSubtitleLanguage == null) return
 
         val builder = player.trackSelectionParameters.buildUpon()
-        preferredAudioLanguage?.let(builder::setPreferredAudioLanguage)
-        preferredSubtitleLanguage?.let(builder::setPreferredTextLanguage)
+        if (preferredAudioLanguage != null) {
+            builder.setPreferredAudioLanguages(*audioLanguages.toTypedArray())
+        }
+        if (preferredSubtitleLanguage != null) {
+            builder.setPreferredTextLanguages(*subtitleLanguages.toTypedArray())
+        }
 
         val parameters = builder.build()
         if (parameters != player.trackSelectionParameters) {
