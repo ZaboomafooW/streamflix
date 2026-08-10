@@ -4,6 +4,9 @@ on:
   push:
     branches:
       - test/hide-unavailable-servers-build
+  pull_request:
+    branches:
+      - fix/hide-unavailable-servers
 
 jobs:
   build:
