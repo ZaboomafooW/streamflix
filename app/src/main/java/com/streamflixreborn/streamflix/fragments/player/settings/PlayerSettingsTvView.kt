@@ -7,15 +7,23 @@ import android.util.AttributeSet
 import android.view.LayoutInflater
 import android.view.View
 import android.view.ViewGroup
+import android.widget.ImageView
+import android.widget.Toast
 import androidx.core.content.ContextCompat
 import androidx.media3.common.C
+import androidx.media3.common.Player
+import androidx.media3.common.TrackSelectionParameters
+import androidx.media3.common.Tracks
+import androidx.media3.exoplayer.ExoPlayer
 import androidx.media3.ui.DefaultTrackNameProvider
 import androidx.recyclerview.widget.RecyclerView
 import com.streamflixreborn.streamflix.R
 import com.streamflixreborn.streamflix.databinding.ItemSettingTvBinding
 import com.streamflixreborn.streamflix.databinding.ViewPlayerSettingsTvBinding
 import com.streamflixreborn.streamflix.ui.SpacingItemDecoration
+import com.streamflixreborn.streamflix.utils.QrUtils
 import com.streamflixreborn.streamflix.utils.SubtitleDebugState
+import com.streamflixreborn.streamflix.utils.TrackAuditLogger
 import com.streamflixreborn.streamflix.utils.UserPreferences
 import com.streamflixreborn.streamflix.utils.dp
 import com.streamflixreborn.streamflix.utils.margin
@@ -53,11 +61,54 @@ class PlayerSettingsTvView @JvmOverloads constructor(
     private val serversAdapter = SettingsAdapter(this, Settings.Server.list)
     private val marginAdapter = SettingsAdapter(this, Settings.Subtitle.Style.Margin.list)
 
+    private var auditedPlayer: ExoPlayer? = null
+    private var auditExportSession: TrackAuditLogger.ExportSession? = null
+
+    private val auditListener = object : Player.Listener {
+        override fun onTracksChanged(tracks: Tracks) {
+            auditedPlayer?.let(TrackAuditLogger::recordTracks)
+        }
+
+        override fun onTrackSelectionParametersChanged(parameters: TrackSelectionParameters) {
+            auditedPlayer?.let(TrackAuditLogger::recordTracks)
+        }
+    }
+
+    private val attachAuditListener = object : Runnable {
+        override fun run() {
+            val currentPlayer = player
+            if (currentPlayer !== auditedPlayer) {
+                auditedPlayer?.removeListener(auditListener)
+                auditedPlayer = currentPlayer
+                currentPlayer?.addListener(auditListener)
+                if (currentPlayer != null && !currentPlayer.currentTracks.isEmpty) {
+                    TrackAuditLogger.recordTracks(currentPlayer)
+                }
+            }
+            postDelayed(this, 500L)
+        }
+    }
+
     override var onSubtitlesClicked: (() -> Unit)? = null
     var onManualZoomClicked: (() -> Unit)? = null
 
     init {
         binding.rvSettings.addItemDecoration(SpacingItemDecoration(6.dp(context)))
+    }
+
+    override fun onAttachedToWindow() {
+        super.onAttachedToWindow()
+        removeCallbacks(attachAuditListener)
+        post(attachAuditListener)
+    }
+
+    override fun onDetachedFromWindow() {
+        removeCallbacks(attachAuditListener)
+        auditedPlayer?.removeListener(auditListener)
+        auditedPlayer = null
+        auditExportSession?.stop()
+        auditExportSession = null
+        super.onDetachedFromWindow()
     }
 
     fun onBackPressed(): Boolean {
@@ -96,10 +147,8 @@ class PlayerSettingsTvView @JvmOverloads constructor(
         }
     }
 
-
     fun show() {
         this.visibility = View.VISIBLE
-
         displaySettings(Setting.MAIN)
     }
 
@@ -171,6 +220,8 @@ class PlayerSettingsTvView @JvmOverloads constructor(
     /** Temporary TV-only diagnostic used while validating track behavior across providers. */
     private fun showPlaybackTrackDebug() {
         val currentPlayer = player ?: return
+        TrackAuditLogger.recordTracks(currentPlayer)
+
         val trackNameProvider = DefaultTrackNameProvider(resources)
         val provider = UserPreferences.currentProvider
         val serverName = Settings.Server.selected?.name ?: "unknown"
@@ -187,6 +238,7 @@ class PlayerSettingsTvView @JvmOverloads constructor(
         }
 
         val report = buildString {
+            appendLine("Audit entries: ${TrackAuditLogger.entryCount()}")
             appendLine("Provider: ${provider?.name ?: "unknown"}")
             appendLine("Provider language: ${provider?.language ?: "unknown"}")
             appendLine("Server: $serverName")
@@ -268,13 +320,56 @@ class PlayerSettingsTvView @JvmOverloads constructor(
             .setTitle("Playback track debug")
             .setMessage(report)
             .setPositiveButton(android.R.string.ok, null)
+            .setNeutralButton("Export audit") { _, _ -> showTrackAuditExport() }
+            .setNegativeButton("Clear audit") { _, _ ->
+                TrackAuditLogger.clear()
+                Toast.makeText(context, "Track audit cleared", Toast.LENGTH_SHORT).show()
+            }
             .show()
+    }
+
+    private fun showTrackAuditExport() {
+        auditExportSession?.stop()
+        val session = TrackAuditLogger.startExportServer()
+        if (session == null) {
+            Toast.makeText(
+                context,
+                "Could not start audit export. Make sure the TV is connected to your local network.",
+                Toast.LENGTH_LONG,
+            ).show()
+            return
+        }
+        auditExportSession = session
+
+        val qrView = ImageView(context).apply {
+            setImageBitmap(QrUtils.generate(session.url, 600))
+            adjustViewBounds = true
+            setPadding(24.dp(context), 16.dp(context), 24.dp(context), 8.dp(context))
+        }
+
+        val dialog = AlertDialog.Builder(context)
+            .setTitle("Download track audit")
+            .setMessage(
+                "Scan this QR code with your phone while it is on the same network as the TV. " +
+                    "It downloads one JSON file that you can upload to ChatGPT.\n\n${session.url}"
+            )
+            .setView(qrView)
+            .setPositiveButton("Done") { _, _ ->
+                session.stop()
+                if (auditExportSession === session) auditExportSession = null
+            }
+            .create()
+
+        dialog.setOnCancelListener {
+            session.stop()
+            if (auditExportSession === session) auditExportSession = null
+        }
+        dialog.show()
     }
 
     fun hide() {
         this.visibility = View.GONE
     }
-
 
     private class SettingsAdapter(
         private val settingsView: PlayerSettingsTvView,
@@ -464,8 +559,6 @@ class PlayerSettingsTvView @JvmOverloads constructor(
                             settingsView.hide()
                         }
 
-
-
                         is Settings.ExtraBuffering -> {
                             settingsView.onExtraBufferingSelected.invoke(item)
                             settingsView.hide()
@@ -509,7 +602,7 @@ class PlayerSettingsTvView @JvmOverloads constructor(
                                     context,
                                     R.drawable.ic_player_settings_playback_speed
                                 )
-                                )
+                            )
 
                             Settings.ExtraBuffering -> setImageDrawable(
                                 ContextCompat.getDrawable(
@@ -631,33 +724,19 @@ class PlayerSettingsTvView @JvmOverloads constructor(
 
                     is Settings.Subtitle.Style.FontColor -> context.getString(item.stringId)
                     is Settings.Subtitle.Style.Margin -> item.value.toString()
-
                     is Settings.Subtitle.Style.TextSize -> context.getString(item.stringId)
-
                     is Settings.Subtitle.Style.FontOpacity -> context.getString(item.stringId)
-
                     is Settings.Subtitle.Style.EdgeStyle -> context.getString(item.stringId)
-
                     is Settings.Subtitle.Style.BackgroundColor -> context.getString(item.stringId)
-
                     is Settings.Subtitle.Style.BackgroundOpacity -> context.getString(item.stringId)
-
                     is Settings.Subtitle.Style.WindowColor -> context.getString(item.stringId)
-
                     is Settings.Subtitle.Style.WindowOpacity -> context.getString(item.stringId)
-
                     is Settings.Subtitle.OpenSubtitles.Subtitle -> item.openSubtitle.subFileName
-
                     is Settings.Subtitle.SubDLSubtitles.Subtitle -> item.subDLSubtitle.releaseName ?: item.subDLSubtitle.name
-
                     is Settings.Speed -> context.getString(item.stringId)
-
                     is Settings.ExtraBuffering -> context.getString(item.stringId)
-
                     is Settings.SoftwareDecoder -> context.getString(item.stringId)
-
                     is Settings.Server -> item.name
-
                     else -> ""
                 }
             }
@@ -710,9 +789,7 @@ class PlayerSettingsTvView @JvmOverloads constructor(
                     }
 
                     is Settings.Subtitle.OpenSubtitles.Subtitle -> item.openSubtitle.languageName
-
                     is Settings.Subtitle.SubDLSubtitles.Subtitle -> item.subDLSubtitle.lang?.replaceFirstChar { if (it.isLowerCase()) it.titlecase(java.util.Locale.getDefault()) else it.toString() } ?: ""
-
                     else -> ""
                 }
                 visibility = when {
