@@ -12,7 +12,7 @@ jobs:
   audit:
     name: Audit Doramasflix playback coverage
     runs-on: ubuntu-latest
-    timeout-minutes: 20
+    timeout-minutes: 10
 
     steps:
       - name: Audit current movies and episodes
@@ -21,127 +21,119 @@ jobs:
           set -euo pipefail
           python3 - <<'PY'
           import base64, json, urllib.request, urllib.error, urllib.parse, collections
+          from concurrent.futures import ThreadPoolExecutor, as_completed
 
-          API='https://userapi.cloudfleir.xyz/graphql'
-          ORIGIN='https://doramasflix.in'
-          APP='com.asiapp.doramasgo'
+          API='https://userapi.cloudfleir.xyz/graphql'; ORIGIN='https://doramasflix.in'; APP='com.asiapp.doramasgo'
           UA='Mozilla/5.0 (Linux; Android 10; Android TV) AppleWebKit/537.36 Chrome/140.0.0.0 Safari/537.36'
-
-          def gql(operation, variables, query):
+          def gql(operation,variables,query):
               body=json.dumps({'operationName':operation,'variables':variables,'query':query}).encode()
-              req=urllib.request.Request(API,data=body,headers={
-                  'Accept':'application/json, text/plain, */*','Content-Type':'application/json',
-                  'Origin':ORIGIN,'Referer':ORIGIN+'/','User-Agent':UA,
-              })
+              req=urllib.request.Request(API,data=body,headers={'Accept':'application/json, text/plain, */*','Content-Type':'application/json','Origin':ORIGIN,'Referer':ORIGIN+'/','User-Agent':UA})
               try:
-                  with urllib.request.urlopen(req,timeout=25) as r: raw=r.read().decode('utf-8','replace')
+                  with urllib.request.urlopen(req,timeout=20) as r: raw=r.read().decode('utf-8','replace')
               except urllib.error.HTTPError as e:
-                  raw=e.read().decode('utf-8','replace')
-                  raise RuntimeError(f'HTTP {e.code}: {raw[:700]}')
+                  raise RuntimeError(f'HTTP {e.code}: '+e.read().decode('utf-8','replace')[:500])
               obj=json.loads(raw)
-              if obj.get('errors'): raise RuntimeError('GraphQL: '+json.dumps(obj['errors'])[:1200])
+              if obj.get('errors'): raise RuntimeError(json.dumps(obj['errors'])[:800])
               return obj.get('data') or {}
-
-          def b64url(s): return base64.urlsafe_b64decode(s + '='*((4-len(s)%4)%4))
           def decode_link(link):
               if not link:return None
               if 'embedshortener.co/e/' not in link:return link
               try:
                   token=link.split('/e/',1)[1].split('?',1)[0].split('#',1)[0]
-                  payload=json.loads(b64url(token.split('.')[1]).decode())
-                  enc=payload.get('link')
+                  p=token.split('.')[1]; p += '='*((4-len(p)%4)%4)
+                  enc=json.loads(base64.urlsafe_b64decode(p).decode()).get('link')
                   return base64.b64decode(enc).decode().strip() if enc else None
-              except Exception:return None
-          def host(link):
-              try:return (urllib.parse.urlparse(link).hostname or '').lower().removeprefix('www.')
+              except:return None
+          def host(u):
+              try:return (urllib.parse.urlparse(u).hostname or '').lower().removeprefix('www.')
               except:return ''
           def classify(links):
-              decoded=[]
+              dec=[]
               for x in links or []:
                   u=decode_link(x.get('link'))
-                  if u: decoded.append((host(u),x.get('lang'),bool(x.get('is_recommended')),u))
-              prime=[x for x in decoded if x[0]=='primeload.co' or x[0].endswith('.primeload.co')]
-              other=[x for x in decoded if x not in prime]
-              langs=sorted(set(str(x[1]) for x in decoded if x[1] is not None))
-              hosts=sorted(set(x[0] for x in decoded if x[0]))
-              return decoded,prime,other,langs,hosts
+                  if u:dec.append((host(u),x.get('lang'),bool(x.get('is_recommended'))))
+              prime=[x for x in dec if x[0]=='primeload.co' or x[0].endswith('.primeload.co')]
+              other=[x for x in dec if x not in prime]
+              return dec,prime,other,sorted(set(str(x[1]) for x in dec if x[1] is not None)),sorted(set(x[0] for x in dec if x[0]))
 
-          movie_q='''query MovieLinks($movie_id: ID!) { getMovieLinks(id: $movie_id, app: "'''+APP+'''" ) { links_online { lang link page server is_recommended } } }'''
-          episode_q='''query EpisodeLinksOnline($episode_id: ID!) { getEpisodeLinks(id: $episode_id, app: "'''+APP+'''" ) { links_online { _id server lang link is_recommended } } }'''
-          movie_catalog_q='''query PaginationMovie($page: Int, $limit: Int, $filter: FilterMoviesInput) { paginationMovie(page: $page, limit: $limit, filter: $filter) { items { _id name slug } } }'''
-          dorama_catalog_q='''query PaginationDorama($page: Int, $limit: Int, $filter: FilterDoramasInput) { paginationDorama(page: $page, limit: $limit, filter: $filter) { items { _id name slug isTVShow } } }'''
-          seasons_q='''query listSeasons($slug: String!) { listSeasons(sort: NUMBER_ASC, filter: {serie_slug: $slug}) { season_number slug } }'''
-          episodes_q='''query listEpisodes($slug: String!, $season_number: Int!) { listEpisodes(sort: NUMBER_ASC, filter: {serie_slug: $slug, season_number: $season_number}) { _id name slug episode_number season_number } }'''
+          MQ='''query PaginationMovie($page: Int, $limit: Int, $filter: FilterMoviesInput){paginationMovie(page:$page,limit:$limit,filter:$filter){items{_id name slug}}}'''
+          DQ='''query PaginationDorama($page: Int, $limit: Int, $filter: FilterDoramasInput){paginationDorama(page:$page,limit:$limit,filter:$filter){items{_id name slug isTVShow}}}'''
+          SQ='''query listSeasons($slug:String!){listSeasons(sort:NUMBER_ASC,filter:{serie_slug:$slug}){season_number slug}}'''
+          EQ='''query listEpisodes($slug:String!,$season_number:Int!){listEpisodes(sort:NUMBER_ASC,filter:{serie_slug:$slug,season_number:$season_number}){_id name slug episode_number season_number}}'''
+          MLQ='''query MovieLinks($movie_id:ID!){getMovieLinks(id:$movie_id,app:"'''+APP+''' "){links_online{lang link page server is_recommended}}}'''
+          ELQ='''query EpisodeLinksOnline($episode_id:ID!){getEpisodeLinks(id:$episode_id,app:"'''+APP+''' "){links_online{_id server lang link is_recommended}}}'''
 
-          def page_catalog(operation,query,key,filter_obj):
-              out=[]; seen=set()
-              for p in range(1,21):
-                  d=gql(operation,{'page':p,'limit':50,'filter':filter_obj},query).get(key) or {}
-                  batch=d.get('items') or []
-                  if not batch: break
+          def catalog(operation,q,key,filt):
+              out=[];seen=set()
+              for p in range(1,6):
+                  batch=(gql(operation,{'page':p,'limit':50,'filter':filt},q).get(key) or {}).get('items') or []
+                  if not batch:break
                   fresh=[x for x in batch if x.get('_id') not in seen]
-                  if not fresh: break
-                  for x in fresh: seen.add(x.get('_id'))
-                  out.extend(fresh)
-                  if len(batch)<50: break
+                  if not fresh:break
+                  out.extend(fresh);seen.update(x.get('_id') for x in fresh)
+                  if len(batch)<50:break
               return out
-
-          try: movies=page_catalog('PaginationMovie',movie_catalog_q,'paginationMovie',{})
-          except Exception as e:
-              print('MOVIE_CATALOG_ERROR',repr(e));movies=[]
-          try: doramas=page_catalog('PaginationDorama',dorama_catalog_q,'paginationDorama',{'isTVShow':False})
-          except Exception as e:
-              print('DORAMA_CATALOG_ERROR',repr(e));doramas=[]
+          movies=catalog('PaginationMovie',MQ,'paginationMovie',{})
+          doramas=catalog('PaginationDorama',DQ,'paginationDorama',{'isTVShow':False})
           print('CATALOG_COUNTS movies=',len(movies),'doramas=',len(doramas))
 
+          def movie_check(m):
+              links=(gql('MovieLinks',{'movie_id':m['_id']},MLQ).get('getMovieLinks') or {}).get('links_online') or []
+              return m,classify(links)
           movie_results=[]
-          for m in movies:
-              try:
-                  links=(gql('MovieLinks',{'movie_id':m['_id']},movie_q).get('getMovieLinks') or {}).get('links_online') or []
-                  movie_results.append((m,classify(links)))
-              except Exception as e: print('MOVIE_ERROR',m.get('name'),repr(e))
+          with ThreadPoolExecutor(max_workers=20) as ex:
+              fs=[ex.submit(movie_check,m) for m in movies]
+              for f in as_completed(fs):
+                  try:movie_results.append(f.result())
+                  except Exception as e:print('MOVIE_ERROR',repr(e))
 
+          def enumerate_show(d):
+              out=[]
+              seasons=gql('listSeasons',{'slug':d['slug']},SQ).get('listSeasons') or []
+              for s in seasons[:3]:
+                  eps=gql('listEpisodes',{'slug':d['slug'],'season_number':int(s['season_number'])},EQ).get('listEpisodes') or []
+                  if eps:
+                      for i in sorted({0,len(eps)//2,len(eps)-1}):out.append((d,eps[i]))
+              return out
           episode_items=[]
-          for d in doramas:
-              try:
-                  seasons=gql('listSeasons',{'slug':d['slug']},seasons_q).get('listSeasons') or []
-                  for s in seasons:
-                      eps=gql('listEpisodes',{'slug':d['slug'],'season_number':int(s['season_number'])},episodes_q).get('listEpisodes') or []
-                      if not eps:continue
-                      for i in sorted({0,len(eps)//2,len(eps)-1}): episode_items.append((d,eps[i]))
-              except Exception as e: print('SHOW_ENUM_ERROR',d.get('name'),d.get('slug'),repr(e))
+          with ThreadPoolExecutor(max_workers=20) as ex:
+              fs=[ex.submit(enumerate_show,d) for d in doramas]
+              for f in as_completed(fs):
+                  try:episode_items.extend(f.result())
+                  except Exception as e:print('SHOW_ENUM_ERROR',repr(e))
 
+          def ep_check(pair):
+              d,e=pair
+              links=(gql('EpisodeLinksOnline',{'episode_id':e['_id']},ELQ).get('getEpisodeLinks') or {}).get('links_online') or []
+              return d,e,classify(links)
           episode_results=[]
-          for d,e in episode_items:
-              try:
-                  links=(gql('EpisodeLinksOnline',{'episode_id':e['_id']},episode_q).get('getEpisodeLinks') or {}).get('links_online') or []
-                  episode_results.append((d,e,classify(links)))
-              except Exception as ex: print('EP_ERROR',d.get('name'),e.get('episode_number'),repr(ex))
+          with ThreadPoolExecutor(max_workers=24) as ex:
+              fs=[ex.submit(ep_check,x) for x in episode_items]
+              for f in as_completed(fs):
+                  try:episode_results.append(f.result())
+                  except Exception as e:print('EP_ERROR',repr(e))
 
-          def report_movies():
-              po=[];one=[];multi=[];none=[];hosts=collections.Counter()
+          def movie_report():
+              po=[];one=[];multi=[];none=[];hc=collections.Counter()
               for m,c in movie_results:
-                  dec,prime,other,langs,hst=c;hosts.update(hst)
-                  if dec and prime and not other:po.append((m,c))
-                  if len(other)==1:one.append((m,c))
-                  if len(langs)>1 or len(hst)>2:multi.append((m,c))
+                  dec,pr,ot,la,hs=c;hc.update(hs)
+                  if dec and pr and not ot:po.append((m,c))
+                  if len(ot)==1:one.append((m,c))
+                  if len(la)>1 or len(hs)>2:multi.append((m,c))
                   if not dec:none.append((m,c))
-              print('\nMOVIES_AUDITED',len(movie_results),'PRIME_ONLY',len(po),'ONE_USABLE_OTHER',len(one),'NO_LINKS',len(none))
-              print('MOVIE_HOSTS',dict(hosts))
-              for label,arr in [('MOVIE_PRIME_ONLY',po[:50]),('MOVIE_ONE_OTHER',one[:30]),('MOVIE_MULTI',multi[:30]),('MOVIE_NO_LINKS',none[:30])]:
-                  for m,c in arr: print(label,json.dumps({'name':m.get('name'),'slug':m.get('slug'),'id':m.get('_id'),'hosts':c[4],'langs':c[3]},ensure_ascii=False))
-
-          def report_eps():
-              po=[];one=[];multi=[];none=[];hosts=collections.Counter()
+              print('MOVIES_AUDITED',len(movie_results),'PRIME_ONLY',len(po),'ONE_USABLE_OTHER',len(one),'NO_LINKS',len(none));print('MOVIE_HOSTS',dict(hc))
+              for lab,arr in [('MOVIE_PRIME_ONLY',po),('MOVIE_ONE_OTHER',one[:15]),('MOVIE_MULTI',multi[:15]),('MOVIE_NO_LINKS',none[:15])]:
+                  for m,c in arr:print(lab,json.dumps({'name':m.get('name'),'slug':m.get('slug'),'id':m.get('_id'),'hosts':c[4],'langs':c[3]},ensure_ascii=False))
+          def ep_report():
+              po=[];one=[];multi=[];none=[];hc=collections.Counter()
               for d,e,c in episode_results:
-                  dec,prime,other,langs,hst=c;hosts.update(hst);item=(d,e,c)
-                  if dec and prime and not other:po.append(item)
-                  if len(other)==1:one.append(item)
-                  if len(langs)>1 or len(hst)>2:multi.append(item)
-                  if not dec:none.append(item)
-              print('\nEPISODES_AUDITED',len(episode_results),'PRIME_ONLY',len(po),'ONE_USABLE_OTHER',len(one),'NO_LINKS',len(none))
-              print('EP_HOSTS',dict(hosts))
-              for label,arr in [('EP_PRIME_ONLY',po[:80]),('EP_ONE_OTHER',one[:40]),('EP_MULTI',multi[:40]),('EP_NO_LINKS',none[:40])]:
-                  for d,e,c in arr: print(label,json.dumps({'show':d.get('name'),'slug':d.get('slug'),'episode':e.get('episode_number'),'id':e.get('_id'),'hosts':c[4],'langs':c[3]},ensure_ascii=False))
-          report_movies();report_eps()
+                  dec,pr,ot,la,hs=c;hc.update(hs);it=(d,e,c)
+                  if dec and pr and not ot:po.append(it)
+                  if len(ot)==1:one.append(it)
+                  if len(la)>1 or len(hs)>2:multi.append(it)
+                  if not dec:none.append(it)
+              print('EPISODES_AUDITED',len(episode_results),'PRIME_ONLY',len(po),'ONE_USABLE_OTHER',len(one),'NO_LINKS',len(none));print('EP_HOSTS',dict(hc))
+              for lab,arr in [('EP_PRIME_ONLY',po),('EP_ONE_OTHER',one[:20]),('EP_MULTI',multi[:20]),('EP_NO_LINKS',none[:20])]:
+                  for d,e,c in arr:print(lab,json.dumps({'show':d.get('name'),'slug':d.get('slug'),'episode':e.get('episode_number'),'id':e.get('_id'),'hosts':c[4],'langs':c[3]},ensure_ascii=False))
+          movie_report();ep_report()
           PY
