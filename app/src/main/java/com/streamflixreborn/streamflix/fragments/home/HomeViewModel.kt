@@ -28,12 +28,14 @@ import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.async
 import kotlinx.coroutines.awaitAll
 import kotlinx.coroutines.coroutineScope
-import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.SharingStarted
+import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.emitAll
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.flowOn
+import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.flow.transformLatest
 import kotlinx.coroutines.launch
 import java.util.concurrent.ConcurrentHashMap
@@ -60,7 +62,7 @@ class HomeViewModel(database: AppDatabase) : ViewModel() {
     private var currentProvider: Provider? = null
 
     @OptIn(ExperimentalCoroutinesApi::class)
-    val state: Flow<State> = combine(
+    val state: StateFlow<State> = combine(
         _state,
 
         // CONTINUE WATCHING - Cache-first (faster on slow DB devices), falls back to DB
@@ -114,15 +116,6 @@ class HomeViewModel(database: AppDatabase) : ViewModel() {
                     }
                 }
             )
-
-            val orderIndex = buildMap<String, Int> {
-                _userDataCache.value?.continueWatchingMovies?.forEachIndexed { index, cached ->
-                    put("movie:${cached.id}", index)
-                }
-                _userDataCache.value?.continueWatchingEpisodes?.forEachIndexed { index, cached ->
-                    put("episode:${cached.id}", index)
-                }
-            }
 
             (watchingMovies + enrichedEpisodes)
                 .sortedByDescending { item ->
@@ -282,6 +275,7 @@ class HomeViewModel(database: AppDatabase) : ViewModel() {
             else -> state
         }
     }.flowOn(Dispatchers.IO)
+        .stateIn(viewModelScope, SharingStarted.Eagerly, State.Loading)
 
     sealed class State {
         data object Loading : State()
