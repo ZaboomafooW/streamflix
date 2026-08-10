@@ -109,7 +109,7 @@ class PlayerViewModel(
 
     private suspend fun resolveOriginalAudioLanguage(videoType: Video.Type): String? {
         if (!UserPreferences.enableTmdb) return null
-        if (!PlaybackTrackPreferences.shouldResolveOriginalAudioLanguage()) return null
+        if (!PlaybackTrackPreferences.shouldResolveOriginalAudioLanguage(videoType)) return null
 
         val providerLanguage = UserPreferences.currentProvider?.language
         return when (videoType) {
@@ -245,7 +245,7 @@ class PlayerViewModel(
                 Log.d("PlayerViewModel", "Ricerca SubDL completata: ${subtitles.size} risultati")
                 _subtitleState.emit(SubtitleState.SuccessSubDLSubtitles(subtitles))
             } catch (e: Exception) {
-                Log.e("PlayerViewModel", "Errore ricerca SubDL: ", e)
+                Log.e("PlayerViewModel", "Errore SubDL: ", e)
                 _subtitleState.emit(SubtitleState.FailedSubDLSubtitles(e))
             }
         }
