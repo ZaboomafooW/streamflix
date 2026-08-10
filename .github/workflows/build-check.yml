@@ -10,7 +10,7 @@ permissions:
 
 jobs:
   build:
-    name: Verify PlayerFlix token decode action
+    name: Inspect Doramasflix short-link token
     runs-on: ubuntu-latest
     timeout-minutes: 10
 
@@ -20,63 +20,34 @@ jobs:
         with:
           ref: ${{ github.sha }}
 
-      - name: Decode live short-link token
+      - name: Inspect live token payload and stateless decode
         shell: bash
         run: |
           set -euo pipefail
           python3 - <<'PY'
-          import json, re, urllib.parse, urllib.request, urllib.error
+          import base64, json, urllib.parse, urllib.request, urllib.error
           ua='Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/140.0.0.0 Safari/537.36'
-          movie_page='https://doramasflix.in/peliculas-online/just-for-meeting-you'
+          page='https://doramasflix.in/peliculas-online/just-for-meeting-you'
           gql='https://userapi.cloudfleir.xyz/graphql'
           action='4082a28b2fb3eb29fde4ec3df198a5afd10f8edc32'
-          payload={
-            'operationName':'MovieLinks',
-            'variables':{'movie_id':'6a78e51c56e57b5ffbb0b2c6'},
-            'query':'query MovieLinks($movie_id: ID!) { getMovieLinks(id: $movie_id, app: "com.asiapp.doramasgo") { links_online { link server is_recommended } } }'
-          }
-          req=urllib.request.Request(gql,data=json.dumps(payload).encode(),headers={'User-Agent':ua,'Content-Type':'application/json','Origin':'https://doramasflix.in','Referer':movie_page})
-          with urllib.request.urlopen(req,timeout=20) as r:
-            short=json.load(r)['data']['getMovieLinks']['links_online'][0]['link']
+          payload={'operationName':'MovieLinks','variables':{'movie_id':'6a78e51c56e57b5ffbb0b2c6'},'query':'query MovieLinks($movie_id: ID!) { getMovieLinks(id: $movie_id, app: "com.asiapp.doramasgo") { links_online { link server is_recommended } } }'}
+          req=urllib.request.Request(gql,data=json.dumps(payload).encode(),headers={'User-Agent':ua,'Content-Type':'application/json','Origin':'https://doramasflix.in','Referer':page})
+          with urllib.request.urlopen(req,timeout=20) as r: short=json.load(r)['data']['getMovieLinks']['links_online'][0]['link']
           token=urllib.parse.urlparse(short).path.split('/e/',1)[1]
-          print('short:',urllib.parse.urlparse(short).netloc,'token_len=',len(token))
-
-          # Establish the same page/cookie context first.
-          opener=urllib.request.build_opener(urllib.request.HTTPCookieProcessor())
-          req=urllib.request.Request(short,headers={'User-Agent':ua,'Referer':movie_page})
-          with opener.open(req,timeout=20) as r:
-            page=r.read().decode('utf-8','replace')
-          print('page bytes:',len(page.encode()))
-
-          variants=[
-            ('no-tree',None),
-            ('empty-tree','[]'),
-            ('root-tree','["",{}]'),
-          ]
-          for label,tree in variants:
-            headers={
-              'User-Agent':ua,
-              'Accept':'text/x-component',
-              'Content-Type':'text/plain;charset=UTF-8',
-              'Origin':'https://embedshortener.co',
-              'Referer':short,
-              'next-action':action,
-            }
-            if tree is not None:
-              headers['next-router-state-tree']=tree
-            body=json.dumps([token],separators=(',',':')).encode()
-            req=urllib.request.Request(short,data=body,headers=headers,method='POST')
-            print('\n===',label,'===')
+          parts=token.split('.')
+          print('segments:',len(parts),[len(x) for x in parts])
+          for i,p in enumerate(parts[:2]):
             try:
-              with opener.open(req,timeout=20) as r:
-                raw=r.read().decode('utf-8','replace')
-                print('HTTP',r.status,'content-type',r.headers.get('content-type'))
-            except urllib.error.HTTPError as e:
-              raw=e.read().decode('utf-8','replace')
-              print('HTTP',e.code,'content-type',e.headers.get('content-type'))
-            print(raw[:8000])
-            m=re.search(r'https?://[^"\\\s]+',raw)
-            if 'iframeUrl' in raw:
-              print('FOUND IFRAME URL PAYLOAD')
-              break
+              raw=base64.urlsafe_b64decode(p+'='*((4-len(p)%4)%4)).decode('utf-8','replace')
+              print('segment',i,raw[:4000])
+            except Exception as e: print('segment',i,'decode error',repr(e))
+
+          # Verify whether the action is stateless: no preliminary GET/cookies.
+          headers={'User-Agent':ua,'Accept':'text/x-component','Content-Type':'text/plain;charset=UTF-8','Origin':'https://embedshortener.co','Referer':short,'next-action':action}
+          req=urllib.request.Request(short,data=json.dumps([token],separators=(',',':')).encode(),headers=headers,method='POST')
+          try:
+            with urllib.request.urlopen(req,timeout=20) as r:
+              raw=r.read().decode('utf-8','replace'); print('stateless HTTP',r.status); print(raw[:4000])
+          except urllib.error.HTTPError as e:
+            print('stateless HTTP',e.code); print(e.read().decode('utf-8','replace')[:4000])
           PY
