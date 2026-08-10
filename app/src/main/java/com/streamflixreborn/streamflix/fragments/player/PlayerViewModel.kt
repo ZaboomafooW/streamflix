@@ -19,6 +19,9 @@ import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableSharedFlow
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharedFlow
+import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.flow.collect
 import kotlinx.coroutines.launch
 import java.util.concurrent.atomic.AtomicLong
 
@@ -30,6 +33,9 @@ class PlayerViewModel(
     private val _state = MutableStateFlow<State>(State.LoadingServers)
     val state: Flow<State> = _state
 
+    private val _availableServers = MutableStateFlow<List<Video.Server>>(emptyList())
+    val availableServers: StateFlow<List<Video.Server>> = _availableServers.asStateFlow()
+
     private val _subtitleState = MutableSharedFlow<SubtitleState>()
     val subtitleState: SharedFlow<SubtitleState> = _subtitleState
 
@@ -38,6 +44,7 @@ class PlayerViewModel(
 
     private val contentGeneration = AtomicLong(0)
     private var serverLoadJob: Job? = null
+    private var serverObservationJob: Job? = null
     private var videoLoadJob: Job? = null
     private var currentServers: List<Video.Server> = emptyList()
     private var rediscoveredAfterExhaustion = false
@@ -120,12 +127,22 @@ class PlayerViewModel(
 
         val generation = contentGeneration.incrementAndGet()
         serverLoadJob?.cancel()
+        serverObservationJob?.cancel()
         videoLoadJob?.cancel()
         lastVideoType = videoType
         lastId = id
         lastProvider = provider
         currentServers = emptyList()
+        _availableServers.value = emptyList()
         if (resetRecovery) rediscoveredAfterExhaustion = false
+
+        serverObservationJob = viewModelScope.launch {
+            ServerAvailability.observeWorkingServers(provider, id, videoType).collect { servers ->
+                if (generation != contentGeneration.get()) return@collect
+                currentServers = servers
+                _availableServers.value = servers
+            }
+        }
 
         return viewModelScope.launch(Dispatchers.IO) {
             loadServers(provider, videoType, id, forceRefresh, generation)
@@ -161,7 +178,15 @@ class PlayerViewModel(
                 throw Exception("No playable servers found for this content.")
             }
 
-            currentServers = servers
+            if (result is ServerAvailability.Result.RequiresInteraction) {
+                currentServers = servers
+                _availableServers.value = servers
+            } else {
+                currentServers = ServerAvailability.cachedServers(provider, id, videoType)
+                    .ifEmpty { servers }
+                _availableServers.value = currentServers
+            }
+
             Log.i(
                 "StreamFlixES",
                 "[SERVERS LIST] -> Provider: ${provider.name}; available=${servers.size}; " +
@@ -206,7 +231,13 @@ class PlayerViewModel(
                 _state.emit(State.LoadingVideo(candidate))
 
                 try {
-                    val video = provider.getVideo(candidate)
+                    val video = ServerAvailability.takeResolvedVideo(
+                        provider = provider,
+                        id = id,
+                        videoType = videoType,
+                        server = candidate,
+                    ) ?: provider.getVideo(candidate)
+
                     if (video.source.isBlank()) {
                         throw Exception("No source found")
                     }
@@ -346,7 +377,7 @@ class PlayerViewModel(
     }
 
     fun downloadSubDLSubtitle(subtitle: SubDL.Subtitle) = viewModelScope.launch(Dispatchers.IO) {
-        Log.d("PlayerViewModel", "Inizio download sottotitolo SubDL: ${subtitle.name}")
+        Log.d("PlayerViewModel", "Inizio download sottotitolo SubDL")
         _subtitleState.emit(SubtitleState.DownloadingSubDLSubtitle)
         try {
             val uri = SubDL.download(subtitle)
@@ -360,6 +391,7 @@ class PlayerViewModel(
 
     override fun onCleared() {
         serverLoadJob?.cancel()
+        serverObservationJob?.cancel()
         videoLoadJob?.cancel()
         TokenManager.stop()
         super.onCleared()
