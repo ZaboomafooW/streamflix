@@ -22,7 +22,8 @@ import java.util.Locale
  * - the known original Audio language;
  * - a learned global Audio fallback from choices on other titles;
  * - one learned global Subtitle state (Off/None or language + same-language variant);
- * - automatic Forced subtitles behind Off/None, matched only to the actually selected Audio;
+ * - automatic Forced subtitles behind Off/None or an unavailable normal preference, matched only
+ *   to the effective Audio selection;
  * - narrow source-specific exact fallbacks for tracks whose intent cannot be represented by
  *   language alone, such as anonymous tracks or commentary/descriptive Audio.
  *
@@ -237,13 +238,15 @@ object PlaybackTrackPreferences {
                 }
 
                 val audio = currentOverride(parameters, tracks, C.TRACK_TYPE_AUDIO)
-                if (audio?.position != lastAudioPosition && audio != null) {
+                val audioChanged = audio?.position != lastAudioPosition && audio != null
+                if (audioChanged && audio != null) {
                     rememberManualAudioSelection(audio)
                     audioCancelled = true
                 }
 
                 val subtitle = currentOverride(parameters, tracks, C.TRACK_TYPE_TEXT)
                 val subtitleOff = subtitle == null && isSubtitleOff(parameters)
+                var automaticForcedApplied = false
 
                 when {
                     subtitle?.position != lastSubtitlePosition && subtitle != null -> {
@@ -272,11 +275,21 @@ object PlaybackTrackPreferences {
                         // Behind it, show only a Forced track matching the actually selected Audio.
                         applyParameters(
                             applyAutomaticForcedSubtitle(
-                                parameters.buildUpon(),
+                                parameters,
                                 tracks,
-                            ).build()
+                            )
                         )
+                        automaticForcedApplied = true
                     }
+                }
+
+                if (
+                    audioChanged &&
+                    !automaticForcedApplied &&
+                    !subtitleCancelled &&
+                    shouldUseAutomaticForcedSubtitles(tracks)
+                ) {
+                    applyParameters(applyAutomaticForcedSubtitle(parameters, tracks))
                 }
 
                 captureState(player.trackSelectionParameters, tracks)
@@ -410,12 +423,13 @@ object PlaybackTrackPreferences {
                 if (
                     !subtitleCancelled &&
                     !exactSubtitleApplied &&
-                    subtitlePreference == null
+                    shouldUseAutomaticForcedSubtitles(tracks)
                 ) {
-                    builder = applyAutomaticForcedSubtitle(
-                        builder ?: player.trackSelectionParameters.buildUpon(),
+                    val parameters = applyAutomaticForcedSubtitle(
+                        builder?.build() ?: player.trackSelectionParameters,
                         tracks,
                     )
+                    builder = parameters.buildUpon()
                 }
 
                 builder?.build()?.let(::applyParameters)
@@ -647,43 +661,80 @@ object PlaybackTrackPreferences {
     }
 
     /**
-     * Off/None means "Forced only". Match Forced subtitles to the language of the track that is
-     * actually selected for Audio. No provider, source, or title metadata participates here.
+     * Off/None means "Forced only". Match Forced subtitles to the effective Audio selection:
+     * explicit override, then the first available preferred language, then the current track.
+     * No provider, source, or title language is used as a subtitle-language shortcut.
      */
     private fun applyAutomaticForcedSubtitle(
-        builder: TrackSelectionParameters.Builder,
+        parameters: TrackSelectionParameters,
         tracks: Tracks,
-    ): TrackSelectionParameters.Builder {
-        builder
+    ): TrackSelectionParameters {
+        val builder = parameters.buildUpon()
             .clearOverridesOfType(C.TRACK_TYPE_TEXT)
             .setPreferredTextLanguages(*emptyArray())
             .setTrackTypeDisabled(C.TRACK_TYPE_TEXT, true)
             .setIgnoredTextSelectionFlags(DEFAULT_TEXT_FLAGS)
 
-        val audioLanguage = selectedAudioLanguage(tracks) ?: return builder
-        val forcedTrack = forcedSubtitleTrack(tracks, audioLanguage) ?: return builder
+        val forcedTrack = forcedSubtitleTrack(parameters, tracks) ?: return builder.build()
 
         return builder
             .setOverrideForType(forcedTrack.override())
             .setTrackTypeDisabled(C.TRACK_TYPE_TEXT, false)
+            .build()
     }
 
-    private fun selectedAudioLanguage(tracks: Tracks): String? =
-        allSupportedTracks(tracks, C.TRACK_TYPE_AUDIO)
-            .firstOrNull { track -> track.group.isTrackSelected(track.trackIndex) }
-            ?.format
-            ?.let { format ->
-                canonicalLanguage(format.language) ?: languageFromLabel(format.label)
+    private fun shouldUseAutomaticForcedSubtitles(tracks: Tracks): Boolean {
+        val rememberedLanguage = (globalSubtitlePreference as? SubtitlePreference.Language)?.value
+        val standardSubtitleLanguages = allSupportedTracks(tracks, C.TRACK_TYPE_TEXT)
+            .filterNot { track -> isForcedSubtitle(track.format) }
+            .map { track ->
+                canonicalLanguage(track.format.language)
+                    ?: languageFromLabel(track.format.label)
             }
 
-    private fun forcedSubtitleTrack(tracks: Tracks, audioLanguage: String): TrackRef? =
-        allSupportedTracks(tracks, C.TRACK_TYPE_TEXT)
+        return PlaybackForcedSubtitleResolver.shouldUseAutomaticFallback(
+            rememberedSubtitleLanguage = rememberedLanguage,
+            standardSubtitleLanguages = standardSubtitleLanguages,
+        )
+    }
+
+    private fun forcedSubtitleTrack(
+        parameters: TrackSelectionParameters,
+        tracks: Tracks,
+    ): TrackRef? {
+        val audioTracks = allSupportedTracks(tracks, C.TRACK_TYPE_AUDIO)
+        val forcedSubtitleTracks = allSupportedTracks(tracks, C.TRACK_TYPE_TEXT)
             .filter { track -> isForcedSubtitle(track.format) }
-            .filter { track -> trackMatchesLanguage(track.format, audioLanguage) }
-            .let { candidates ->
-                candidates.firstOrNull { track -> track.group.isTrackSelected(track.trackIndex) }
-                    ?: candidates.firstOrNull()
-            }
+        val position = PlaybackForcedSubtitleResolver.resolve(
+            audioOverride = currentOverride(
+                parameters,
+                tracks,
+                C.TRACK_TYPE_AUDIO,
+            )?.position?.let { (groupIndex, trackIndex) ->
+                PlaybackForcedSubtitleResolver.Position(groupIndex, trackIndex)
+            },
+            preferredAudioLanguages = parameters.preferredAudioLanguages
+                .mapNotNull(::canonicalLanguage),
+            audioTracks = audioTracks.map(::forcedSubtitleCandidate),
+            forcedSubtitleTracks = forcedSubtitleTracks.map(::forcedSubtitleCandidate),
+        ) ?: return null
+
+        return forcedSubtitleTracks.firstOrNull { track ->
+            track.groupIndex == position.groupIndex && track.trackIndex == position.trackIndex
+        }
+    }
+
+    private fun forcedSubtitleCandidate(
+        track: TrackRef,
+    ) = PlaybackForcedSubtitleResolver.Candidate(
+        position = PlaybackForcedSubtitleResolver.Position(
+            groupIndex = track.groupIndex,
+            trackIndex = track.trackIndex,
+        ),
+        language = canonicalLanguage(track.format.language)
+            ?: languageFromLabel(track.format.label),
+        selected = track.group.isTrackSelected(track.trackIndex),
+    )
 
     /**
      * Media3 owns language matching whenever tracks expose language metadata. Some extractor tracks
