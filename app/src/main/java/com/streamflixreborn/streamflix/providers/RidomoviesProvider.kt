@@ -497,6 +497,7 @@ object RidomoviesProvider : Provider {
         fallbackPoster: String?,
     ): List<Episode> =
         doc.select("a.episode-link[href], a[href*='/episode-']").mapNotNull { link ->
+            if (link.selectFirst(".ep-no-video") != null) return@mapNotNull null
             val href = absolute(link.attr("href"))
             val match = episodePath.find(URL(href).path) ?: return@mapNotNull null
             if (!match.groupValues[1].equals(expectedSlug, true) ||
