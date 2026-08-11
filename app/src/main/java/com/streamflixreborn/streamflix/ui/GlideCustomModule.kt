@@ -10,6 +10,7 @@ import com.bumptech.glide.module.AppGlideModule
 import com.streamflixreborn.streamflix.utils.ArtworkRequestHeaders
 import com.streamflixreborn.streamflix.utils.DnsResolver
 import com.streamflixreborn.streamflix.utils.NetworkClient
+import com.streamflixreborn.streamflix.utils.RidomoviesArtworkRateLimitInterceptor
 import com.streamflixreborn.streamflix.providers.AnimeOnlineNinjaProvider
 import okhttp3.*
 import okhttp3.OkHttpClient.Builder
@@ -79,6 +80,7 @@ class GlideCustomModule : AppGlideModule() {
                 }
                 chain.proceed(fixedRequest.withAnimeOnlineCookies())
             }
+            .addInterceptor(RidomoviesArtworkRateLimitInterceptor())
             .addInterceptor(logging)
             .sslSocketFactory(sslContext.socketFactory, trustManager)
             .hostnameVerifier { _, _ -> true }
