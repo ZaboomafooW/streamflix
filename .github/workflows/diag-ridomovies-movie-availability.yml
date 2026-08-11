@@ -15,79 +15,85 @@ jobs:
       - uses: actions/checkout@v4
       - name: Install diagnostics dependencies
         run: python -m pip install --disable-pip-version-check curl_cffi beautifulsoup4
-      - name: Inspect current movie availability signals
+      - name: Scan current movie catalog for unavailable titles
         env:
           PYTHONUNBUFFERED: '1'
         run: |
           python - <<'PY'
           import json
+          from concurrent.futures import ThreadPoolExecutor, as_completed
           from urllib.parse import urljoin
           from curl_cffi import requests as cr
           from bs4 import BeautifulSoup
 
           BASE='https://ridomovies.su/'
           UA='Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/136.0.0.0 Safari/537.36'
-          s=cr.Session(impersonate='chrome136')
-          h={'User-Agent':UA,'Accept-Language':'en-US,en;q=0.9','Referer':BASE}
+          H={'User-Agent':UA,'Accept-Language':'en-US,en;q=0.9','Referer':BASE}
 
-          api=s.get(BASE+'api/movies/latest',params={'page':'1','limit':'32','lang':'en'},headers={**h,'Accept':'application/json'},timeout=30)
-          print('API',api.status_code,api.url)
-          api.raise_for_status()
-          payload=api.json()
-          rows=payload.get('movies') or []
-          print('API KEYS',sorted(payload.keys()))
-          print('ROW COUNT',len(rows))
+          rows=[]
+          for page in range(1,6):
+              r=cr.get(BASE+'api/movies/latest',params={'page':str(page),'limit':'32','lang':'en'},headers={**H,'Accept':'application/json'},impersonate='chrome136',timeout=30)
+              print('API PAGE',page,r.status_code,r.url)
+              r.raise_for_status()
+              payload=r.json()
+              batch=payload.get('movies') or []
+              print('API PAGE COUNT',page,len(batch),'hasMore=',payload.get('hasMore'))
+              rows.extend(batch)
+              if not payload.get('hasMore'):
+                  break
 
-          listing=s.get(BASE+'movies',headers={**h,'Accept':'text/html,application/xhtml+xml,*/*;q=0.8'},timeout=30)
-          print('LISTING',listing.status_code,listing.url,len(listing.content))
-          listing.raise_for_status()
-          listing_doc=BeautifulSoup(listing.text,'html.parser')
-          listing_cards={}
-          for a in listing_doc.select("a[href*='/movie/']"):
-              href=urljoin(BASE,a.get('href',''))
-              slug=href.rstrip('/').split('/')[-1]
-              card=a.find_parent(class_=lambda x: x and ('movie-card' in x if isinstance(x,list) else 'movie-card' in x)) or a.parent
-              if not slug or card is None: continue
-              listing_cards.setdefault(slug, str(card)[:2500])
+          dedup={}
+          for row in rows:
+              slug=row.get('slug') or row.get('slug_en')
+              if slug:
+                  dedup[slug]=row
+          rows=list(dedup.values())
+          print('UNIQUE MOVIES',len(rows))
+          if rows:
+              print('API ROW KEYS',sorted(rows[0].keys()))
 
-          for idx,row in enumerate(rows[:24],1):
+          def inspect(row):
               slug=row.get('slug') or row.get('slug_en')
               title=row.get('title') or row.get('original_title')
-              if not slug: continue
-              print('\nMOVIE',idx,title,slug)
-              print('API ROW',json.dumps(row,ensure_ascii=False,sort_keys=True))
-              card_html=listing_cards.get(slug,'')
-              if card_html:
-                  card=BeautifulSoup(card_html,'html.parser')
-                  signals=[]
-                  for el in card.select('*'):
-                      cls=' '.join(el.get('class') or [])
-                      title_attr=el.get('title') or ''
-                      data={k:v for k,v in el.attrs.items() if k.startswith('data-')}
-                      txt=' '.join(el.stripped_strings)
-                      low=' '.join([cls,title_attr,txt]).lower()
-                      if 'no-video' in low or 'not yet available' in low or 'not available' in low or data:
-                          signals.append({'tag':el.name,'class':cls,'title':title_attr,'data':data,'text':txt[:200]})
-                  print('LIST SIGNALS',json.dumps(signals[:20],ensure_ascii=False))
-              else:
-                  print('LIST SIGNALS no matching card on /movies')
-
-              rr=s.get(urljoin(BASE,'movie/'+slug),headers={**h,'Accept':'text/html,application/xhtml+xml,*/*;q=0.8'},timeout=30)
-              print('PAGE',rr.status_code,rr.url,len(rr.content))
-              if not rr.ok: continue
+              rr=cr.get(urljoin(BASE,'movie/'+slug),headers={**H,'Accept':'text/html,application/xhtml+xml,*/*;q=0.8'},impersonate='chrome136',timeout=30)
+              if not rr.ok:
+                  return {'slug':slug,'title':title,'status':rr.status_code,'error':'page request failed','row':row}
               doc=BeautifulSoup(rr.text,'html.parser')
               detail=doc.select_one('#detailConfig')
-              videos_raw=detail.get('data-videos') if detail else None
+              raw=detail.get('data-videos') if detail else None
               try:
-                  videos=json.loads(videos_raw) if videos_raw else None
+                  videos=json.loads(raw) if raw else None
               except Exception:
                   videos='INVALID'
-              print('DETAIL ATTRS',detail.attrs if detail else None)
-              print('VIDEO COUNT',len(videos) if isinstance(videos,list) else videos)
               cover=doc.select_one('#player-cover[data-embed]')
-              print('PLAYER COVER',cover.get('data-embed') if cover else None)
-              no_video=[]
-              for el in doc.select('.ep-no-video, .no-video, [title*=available], [class*=no-video]'):
-                  no_video.append({'tag':el.name,'class':el.get('class'),'title':el.get('title'),'text':' '.join(el.stripped_strings)})
-              print('PAGE NO-VIDEO MARKERS',json.dumps(no_video,ensure_ascii=False))
+              cover_embed=cover.get('data-embed') if cover else None
+              playable=isinstance(videos,list) and len(videos)>0
+              return {
+                  'slug':slug,
+                  'title':title,
+                  'status':rr.status_code,
+                  'playable':playable,
+                  'video_count':len(videos) if isinstance(videos,list) else videos,
+                  'cover':cover_embed,
+                  'detail':detail.attrs if detail else None,
+                  'row':row,
+              }
+
+          results=[]
+          with ThreadPoolExecutor(max_workers=12) as pool:
+              futures=[pool.submit(inspect,row) for row in rows]
+              for fut in as_completed(futures):
+                  try:
+                      results.append(fut.result())
+                  except Exception as exc:
+                      results.append({'error':repr(exc)})
+
+          unavailable=[x for x in results if x.get('playable') is False]
+          failed=[x for x in results if 'error' in x]
+          playable=[x for x in results if x.get('playable') is True]
+          print('SUMMARY playable=',len(playable),'unavailable=',len(unavailable),'failed=',len(failed))
+          for item in unavailable[:20]:
+              print('UNAVAILABLE MOVIE',json.dumps(item,ensure_ascii=False,sort_keys=True))
+          for item in failed[:20]:
+              print('FAILED INSPECTION',json.dumps(item,ensure_ascii=False,sort_keys=True))
           PY
