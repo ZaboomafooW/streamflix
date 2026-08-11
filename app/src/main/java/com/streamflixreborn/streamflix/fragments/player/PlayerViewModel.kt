@@ -10,7 +10,6 @@ import com.streamflixreborn.streamflix.utils.OpenSubtitles
 import com.streamflixreborn.streamflix.utils.PlaybackLanguageContext
 import com.streamflixreborn.streamflix.utils.PlaybackTrackPreferences
 import com.streamflixreborn.streamflix.utils.SubDL
-import com.streamflixreborn.streamflix.utils.TrackAuditLogger
 import com.streamflixreborn.streamflix.utils.UserPreferences
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.Flow
@@ -101,7 +100,6 @@ class PlayerViewModel(
         val originalLanguage = originalAudioLanguage(videoType)
         PlaybackLanguageContext.setOriginalAudioLanguage(originalLanguage)
         PlaybackTrackPreferences.activate(videoType, originalLanguage)
-        TrackAuditLogger.beginContent(videoType, originalLanguage)
         getServers(videoType, id)
     }
 
@@ -123,22 +121,18 @@ class PlayerViewModel(
             val servers = UserPreferences.currentProvider!!.getServers(id, videoType)
             if (servers.isEmpty()) throw Exception("No servers found")
 
-            TrackAuditLogger.recordServers(servers)
-
             Log.i("StreamFlixES", "[SERVERS LIST] -> Provider: ${UserPreferences.currentProvider!!.name}")
             Log.i("StreamFlixES", "[SERVERS LIST] -> Found ${servers.size} servers: ${servers.joinToString { it.name }}")
 
             Log.d("PlayerViewModel", "Ricerca server completata: ${servers.size} server trovati")
             _state.emit(State.SuccessLoadingServers(servers))
         } catch (e: Exception) {
-            TrackAuditLogger.recordServerFailure(e)
             Log.e("PlayerViewModel", "Errore ricerca server: ", e)
             _state.emit(State.FailedLoadingServers(e))
         }
     }
 
     fun getVideo(server: Video.Server) = viewModelScope.launch(Dispatchers.IO) {
-        TrackAuditLogger.beginServer(server)
         Log.d("PlayerViewModel", "Inizio estrazione video dal server: ${server.name}")
         _state.emit(State.LoadingVideo(server))
         try {
@@ -150,7 +144,6 @@ class PlayerViewModel(
             Log.d("PlayerViewModel", "Estrazione video completata con successo")
             _state.emit(State.SuccessLoadingVideo(video, server))
         } catch (e: Exception) {
-            TrackAuditLogger.recordExtractionFailure(server, e)
             Log.e("PlayerViewModel", "Errore estrazione video: ", e)
             _state.emit(State.FailedLoadingVideo(e, server))
         }

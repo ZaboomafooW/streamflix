@@ -1,20 +1,14 @@
 package com.streamflixreborn.streamflix.fragments.home
 
-import android.app.AlertDialog
 import android.os.Bundle
 import android.os.Handler
 import android.os.Looper
 import android.view.LayoutInflater
 import android.view.View
 import android.view.ViewGroup
-import android.widget.LinearLayout
-import android.widget.ProgressBar
-import android.widget.TextView
 import android.widget.Toast
 import androidx.fragment.app.Fragment
 import androidx.lifecycle.Lifecycle
-import androidx.lifecycle.ViewModel
-import androidx.lifecycle.ViewModelProvider
 import androidx.lifecycle.flowWithLifecycle
 import androidx.lifecycle.lifecycleScope
 import androidx.recyclerview.widget.RecyclerView
@@ -28,13 +22,15 @@ import com.streamflixreborn.streamflix.models.Category
 import com.streamflixreborn.streamflix.models.Episode
 import com.streamflixreborn.streamflix.models.Movie
 import com.streamflixreborn.streamflix.models.TvShow
-import com.streamflixreborn.streamflix.utils.CacheUtils
-import com.streamflixreborn.streamflix.utils.LoggingUtils
-import com.streamflixreborn.streamflix.utils.ProviderChangeNotifier
-import com.streamflixreborn.streamflix.utils.ProviderTrackAuditRunner
-import com.streamflixreborn.streamflix.utils.UserPreferences
+import com.streamflixreborn.streamflix.utils.viewModelsFactory
 import kotlinx.coroutines.Runnable
+import com.streamflixreborn.streamflix.utils.CacheUtils
 import kotlinx.coroutines.launch
+import androidx.lifecycle.ViewModel
+import androidx.lifecycle.ViewModelProvider
+import com.streamflixreborn.streamflix.utils.LoggingUtils
+import com.streamflixreborn.streamflix.utils.UserPreferences
+import com.streamflixreborn.streamflix.utils.ProviderChangeNotifier
 
 class HomeTvFragment : Fragment() {
 
@@ -58,12 +54,6 @@ class HomeTvFragment : Fragment() {
 
     private val swiperHandler = Handler(Looper.getMainLooper())
     private var isBackgroundPinned = false
-
-    private var auditDialog: AlertDialog? = null
-    private var auditProgress: ProgressBar? = null
-    private var auditStatus: TextView? = null
-    private var auditDetail: TextView? = null
-    private var auditDialogProvider: String? = null
 
     override fun onCreateView(
         inflater: LayoutInflater,
@@ -90,12 +80,6 @@ class HomeTvFragment : Fragment() {
         viewModel.getHome()
 
         viewLifecycleOwner.lifecycleScope.launch {
-            ProviderTrackAuditRunner.progress
-                .flowWithLifecycle(lifecycle, Lifecycle.State.STARTED)
-                .collect { progress -> displayAuditProgress(progress) }
-        }
-
-        viewLifecycleOwner.lifecycleScope.launch {
             viewModel.state.flowWithLifecycle(lifecycle, Lifecycle.State.STARTED).collect { state ->
                 when (state) {
                     HomeViewModel.State.Loading -> binding.isLoading.apply {
@@ -104,14 +88,6 @@ class HomeTvFragment : Fragment() {
                         gIsLoadingRetry.visibility = View.GONE
                     }
                     is HomeViewModel.State.SuccessLoading -> {
-                        UserPreferences.currentProvider?.let { provider ->
-                            ProviderTrackAuditRunner.startIfNeeded(
-                                context = requireContext(),
-                                provider = provider,
-                                categories = state.categories,
-                            )
-                        }
-
                         displayHome(state.categories)
                         binding.vgvHome.visibility = View.VISIBLE
                         binding.isLoading.root.visibility = View.GONE
@@ -149,92 +125,6 @@ class HomeTvFragment : Fragment() {
             }
         }
     }
-
-    private fun displayAuditProgress(progress: ProviderTrackAuditRunner.Progress?) {
-        if (_binding == null) return
-        if (progress == null) {
-            dismissAuditDialog()
-            return
-        }
-
-        if (auditDialog == null || auditDialogProvider != progress.provider) {
-            dismissAuditDialog()
-            auditDialogProvider = progress.provider
-
-            val padding = (24 * resources.displayMetrics.density).toInt()
-            val content = LinearLayout(requireContext()).apply {
-                orientation = LinearLayout.VERTICAL
-                setPadding(padding, padding / 2, padding, 0)
-            }
-            auditStatus = TextView(requireContext()).also { content.addView(it) }
-            auditProgress = ProgressBar(
-                requireContext(),
-                null,
-                android.R.attr.progressBarStyleHorizontal,
-            ).also { progressBar ->
-                content.addView(
-                    progressBar,
-                    LinearLayout.LayoutParams(
-                        LinearLayout.LayoutParams.MATCH_PARENT,
-                        LinearLayout.LayoutParams.WRAP_CONTENT,
-                    ).apply { topMargin = padding / 2 }
-                )
-            }
-            auditDetail = TextView(requireContext()).also { detail ->
-                content.addView(
-                    detail,
-                    LinearLayout.LayoutParams(
-                        LinearLayout.LayoutParams.MATCH_PARENT,
-                        LinearLayout.LayoutParams.WRAP_CONTENT,
-                    ).apply { topMargin = padding / 2 }
-                )
-            }
-
-            auditDialog = AlertDialog.Builder(requireContext())
-                .setTitle("Auditing ${ProviderTrackAuditRunner.TARGET_TITLE} • ${progress.provider}")
-                .setView(content)
-                .setNegativeButton("Skip provider") { _, _ ->
-                    ProviderTrackAuditRunner.skipCurrentProvider()
-                }
-                .setCancelable(false)
-                .create()
-                .also { it.show() }
-        }
-
-        val total = progress.total.coerceAtLeast(1)
-        val remaining = (progress.total - progress.completed).coerceAtLeast(0)
-        auditProgress?.max = total
-        auditProgress?.progress = progress.completed.coerceIn(0, total)
-        auditStatus?.text = when {
-            progress.total == 0 -> progress.phase
-            else -> "${progress.completed}/${progress.total} logged • $remaining remaining"
-        }
-        auditDetail?.text = buildString {
-            append(progress.title)
-            append("\n")
-            append(progress.phase)
-            if (progress.failures > 0) append("\n${progress.failures} failed checks logged")
-        }
-
-        if (progress.finished) {
-            auditDialog?.getButton(AlertDialog.BUTTON_NEGATIVE)?.isEnabled = false
-            binding.root.postDelayed({
-                if (_binding != null && ProviderTrackAuditRunner.progress.value?.finished == true) {
-                    dismissAuditDialog()
-                    ProviderTrackAuditRunner.dismissFinishedProgress()
-                }
-            }, 900)
-        }
-    }
-
-    private fun dismissAuditDialog() {
-        auditDialog?.dismiss()
-        auditDialog = null
-        auditProgress = null
-        auditStatus = null
-        auditDetail = null
-        auditDialogProvider = null
-    }
     
     override fun onStart() {
         super.onStart()
@@ -253,10 +143,9 @@ class HomeTvFragment : Fragment() {
     }
 
     override fun onDestroyView() {
-        dismissAuditDialog()
+        super.onDestroyView()
         appAdapter.onSaveInstanceState(binding.vgvHome)
         _binding = null
-        super.onDestroyView()
     }
 
 
