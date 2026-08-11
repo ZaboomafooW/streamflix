@@ -15,41 +15,80 @@ jobs:
       - uses: actions/checkout@v4
       - name: Install diagnostics dependency
         run: python -m pip install --disable-pip-version-check curl_cffi
-      - name: Find serialized catalog rate-limit threshold
+      - name: Reproduce five pages of normal catalog traffic
         env:
           PYTHONUNBUFFERED: '1'
         run: |
           python - <<'PY'
           import json, time
+          from concurrent.futures import ThreadPoolExecutor, as_completed
+          from urllib.parse import urljoin
           from curl_cffi import requests as cr
 
           BASE='https://ridomovies.su/'
           UA='Mozilla/5.0 (Linux; Android 13; Pixel 7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/116.0.0.0 Mobile Safari/537.36'
-          H={'User-Agent':UA,'Accept-Language':'en-US,en;q=0.9','Referer':BASE,'Accept':'application/json'}
+          API_H={'User-Agent':UA,'Accept-Language':'en-US,en;q=0.9','Referer':BASE,'Accept':'application/json'}
+          IMG_H={'User-Agent':UA,'Accept-Language':'en-US,en;q=0.9','Referer':BASE,'Accept':'image/avif,image/webp,image/apng,image/*,*/*;q=0.8'}
           s=cr.Session(impersonate='chrome')
-
           started=time.monotonic()
-          for request_no in range(1, 31):
-              # Cycle through real catalog pages so this matches rapid infinite scrolling without
-              # adding image/detail traffic. Stop immediately if the server rate-limits us.
-              page=((request_no - 1) % 20) + 1
-              r=s.get(BASE+'api/tv/latest', params={'page':str(page),'limit':'32','lang':'en'}, headers=H, timeout=30)
-              interesting={
-                  k:v for k,v in r.headers.items()
+          total=0
+
+          def headers(response):
+              return {
+                  k:v for k,v in response.headers.items()
                   if k.lower() in {
                       'retry-after','server','cf-ray','cf-cache-status','x-ratelimit-limit',
                       'x-ratelimit-remaining','x-ratelimit-reset','ratelimit-limit',
                       'ratelimit-remaining','ratelimit-reset'
                   }
               }
-              elapsed=time.monotonic()-started
-              print('REQUEST',request_no,'PAGE',page,'elapsed=',round(elapsed,3),'status=',r.status_code,'headers=',json.dumps(interesting,sort_keys=True),'bytes=',len(r.content))
-              if r.status_code == 429:
-                  print('FIRST_429_REQUEST',request_no)
-                  print('FIRST_429_ELAPSED',round(elapsed,3))
-                  print('FIRST_429_BODY',r.text[:1200].replace('\n',' '))
-                  break
-              r.raise_for_status()
-          else:
-              print('NO_429_WITHIN_30_SERIAL_REQUESTS')
+
+          def stop_if_429(label,response):
+              if response.status_code != 429:
+                  return False
+              print('FIRST_429',label,'elapsed=',round(time.monotonic()-started,3),'headers=',json.dumps(headers(response),sort_keys=True))
+              print('FIRST_429_BODY',response.text[:1200].replace('\n',' '))
+              return True
+
+          for page in range(1,6):
+              api=s.get(BASE+'api/tv/latest',params={'page':str(page),'limit':'32','lang':'en'},headers=API_H,timeout=30)
+              total += 1
+              print('API',page,'status=',api.status_code,'total_requests=',total,'headers=',json.dumps(headers(api),sort_keys=True))
+              if stop_if_429(f'API_PAGE_{page}',api): raise SystemExit(0)
+              api.raise_for_status()
+
+              posters=[]
+              for row in (api.json().get('series') or [])[:32]:
+                  value=row.get('poster_path') or row.get('poster')
+                  if value: posters.append(urljoin(BASE,value))
+
+              def fetch(url):
+                  rr=cr.get(url,headers=IMG_H,impersonate='chrome',timeout=30)
+                  return url,rr
+
+              status_counts={}
+              first_429=None
+              with ThreadPoolExecutor(max_workers=8) as pool:
+                  futures=[pool.submit(fetch,url) for url in posters]
+                  for future in as_completed(futures):
+                      url,rr=future.result()
+                      total += 1
+                      status_counts[rr.status_code]=status_counts.get(rr.status_code,0)+1
+                      if rr.status_code == 429 and first_429 is None:
+                          first_429=(url,rr)
+              print('POSTERS_PAGE',page,'count=',len(posters),'statuses=',json.dumps(status_counts,sort_keys=True),'total_requests=',total)
+              if first_429:
+                  url,rr=first_429
+                  print('FIRST_429_POSTER_URL',url)
+                  stop_if_429(f'POSTERS_PAGE_{page}',rr)
+                  raise SystemExit(0)
+
+              # Verify API health immediately after each page's visible artwork has loaded.
+              health=s.get(BASE+'api/tv/latest',params={'page':str(page+1),'limit':'32','lang':'en'},headers=API_H,timeout=30)
+              total += 1
+              print('API_HEALTH_AFTER_PAGE',page,'status=',health.status_code,'total_requests=',total,'headers=',json.dumps(headers(health),sort_keys=True))
+              if stop_if_429(f'API_HEALTH_AFTER_PAGE_{page}',health): raise SystemExit(0)
+              health.raise_for_status()
+
+          print('NO_429_AFTER_FIVE_PAGES total_requests=',total,'elapsed=',round(time.monotonic()-started,3))
           PY
