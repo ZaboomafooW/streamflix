@@ -22,8 +22,10 @@ class MixDropExtractor : Extractor() {
         "https://mxdrop.to",
         "https://mixdrop.club",
         "https://m1xdrop.net",
+        "https://m1xdrop.bz",
         "https://miiixdrop.net",
-        "https://miixdrop.net"
+        "https://miixdrop.net",
+        "https://miixdrop.com"
     )
     override val rotatingDomain = listOf(
         Regex("^md[3bfyz][a-z0-9]*\\.[a-z0-9]+", RegexOption.IGNORE_CASE)
