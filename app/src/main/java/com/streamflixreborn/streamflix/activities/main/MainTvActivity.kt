@@ -27,6 +27,7 @@ import com.streamflixreborn.streamflix.providers.IptvProvider
 import com.streamflixreborn.streamflix.providers.Provider
 import com.streamflixreborn.streamflix.providers.Cine24hProvider
 import com.streamflixreborn.streamflix.providers.FilmyOnlineCcProvider
+import com.streamflixreborn.streamflix.providers.ZaluknijProvider
 import com.streamflixreborn.streamflix.providers.GuardaSerieProvider
 import com.streamflixreborn.streamflix.utils.AppLanguageManager
 import com.streamflixreborn.streamflix.utils.ThemeManager
@@ -58,8 +59,9 @@ class MainTvActivity : FragmentActivity() {
         AnimeOnlineNinjaProvider.init(this)
         Cine24hProvider.init(this)
         FilmyOnlineCcProvider.init(this)
+        ZaluknijProvider.init(this)
         GuardaSerieProvider.init(this)
-        
+
         _binding = ActivityMainTvBinding.inflate(layoutInflater)
         setContentView(binding.root)
         applyThemeNavigationChrome()
@@ -102,7 +104,7 @@ class MainTvActivity : FragmentActivity() {
                 val header = ContentHeaderMenuMainTvBinding.bind(this)
 
                 Glide.with(context)
-                    .load(currentProviderLogo())
+                    .load(UserPreferences.currentProvider?.logo?.takeIf { it.isNotEmpty() } ?: R.drawable.ic_provider_default_logo)
                     .error(R.drawable.ic_provider_default_logo)
                     .into(header.ivNavigationHeaderIcon)
                 header.tvNavigationHeaderTitle.text = UserPreferences.currentProvider?.name
@@ -128,7 +130,7 @@ class MainTvActivity : FragmentActivity() {
             }
 
             when (destination.id) {
-                R.id.search, R.id.home, R.id.movies, R.id.tv_shows, R.id.settings -> {
+                R.id.search, R.id.home, R.id.movies, R.id.tv_shows, R.id.favorites, R.id.settings -> {
                     binding.navMain.visibility = View.VISIBLE
                     updateNavigationVisibility()
                 }
@@ -165,7 +167,7 @@ class MainTvActivity : FragmentActivity() {
             override fun handleOnBackPressed() {
                 when (navController.currentDestination?.id) {
                     R.id.home -> if (binding.navMain.hasFocus()) finish() else binding.navMain.requestFocus()
-                    R.id.settings, R.id.search, R.id.movies, R.id.tv_shows -> {
+                    R.id.settings, R.id.search, R.id.movies, R.id.tv_shows, R.id.favorites -> {
                         navigateToProviderHome(navController)
                         binding.navMain.requestFocus()
                     }
@@ -182,11 +184,6 @@ class MainTvActivity : FragmentActivity() {
         super.onResume()
         viewModel.checkUpdate()
     }
-
-    private fun currentProviderLogo(): Any =
-        UserPreferences.currentProvider?.logoRes
-            ?: UserPreferences.currentProvider?.logo?.takeIf { it.isNotEmpty() }
-            ?: R.drawable.ic_provider_default_logo
 
     private fun applyThemeNavigationChrome() {
         val palette = ThemeManager.palette(UserPreferences.selectedTheme)

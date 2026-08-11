@@ -136,13 +136,9 @@ class HomeMobileFragment : Fragment() {
         }
 
         binding.ivProviderLogo.apply {
-            val provider = UserPreferences.currentProvider
             Glide.with(context)
-                .load(
-                    provider?.logoRes
-                        ?: provider?.logo?.takeIf { it.isNotEmpty() }
-                        ?: R.drawable.ic_provider_default_logo
-                )
+                .load(UserPreferences.currentProvider?.logo?.takeIf { it.isNotEmpty() }
+                    ?: R.drawable.ic_provider_default_logo)
                 .error(R.drawable.ic_provider_default_logo)
                 .fitCenter()
                 .into(this)
@@ -178,6 +174,12 @@ class HomeMobileFragment : Fragment() {
                         is Movie -> show.itemType = AppAdapter.Type.MOVIE_CONTINUE_WATCHING_MOBILE_ITEM
                     }
                 }
+            }
+
+        categories
+            .find { it.name == Category.RECENTLY_WATCHED }
+            ?.also {
+                it.name = getString(R.string.home_recently_watched)
             }
 
         categories
