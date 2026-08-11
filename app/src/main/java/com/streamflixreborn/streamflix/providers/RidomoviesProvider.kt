@@ -192,7 +192,12 @@ object RidomoviesProvider : Provider {
             poster = metadata.poster,
             imdbId = metadata.imdbId,
             seasons = seasonNumbers(doc).map {
-                Season(id = "$slug/$it", number = it, title = "Season $it")
+                Season(
+                    id = "$slug/$it",
+                    number = it,
+                    title = "Season $it",
+                    poster = metadata.poster,
+                )
             },
             genres = metadata.genres,
         )
@@ -218,8 +223,7 @@ object RidomoviesProvider : Provider {
         }.getOrNull()
 
         val seasonDoc = ajax ?: runCatching { document(seasonUrl) }.getOrDefault(showDoc)
-        val showPoster = metadata(showDoc, "TVSeries").poster
-        return episodes(seasonDoc, slug, season, showPoster)
+        return episodes(seasonDoc, slug, season)
     }
 
     override suspend fun getGenre(id: String, page: Int): Genre = coroutineScope {
@@ -507,7 +511,6 @@ object RidomoviesProvider : Provider {
         doc: Document,
         expectedSlug: String,
         expectedSeason: Int,
-        fallbackPoster: String?,
     ): List<Episode> =
         doc.select("a.episode-link[href], a[href*='/episode-']").mapNotNull { link ->
             if (link.selectFirst(".ep-no-video") != null) return@mapNotNull null
@@ -517,10 +520,9 @@ object RidomoviesProvider : Provider {
                 match.groupValues[2].toIntOrNull() != expectedSeason
             ) return@mapNotNull null
             val number = match.groupValues[3].toIntOrNull() ?: return@mapNotNull null
-            val image = link.selectFirst("img")
-            val episodePoster = image?.let {
+            val episodePoster = link.selectFirst("img")?.let {
                 asset(it.attr("src").takeIf(String::isNotBlank) ?: it.attr("data-src"))
-            } ?: fallbackPoster
+            }
             Episode(
                 id = URL(href).path.trimStart('/'),
                 number = number,
