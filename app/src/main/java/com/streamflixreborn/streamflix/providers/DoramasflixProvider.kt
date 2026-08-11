@@ -40,6 +40,7 @@ object DoramasflixProvider : Provider {
     private const val apiUrl = "https://sv7.fluxcedene.net/"
     private const val playbackApiUrl = "https://userapi.cloudfleir.xyz/"
     private const val playbackApp = "com.asiapp.doramasgo"
+    private const val EPISODE_AVAILABILITY_BATCH_SIZE = 25
     override val language = "es"
     override val logo = "https://assets.seriesapi.co/brands/doramasflix/websites/6a651fa138cbd16df74343be/logo/logo-1785013866419.png"
 
@@ -113,6 +114,18 @@ object DoramasflixProvider : Provider {
             @Body body: okhttp3.RequestBody,
         ): ApiResponse
 
+        @POST("graphql")
+        @Headers(
+            "Accept: application/json, text/plain, */*",
+            "Content-Type: application/json",
+        )
+        suspend fun getPlaybackRawResponse(
+            @Header("Origin") origin: String,
+            @Header("Referer") referer: String,
+            @Header("User-Agent") userAgent: String,
+            @Body body: okhttp3.RequestBody,
+        ): okhttp3.ResponseBody
+
         @GET
         suspend fun getPage(@Url url: String): Document
 
@@ -142,6 +155,17 @@ object DoramasflixProvider : Provider {
             userAgent = "Mozilla/5.0 (Linux; Android 10; Android TV) AppleWebKit/537.36 Chrome/140.0.0.0 Safari/537.36",
             body = requestBody(operationName, variables, query),
         )
+    }
+
+    private suspend fun playbackRawRequest(operationName: String, variables: JSONObject, query: String): JSONObject {
+        return playbackService.getPlaybackRawResponse(
+            origin = baseUrl,
+            referer = "$baseUrl/",
+            userAgent = "Mozilla/5.0 (Linux; Android 10; Android TV) AppleWebKit/537.36 Chrome/140.0.0.0 Safari/537.36",
+            body = requestBody(operationName, variables, query),
+        ).use { responseBody ->
+            JSONObject(responseBody.string())
+        }
     }
 
     private fun getPosterUrl(path: String?): String? {
@@ -271,6 +295,62 @@ object DoramasflixProvider : Provider {
             """.trimIndent(),
         )
         return response.data?.listEpisodes.orEmpty()
+    }
+
+    private suspend fun filterEpisodesWithPlayback(
+        episodes: List<com.streamflixreborn.streamflix.models.doramasflix.Episode>,
+    ): List<com.streamflixreborn.streamflix.models.doramasflix.Episode> {
+        if (episodes.isEmpty()) return episodes
+
+        return runCatching {
+            episodes.chunked(EPISODE_AVAILABILITY_BATCH_SIZE).flatMap { batch ->
+                val variables = JSONObject()
+                val variableDefinitions = batch.indices.joinToString(", ") { index ->
+                    val key = "id$index"
+                    variables.put(key, batch[index].id)
+                    "${'$'}$key: ID!"
+                }
+                val selections = batch.indices.joinToString("\n") { index ->
+                    """
+                        e$index: getEpisodeLinks(id: ${'$'}id$index, app: "$playbackApp") {
+                          links_online {
+                            link
+                          }
+                        }
+                    """.trimIndent()
+                }
+                val response = playbackRawRequest(
+                    operationName = "EpisodeAvailability",
+                    variables = variables,
+                    query = """
+                        query EpisodeAvailability($variableDefinitions) {
+                          $selections
+                        }
+                    """.trimIndent(),
+                )
+
+                if ((response.optJSONArray("errors")?.length() ?: 0) > 0) {
+                    throw Exception("Doramasflix episode availability lookup returned GraphQL errors.")
+                }
+                val data = response.optJSONObject("data")
+                    ?: throw Exception("Doramasflix episode availability lookup returned no data.")
+
+                batch.filterIndexed { index, _ ->
+                    val container = data.optJSONObject("e$index")
+                        ?: return@filterIndexed true
+                    val links = container.optJSONArray("links_online")
+                        ?: return@filterIndexed true
+                    (0 until links.length()).any { linkIndex ->
+                        links.optJSONObject(linkIndex)
+                            ?.optString("link")
+                            .orEmpty()
+                            .isNotBlank()
+                    }
+                }
+            }
+        }.getOrElse {
+            episodes
+        }
     }
 
     override suspend fun getHome(): List<Category> = coroutineScope {
@@ -462,7 +542,7 @@ object DoramasflixProvider : Provider {
         val seasonNumber = seasonId.substringAfterLast('/').toIntOrNull() ?: return emptyList()
 
         return try {
-            getEpisodes(slug, seasonNumber).map { episode ->
+            filterEpisodesWithPlayback(getEpisodes(slug, seasonNumber)).map { episode ->
                 Episode(
                     id = episode.slug,
                     number = episode.episodeNumber ?: 0,
@@ -556,6 +636,7 @@ object DoramasflixProvider : Provider {
             "callistanise.com" -> "VidHide"
             "jessicayeahcatch.com" -> "VOE"
             "streamtape.com" -> "Streamtape"
+            "m1xdrop.bz", "miixdrop.com" -> "MixDrop"
             else -> host.substringBefore('.')
                 .replaceFirstChar { it.titlecase(Locale.ROOT) }
                 .takeIf { it.isNotBlank() }
