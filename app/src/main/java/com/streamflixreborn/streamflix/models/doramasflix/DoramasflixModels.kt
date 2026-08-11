@@ -9,6 +9,7 @@ data class ApiResponse(
 data class Data(
     val paginationDorama: Pagination? = null,
     val paginationMovie: Pagination? = null,
+    val paginationEpisode: EpisodePagination? = null,
     val searchDorama: List<Show>? = null,
     val searchMovie: List<Show>? = null,
     val listSeasons: List<Season>? = null,
@@ -19,6 +20,10 @@ data class Data(
 
 data class Pagination(
     val items: List<Show> = emptyList(),
+)
+
+data class EpisodePagination(
+    val items: List<Episode> = emptyList(),
 )
 
 data class Show(
@@ -57,6 +62,8 @@ data class Episode(
     val episodeNumber: Int?,
     @SerializedName("still_path")
     val stillPath: String? = null,
+    @SerializedName("count_links")
+    val countLinks: Int? = null,
 )
 
 data class LinkContainer(
