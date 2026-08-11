@@ -17,6 +17,7 @@ import com.streamflixreborn.streamflix.models.Season
 import com.streamflixreborn.streamflix.models.TvShow
 import com.streamflixreborn.streamflix.models.Video
 import com.streamflixreborn.streamflix.utils.NetworkClient
+import com.streamflixreborn.streamflix.utils.RidomoviesRateLimit
 import com.streamflixreborn.streamflix.utils.WebViewResolver
 import kotlinx.coroutines.async
 import kotlinx.coroutines.coroutineScope
@@ -280,6 +281,10 @@ object RidomoviesProvider : Provider {
     }
 
     private suspend fun text(url: String, extraHeaders: Map<String, String>): String {
+        if (RidomoviesRateLimit.remainingCooldownNanos() > 0L) {
+            throw Exception(RidomoviesRateLimit.message())
+        }
+
         val headers = linkedMapOf(
             "User-Agent" to NetworkClient.USER_AGENT,
             "Accept-Language" to "en-US,en;q=0.9",
@@ -287,10 +292,12 @@ object RidomoviesProvider : Provider {
         ).apply { putAll(extraHeaders) }
 
         var response = service.get(url, headers)
+        if (response.code() == 429) throw rateLimit(response)
         var body = responseBody(response)
         if (challenge(response.code(), response.headers()["Server"], body)) {
             clearChallenge()
             response = service.get(url, headers)
+            if (response.code() == 429) throw rateLimit(response)
             body = responseBody(response)
         }
 
@@ -299,6 +306,11 @@ object RidomoviesProvider : Provider {
             throw Exception("Ridomovies Cloudflare challenge could not be cleared.")
         }
         return body
+    }
+
+    private fun rateLimit(response: retrofit2.Response<ResponseBody>): Exception {
+        RidomoviesRateLimit.recordRetryAfter(response.headers()["Retry-After"])
+        return Exception(RidomoviesRateLimit.message())
     }
 
     private fun responseBody(response: retrofit2.Response<ResponseBody>) =
@@ -310,7 +322,7 @@ object RidomoviesProvider : Provider {
             body.contains("cf-browser-verification", true) ||
             body.contains("challenge-running", true) ||
             body.contains("Checking your browser", true) ||
-            (code in setOf(403, 429, 503) && server?.contains("cloudflare", true) == true)
+            (code in setOf(403, 503) && server?.contains("cloudflare", true) == true)
 
     private suspend fun clearChallenge() = clearanceMutex.withLock {
         val probeUrl = "${URL}$HOME"
@@ -322,6 +334,7 @@ object RidomoviesProvider : Provider {
                 "Accept" to "text/html,application/xhtml+xml,*/*;q=0.8",
             ),
         )
+        if (probe.code() == 429) throw rateLimit(probe)
         val probeBody = responseBody(probe)
         if (probe.isSuccessful && !challenge(probe.code(), probe.headers()["Server"], probeBody)) {
             return@withLock
