@@ -98,8 +98,10 @@ class ProviderViewHolder(
     }
 
     private fun loadProviderLogo(imageView: ImageView) {
+        val logoRes = provider.provider.logoRes
         val logo = provider.logo.takeIf { it.isNotEmpty() }
-        val isSvg = logo?.substringBefore("?")?.endsWith(".svg", ignoreCase = true) == true
+        val isSvg = logoRes == null &&
+            logo?.substringBefore("?")?.endsWith(".svg", ignoreCase = true) == true
 
         if (isSvg) {
             imageView.setLayerType(View.LAYER_TYPE_SOFTWARE, null)
@@ -111,7 +113,7 @@ class ProviderViewHolder(
         } else {
             imageView.setLayerType(View.LAYER_TYPE_NONE, null)
             Glide.with(context)
-                .load(logo ?: R.drawable.ic_provider_default_logo)
+                .load(logoRes ?: logo ?: R.drawable.ic_provider_default_logo)
                 .error(R.drawable.ic_provider_default_logo)
                 .fitCenter()
                 .transition(DrawableTransitionOptions.withCrossFade())

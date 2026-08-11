@@ -136,9 +136,13 @@ class HomeMobileFragment : Fragment() {
         }
 
         binding.ivProviderLogo.apply {
+            val provider = UserPreferences.currentProvider
             Glide.with(context)
-                .load(UserPreferences.currentProvider?.logo?.takeIf { it.isNotEmpty() }
-                    ?: R.drawable.ic_provider_default_logo)
+                .load(
+                    provider?.logoRes
+                        ?: provider?.logo?.takeIf { it.isNotEmpty() }
+                        ?: R.drawable.ic_provider_default_logo
+                )
                 .error(R.drawable.ic_provider_default_logo)
                 .fitCenter()
                 .into(this)
