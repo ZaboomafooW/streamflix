@@ -358,6 +358,7 @@ object AniWorldProvider : Provider {
 
     override suspend fun getGenre(id: String, page: Int): Genre {
         if (page > 1) return Genre(id, "")
+
         val document = service.getGenre(id, page)
 
         val genre = Genre(
@@ -602,12 +603,14 @@ object AniWorldProvider : Provider {
 
         @GET("anime/stream/{tvShowId}/{seasonId}")
         suspend fun getSeason(
-            @Path("tvShowId") tvShowId: String, @Path("seasonId") seasonId: String,
+            @Path("tvShowId") tvShowId: String,
+            @Path("seasonId") seasonId: String,
         ): Document
 
         @GET("genre/{id}/{page}")
         suspend fun getGenre(
-            @Path("id") id: String, @Path("page") page: Int,
+            @Path("id") id: String,
+            @Path("page") page: Int,
         ): Document
 
         @GET("animes/{id}")

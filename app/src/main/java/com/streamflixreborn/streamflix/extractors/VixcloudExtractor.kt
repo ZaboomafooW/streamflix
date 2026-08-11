@@ -7,7 +7,6 @@ import com.google.gson.Gson
 import com.google.gson.annotations.SerializedName
 import com.streamflixreborn.streamflix.models.Video
 import com.streamflixreborn.streamflix.utils.NetworkClient
-import com.streamflixreborn.streamflix.utils.SubtitleDebugState
 import com.tanasi.retrofit_jsoup.converter.JsoupConverterFactory
 import okhttp3.HttpUrl.Companion.toHttpUrlOrNull
 import okhttp3.Request
@@ -17,7 +16,6 @@ import retrofit2.http.GET
 import retrofit2.http.Header
 import retrofit2.http.Headers
 import retrofit2.http.Url
-import java.util.Locale
 import java.util.concurrent.TimeUnit
 
 class VixcloudExtractor(
@@ -35,10 +33,6 @@ class VixcloudExtractor(
             .build()
 
         private val retrofitCache = mutableMapOf<String, VixcloudExtractorService>()
-        private val FORCED_YES = Regex("""\bFORCED=YES\b""", RegexOption.IGNORE_CASE)
-        private val FORCED_ATTRIBUTE = Regex("""\bFORCED=(?:YES|NO)\b""", RegexOption.IGNORE_CASE)
-        private val LANGUAGE_ATTRIBUTE = Regex("""\bLANGUAGE="[^"]*"""", RegexOption.IGNORE_CASE)
-
         private fun getService(baseUrl: String): VixcloudExtractorService {
             return retrofitCache.getOrPut(baseUrl) {
                 Retrofit.Builder()
@@ -75,65 +69,8 @@ class VixcloudExtractor(
         return jsonString
     }
 
-    /**
-     * Vixcloud sometimes exposes a Forced subtitle only through its NAME/LANGUAGE convention while
-     * incorrectly advertising FORCED=NO, for example NAME="Italian [Forced]" and
-     * LANGUAGE="forced-ita". Normalize only that Vixcloud-specific malformed metadata and leave
-     * DEFAULT/AUTOSELECT untouched so Media3 and the player's preference policy own selection.
-     */
-    private fun normalizeForcedSubtitleLine(line: String): String {
-        if (!line.startsWith("#EXT-X-MEDIA:TYPE=SUBTITLES")) return line
-
-        val name = hlsQuotedAttribute(line, "NAME")
-        val rawLanguage = hlsQuotedAttribute(line, "LANGUAGE")
-        val forced = FORCED_YES.containsMatchIn(line) ||
-            name?.contains("forced", ignoreCase = true) == true ||
-            rawLanguage?.startsWith("forced-", ignoreCase = true) == true
-
-        if (!forced) return line
-
-        var normalized = if (FORCED_ATTRIBUTE.containsMatchIn(line)) {
-            FORCED_ATTRIBUTE.replace(line, "FORCED=YES")
-        } else {
-            "$line,FORCED=YES"
-        }
-
-        rawLanguage
-            ?.takeIf { it.startsWith("forced-", ignoreCase = true) }
-            ?.let(::canonicalVixLanguage)
-            ?.let { language ->
-                normalized = LANGUAGE_ATTRIBUTE.replace(normalized, "LANGUAGE=\"$language\"")
-            }
-
-        return normalized
-    }
-
-    private fun hlsQuotedAttribute(line: String, attribute: String): String? =
-        Regex("""\b${Regex.escape(attribute)}="([^"]*)"""", RegexOption.IGNORE_CASE)
-            .find(line)
-            ?.groupValues
-            ?.getOrNull(1)
-
-    private fun canonicalVixLanguage(value: String): String? {
-        val primary = value
-            .trim()
-            .lowercase(Locale.ROOT)
-            .removePrefix("forced-")
-            .substringBefore('-')
-            .takeIf { it.isNotBlank() }
-            ?: return null
-
-        return Locale.getISOLanguages().firstOrNull { languageCode ->
-            languageCode.equals(primary, ignoreCase = true) ||
-                runCatching {
-                    Locale.forLanguageTag(languageCode).isO3Language.equals(primary, ignoreCase = true)
-                }.getOrDefault(false)
-        }
-    }
-
     override suspend fun extract(link: String): Video {
         Log.d("VixcloudDebug", "Extracting link: $link with preferredLanguage: $preferredLanguage")
-        SubtitleDebugState.clear()
 
         val uri = link.toHttpUrlOrNull() ?: throw Exception("Invalid Vixcloud link")
         val currentMainUrl = "${uri.scheme}://${uri.host}/"
@@ -255,8 +192,6 @@ class VixcloudExtractor(
                     val playlistContent = response.body!!.string()
                     val baseUri = response.request.url
                     val lines = playlistContent.lines()
-                    val rawAudioLines = lines.filter { it.startsWith("#EXT-X-MEDIA:TYPE=AUDIO") }
-                    val rawSubtitleLines = lines.filter { it.startsWith("#EXT-X-MEDIA:TYPE=SUBTITLES") }
                     val uriRegex = """URI=["']([^"']+)["']""".toRegex()
 
                     val finalLines = lines.map { line ->
@@ -275,17 +210,8 @@ class VixcloudExtractor(
                             patchedLine = baseUri.resolve(line)?.toString() ?: line
                         }
 
-                        normalizeForcedSubtitleLine(patchedLine)
+                        VixPlaylistNormalizer.normalizeForcedSubtitleLine(patchedLine)
                     }
-
-                    SubtitleDebugState.update(
-                        source = "Vixcloud",
-                        preferredLanguage = preferredLanguage,
-                        rawAudioLines = rawAudioLines,
-                        rawSubtitleLines = rawSubtitleLines,
-                        patchedAudioLines = finalLines.filter { it.startsWith("#EXT-X-MEDIA:TYPE=AUDIO") },
-                        patchedSubtitleLines = finalLines.filter { it.startsWith("#EXT-X-MEDIA:TYPE=SUBTITLES") },
-                    )
 
                     val base64Manifest = Base64.encodeToString(
                         finalLines.joinToString("\n").toByteArray(),

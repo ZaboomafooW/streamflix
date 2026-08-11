@@ -45,21 +45,21 @@ class VoeExtractor : Extractor() {
         }
 
         val subtitles = decryptedContent.getAsJsonArray("captions")
-        .map { caption ->
-            val obj = caption.asJsonObject
-                var file = obj.get("file").asString
-            val default = obj.get("default").asBoolean
+            .map { caption ->
+                val obj = caption.asJsonObject
+                val file = obj.get("file").asString
+                val default = obj.get("default").asBoolean
 
-            Video.Subtitle(
-                file = if (file.startsWith("http")) file else baseSubtitle + file,
-                label = obj.get("label").asString,
-                initialDefault = default,
-                default = default
-            )
-        }
+                Video.Subtitle(
+                    file = if (file.startsWith("http")) file else baseSubtitle + file,
+                    label = obj.get("label").asString,
+                    initialDefault = default,
+                    default = default,
+                )
+            }
         return Video(
             source = m3u8,
-            subtitles = subtitles
+            subtitles = subtitles,
         )
     }
 

@@ -16,6 +16,7 @@ import androidx.media3.ui.SubtitleView
 import com.streamflixreborn.streamflix.R
 import com.streamflixreborn.streamflix.utils.OpenSubtitles
 import com.streamflixreborn.streamflix.utils.PlaybackLanguageContext
+import com.streamflixreborn.streamflix.utils.PlaybackTrackDisplayNames
 import com.streamflixreborn.streamflix.utils.SubDL
 import com.streamflixreborn.streamflix.utils.UserPreferences
 import com.streamflixreborn.streamflix.utils.dp
@@ -32,6 +33,13 @@ import kotlin.math.roundToInt
 private val FORCED_SUBTITLE_LABEL = Regex(
     pattern = "(^|[^\\p{L}\\p{N}])forced([^\\p{L}\\p{N}]|$)",
     option = RegexOption.IGNORE_CASE,
+)
+
+private data class SubtitleTrackCandidate(
+    val name: String,
+    val language: String?,
+    val trackGroup: Tracks.Group,
+    val trackIndex: Int,
 )
 
 abstract class PlayerSettingsView @JvmOverloads constructor(
@@ -713,28 +721,42 @@ abstract class PlayerSettingsView @JvmOverloads constructor(
                     list.clear()
                     list.add(Style)
                     list.add(None)
+                    val trackNameProvider = DefaultTrackNameProvider(resources)
+                    val candidates = player.currentTracks.groups
+                        .filter { it.type == C.TRACK_TYPE_TEXT }
+                        .flatMap { trackGroup ->
+                            trackGroup.supportedTrackFormats
+                                .filter { item ->
+                                    val format = item.format
+                                    format.selectionFlags and C.SELECTION_FLAG_FORCED == 0 &&
+                                        !FORCED_SUBTITLE_LABEL.containsMatchIn(format.label.orEmpty())
+                                }
+                                .map { (trackIndex, trackFormat) ->
+                                    SubtitleTrackCandidate(
+                                        name = PlaybackTrackDisplayNames.subtitleName(
+                                            sourceLabel = trackFormat.label,
+                                            media3Name = trackNameProvider.getTrackName(trackFormat),
+                                        ),
+                                        language = trackFormat.language
+                                            ?.replaceFirstChar { it.titlecase() },
+                                        trackGroup = trackGroup,
+                                        trackIndex = trackIndex,
+                                    )
+                                }
+                        }
+                    val displayNames = PlaybackTrackDisplayNames.disambiguate(
+                        candidates.map { it.name },
+                    )
                     list.addAll(
-                        player.currentTracks.groups
-                            .filter { it.type == C.TRACK_TYPE_TEXT }
-                            .flatMap { trackGroup ->
-                                trackGroup.supportedTrackFormats
-                                    .filter { item ->
-                                        val format = item.format
-                                        format.selectionFlags and C.SELECTION_FLAG_FORCED == 0 &&
-                                            !FORCED_SUBTITLE_LABEL.containsMatchIn(format.label.orEmpty())
-                                    }
-                                    .map { (trackIndex, trackFormat) ->
-                                        val trackName = DefaultTrackNameProvider(resources)
-                                            .getTrackName(trackFormat)
-                                        TextTrackInformation(
-                                            name = trackName,
-                                            label = trackName,
-                                            language = trackFormat.language?.replaceFirstChar { it.titlecase() },
-
-                                            trackGroup = trackGroup,
-                                            trackIndex = trackIndex,
-                                        )
-                                    }
+                        candidates.zip(displayNames)
+                            .map { (candidate, displayName) ->
+                                TextTrackInformation(
+                                    name = displayName,
+                                    label = displayName,
+                                    language = candidate.language,
+                                    trackGroup = candidate.trackGroup,
+                                    trackIndex = candidate.trackIndex,
+                                )
                             }
                             .sortedBy { it.language ?: it.label }
                     )

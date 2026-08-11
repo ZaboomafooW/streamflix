@@ -472,7 +472,7 @@ class StreamingCommunityProvider(private val _language: String? = null) : Provid
             seasons = title.seasons?.map { s ->
                 val seasonNumber = s.number.toIntOrNull() ?: (title.seasons.indexOf(s) + 1)
                 Season(id = "$id/season-${s.number}", number = seasonNumber, title = s.name, poster = tmdbShow?.seasons?.find { ts -> ts.number == seasonNumber }?.poster)
-        } ?: listOf(),
+            } ?: listOf(),
             originalLanguage = tmdbShow?.originalLanguage,
         )
     }

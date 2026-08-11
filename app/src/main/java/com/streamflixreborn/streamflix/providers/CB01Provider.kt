@@ -598,6 +598,7 @@ object CB01Provider : Provider {
         try {
             val doc = service.getPage(uprotUrl)
             val html = doc.html()
+
             val b64Base = Regex("""decodedBaseUrl\s*=\s*atob\(["']([^"']+)["']\)""").find(html)?.groupValues?.getOrNull(1)
             val b64Val = Regex("""decodedEncryptedVal\s*=\s*atob\(["']([^"']+)["']\)""").find(html)?.groupValues?.getOrNull(1)
 
@@ -613,6 +614,7 @@ object CB01Provider : Provider {
         val uprotId = Regex("""/ms[a-zA-Z]+/([A-Za-z0-9+/=]+)""").find(url)?.groupValues?.getOrNull(1)
             ?: return null
         return callUprotApi(Keys.getUprotMseApiBase(), uprotId)
+
     }
 
 

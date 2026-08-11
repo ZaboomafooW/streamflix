@@ -334,11 +334,7 @@ object PlaybackTrackPreferences {
                     }
                 }
 
-                if (
-                    globalSubtitlePreference !is SubtitlePreference.Off &&
-                    !subtitleRestored &&
-                    !subtitleCancelled
-                ) {
+                if (!subtitleRestored && !subtitleCancelled) {
                     savedSubtitle?.let { saved ->
                         exactTrack(tracks, C.TRACK_TYPE_TEXT, saved.value)?.let { track ->
                             builder = (builder ?: player.trackSelectionParameters.buildUpon())
@@ -551,11 +547,11 @@ object PlaybackTrackPreferences {
             return
         }
 
-        clearSubtitleExact()
         saveGlobalSubtitleLanguage(
             language = language,
             variant = subtitleVariant(track.format),
         )
+        saveSubtitleExact(track.saved())
     }
 
     private fun eligibleAudioLanguage(format: Format): String? {
@@ -836,13 +832,14 @@ object PlaybackTrackPreferences {
      * anonymous tracks, avoiding guesses when episodes expose different anonymous tracks.
      */
     private fun exactTrack(tracks: Tracks, type: Int, saved: SavedTrack): TrackRef? {
-        val matches = allSupportedTracks(tracks, type)
-            .filter { saved.matches(it.format) }
-
-        if (saved.hasRawIdentity && matches.size == 1) return matches.single()
-        return matches.firstOrNull {
-            it.groupIndex == saved.groupIndex && it.trackIndex == saved.trackIndex
-        }
+        return PlaybackExactTrackResolver.resolve(
+            candidates = allSupportedTracks(tracks, type),
+            hasRawIdentity = saved.hasRawIdentity,
+            rawIdentityMatches = { track -> saved.matches(track.format) },
+            savedPositionMatches = { track ->
+                track.groupIndex == saved.groupIndex && track.trackIndex == saved.trackIndex
+            },
+        )
     }
 
     private fun loadAudio(scope: String): SavedTrack? =
