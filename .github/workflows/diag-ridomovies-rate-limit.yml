@@ -1,0 +1,90 @@
+name: Diagnose Ridomovies rate limiting
+
+on:
+  pull_request:
+    branches:
+      - main
+
+permissions:
+  contents: read
+
+jobs:
+  diagnose:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install diagnostics dependencies
+        run: python -m pip install --disable-pip-version-check curl_cffi
+      - name: Compare catalog and artwork request bursts
+        env:
+          PYTHONUNBUFFERED: '1'
+        run: |
+          python - <<'PY'
+          import json
+          from concurrent.futures import ThreadPoolExecutor, as_completed
+          from urllib.parse import urljoin
+          from curl_cffi import requests as cr
+
+          BASE='https://ridomovies.su/'
+          UA='Mozilla/5.0 (Linux; Android 13; Pixel 7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/116.0.0.0 Mobile Safari/537.36'
+          H={'User-Agent':UA,'Accept-Language':'en-US,en;q=0.9','Referer':BASE}
+          s=cr.Session(impersonate='chrome')
+
+          def report(label, response):
+              interesting = {
+                  k: v for k, v in response.headers.items()
+                  if k.lower() in {
+                      'retry-after','server','cf-ray','cf-cache-status','x-ratelimit-limit',
+                      'x-ratelimit-remaining','x-ratelimit-reset','ratelimit-limit',
+                      'ratelimit-remaining','ratelimit-reset'
+                  }
+              }
+              print(label, 'status=', response.status_code, 'headers=', json.dumps(interesting, sort_keys=True), 'bytes=', len(response.content))
+              if response.status_code == 429:
+                  print(label, '429_BODY=', response.text[:800].replace('\n',' '))
+              return response.status_code
+
+          # Phase A: serialized API paging, matching the app's ViewModel behavior.
+          print('PHASE A: serialized API pages')
+          last_payload = None
+          for page in range(1, 7):
+              r=s.get(BASE+'api/tv/latest', params={'page':str(page),'limit':'32','lang':'en'}, headers={**H,'Accept':'application/json'}, timeout=30)
+              status=report(f'API_PAGE_{page}', r)
+              if status == 429:
+                  print('STOP: API-only paging reached 429')
+                  raise SystemExit(0)
+              r.raise_for_status()
+              last_payload=r.json()
+
+          # Fresh page 1 supplies exactly the artwork URLs a normal 32-card page binds.
+          r=s.get(BASE+'api/tv/latest', params={'page':'1','limit':'32','lang':'en'}, headers={**H,'Accept':'application/json'}, timeout=30)
+          report('API_BEFORE_ARTWORK', r)
+          r.raise_for_status()
+          rows=r.json().get('series') or []
+          posters=[]
+          for row in rows[:32]:
+              value=row.get('poster_path') or row.get('poster')
+              if value:
+                  posters.append(urljoin(BASE, value))
+          print('POSTER_COUNT', len(posters))
+
+          # Phase B: one card page worth of image requests, with bounded concurrency.
+          print('PHASE B: one 32-card artwork burst')
+          statuses=[]
+          def fetch_poster(url):
+              rr=cr.get(url, headers={**H,'Accept':'image/avif,image/webp,image/apng,image/*,*/*;q=0.8'}, impersonate='chrome', timeout=30)
+              return url, rr.status_code, rr.headers.get('Retry-After'), rr.headers.get('Server'), len(rr.content)
+
+          with ThreadPoolExecutor(max_workers=8) as pool:
+              futures=[pool.submit(fetch_poster, url) for url in posters]
+              for fut in as_completed(futures):
+                  url,status,retry_after,server,size=fut.result()
+                  statuses.append(status)
+                  print('POSTER', status, 'retry-after=', retry_after, 'server=', server, 'bytes=', size, url)
+
+          print('POSTER_STATUS_COUNTS', json.dumps({str(code):statuses.count(code) for code in sorted(set(statuses))}, sort_keys=True))
+
+          # One API request immediately after the normal artwork burst tells us whether images consume the same limiter budget.
+          after=s.get(BASE+'api/tv/latest', params={'page':'2','limit':'32','lang':'en'}, headers={**H,'Accept':'application/json'}, timeout=30)
+          report('API_AFTER_ARTWORK', after)
+          PY
