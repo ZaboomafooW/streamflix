@@ -18,6 +18,7 @@ import com.streamflixreborn.streamflix.models.TvShow
 import com.streamflixreborn.streamflix.models.Video
 import com.streamflixreborn.streamflix.utils.NetworkClient
 import com.streamflixreborn.streamflix.utils.RidomoviesRateLimit
+import com.streamflixreborn.streamflix.utils.TmdbUtils
 import com.streamflixreborn.streamflix.utils.WebViewResolver
 import kotlinx.coroutines.async
 import kotlinx.coroutines.coroutineScope
@@ -36,6 +37,7 @@ import retrofit2.http.HeaderMap
 import retrofit2.http.Url
 import java.net.URL
 import java.util.Locale
+import java.util.concurrent.ConcurrentHashMap
 
 object RidomoviesProvider : Provider {
 
@@ -53,6 +55,7 @@ object RidomoviesProvider : Provider {
         Regex("""/tv/([^/?#]+)/season-(\d+)/episode-(\d+)""", RegexOption.IGNORE_CASE)
     private val yearRegex = Regex("""\b(?:19|20)\d{2}\b""")
     private val clearanceMutex = Mutex()
+    private val tmdbIds = ConcurrentHashMap<String, Int>()
     private var resolver: WebViewResolver? = null
 
     private val genres = linkedMapOf(
@@ -181,6 +184,9 @@ object RidomoviesProvider : Provider {
         val doc = document("${URL}tv/$slug")
         val metadata = metadata(doc, "TVSeries")
         if (metadata.title.isBlank()) throw Exception("Ridomovies TV details could not be loaded.")
+        val tmdbTvShow = ridoTmdbId(slug, metadata.title)?.let {
+            TmdbUtils.getTvShowById(it, language = language)
+        }
 
         return TvShow(
             id = slug,
@@ -189,14 +195,18 @@ object RidomoviesProvider : Provider {
             released = metadata.released,
             runtime = metadata.runtime,
             rating = metadata.rating,
-            poster = metadata.poster,
-            imdbId = metadata.imdbId,
-            seasons = seasonNumbers(doc).map {
+            poster = metadata.poster ?: tmdbTvShow?.poster,
+            banner = tmdbTvShow?.banner,
+            imdbId = metadata.imdbId ?: tmdbTvShow?.imdbId,
+            seasons = seasonNumbers(doc).map { number ->
                 Season(
-                    id = "$slug/$it",
-                    number = it,
-                    title = "Season $it",
-                    poster = metadata.poster,
+                    id = "$slug/$number",
+                    number = number,
+                    title = "Season $number",
+                    poster = tmdbTvShow?.seasons
+                        ?.firstOrNull { it.number == number }
+                        ?.poster
+                        ?: metadata.poster,
                 )
             },
             genres = metadata.genres,
@@ -209,6 +219,7 @@ object RidomoviesProvider : Provider {
         val showUrl = "${URL}tv/$slug"
         val seasonUrl = "$showUrl/season-$season"
         val showDoc = document(showUrl)
+        val metadata = metadata(showDoc, "TVSeries")
 
         val ajax = runCatching {
             val html = json(
@@ -223,7 +234,12 @@ object RidomoviesProvider : Provider {
         }.getOrNull()
 
         val seasonDoc = ajax ?: runCatching { document(seasonUrl) }.getOrDefault(showDoc)
-        return episodes(seasonDoc, slug, season)
+        val tmdbEpisodePosters = ridoTmdbId(slug, metadata.title)?.let { tmdbId ->
+            TmdbUtils.getEpisodesBySeason(tmdbId.toString(), season, language = language)
+                .mapNotNull { episode -> episode.poster?.let { episode.number to it } }
+                .toMap()
+        }.orEmpty()
+        return episodes(seasonDoc, slug, season, tmdbEpisodePosters)
     }
 
     override suspend fun getGenre(id: String, page: Int): Genre = coroutineScope {
@@ -429,6 +445,9 @@ object RidomoviesProvider : Provider {
         if (type !in setOf("movie", "tv")) return null
         val slug = row.string("slug") ?: row.string("slug_en") ?: return null
         val title = row.string("title") ?: row.string("original_title") ?: return null
+        if (type == "tv") {
+            row.int("tmdb_id")?.let { tmdbIds[slug.lowercase(Locale.ROOT)] = it }
+        }
         return Card(
             id = slug,
             title = title,
@@ -440,6 +459,27 @@ object RidomoviesProvider : Provider {
             poster = asset(row.string("poster_path") ?: row.string("poster")),
             overview = row.string("overview") ?: row.string("description"),
         )
+    }
+
+    private suspend fun ridoTmdbId(slug: String, title: String): Int? {
+        val key = slug.lowercase(Locale.ROOT)
+        tmdbIds[key]?.let { return it }
+        if (title.isBlank()) return null
+
+        val url = apiUrl("api/search", "q" to title, "lang" to "en", "limit" to "32")
+        val row = runCatching {
+            json(url).array("data")
+                .mapNotNull { it.obj() }
+                .firstOrNull { candidate ->
+                    candidate.string("type")?.equals("tv", true) == true &&
+                        listOfNotNull(
+                            candidate.string("slug"),
+                            candidate.string("slug_en"),
+                        ).any { it.equals(slug, true) }
+                }
+        }.getOrNull() ?: return null
+
+        return row.int("tmdb_id")?.also { tmdbIds[key] = it }
     }
 
     private fun item(card: Card): AppAdapter.Item = if (card.movie) movie(card) else tvShow(card)
@@ -511,6 +551,7 @@ object RidomoviesProvider : Provider {
         doc: Document,
         expectedSlug: String,
         expectedSeason: Int,
+        tmdbPosters: Map<Int, String>,
     ): List<Episode> =
         doc.select("a.episode-link[href], a[href*='/episode-']").mapNotNull { link ->
             if (link.selectFirst(".ep-no-video") != null) return@mapNotNull null
@@ -522,7 +563,7 @@ object RidomoviesProvider : Provider {
             val number = match.groupValues[3].toIntOrNull() ?: return@mapNotNull null
             val episodePoster = link.selectFirst("img")?.let {
                 asset(it.attr("src").takeIf(String::isNotBlank) ?: it.attr("data-src"))
-            }
+            } ?: tmdbPosters[number]
             Episode(
                 id = URL(href).path.trimStart('/'),
                 number = number,
