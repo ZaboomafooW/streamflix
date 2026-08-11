@@ -191,7 +191,7 @@ class HomeTvFragment : Fragment() {
             }
 
             auditDialog = AlertDialog.Builder(requireContext())
-                .setTitle("Logging top videos • ${progress.provider}")
+                .setTitle("Auditing ${ProviderTrackAuditRunner.TARGET_TITLE} • ${progress.provider}")
                 .setView(content)
                 .setNegativeButton("Skip provider") { _, _ ->
                     ProviderTrackAuditRunner.skipCurrentProvider()

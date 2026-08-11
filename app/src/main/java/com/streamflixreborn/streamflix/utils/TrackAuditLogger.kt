@@ -105,6 +105,37 @@ object TrackAuditLogger {
         currentServer = server
     }
 
+    fun recordExtractedVideo(video: Video) {
+        val content = currentContent ?: return
+        val server = currentServer ?: return
+        val key = "video|${content.provider}|${content.contentId}|${server.id}"
+        val entry = baseEntry(content, key, "video_extracted")
+            .put("serverId", server.id)
+            .put("serverName", server.name)
+            .putNullable("sourceHost", sourceHost(video.source))
+            .putNullable("mimeType", video.type)
+            .put("subtitleCount", video.subtitles.size)
+            .put(
+                "extractedSubtitles",
+                JSONArray().apply {
+                    video.subtitles.forEachIndexed { index, subtitle ->
+                        put(
+                            JSONObject()
+                                .put("ordinal", index + 1)
+                                .put("label", subtitle.label)
+                                .put("file", subtitle.file)
+                                .putNullable("fileHost", sourceHost(subtitle.file))
+                                .put("default", subtitle.default)
+                                .put("initialDefault", subtitle.initialDefault)
+                        )
+                    }
+                },
+            )
+
+        appendSourceDiagnostics(entry, server.name)
+        upsert(entry)
+    }
+
     fun recordExtractionFailure(server: Video.Server, error: Throwable) {
         currentServer = server
         val content = currentContent ?: return
@@ -174,21 +205,7 @@ object TrackAuditLogger {
             .put("audioTracks", tracksOfType(C.TRACK_TYPE_AUDIO))
             .put("textTracks", tracksOfType(C.TRACK_TYPE_TEXT))
 
-        SubtitleDebugState.snapshot()
-            ?.takeIf { snapshot -> serverName.contains(snapshot.source, ignoreCase = true) }
-            ?.let { snapshot ->
-                entry.put(
-                    "sourceDiagnostics",
-                    JSONObject()
-                        .put("source", snapshot.source)
-                        .putNullable("requestedLanguage", snapshot.preferredLanguage)
-                        .put("rawAudio", JSONArray(snapshot.rawAudioLines))
-                        .put("rawSubtitles", JSONArray(snapshot.rawSubtitleLines))
-                        .put("normalizedAudio", JSONArray(snapshot.patchedAudioLines))
-                        .put("normalizedSubtitles", JSONArray(snapshot.patchedSubtitleLines)),
-                )
-            }
-
+        appendSourceDiagnostics(entry, serverName)
         upsert(entry)
     }
 
@@ -327,6 +344,23 @@ object TrackAuditLogger {
     private fun errorSummary(error: Throwable): String = buildString {
         append(error::class.java.simpleName)
         error.message?.takeIf { it.isNotBlank() }?.let { append(": $it") }
+    }
+
+    private fun appendSourceDiagnostics(entry: JSONObject, serverName: String) {
+        SubtitleDebugState.snapshot()
+            ?.takeIf { snapshot -> serverName.contains(snapshot.source, ignoreCase = true) }
+            ?.let { snapshot ->
+                entry.put(
+                    "sourceDiagnostics",
+                    JSONObject()
+                        .put("source", snapshot.source)
+                        .putNullable("requestedLanguage", snapshot.preferredLanguage)
+                        .put("rawAudio", JSONArray(snapshot.rawAudioLines))
+                        .put("rawSubtitles", JSONArray(snapshot.rawSubtitleLines))
+                        .put("normalizedAudio", JSONArray(snapshot.patchedAudioLines))
+                        .put("normalizedSubtitles", JSONArray(snapshot.patchedSubtitleLines)),
+                )
+            }
     }
 
     private fun JSONObject.putNullable(key: String, value: String?): JSONObject =

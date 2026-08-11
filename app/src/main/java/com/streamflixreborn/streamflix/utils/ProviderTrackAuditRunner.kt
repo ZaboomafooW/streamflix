@@ -15,8 +15,8 @@ import com.streamflixreborn.streamflix.models.Movie
 import com.streamflixreborn.streamflix.models.Season
 import com.streamflixreborn.streamflix.models.TvShow
 import com.streamflixreborn.streamflix.models.Video
-import com.streamflixreborn.streamflix.providers.IptvProvider
 import com.streamflixreborn.streamflix.providers.Provider
+import com.streamflixreborn.streamflix.providers.TmdbProvider
 import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
@@ -28,12 +28,12 @@ import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import kotlinx.coroutines.withTimeoutOrNull
-import java.util.Locale
 
-/** Temporary TV validation harness for automatically sampling a provider's home titles. */
+/** Temporary TV validation harness for exhaustively auditing one TMDb title. */
 object ProviderTrackAuditRunner {
 
-    private const val MAX_TITLES = 10
+    const val TARGET_TITLE = "Dune: Part Two"
+
     private const val REQUEST_TIMEOUT_MS = 20_000L
     private const val TRACK_TIMEOUT_MS = 15_000L
 
@@ -57,7 +57,7 @@ object ProviderTrackAuditRunner {
     private val completedThisSession = mutableSetOf<String>()
 
     fun startIfNeeded(context: Context, provider: Provider, categories: List<Category>) {
-        if (provider is IptvProvider) return
+        if (!isTargetProvider(provider)) return
         if (provider.name in completedThisSession) return
         if (runningProvider == provider.name && job?.isActive == true) return
 
@@ -90,24 +90,32 @@ object ProviderTrackAuditRunner {
         provider: Provider,
         categories: List<Category>,
     ) {
-        val items = topAuditableItems(categories)
+        _progress.value = Progress(
+            provider = provider.name,
+            completed = 0,
+            total = 1,
+            title = TARGET_TITLE,
+            phase = "Searching for target",
+            failures = 0,
+        )
+
+        val items = findTargetItems(provider, categories)
         if (items.isEmpty()) {
             completedThisSession += provider.name
             runningProvider = null
             _progress.value = Progress(
                 provider = provider.name,
                 completed = 0,
-                total = 0,
-                title = "No movie/show titles on this home feed",
-                phase = "Nothing to audit",
-                failures = 0,
+                total = 1,
+                title = TARGET_TITLE,
+                phase = "Target movie not found",
+                failures = 1,
                 finished = true,
             )
             return
         }
 
         var failures = 0
-        val seenServerNames = mutableSetOf<String>()
 
         try {
             items.forEachIndexed { index, item ->
@@ -152,7 +160,7 @@ object ProviderTrackAuditRunner {
                 }
 
                 TrackAuditLogger.recordServers(servers)
-                val serversToProbe = selectServersForProbe(servers, seenServerNames)
+                val serversToProbe = servers.distinctBy { it.id }
 
                 for ((serverIndex, server) in serversToProbe.withIndex()) {
                     _progress.value = _progress.value?.copy(
@@ -176,9 +184,9 @@ object ProviderTrackAuditRunner {
                     }
 
                     val video = videoResult.getOrThrow()
+                    TrackAuditLogger.recordExtractedVideo(video)
                     val loaded = probeMedia3Tracks(context, video, server)
                     if (!loaded) failures++
-                    seenServerNames += server.name.lowercase(Locale.ROOT)
                 }
 
                 _progress.value = Progress(
@@ -196,7 +204,7 @@ object ProviderTrackAuditRunner {
                 provider = provider.name,
                 completed = items.size,
                 total = items.size,
-                title = "Provider audit complete",
+                title = "$TARGET_TITLE audit complete",
                 phase = "Done",
                 failures = failures,
                 finished = true,
@@ -207,23 +215,38 @@ object ProviderTrackAuditRunner {
         }
     }
 
-    private fun topAuditableItems(categories: List<Category>): List<AppAdapter.Item> {
-        val orderedCategories = categories.sortedBy { category ->
-            when (category.name) {
-                Category.FEATURED -> 0
-                else -> 1
-            }
-        }
+    private suspend fun findTargetItems(
+        provider: Provider,
+        categories: List<Category>,
+    ): List<AppAdapter.Item> {
+        val searchResults = withTimeoutOrNull(REQUEST_TIMEOUT_MS) {
+            runCatching {
+                withContext(Dispatchers.IO) { provider.search(TARGET_TITLE, page = 1) }
+            }.getOrDefault(emptyList())
+        }.orEmpty()
 
-        return orderedCategories
-            .asSequence()
+        val homeItems = categories.asSequence()
             .filterNot { isPersonalCategory(it.name) }
             .flatMap { it.list.asSequence() }
-            .filter { it is Movie || it is TvShow }
-            .distinctBy(::itemKey)
-            .take(MAX_TITLES)
+
+        val normalizedTarget = normalizeTitle(TARGET_TITLE)
+        return (searchResults.asSequence() + homeItems)
+            .filterIsInstance<Movie>()
+            .filter { normalizeTitle(it.title) == normalizedTarget }
+            .distinctBy { it.id }
+            .take(1)
             .toList()
     }
+
+    private fun normalizeTitle(title: String): String = buildString(title.length) {
+        title.forEach { character ->
+            if (character.isLetterOrDigit()) append(character.lowercaseChar())
+        }
+    }
+
+    private fun isTargetProvider(provider: Provider): Boolean =
+        provider is TmdbProvider &&
+            provider.language.substringBefore('-').equals("en", ignoreCase = true)
 
     private fun isPersonalCategory(name: String): Boolean {
         val value = name.trim()
@@ -282,18 +305,6 @@ object ProviderTrackAuditRunner {
 
             else -> null
         }
-
-    private fun selectServersForProbe(
-        servers: List<Video.Server>,
-        seenServerNames: Set<String>,
-    ): List<Video.Server> {
-        val first = servers.first()
-        val unseen = servers.firstOrNull { server ->
-            server.name.lowercase(Locale.ROOT) !in seenServerNames && server.id != first.id
-        }
-        val fallback = if (unseen == null) servers.getOrNull(1) else null
-        return listOfNotNull(first, unseen ?: fallback).distinctBy { it.id }.take(2)
-    }
 
     private suspend fun probeMedia3Tracks(
         context: Context,
@@ -363,12 +374,6 @@ object ProviderTrackAuditRunner {
             player.removeListener(listener)
             player.release()
         }
-    }
-
-    private fun itemKey(item: AppAdapter.Item): String = when (item) {
-        is Movie -> "movie:${item.id}"
-        is TvShow -> "tv:${item.id}"
-        else -> item.toString()
     }
 
     private fun itemTitle(item: AppAdapter.Item): String = when (item) {
