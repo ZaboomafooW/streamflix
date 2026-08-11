@@ -19,6 +19,7 @@ import com.streamflixreborn.streamflix.models.Video
 import com.streamflixreborn.streamflix.utils.NetworkClient
 import com.streamflixreborn.streamflix.utils.RidomoviesRateLimit
 import com.streamflixreborn.streamflix.utils.TmdbUtils
+import com.streamflixreborn.streamflix.utils.UserPreferences
 import com.streamflixreborn.streamflix.utils.WebViewResolver
 import kotlinx.coroutines.async
 import kotlinx.coroutines.coroutineScope
@@ -462,6 +463,7 @@ object RidomoviesProvider : Provider {
     }
 
     private suspend fun ridoTmdbId(slug: String, title: String): Int? {
+        if (!UserPreferences.enableTmdb) return null
         val key = slug.lowercase(Locale.ROOT)
         tmdbIds[key]?.let { return it }
         if (title.isBlank()) return null
