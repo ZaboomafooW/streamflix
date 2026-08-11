@@ -18,8 +18,6 @@ import com.streamflixreborn.streamflix.models.TvShow
 import com.streamflixreborn.streamflix.models.Video
 import com.streamflixreborn.streamflix.utils.NetworkClient
 import com.streamflixreborn.streamflix.utils.RidomoviesRateLimit
-import com.streamflixreborn.streamflix.utils.TMDb3
-import com.streamflixreborn.streamflix.utils.UserPreferences
 import com.streamflixreborn.streamflix.utils.WebViewResolver
 import kotlinx.coroutines.async
 import kotlinx.coroutines.coroutineScope
@@ -50,18 +48,12 @@ object RidomoviesProvider : Provider {
     override val language = "en"
 
     private const val HOME = "home-rd1"
-    private const val POPULAR_TV_LIMIT = 10
-    private const val POPULAR_CACHE_NANOS = 1_800_000_000_000L
     private val mediaPath = Regex("""/(movie|tv)/([^/?#]+)""", RegexOption.IGNORE_CASE)
     private val episodePath =
         Regex("""/tv/([^/?#]+)/season-(\d+)/episode-(\d+)""", RegexOption.IGNORE_CASE)
     private val yearRegex = Regex("""\b(?:19|20)\d{2}\b""")
     private val clearanceMutex = Mutex()
-    private val popularMovieMutex = Mutex()
-    private val popularTvMutex = Mutex()
     private var resolver: WebViewResolver? = null
-    private var popularMovieCache: PopularMovieCache? = null
-    private var popularTvCache: PopularTvCache? = null
 
     private val genres = linkedMapOf(
         "Action" to "action", "Adventure" to "adventure", "Animation" to "animation",
@@ -98,7 +90,6 @@ object RidomoviesProvider : Provider {
         val poster: String? = null,
         val banner: String? = null,
         val overview: String? = null,
-        val tmdbId: Int? = null,
     )
 
     private data class Metadata(
@@ -112,43 +103,19 @@ object RidomoviesProvider : Provider {
         val genres: List<Genre>,
     )
 
-    private data class PopularMovieCache(
-        val sourceIds: List<String>,
-        val expiresAtNanos: Long,
-        val cards: List<Card>,
-    )
-
-    private data class PopularTvCache(
-        val expiresAtNanos: Long,
-        val cards: List<Card>,
-    )
-
     override suspend fun getHome(): List<Category> = coroutineScope {
         val home = async { document("${URL}$HOME") }
-        val movieCards = async { latestMovieCards(1) }
-        val tvCards = async { latestTvCards(1) }
-
-        val highlights = home.await().selectFirst(".highlights-slider")?.let(::cards).orEmpty()
-        val latestMovies = movieCards.await()
-        val latestTv = tvCards.await()
-        val popularMovies = popularMovieCards(highlights, latestMovies)
-        val popularTv = runCatching { popularTvCards(latestTv) }.getOrDefault(emptyList())
+        val movies = async { getMovies(1) }
+        val tv = async { getTvShows(1) }
 
         buildList {
-            highlights.map(::item)
-                .takeIf { it.isNotEmpty() }
+            home.await().selectFirst(".highlights-slider")?.let(::cards)
+                ?.map(::item)
+                ?.takeIf { it.isNotEmpty() }
                 ?.let { add(Category(Category.FEATURED, it)) }
-            popularMovies.map(::movie)
-                .takeIf { it.isNotEmpty() }
-                ?.let { add(Category("Popular Movies", it)) }
-            popularTv.map(::tvShow)
-                .takeIf { it.isNotEmpty() }
-                ?.let { add(Category("Popular TV Shows", it)) }
-            latestMovies.map(::movie)
-                .takeIf { it.isNotEmpty() }
+            movies.await().takeIf { it.isNotEmpty() }
                 ?.let { add(Category("Latest Movies", it)) }
-            latestTv.map(::tvShow)
-                .takeIf { it.isNotEmpty() }
+            tv.await().takeIf { it.isNotEmpty() }
                 ?.let { add(Category("Latest TV Series", it)) }
         }
     }
@@ -159,16 +126,14 @@ object RidomoviesProvider : Provider {
             return genres.map { (name, id) -> Genre(id, name) }
         }
         if (page > 1) return emptyList()
-        return searchCards(query, 32).map(::item)
+
+        val url = apiUrl("api/search", "q" to query.trim(), "lang" to "en", "limit" to "32")
+        return json(url).array("data")
+            .mapNotNull { it.obj()?.let(::card) }
+            .map(::item)
     }
 
-    override suspend fun getMovies(page: Int): List<Movie> =
-        latestMovieCards(page).map(::movie)
-
-    override suspend fun getTvShows(page: Int): List<TvShow> =
-        latestTvCards(page).map(::tvShow)
-
-    private suspend fun latestMovieCards(page: Int): List<Card> {
+    override suspend fun getMovies(page: Int): List<Movie> {
         val url = apiUrl(
             "api/movies/latest",
             "page" to page.coerceAtLeast(1).toString(),
@@ -178,9 +143,10 @@ object RidomoviesProvider : Provider {
         return json(url).array("movies")
             .mapNotNull { it.obj()?.let(::card) }
             .filter { it.movie }
+            .map(::movie)
     }
 
-    private suspend fun latestTvCards(page: Int): List<Card> {
+    override suspend fun getTvShows(page: Int): List<TvShow> {
         val url = apiUrl(
             "api/tv/latest",
             "page" to page.coerceAtLeast(1).toString(),
@@ -190,108 +156,7 @@ object RidomoviesProvider : Provider {
         return json(url).array("series")
             .mapNotNull { it.obj()?.let(::card) }
             .filterNot { it.movie }
-    }
-
-    private suspend fun searchCards(query: String, limit: Int): List<Card> {
-        val url = apiUrl(
-            "api/search",
-            "q" to query.trim(),
-            "lang" to "en",
-            "limit" to limit.toString(),
-        )
-        return json(url).array("data")
-            .mapNotNull { it.obj()?.let(::card) }
-    }
-
-    private suspend fun popularMovieCards(
-        highlights: List<Card>,
-        latestMovies: List<Card>,
-    ): List<Card> {
-        val source = highlights.filter { it.movie }
-        if (source.isEmpty()) return emptyList()
-        val sourceIds = source.map { it.id.lowercase(Locale.ROOT) }
-        val now = System.nanoTime()
-        popularMovieCache?.takeIf {
-            it.sourceIds == sourceIds && it.expiresAtNanos > now
-        }?.let { return it.cards }
-
-        return popularMovieMutex.withLock {
-            val lockedNow = System.nanoTime()
-            popularMovieCache?.takeIf {
-                it.sourceIds == sourceIds && it.expiresAtNanos > lockedNow
-            }?.let { return@withLock it.cards }
-
-            val latestById = latestMovies.associateBy { it.id.lowercase(Locale.ROOT) }
-            var complete = true
-            val resolved = source.map { highlight ->
-                latestById[highlight.id.lowercase(Locale.ROOT)] ?: run {
-                    val searchResult = runCatching { searchCards(highlight.title, 12) }
-                        .onFailure { complete = false }
-                        .getOrNull()
-                        ?.firstOrNull { candidate ->
-                            candidate.movie && candidate.id.equals(highlight.id, true)
-                        }
-                    searchResult ?: highlight.copy(poster = highlight.poster ?: highlight.banner)
-                }
-            }
-
-            if (complete) {
-                popularMovieCache = PopularMovieCache(
-                    sourceIds = sourceIds,
-                    expiresAtNanos = System.nanoTime() + POPULAR_CACHE_NANOS,
-                    cards = resolved,
-                )
-            }
-            resolved
-        }
-    }
-
-    private suspend fun popularTvCards(latestTv: List<Card>): List<Card> {
-        if (!UserPreferences.enableTmdb) return emptyList()
-        val now = System.nanoTime()
-        popularTvCache?.takeIf { it.expiresAtNanos > now }?.let { return it.cards }
-
-        return popularTvMutex.withLock {
-            val lockedNow = System.nanoTime()
-            popularTvCache?.takeIf { it.expiresAtNanos > lockedNow }?.let {
-                return@withLock it.cards
-            }
-
-            val candidates = runCatching {
-                TMDb3.TvSeriesLists.popular(language = "en-US", page = 1).results
-            }.getOrNull() ?: return@withLock emptyList()
-
-            val latestByTmdbId = latestTv.mapNotNull { card ->
-                card.tmdbId?.let { it to card }
-            }.toMap()
-            val resolved = mutableListOf<Card>()
-            var complete = true
-
-            for (candidate in candidates) {
-                var match = latestByTmdbId[candidate.id]
-                if (match == null) {
-                    val searchResult = runCatching { searchCards(candidate.name, 12) }
-                        .onFailure { complete = false }
-                        .getOrNull()
-                    if (!complete) break
-                    match = searchResult?.firstOrNull { card ->
-                        !card.movie && card.tmdbId == candidate.id
-                    }
-                }
-                if (match != null && resolved.none { it.id.equals(match.id, true) }) {
-                    resolved += match
-                }
-                if (resolved.size >= POPULAR_TV_LIMIT) break
-            }
-
-            if (complete) {
-                popularTvCache = PopularTvCache(
-                    expiresAtNanos = System.nanoTime() + POPULAR_CACHE_NANOS,
-                    cards = resolved,
-                )
-            }
-            resolved
-        }
+            .map(::tvShow)
     }
 
     override suspend fun getMovie(id: String): Movie {
@@ -570,7 +435,6 @@ object RidomoviesProvider : Provider {
             rating = row.double("imdb_rating") ?: row.double("rating"),
             poster = asset(row.string("poster_path") ?: row.string("poster")),
             overview = row.string("overview") ?: row.string("description"),
-            tmdbId = row.int("tmdb_id"),
         )
     }
 
