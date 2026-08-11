@@ -481,8 +481,8 @@ class PlayerTvFragment : Fragment() {
                                             currentSubtitleConfigurations
                                                     + MediaItem.SubtitleConfiguration.Builder(state.uri)
                                                 .setMimeType(fileName.toSubtitleMimeType())
-                                                .setLabel(fileName)
-                                                .setLanguage(state.subtitle.languageName)
+                                                .setLabel(state.subtitle.displayLabel)
+                                                .setLanguage(state.subtitle.languageTag)
                                                 .setSelectionFlags(C.SELECTION_FLAG_DEFAULT)
                                                 .build()
                                         )
@@ -490,7 +490,7 @@ class PlayerTvFragment : Fragment() {
                                         .build()
                                 )
                                 UserPreferences.subtitleName =
-                                    (state.subtitle.languageName ?: fileName).substringBefore(" ")
+                                    state.subtitle.displayLanguage.substringBefore(" ")
                                 player.seekTo(currentPosition)
                                 player.play()
                             }

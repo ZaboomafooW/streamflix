@@ -14,6 +14,7 @@ import java.io.File
 import java.io.FileInputStream
 import java.io.FileOutputStream
 import java.net.URL
+import java.util.Locale
 import java.util.zip.GZIPInputStream
 
 object OpenSubtitles {
@@ -197,5 +198,30 @@ object OpenSubtitles {
         @SerializedName("SubtitlesLink") val subtitlesLink: String? = null,
         @SerializedName("QueryNumber") val queryNumber: String? = null,
         @SerializedName("Score") val score: Double? = null
-    )
+    ) {
+        val isForced: Boolean
+            get() = subForeignPartsOnly?.trim() == "1"
+
+        val languageTag: String?
+            get() {
+                val rawTag = iso639?.trim()?.takeIf { it.isNotEmpty() } ?: return null
+                val normalized = Locale.forLanguageTag(rawTag.replace('_', '-')).toLanguageTag()
+                return normalized.takeUnless { it.equals("und", ignoreCase = true) }
+            }
+
+        val displayLanguage: String
+            get() {
+                languageName?.trim()?.takeIf { it.isNotEmpty() }?.let { return it }
+
+                val tag = languageTag ?: return "Unknown"
+                val displayName = Locale.forLanguageTag(tag)
+                    .getDisplayLanguage(Locale.ENGLISH)
+                    .trim()
+
+                return displayName.takeIf { it.isNotEmpty() } ?: tag
+            }
+
+        val displayLabel: String
+            get() = if (isForced) "$displayLanguage (Forced)" else displayLanguage
+    }
 }

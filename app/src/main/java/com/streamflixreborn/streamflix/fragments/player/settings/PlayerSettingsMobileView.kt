@@ -538,7 +538,7 @@ class PlayerSettingsMobileView @JvmOverloads constructor(
 
                     is Settings.Subtitle.Style.WindowOpacity -> context.getString(item.stringId)
 
-                    is Settings.Subtitle.OpenSubtitles.Subtitle -> item.openSubtitle.subFileName
+                    is Settings.Subtitle.OpenSubtitles.Subtitle -> item.openSubtitle.displayLabel
 
                     is Settings.Subtitle.SubDLSubtitles.Subtitle -> item.subDLSubtitle.releaseName ?: item.subDLSubtitle.name
 
@@ -611,7 +611,7 @@ class PlayerSettingsMobileView @JvmOverloads constructor(
                         Settings.Subtitle.Style.Margin -> Settings.Subtitle.Style.Margin.selected.value.toString()
                     }
 
-                    is Settings.Subtitle.OpenSubtitles.Subtitle -> item.openSubtitle.languageName
+                    is Settings.Subtitle.OpenSubtitles.Subtitle -> item.openSubtitle.subFileName ?: ""
 
                     is Settings.Subtitle.SubDLSubtitles.Subtitle -> item.subDLSubtitle.lang?.replaceFirstChar { if (it.isLowerCase()) it.titlecase(java.util.Locale.getDefault()) else it.toString() } ?: ""
 
