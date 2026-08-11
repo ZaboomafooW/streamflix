@@ -254,7 +254,7 @@ object RidomoviesProvider : Provider {
 
         val servers = servers(document(url))
         if (servers.isEmpty()) {
-            throw Exception("Ridomovies currently has no playback sources for this title.")
+            throw Exception("Ridomovies doesn't currently have a video file for this title.")
         }
         return servers
     }
@@ -550,6 +550,15 @@ object RidomoviesProvider : Provider {
         quality: String?,
     ) {
         val parsed = url.toHttpUrlOrNull() ?: return
+        val host = parsed.host.lowercase(Locale.ROOT)
+        if (
+            host == "youtu.be" ||
+            host == "youtube.com" ||
+            host.endsWith(".youtube.com") ||
+            host == "youtube-nocookie.com" ||
+            host.endsWith(".youtube-nocookie.com")
+        ) return
+
         val key = "${parsed.host}${parsed.encodedPath.trimEnd('/')}"
         val detected = when {
             parsed.host.contains("ridorapid", true) -> "Rapidrame"
