@@ -13,6 +13,7 @@ import androidx.media3.exoplayer.ExoPlayer
 import androidx.media3.ui.CaptionStyleCompat
 import androidx.media3.ui.DefaultTrackNameProvider
 import androidx.media3.ui.SubtitleView
+import androidx.recyclerview.widget.RecyclerView
 import com.streamflixreborn.streamflix.R
 import com.streamflixreborn.streamflix.utils.OpenSubtitles
 import com.streamflixreborn.streamflix.utils.PlaybackLanguageContext
@@ -87,12 +88,19 @@ abstract class PlayerSettingsView @JvmOverloads constructor(
         set(value) {
             Settings.Subtitle.OpenSubtitles.init(value)
             field = value
+            refreshSubtitleList()
         }
     var subDLSubtitles: List<SubDL.Subtitle> = listOf()
         set(value) {
             Settings.Subtitle.SubDLSubtitles.init(value)
             field = value
+            refreshSubtitleList()
         }
+
+    private fun refreshSubtitleList() {
+        player?.let { Settings.Subtitle.init(it, resources) }
+        findViewById<RecyclerView>(R.id.rv_settings)?.adapter?.notifyDataSetChanged()
+    }
 
     protected var currentSettings = Setting.MAIN
 
@@ -716,10 +724,10 @@ abstract class PlayerSettingsView @JvmOverloads constructor(
         sealed class Subtitle : Item {
 
             companion object : Settings() {
-                val list = mutableListOf<Subtitle>()
+                val list = mutableListOf<Item>()
 
                 val selected: Subtitle
-                    get() = list.find {
+                    get() = list.filterIsInstance<Subtitle>().find {
                         when (it) {
                             is None -> it.isSelected
                             is TextTrackInformation -> it.isSelected
@@ -771,12 +779,11 @@ abstract class PlayerSettingsView @JvmOverloads constructor(
                             }
                             .sortedBy { it.language ?: it.label }
                     )
-                    list.add(LocalSubtitles)
-                    list.add(OpenSubtitles)
-                    // Add SubDL only if an API key is configured
+                    list.addAll(OpenSubtitles.list)
                     if (UserPreferences.subdlApiKey.isNotEmpty()) {
-                        list.add(SubDLSubtitles)
+                        list.addAll(SubDLSubtitles.list)
                     }
+                    list.add(LocalSubtitles)
                 }
             }
 
