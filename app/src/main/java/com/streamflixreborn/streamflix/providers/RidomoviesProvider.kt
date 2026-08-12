@@ -51,12 +51,20 @@ object RidomoviesProvider : Provider {
     override val language = "en"
 
     private const val HOME = "home-rd1"
+    private const val ARTWORK_CACHE_NAME = "ridomovies_artwork_cache"
+    private const val TMDB_RETRY_MS = 24L * 60L * 60L * 1000L
     private val mediaPath = Regex("""/(movie|tv)/([^/?#]+)""", RegexOption.IGNORE_CASE)
     private val episodePath =
         Regex("""/tv/([^/?#]+)/season-(\d+)/episode-(\d+)""", RegexOption.IGNORE_CASE)
     private val yearRegex = Regex("""\b(?:19|20)\d{2}\b""")
     private val clearanceMutex = Mutex()
     private val tmdbIds = ConcurrentHashMap<String, Int>()
+    private val artworkCache by lazy {
+        StreamFlixApp.instance.getSharedPreferences(
+            ARTWORK_CACHE_NAME,
+            android.content.Context.MODE_PRIVATE,
+        )
+    }
     private var resolver: WebViewResolver? = null
 
     private val genres = linkedMapOf(
@@ -167,6 +175,20 @@ object RidomoviesProvider : Provider {
         val slug = slug(id)
         val metadata = metadata(document("${URL}movie/$slug"), "Movie")
         if (metadata.title.isBlank()) throw Exception("Ridomovies movie details could not be loaded.")
+
+        metadata.poster?.let { rememberArtwork("movie", slug, "poster", it) }
+        val needsTmdb = cachedArtwork("movie", slug, "banner") == null ||
+            metadata.poster == null && cachedArtwork("movie", slug, "poster") == null
+        val tmdbMovie = if (needsTmdb && shouldLookupTmdb("movie", slug, "details")) {
+            ridoTmdbId("movie", slug, metadata.title)?.let { tmdbId ->
+                TmdbUtils.getMovieById(tmdbId, language = language)?.also { resolved ->
+                    rememberArtwork("movie", slug, "poster", resolved.poster)
+                    rememberArtwork("movie", slug, "banner", resolved.banner)
+                    markTmdbLookup("movie", slug, "details")
+                }
+            }
+        } else null
+
         return Movie(
             id = slug,
             title = metadata.title,
@@ -174,8 +196,9 @@ object RidomoviesProvider : Provider {
             released = metadata.released,
             runtime = metadata.runtime,
             rating = metadata.rating,
-            poster = metadata.poster,
-            imdbId = metadata.imdbId,
+            poster = metadata.poster ?: cachedArtwork("movie", slug, "poster"),
+            banner = cachedArtwork("movie", slug, "banner"),
+            imdbId = metadata.imdbId ?: tmdbMovie?.imdbId,
             genres = metadata.genres,
         )
     }
@@ -185,9 +208,24 @@ object RidomoviesProvider : Provider {
         val doc = document("${URL}tv/$slug")
         val metadata = metadata(doc, "TVSeries")
         if (metadata.title.isBlank()) throw Exception("Ridomovies TV details could not be loaded.")
-        val tmdbTvShow = ridoTmdbId(slug, metadata.title)?.let {
-            TmdbUtils.getTvShowById(it, language = language)
-        }
+
+        metadata.poster?.let { rememberArtwork("tv", slug, "poster", it) }
+        val seasons = seasonNumbers(doc)
+        val needsTmdb = cachedArtwork("tv", slug, "banner") == null ||
+            metadata.poster == null && cachedArtwork("tv", slug, "poster") == null ||
+            seasons.any { cachedSeasonPoster(slug, it) == null }
+        val tmdbTvShow = if (needsTmdb && shouldLookupTmdb("tv", slug, "details")) {
+            ridoTmdbId("tv", slug, metadata.title)?.let { tmdbId ->
+                TmdbUtils.getTvShowById(tmdbId, language = language)?.also { resolved ->
+                    rememberArtwork("tv", slug, "poster", resolved.poster)
+                    rememberArtwork("tv", slug, "banner", resolved.banner)
+                    resolved.seasons.forEach { season ->
+                        rememberSeasonPoster(slug, season.number, season.poster)
+                    }
+                    markTmdbLookup("tv", slug, "details")
+                }
+            }
+        } else null
 
         return TvShow(
             id = slug,
@@ -196,18 +234,17 @@ object RidomoviesProvider : Provider {
             released = metadata.released,
             runtime = metadata.runtime,
             rating = metadata.rating,
-            poster = metadata.poster ?: tmdbTvShow?.poster,
-            banner = tmdbTvShow?.banner,
+            poster = metadata.poster ?: cachedArtwork("tv", slug, "poster"),
+            banner = cachedArtwork("tv", slug, "banner"),
             imdbId = metadata.imdbId ?: tmdbTvShow?.imdbId,
-            seasons = seasonNumbers(doc).map { number ->
+            seasons = seasons.map { number ->
                 Season(
                     id = "$slug/$number",
                     number = number,
                     title = "Season $number",
-                    poster = tmdbTvShow?.seasons
-                        ?.firstOrNull { it.number == number }
-                        ?.poster
-                        ?: metadata.poster,
+                    poster = cachedSeasonPoster(slug, number)
+                        ?: metadata.poster
+                        ?: cachedArtwork("tv", slug, "poster"),
                 )
             },
             genres = metadata.genres,
@@ -235,12 +272,31 @@ object RidomoviesProvider : Provider {
         }.getOrNull()
 
         val seasonDoc = ajax ?: runCatching { document(seasonUrl) }.getOrDefault(showDoc)
-        val tmdbEpisodePosters = ridoTmdbId(slug, metadata.title)?.let { tmdbId ->
-            TmdbUtils.getEpisodesBySeason(tmdbId.toString(), season, language = language)
-                .mapNotNull { episode -> episode.poster?.let { episode.number to it } }
-                .toMap()
-        }.orEmpty()
-        return episodes(seasonDoc, slug, season, tmdbEpisodePosters)
+        var resolvedEpisodes = episodes(seasonDoc, slug, season) { number ->
+            cachedEpisodePoster(slug, season, number)
+        }
+        if (
+            resolvedEpisodes.any { it.poster.isNullOrBlank() } &&
+            shouldLookupTmdb("tv", slug, "season-$season")
+        ) {
+            ridoTmdbId("tv", slug, metadata.title)?.let { tmdbId ->
+                val tmdbEpisodes = TmdbUtils.getEpisodesBySeason(
+                    tmdbId.toString(),
+                    season,
+                    language = language,
+                )
+                if (tmdbEpisodes.isNotEmpty()) {
+                    tmdbEpisodes.forEach { episode ->
+                        rememberEpisodePoster(slug, season, episode.number, episode.poster)
+                    }
+                    markTmdbLookup("tv", slug, "season-$season")
+                    resolvedEpisodes = episodes(seasonDoc, slug, season) { number ->
+                        cachedEpisodePoster(slug, season, number)
+                    }
+                }
+            }
+        }
+        return resolvedEpisodes
     }
 
     override suspend fun getGenre(id: String, page: Int): Genre = coroutineScope {
@@ -379,6 +435,70 @@ object RidomoviesProvider : Provider {
     private fun webViewResolver() =
         resolver ?: WebViewResolver(StreamFlixApp.instance).also { resolver = it }
 
+    private fun cachePrefix(type: String, slug: String): String =
+        "v1|${type.lowercase(Locale.ROOT)}|${slug.lowercase(Locale.ROOT)}"
+
+    private fun tmdbMemoryKey(type: String, slug: String): String =
+        "${type.lowercase(Locale.ROOT)}:${slug.lowercase(Locale.ROOT)}"
+
+    private fun cachedTmdbId(type: String, slug: String): Int? {
+        val memoryKey = tmdbMemoryKey(type, slug)
+        tmdbIds[memoryKey]?.let { return it }
+        val key = "${cachePrefix(type, slug)}|tmdb-id"
+        if (!artworkCache.contains(key)) return null
+        return artworkCache.getInt(key, 0).takeIf { it > 0 }?.also {
+            tmdbIds[memoryKey] = it
+        }
+    }
+
+    private fun rememberTmdbId(type: String, slug: String, tmdbId: Int) {
+        if (tmdbId <= 0) return
+        tmdbIds[tmdbMemoryKey(type, slug)] = tmdbId
+        artworkCache.edit()
+            .putInt("${cachePrefix(type, slug)}|tmdb-id", tmdbId)
+            .apply()
+    }
+
+    private fun cachedArtwork(type: String, slug: String, field: String): String? =
+        artworkCache.getString("${cachePrefix(type, slug)}|$field", null)
+            ?.takeIf { it.isNotBlank() }
+
+    private fun rememberArtwork(type: String, slug: String, field: String, url: String?) {
+        val value = url?.takeIf { it.isNotBlank() } ?: return
+        artworkCache.edit()
+            .putString("${cachePrefix(type, slug)}|$field", value)
+            .apply()
+    }
+
+    private fun cachedSeasonPoster(slug: String, season: Int): String? =
+        cachedArtwork("tv", slug, "season-$season-poster")
+
+    private fun rememberSeasonPoster(slug: String, season: Int, url: String?) {
+        rememberArtwork("tv", slug, "season-$season-poster", url)
+    }
+
+    private fun cachedEpisodePoster(slug: String, season: Int, episode: Int): String? =
+        cachedArtwork("tv", slug, "season-$season-episode-$episode-poster")
+
+    private fun rememberEpisodePoster(slug: String, season: Int, episode: Int, url: String?) {
+        rememberArtwork("tv", slug, "season-$season-episode-$episode-poster", url)
+    }
+
+    private fun lookupKey(type: String, slug: String, scope: String): String =
+        "${cachePrefix(type, slug)}|$scope-checked-at"
+
+    private fun shouldLookupTmdb(type: String, slug: String, scope: String): Boolean {
+        if (!UserPreferences.enableTmdb) return false
+        val lastLookup = artworkCache.getLong(lookupKey(type, slug, scope), 0L)
+        return lastLookup == 0L || System.currentTimeMillis() - lastLookup >= TMDB_RETRY_MS
+    }
+
+    private fun markTmdbLookup(type: String, slug: String, scope: String) {
+        artworkCache.edit()
+            .putLong(lookupKey(type, slug, scope), System.currentTimeMillis())
+            .apply()
+    }
+
     private fun cards(container: Element): List<Card> {
         val isHighlights = container.hasClass("highlights-slider")
         return container.select(".movie-card, .highlight-card").mapNotNull { item ->
@@ -446,9 +566,7 @@ object RidomoviesProvider : Provider {
         if (type !in setOf("movie", "tv")) return null
         val slug = row.string("slug") ?: row.string("slug_en") ?: return null
         val title = row.string("title") ?: row.string("original_title") ?: return null
-        if (type == "tv") {
-            row.int("tmdb_id")?.let { tmdbIds[slug.lowercase(Locale.ROOT)] = it }
-        }
+        row.int("tmdb_id")?.let { rememberTmdbId(type, slug, it) }
         return Card(
             id = slug,
             title = title,
@@ -462,18 +580,16 @@ object RidomoviesProvider : Provider {
         )
     }
 
-    private suspend fun ridoTmdbId(slug: String, title: String): Int? {
-        if (!UserPreferences.enableTmdb) return null
-        val key = slug.lowercase(Locale.ROOT)
-        tmdbIds[key]?.let { return it }
-        if (title.isBlank()) return null
+    private suspend fun ridoTmdbId(type: String, slug: String, title: String): Int? {
+        cachedTmdbId(type, slug)?.let { return it }
+        if (!UserPreferences.enableTmdb || title.isBlank()) return null
 
         val url = apiUrl("api/search", "q" to title, "lang" to "en", "limit" to "32")
         val row = runCatching {
             json(url).array("data")
                 .mapNotNull { it.obj() }
                 .firstOrNull { candidate ->
-                    candidate.string("type")?.equals("tv", true) == true &&
+                    candidate.string("type")?.equals(type, true) == true &&
                         listOfNotNull(
                             candidate.string("slug"),
                             candidate.string("slug_en"),
@@ -481,22 +597,34 @@ object RidomoviesProvider : Provider {
                 }
         }.getOrNull() ?: return null
 
-        return row.int("tmdb_id")?.also { tmdbIds[key] = it }
+        return row.int("tmdb_id")?.also { rememberTmdbId(type, slug, it) }
     }
 
     private fun item(card: Card): AppAdapter.Item = if (card.movie) movie(card) else tvShow(card)
 
-    private fun movie(card: Card) = Movie(
-        id = card.id, title = card.title, released = card.released,
-        runtime = card.runtime, quality = card.quality, rating = card.rating,
-        poster = card.poster, banner = card.banner, overview = card.overview,
-    )
+    private fun movie(card: Card): Movie {
+        card.poster?.let { rememberArtwork("movie", card.id, "poster", it) }
+        card.banner?.let { rememberArtwork("movie", card.id, "banner", it) }
+        return Movie(
+            id = card.id, title = card.title, released = card.released,
+            runtime = card.runtime, quality = card.quality, rating = card.rating,
+            poster = card.poster ?: cachedArtwork("movie", card.id, "poster"),
+            banner = card.banner ?: cachedArtwork("movie", card.id, "banner") ?: card.poster,
+            overview = card.overview,
+        )
+    }
 
-    private fun tvShow(card: Card) = TvShow(
-        id = card.id, title = card.title, released = card.released,
-        runtime = card.runtime, quality = card.quality, rating = card.rating,
-        poster = card.poster, banner = card.banner, overview = card.overview,
-    )
+    private fun tvShow(card: Card): TvShow {
+        card.poster?.let { rememberArtwork("tv", card.id, "poster", it) }
+        card.banner?.let { rememberArtwork("tv", card.id, "banner", it) }
+        return TvShow(
+            id = card.id, title = card.title, released = card.released,
+            runtime = card.runtime, quality = card.quality, rating = card.rating,
+            poster = card.poster ?: cachedArtwork("tv", card.id, "poster"),
+            banner = card.banner ?: cachedArtwork("tv", card.id, "banner") ?: card.poster,
+            overview = card.overview,
+        )
+    }
 
     private fun metadata(doc: Document, wantedType: String): Metadata {
         val items = jsonLd(doc)
@@ -553,7 +681,7 @@ object RidomoviesProvider : Provider {
         doc: Document,
         expectedSlug: String,
         expectedSeason: Int,
-        tmdbPosters: Map<Int, String>,
+        fallbackPoster: (Int) -> String?,
     ): List<Episode> =
         doc.select("a.episode-link[href], a[href*='/episode-']").mapNotNull { link ->
             if (link.selectFirst(".ep-no-video") != null) return@mapNotNull null
@@ -565,7 +693,7 @@ object RidomoviesProvider : Provider {
             val number = match.groupValues[3].toIntOrNull() ?: return@mapNotNull null
             val episodePoster = link.selectFirst("img")?.let {
                 asset(it.attr("src").takeIf(String::isNotBlank) ?: it.attr("data-src"))
-            } ?: tmdbPosters[number]
+            } ?: fallbackPoster(number)
             Episode(
                 id = URL(href).path.trimStart('/'),
                 number = number,
