@@ -417,8 +417,7 @@ object PlaybackTrackPreferences {
                     !subtitleCancelled &&
                     !exactSubtitleApplied &&
                     subtitlePreference != null &&
-                    subtitlePreference.exactIdentity == null &&
-                    !isSubtitleOff(player.trackSelectionParameters)
+                    subtitlePreference.exactIdentity == null
                 ) {
                     subtitleVariantTrack(
                         tracks = tracks,
@@ -440,8 +439,7 @@ object PlaybackTrackPreferences {
                     !exactSubtitleApplied &&
                     subtitlePreference != null &&
                     subtitlePreference.exactIdentity == null &&
-                    currentOverride(player.trackSelectionParameters, tracks, C.TRACK_TYPE_TEXT) == null &&
-                    !isSubtitleOff(player.trackSelectionParameters)
+                    currentOverride(player.trackSelectionParameters, tracks, C.TRACK_TYPE_TEXT) == null
                 ) {
                     labelFallbackTrack(
                         tracks = tracks,
