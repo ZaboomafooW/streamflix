@@ -129,11 +129,22 @@ object DoramasflixProvider : Provider {
         .toString()
         .toRequestBody("application/json".toMediaType())
 
+    private fun ApiResponse.throwIfGraphQlError(context: String): ApiResponse {
+        val message = errors.orEmpty()
+            .firstNotNullOfOrNull { error -> error.message?.takeIf { it.isNotBlank() } }
+            ?: return this
+
+        if (message.contains("Too Many Requests", ignoreCase = true)) {
+            throw Exception("$context is temporarily rate limiting requests. Please try again shortly.")
+        }
+        throw Exception("$context returned an error: $message")
+    }
+
     private suspend fun apiRequest(operationName: String, variables: JSONObject, query: String): ApiResponse {
         return service.getApiResponse(
             referer = "$baseUrl/",
             body = requestBody(operationName, variables, query),
-        )
+        ).throwIfGraphQlError("Doramasflix catalog API")
     }
 
     private suspend fun playbackRequest(operationName: String, variables: JSONObject, query: String): ApiResponse {
@@ -142,12 +153,17 @@ object DoramasflixProvider : Provider {
             referer = "$baseUrl/",
             userAgent = "Mozilla/5.0 (Linux; Android 10; Android TV) AppleWebKit/537.36 Chrome/140.0.0.0 Safari/537.36",
             body = requestBody(operationName, variables, query),
-        )
+        ).throwIfGraphQlError("Doramasflix playback API")
     }
 
     private fun getPosterUrl(path: String?): String? {
         if (path.isNullOrBlank()) return null
         return if (path.startsWith("http")) path else "https://image.tmdb.org/t/p/w500$path"
+    }
+
+    private fun getBackdropUrl(path: String?): String? {
+        if (path.isNullOrBlank()) return null
+        return if (path.startsWith("http")) path else "https://image.tmdb.org/t/p/w1280$path"
     }
 
     private fun normalizePath(id: String): String = id
@@ -211,6 +227,9 @@ object DoramasflixProvider : Provider {
                 name_es
                 poster_path
                 poster
+                backdrop_path
+                backdrop
+                overview
               }
             }
         """.trimIndent(),
@@ -485,9 +504,10 @@ object DoramasflixProvider : Provider {
             Movie(
                 id = movieId(slug),
                 title = pageTitle ?: titleFor(apiMovie),
-                overview = metadata?.description,
+                overview = metadata?.description ?: apiMovie.overview,
                 rating = metadata?.rating,
                 poster = getPosterUrl(apiMovie.posterPath ?: apiMovie.poster),
+                banner = getBackdropUrl(apiMovie.backdropPath ?: apiMovie.backdrop),
             )
         } catch (e: Exception) {
             throw Exception("No se pudieron cargar los detalles de la película: ${e.message}")
@@ -523,7 +543,7 @@ object DoramasflixProvider : Provider {
                 overview = pageMetadata?.description ?: firstSeason?.overview,
                 rating = pageMetadata?.rating,
                 poster = getPosterUrl(firstSeason?.posterPath ?: apiShow?.posterPath ?: apiShow?.poster),
-                banner = getPosterUrl(firstSeason?.serieBackdropPath ?: firstSeason?.backdrop),
+                banner = getBackdropUrl(firstSeason?.serieBackdropPath ?: firstSeason?.backdrop),
                 trailer = firstSeason?.trailer,
                 seasons = seasons,
             )
@@ -535,13 +555,19 @@ object DoramasflixProvider : Provider {
     override suspend fun getEpisodesBySeason(seasonId: String): List<Episode> {
         val slug = seasonId.substringBeforeLast('/')
         val seasonNumber = seasonId.substringAfterLast('/').toIntOrNull() ?: return emptyList()
+        val episodes = getAvailableEpisodes(slug, seasonNumber)
+        val sharedStillPath = episodes
+            .mapNotNull { episode -> episode.stillPath?.takeIf { it.isNotBlank() } }
+            .distinct()
+            .singleOrNull()
+            ?.takeIf { path -> episodes.size > 1 && episodes.all { it.stillPath == path } }
 
-        return getAvailableEpisodes(slug, seasonNumber).map { episode ->
+        return episodes.map { episode ->
             Episode(
                 id = episode.slug,
                 number = episode.episodeNumber ?: 0,
                 title = "Episodio ${episode.episodeNumber ?: 0}: ${episode.name.orEmpty()}".trim(),
-                poster = getPosterUrl(episode.stillPath),
+                poster = getPosterUrl(episode.stillPath?.takeUnless { it == sharedStillPath }),
             )
         }
     }
@@ -596,8 +622,17 @@ object DoramasflixProvider : Provider {
         }
     }
 
+    private fun normalizePlaybackTarget(link: String): String? {
+        val normalized = link.trim()
+        return when {
+            normalized.startsWith("//") -> "https:$normalized"
+            normalized.startsWith("https://") || normalized.startsWith("http://") -> normalized
+            else -> null
+        }
+    }
+
     private fun decodePlaybackLink(link: String): String? {
-        if (!link.contains("embedshortener.co/e/")) return link
+        if (!link.contains("embedshortener.co/e/")) return normalizePlaybackTarget(link)
 
         return try {
             val token = link.substringAfter("/e/").substringBefore('?').substringBefore('#')
@@ -607,9 +642,9 @@ object DoramasflixProvider : Provider {
             )
             val encodedLink = JSONObject(payloadJson).optString("link").takeIf { it.isNotBlank() }
                 ?: return null
-            String(Base64.decode(encodedLink, Base64.DEFAULT))
-                .trim()
-                .takeIf { it.startsWith("http") }
+            normalizePlaybackTarget(
+                String(Base64.decode(encodedLink, Base64.DEFAULT))
+            )
         } catch (_: Exception) {
             null
         }
@@ -627,6 +662,7 @@ object DoramasflixProvider : Provider {
             "callistanise.com" -> "VidHide"
             "jessicayeahcatch.com" -> "VOE"
             "streamtape.com" -> "Streamtape"
+            "ok.ru" -> "Okru"
             "m1xdrop.bz", "miixdrop.com" -> "MixDrop"
             else -> host.substringBefore('.')
                 .replaceFirstChar { it.titlecase(Locale.ROOT) }
