@@ -77,11 +77,6 @@ object PlaybackTrackPreferences {
         }
     }
 
-    private data class SavedSubtitleTrack(
-        val value: SavedTrack,
-        val globalRevision: Int,
-    )
-
     private enum class SubtitleVariant {
         STANDARD,
         CC,
@@ -146,7 +141,7 @@ object PlaybackTrackPreferences {
     private var savedAudio: SavedTrack? = null
 
     @Volatile
-    private var savedSubtitle: SavedSubtitleTrack? = null
+    private var savedSubtitle: SavedTrack? = null
 
     private val prefs by lazy {
         StreamFlixApp.instance.getSharedPreferences(
@@ -156,8 +151,6 @@ object PlaybackTrackPreferences {
     }
 
     fun activate(videoType: Video.Type, originalLanguage: String? = null) {
-        migratePreferencesIfNeeded()
-
         val provider = UserPreferences.currentProvider?.name
         val content = contentOf(videoType)
 
@@ -252,18 +245,6 @@ object PlaybackTrackPreferences {
                     subtitle?.position != lastSubtitlePosition && subtitle != null -> {
                         rememberManualSubtitleSelection(subtitle)
                         subtitleCancelled = true
-
-                        // The stock Off action leaves forced-subtitle flags behind. Once the user
-                        // explicitly selects a subtitle track, normalize the parameters back to a
-                        // normal enabled text state.
-                        if (parameters.ignoredTextSelectionFlags != DEFAULT_TEXT_FLAGS) {
-                            applyParameters(
-                                parameters.buildUpon()
-                                    .setTrackTypeDisabled(C.TRACK_TYPE_TEXT, false)
-                                    .setIgnoredTextSelectionFlags(DEFAULT_TEXT_FLAGS)
-                                    .build()
-                            )
-                        }
                     }
 
                     subtitleOff && !lastSubtitleOff -> {
@@ -349,7 +330,7 @@ object PlaybackTrackPreferences {
 
                 if (!subtitleRestored && !subtitleCancelled) {
                     savedSubtitle?.let { saved ->
-                        exactTrack(tracks, C.TRACK_TYPE_TEXT, saved.value)?.let { track ->
+                        exactTrack(tracks, C.TRACK_TYPE_TEXT, saved)?.let { track ->
                             builder = (builder ?: player.trackSelectionParameters.buildUpon())
                                 .setOverrideForType(track.override())
                                 .setTrackTypeDisabled(C.TRACK_TYPE_TEXT, false)
@@ -896,7 +877,7 @@ object PlaybackTrackPreferences {
     private fun loadAudio(scope: String): SavedTrack? =
         prefs.getString(audioKey(scope), null)?.let(SavedTrack::decode)
 
-    private fun loadSubtitle(scope: String): SavedSubtitleTrack? {
+    private fun loadSubtitle(scope: String): SavedTrack? {
         if (prefs.getString(subtitleModeKey(scope), null) != MODE_TRACK) return null
         val revision = prefs.getInt(subtitleRevisionKey(scope), -1)
         if (revision != globalSubtitleRevision) return null
@@ -904,7 +885,7 @@ object PlaybackTrackPreferences {
             ?.let(SavedTrack::decode)
             ?: return null
         if (track.forced) return null
-        return SavedSubtitleTrack(track, revision)
+        return track
     }
 
     private fun loadTitleAudioLanguage(contentKey: String): String? =
@@ -958,8 +939,7 @@ object PlaybackTrackPreferences {
     private fun saveSubtitleExact(value: SavedTrack) {
         if (value.forced) return
         val scope = scopeKey ?: return
-        val saved = SavedSubtitleTrack(value, globalSubtitleRevision)
-        savedSubtitle = saved
+        savedSubtitle = value
         prefs.edit()
             .putString(subtitleModeKey(scope), MODE_TRACK)
             .putString(subtitleTrackKey(scope), value.encode())
@@ -1020,8 +1000,7 @@ object PlaybackTrackPreferences {
     }
 
     private fun isSubtitleOff(parameters: TrackSelectionParameters) =
-        parameters.disabledTrackTypes.contains(C.TRACK_TYPE_TEXT) ||
-            parameters.ignoredTextSelectionFlags == LEGACY_SUBTITLE_OFF_FLAGS
+        parameters.disabledTrackTypes.contains(C.TRACK_TYPE_TEXT)
 
     private fun hasLocalDefaultSubtitle(mediaItem: MediaItem?) =
         mediaItem?.localConfiguration?.subtitleConfigurations?.any { subtitle ->
@@ -1058,48 +1037,12 @@ object PlaybackTrackPreferences {
     private fun subtitleRevisionKey(scope: String) = "subtitle_revision::$scope"
     private fun titleAudioLanguageKey(contentKey: String) = "title_audio_language::$contentKey"
 
-    private fun migratePreferencesIfNeeded() {
-        val currentVersion = prefs.getInt(SCHEMA_VERSION_KEY, 0)
-        if (currentVersion >= CURRENT_SCHEMA_VERSION) return
-
-        val editor = prefs.edit()
-        prefs.all.keys.forEach { key ->
-            if (
-                key.startsWith("audio::") ||
-                key.startsWith("subtitle_mode::") ||
-                key.startsWith("subtitle_track::") ||
-                key.startsWith("subtitle_revision::") ||
-                key.startsWith("title_subtitle_language::")
-            ) {
-                editor.remove(key)
-            }
-        }
-
-        val storedSubtitleVariant = prefs.getString(GLOBAL_SUBTITLE_VARIANT, null)
-        if (storedSubtitleVariant == "FORCED") {
-            editor
-                .putString(GLOBAL_SUBTITLE_MODE, MODE_OFF)
-                .remove(GLOBAL_SUBTITLE_LANGUAGE)
-                .remove(GLOBAL_SUBTITLE_VARIANT)
-        } else if (
-            prefs.getString(GLOBAL_SUBTITLE_MODE, null) == MODE_LANGUAGE &&
-            storedSubtitleVariant == null
-        ) {
-            editor.putString(GLOBAL_SUBTITLE_VARIANT, SubtitleVariant.STANDARD.name)
-        }
-
-        editor.putInt(SCHEMA_VERSION_KEY, CURRENT_SCHEMA_VERSION).apply()
-    }
-
     private fun JSONObject.putNullable(name: String, value: String?) {
         put(name, value ?: JSONObject.NULL)
     }
 
     private fun JSONObject.nullableString(name: String): String? =
         if (!has(name) || isNull(name)) null else getString(name)
-
-    private const val CURRENT_SCHEMA_VERSION = 4
-    private const val SCHEMA_VERSION_KEY = "schema_version"
 
     private const val GLOBAL_AUDIO_FALLBACK_LANGUAGE = "global_audio_fallback_language"
     private const val GLOBAL_SUBTITLE_MODE = "global_subtitle_mode"
@@ -1111,7 +1054,6 @@ object PlaybackTrackPreferences {
     private const val MODE_TRACK = "track"
     private const val MODE_LANGUAGE = "language"
     private const val DEFAULT_TEXT_FLAGS = 0
-    private const val LEGACY_SUBTITLE_OFF_FLAGS = C.SELECTION_FLAG_FORCED.inv()
 
     private val NON_WORD = Regex("[^\\p{L}\\p{N}]+")
 
