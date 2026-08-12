@@ -113,6 +113,7 @@ interface TvShowDao {
                 cast = if (tvShow.cast.isNotEmpty()) tvShow.cast else existing.cast,
                 recommendations = if (tvShow.recommendations.isNotEmpty()) tvShow.recommendations else existing.recommendations,
                 isFavorite = favorite,
+                originalLanguage = tvShow.originalLanguage ?: existing.originalLanguage,
             )
             updated.favoritedAtMillis = if (favorite) System.currentTimeMillis() else null
             updated.isWatching = existing.isWatching
