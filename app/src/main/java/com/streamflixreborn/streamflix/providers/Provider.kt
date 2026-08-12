@@ -29,7 +29,6 @@ interface Provider {
     val baseUrl: String
     val name: String
     val logo: String
-    val logoRes: Int? get() = null
     val language: String
 
     suspend fun getHome(): List<Category>

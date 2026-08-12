@@ -47,7 +47,6 @@ object RidomoviesProvider : Provider {
     override val name = "Ridomovies"
     override val logo: String
         get() = "android.resource://${BuildConfig.APPLICATION_ID}/${R.drawable.ic_ridomovies}"
-    override val logoRes = R.drawable.ic_ridomovies
     override val language = "en"
 
     private const val HOME = "home-rd1"
@@ -605,13 +604,7 @@ object RidomoviesProvider : Provider {
         return row.int("tmdb_id")?.also { rememberTmdbId(type, slug, it) }
     }
 
-    private fun item(card: Card): AppAdapter.Item =
-        (if (card.movie) movie(card) else tvShow(card)).also { item ->
-            when (item) {
-                is Movie -> item.providerName = name
-                is TvShow -> item.providerName = name
-            }
-        }
+    private fun item(card: Card): AppAdapter.Item = if (card.movie) movie(card) else tvShow(card)
 
     private fun movie(card: Card): Movie = Movie(
         id = card.id, title = card.title, released = card.released,
