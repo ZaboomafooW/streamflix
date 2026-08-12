@@ -1,6 +1,7 @@
 package com.streamflixreborn.streamflix.utils
 
 import android.content.Context
+import android.net.Uri
 import androidx.media3.common.C
 import androidx.media3.common.Format
 import androidx.media3.common.MediaItem
@@ -177,6 +178,11 @@ object PlaybackTrackPreferences {
     @Volatile
     private var savedSubtitle: SavedTrack? = null
 
+    @Volatile
+    private var externalForcedFallbackListener: ((String?) -> Unit)? = null
+
+    private val externalForcedSubtitleUris = mutableSetOf<String>()
+
     private val prefs by lazy {
         StreamFlixApp.instance.getSharedPreferences(
             "${BuildConfig.APPLICATION_ID}.playback_tracks",
@@ -211,6 +217,9 @@ object PlaybackTrackPreferences {
         scopeKey = null
         savedAudio = null
         savedSubtitle = null
+        synchronized(externalForcedSubtitleUris) {
+            externalForcedSubtitleUris.clear()
+        }
     }
 
     /** The stable server/source name is intentionally part of exact fallback identity. */
@@ -220,6 +229,22 @@ object PlaybackTrackPreferences {
         }
         savedAudio = scopeKey?.let(::loadAudio)
         savedSubtitle = scopeKey?.let(::loadSubtitle)
+    }
+
+    internal fun setExternalForcedFallbackListener(listener: (String?) -> Unit) {
+        externalForcedFallbackListener = listener
+    }
+
+    internal fun clearExternalForcedFallbackListener(listener: (String?) -> Unit) {
+        if (externalForcedFallbackListener === listener) {
+            externalForcedFallbackListener = null
+        }
+    }
+
+    internal fun registerExternalForcedSubtitle(uri: Uri) {
+        synchronized(externalForcedSubtitleUris) {
+            externalForcedSubtitleUris += uri.toString()
+        }
     }
 
     fun bind(player: Player): Player.Listener {
@@ -253,6 +278,7 @@ object PlaybackTrackPreferences {
                 resetForContext(player.currentMediaItem, tracks)
                 restore(tracks)
                 captureState(player.trackSelectionParameters, tracks)
+                publishExternalForcedFallback(tracks, subtitleCancelled)
             }
 
             override fun onTrackSelectionParametersChanged(parameters: TrackSelectionParameters) {
@@ -261,6 +287,7 @@ object PlaybackTrackPreferences {
                 if (expectedParameters == parameters) {
                     expectedParameters = null
                     captureState(parameters, tracks)
+                    publishExternalForcedFallback(tracks, subtitleCancelled)
                     return
                 }
 
@@ -277,8 +304,12 @@ object PlaybackTrackPreferences {
 
                 when {
                     subtitle?.position != lastSubtitlePosition && subtitle != null -> {
-                        rememberManualSubtitleSelection(subtitle, tracks)
-                        subtitleCancelled = true
+                        if (isForcedSubtitle(subtitle.format)) {
+                            subtitleCancelled = false
+                        } else {
+                            rememberManualSubtitleSelection(subtitle, tracks)
+                            subtitleCancelled = true
+                        }
                     }
 
                     subtitleOff && !lastSubtitleOff -> {
@@ -308,6 +339,7 @@ object PlaybackTrackPreferences {
                 }
 
                 captureState(player.trackSelectionParameters, tracks)
+                publishExternalForcedFallback(tracks, subtitleCancelled)
             }
 
             private fun resetForContext(newItem: MediaItem?, tracks: Tracks) {
@@ -766,6 +798,35 @@ object PlaybackTrackPreferences {
         )
     }
 
+    private fun publishExternalForcedFallback(
+        tracks: Tracks,
+        subtitleCancelled: Boolean,
+    ) {
+        val listener = externalForcedFallbackListener ?: return
+        listener(
+            if (subtitleCancelled) null
+            else externalForcedFallbackLanguage(tracks)
+        )
+    }
+
+    private fun externalForcedFallbackLanguage(tracks: Tracks): String? {
+        val subtitlePreference = globalSubtitlePreference as? SubtitlePreference.Language
+        val exactPreferenceUnavailable = subtitlePreference?.exactIdentity?.let { saved ->
+            crossSourceExactTrack(tracks, saved) == null
+        } == true
+        if (!exactPreferenceUnavailable && !shouldUseAutomaticForcedSubtitles(tracks)) return null
+
+        val audioTracks = allSupportedTracks(tracks, C.TRACK_TYPE_AUDIO).map(::forcedSubtitleCandidate)
+        val forcedSubtitleTracks = allSupportedTracks(tracks, C.TRACK_TYPE_TEXT)
+            .filter { track -> isForcedSubtitle(track.format) }
+            .map(::forcedSubtitleCandidate)
+
+        return PlaybackForcedSubtitleResolver.externalFallbackLanguage(
+            audioTracks = audioTracks,
+            forcedSubtitleTracks = forcedSubtitleTracks,
+        )
+    }
+
     private fun forcedSubtitleTrack(
         parameters: TrackSelectionParameters,
         tracks: Tracks,
@@ -1124,8 +1185,14 @@ object PlaybackTrackPreferences {
         mediaItem?.localConfiguration?.subtitleConfigurations?.any { subtitle ->
             val scheme = subtitle.uri.scheme?.lowercase()
             (scheme == "file" || scheme == "content") &&
-                subtitle.selectionFlags and C.SELECTION_FLAG_DEFAULT != 0
+                subtitle.selectionFlags and C.SELECTION_FLAG_DEFAULT != 0 &&
+                !isRegisteredExternalForcedSubtitle(subtitle.uri)
         } == true
+
+    private fun isRegisteredExternalForcedSubtitle(uri: Uri): Boolean =
+        synchronized(externalForcedSubtitleUris) {
+            uri.toString() in externalForcedSubtitleUris
+        }
 
     private fun contentOf(videoType: Video.Type): String = when (videoType) {
         is Video.Type.Movie -> "movie:${videoType.id}"

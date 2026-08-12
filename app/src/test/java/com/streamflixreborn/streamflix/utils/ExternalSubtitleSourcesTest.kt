@@ -29,6 +29,89 @@ class ExternalSubtitleSourcesTest {
     }
 
     @Test
+    fun `OpenSubtitles preserves hearing impaired metadata without inventing a variant`() {
+        val subtitle = OpenSubtitles.Subtitle(
+            iso639 = "eng",
+            languageName = "English",
+            subHearingImpaired = "1",
+        )
+
+        assertTrue(subtitle.isHearingImpaired)
+        assertEquals("English [HI]", subtitle.displayLabel)
+    }
+
+    @Test
+    fun `OpenSubtitles display results hide forced entries and use neutral duplicate names`() {
+        val first = OpenSubtitles.Subtitle(
+            subFileName = "Movie.2026.WEBRip.en.srt",
+            iso639 = "eng",
+            languageName = "English",
+            subDownloadLink = "https://example.test/first.gz",
+        )
+        val second = OpenSubtitles.Subtitle(
+            subFileName = "Movie.2026.BluRay.en.srt",
+            iso639 = "eng",
+            languageName = "English",
+            subDownloadLink = "https://example.test/second.gz",
+        )
+        val forced = OpenSubtitles.Subtitle(
+            subFileName = "Movie.2026.forced.en.srt",
+            iso639 = "eng",
+            languageName = "English",
+            subForeignPartsOnly = "1",
+            subDownloadLink = "https://example.test/forced.gz",
+        )
+
+        val displayed = OpenSubtitles.displayResults(listOf(first, second, forced))
+
+        assertEquals(2, displayed.size)
+        assertEquals("English", displayed[0].subFileName)
+        assertEquals("Movie.2026.WEBRip.en.srt", displayed[0].sourceFileName)
+        assertEquals("English (2)", displayed[1].subFileName)
+        assertEquals("Movie.2026.BluRay.en.srt", displayed[1].sourceFileName)
+    }
+
+    @Test
+    fun `OpenSubtitles automatic forced fallback requires one exact language candidate`() {
+        val english = OpenSubtitles.Subtitle(
+            idSubtitleFile = "1",
+            iso639 = "eng",
+            subForeignPartsOnly = "1",
+            subDownloadLink = "https://example.test/en.gz",
+        )
+        val spanish = OpenSubtitles.Subtitle(
+            idSubtitleFile = "2",
+            iso639 = "spa",
+            subForeignPartsOnly = "1",
+            subDownloadLink = "https://example.test/es.gz",
+        )
+        val normalEnglish = OpenSubtitles.Subtitle(
+            idSubtitleFile = "3",
+            iso639 = "eng",
+            subDownloadLink = "https://example.test/normal.gz",
+        )
+
+        assertEquals(
+            english,
+            OpenSubtitles.uniqueForcedForLanguage(
+                listOf(english, spanish, normalEnglish),
+                "en",
+            )
+        )
+
+        val secondEnglish = english.copy(
+            idSubtitleFile = "4",
+            subDownloadLink = "https://example.test/en-2.gz",
+        )
+        assertNull(
+            OpenSubtitles.uniqueForcedForLanguage(
+                listOf(english, secondEnglish),
+                "en",
+            )
+        )
+    }
+
+    @Test
     fun `subtitle language normalization handles iso3 and regions`() {
         assertEquals("en", SubtitleLanguage.normalize("eng"))
         assertEquals("pt-BR", SubtitleLanguage.normalize("pt_BR"))
@@ -140,5 +223,26 @@ class ExternalSubtitleSourcesTest {
         )
 
         assertEquals("English [HI]", subtitle.displayLabel)
+    }
+
+    @Test
+    fun `SubDL display results replace release noise with language names`() {
+        val first = SubDL.Subtitle(
+            releaseName = "Movie.2026.WEB-DL-GROUP",
+            lang = "EN",
+            url = "/subtitle/first.zip",
+        )
+        val second = SubDL.Subtitle(
+            releaseName = "Movie.2026.BluRay-GROUP",
+            lang = "EN",
+            url = "/subtitle/second.zip",
+        )
+
+        val displayed = SubDL.displayResults(listOf(first, second))
+
+        assertEquals("English", displayed[0].releaseName)
+        assertEquals("Movie.2026.WEB-DL-GROUP", displayed[0].sourceReleaseName)
+        assertEquals("English (2)", displayed[1].releaseName)
+        assertEquals("Movie.2026.BluRay-GROUP", displayed[1].sourceReleaseName)
     }
 }

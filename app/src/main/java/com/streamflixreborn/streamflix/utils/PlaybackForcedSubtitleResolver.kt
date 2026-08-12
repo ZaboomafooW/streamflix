@@ -21,6 +21,23 @@ internal object PlaybackForcedSubtitleResolver {
         language == rememberedSubtitleLanguage
     }
 
+    fun externalFallbackLanguage(
+        audioTracks: List<Candidate>,
+        forcedSubtitleTracks: List<Candidate>,
+    ): String? {
+        val selectedAudioLanguages = audioTracks
+            .asSequence()
+            .filter(Candidate::selected)
+            .mapNotNull(Candidate::language)
+            .distinct()
+            .toList()
+        val audioLanguage = selectedAudioLanguages.singleOrNull() ?: return null
+
+        return audioLanguage.takeUnless { language ->
+            forcedSubtitleTracks.any { track -> track.language == language }
+        }
+    }
+
     fun resolve(
         audioOverride: Position?,
         preferredAudioLanguages: List<String>,

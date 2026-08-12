@@ -36,10 +36,18 @@ class PlayerViewModel(
 
     private var subtitleSearchJob: Job? = null
     private var externalSubtitleDownloadJob: Job? = null
+    private var automaticForcedDownloadJob: Job? = null
+    private val externalForcedLock = Any()
     private var mediaGeneration = 0L
+    private var subtitleContentGeneration = 0L
+    private var openSubtitleResults: List<OpenSubtitles.Subtitle> = emptyList()
+    private var pendingExternalForcedLanguage: String? = null
+    private var automaticForcedRequestKey: String? = null
+    private val externalForcedFallbackListener: (String?) -> Unit = ::requestExternalForcedSubtitle
 
     init {
         startPlayback(videoType, id)
+        PlaybackTrackPreferences.setExternalForcedFallbackListener(externalForcedFallbackListener)
         getSubtitles(videoType)
     }
 
@@ -103,6 +111,16 @@ class PlayerViewModel(
     }
 
     private fun startPlayback(videoType: Video.Type, id: String) {
+        subtitleSearchJob?.cancel()
+        externalSubtitleDownloadJob?.cancel()
+        automaticForcedDownloadJob?.cancel()
+        synchronized(externalForcedLock) {
+            mediaGeneration += 1
+            subtitleContentGeneration += 1
+            openSubtitleResults = emptyList()
+            pendingExternalForcedLanguage = null
+            automaticForcedRequestKey = null
+        }
         val originalLanguage = originalAudioLanguage(videoType)
         PlaybackLanguageContext.setOriginalAudioLanguage(originalLanguage)
         PlaybackTrackPreferences.activate(videoType, originalLanguage)
@@ -140,8 +158,13 @@ class PlayerViewModel(
 
     fun getVideo(server: Video.Server) = viewModelScope.launch(Dispatchers.IO) {
         Log.d("PlayerViewModel", "Inizio estrazione video dal server: ${server.name}")
-        mediaGeneration += 1
+        synchronized(externalForcedLock) {
+            mediaGeneration += 1
+            pendingExternalForcedLanguage = null
+            automaticForcedRequestKey = null
+        }
         externalSubtitleDownloadJob?.cancel()
+        automaticForcedDownloadJob?.cancel()
         _state.emit(State.LoadingVideo(server))
         try {
             val video = UserPreferences.currentProvider!!.getVideo(server)
@@ -159,6 +182,7 @@ class PlayerViewModel(
 
     fun getSubtitles(videoType: Video.Type) {
         subtitleSearchJob?.cancel()
+        val contentGeneration = synchronized(externalForcedLock) { subtitleContentGeneration }
         subtitleSearchJob = viewModelScope.launch(Dispatchers.IO) {
             Log.d("PlayerViewModel", "Inizio ricerca sottotitoli")
             _subtitleState.emit(SubtitleState.Loading)
@@ -201,11 +225,23 @@ class PlayerViewModel(
                             .thenBy { it.displayRelease }
                     )
 
+                    if (contentGeneration != synchronized(externalForcedLock) { subtitleContentGeneration }) {
+                        return@launch
+                    }
+                    synchronized(externalForcedLock) {
+                        openSubtitleResults = subtitles
+                    }
+                    maybeDownloadExternalForcedSubtitle()
+
+                    val displaySubtitles = OpenSubtitles.displayResults(subtitles)
                     Log.d("PlayerViewModel", "Ricerca OpenSubtitles completata: ${subtitles.size} risultati")
-                    _subtitleState.emit(SubtitleState.SuccessOpenSubtitles(subtitles))
+                    _subtitleState.emit(SubtitleState.SuccessOpenSubtitles(displaySubtitles))
                 } catch (e: CancellationException) {
                     throw e
                 } catch (e: Exception) {
+                    if (contentGeneration != synchronized(externalForcedLock) { subtitleContentGeneration }) {
+                        return@launch
+                    }
                     Log.e("PlayerViewModel", "Errore OpenSubtitles: ", e)
                     _subtitleState.emit(SubtitleState.FailedOpenSubtitles(e))
                 }
@@ -213,7 +249,9 @@ class PlayerViewModel(
 
             launch {
                 if (UserPreferences.subdlApiKey.isEmpty()) {
-                    _subtitleState.emit(SubtitleState.SuccessSubDLSubtitles(emptyList()))
+                    if (contentGeneration == synchronized(externalForcedLock) { subtitleContentGeneration }) {
+                        _subtitleState.emit(SubtitleState.SuccessSubDLSubtitles(emptyList()))
+                    }
                     return@launch
                 }
 
@@ -243,11 +281,18 @@ class PlayerViewModel(
                             .thenBy { it.displayRelease }
                     )
 
+                    if (contentGeneration != synchronized(externalForcedLock) { subtitleContentGeneration }) {
+                        return@launch
+                    }
+                    val displaySubtitles = SubDL.displayResults(subtitles)
                     Log.d("PlayerViewModel", "Ricerca SubDL completata: ${subtitles.size} risultati")
-                    _subtitleState.emit(SubtitleState.SuccessSubDLSubtitles(subtitles))
+                    _subtitleState.emit(SubtitleState.SuccessSubDLSubtitles(displaySubtitles))
                 } catch (e: CancellationException) {
                     throw e
                 } catch (e: Exception) {
+                    if (contentGeneration != synchronized(externalForcedLock) { subtitleContentGeneration }) {
+                        return@launch
+                    }
                     Log.e("PlayerViewModel", "Errore SubDL: ", e)
                     _subtitleState.emit(SubtitleState.FailedSubDLSubtitles(e))
                 }
@@ -255,46 +300,120 @@ class PlayerViewModel(
         }
     }
 
+    private fun requestExternalForcedSubtitle(language: String?) {
+        val changed = synchronized(externalForcedLock) {
+            val changed = pendingExternalForcedLanguage != language
+            pendingExternalForcedLanguage = language
+            if (changed) automaticForcedRequestKey = null
+            changed
+        }
+
+        if (language == null) {
+            automaticForcedDownloadJob?.cancel()
+            return
+        }
+        if (changed) automaticForcedDownloadJob?.cancel()
+        maybeDownloadExternalForcedSubtitle()
+    }
+
+    private fun maybeDownloadExternalForcedSubtitle() {
+        if (externalSubtitleDownloadJob?.isActive == true) return
+
+        val subtitle = synchronized(externalForcedLock) {
+            val language = pendingExternalForcedLanguage ?: return@synchronized null
+            val candidate = OpenSubtitles.uniqueForcedForLanguage(
+                subtitles = openSubtitleResults,
+                language = language,
+            ) ?: return@synchronized null
+            val requestKey = "$mediaGeneration:${candidate.stableIdentity}"
+            if (requestKey == automaticForcedRequestKey) return@synchronized null
+            automaticForcedRequestKey = requestKey
+            candidate
+        } ?: return
+
+        downloadAutomaticForcedSubtitle(subtitle)
+    }
+
+    private fun downloadAutomaticForcedSubtitle(subtitle: OpenSubtitles.Subtitle) {
+        val generation = synchronized(externalForcedLock) { mediaGeneration }
+        automaticForcedDownloadJob?.cancel()
+        automaticForcedDownloadJob = viewModelScope.launch(Dispatchers.IO) {
+            Log.d("PlayerViewModel", "Inizio download sottotitolo Forced OpenSubtitles: ${subtitle.subFileName}")
+            _subtitleState.emit(SubtitleState.DownloadingOpenSubtitle)
+            try {
+                val uri = OpenSubtitles.download(subtitle)
+                if (generation != synchronized(externalForcedLock) { mediaGeneration }) return@launch
+                PlaybackTrackPreferences.registerExternalForcedSubtitle(uri)
+                Log.d("PlayerViewModel", "Download Forced OpenSubtitles completato: $uri")
+                _subtitleState.emit(SubtitleState.SuccessDownloadingOpenSubtitle(subtitle, uri))
+            } catch (e: CancellationException) {
+                throw e
+            } catch (e: Exception) {
+                if (generation != synchronized(externalForcedLock) { mediaGeneration }) return@launch
+                synchronized(externalForcedLock) {
+                    automaticForcedRequestKey = null
+                }
+                Log.e("PlayerViewModel", "Errore download Forced OpenSubtitles: ", e)
+                _subtitleState.emit(SubtitleState.FailedDownloadingOpenSubtitle(e, subtitle))
+            }
+        }
+    }
+
     fun downloadSubtitle(subtitle: OpenSubtitles.Subtitle) {
-        val generation = mediaGeneration
+        automaticForcedDownloadJob?.cancel()
+        synchronized(externalForcedLock) {
+            automaticForcedRequestKey = null
+        }
+        val generation = synchronized(externalForcedLock) { mediaGeneration }
         externalSubtitleDownloadJob?.cancel()
         externalSubtitleDownloadJob = viewModelScope.launch(Dispatchers.IO) {
             Log.d("PlayerViewModel", "Inizio download sottotitolo OpenSubtitles: ${subtitle.subFileName}")
             _subtitleState.emit(SubtitleState.DownloadingOpenSubtitle)
             try {
                 val uri = OpenSubtitles.download(subtitle)
-                if (generation != mediaGeneration) return@launch
+                if (generation != synchronized(externalForcedLock) { mediaGeneration }) return@launch
                 Log.d("PlayerViewModel", "Download OpenSubtitles completato: $uri")
                 _subtitleState.emit(SubtitleState.SuccessDownloadingOpenSubtitle(subtitle, uri))
             } catch (e: CancellationException) {
                 throw e
             } catch (e: Exception) {
-                if (generation != mediaGeneration) return@launch
+                if (generation != synchronized(externalForcedLock) { mediaGeneration }) return@launch
                 Log.e("PlayerViewModel", "Errore download OpenSubtitles: ", e)
                 _subtitleState.emit(SubtitleState.FailedDownloadingOpenSubtitle(e, subtitle))
+                maybeDownloadExternalForcedSubtitle()
             }
         }
     }
 
     fun downloadSubDLSubtitle(subtitle: SubDL.Subtitle) {
-        val generation = mediaGeneration
+        automaticForcedDownloadJob?.cancel()
+        synchronized(externalForcedLock) {
+            automaticForcedRequestKey = null
+        }
+        val generation = synchronized(externalForcedLock) { mediaGeneration }
         externalSubtitleDownloadJob?.cancel()
         externalSubtitleDownloadJob = viewModelScope.launch(Dispatchers.IO) {
             Log.d("PlayerViewModel", "Inizio download sottotitolo SubDL: ${subtitle.name}")
             _subtitleState.emit(SubtitleState.DownloadingSubDLSubtitle)
             try {
                 val uri = SubDL.download(subtitle)
-                if (generation != mediaGeneration) return@launch
+                if (generation != synchronized(externalForcedLock) { mediaGeneration }) return@launch
                 Log.d("PlayerViewModel", "Download SubDL completato: $uri")
                 _subtitleState.emit(SubtitleState.SuccessDownloadingSubDLSubtitle(subtitle, uri))
             } catch (e: CancellationException) {
                 throw e
             } catch (e: Exception) {
-                if (generation != mediaGeneration) return@launch
+                if (generation != synchronized(externalForcedLock) { mediaGeneration }) return@launch
                 Log.e("PlayerViewModel", "Errore SubDL: ", e)
                 _subtitleState.emit(SubtitleState.FailedDownloadingSubDLSubtitle(e, subtitle))
+                maybeDownloadExternalForcedSubtitle()
             }
         }
+    }
+
+    override fun onCleared() {
+        PlaybackTrackPreferences.clearExternalForcedFallbackListener(externalForcedFallbackListener)
+        super.onCleared()
     }
 
     sealed class State {

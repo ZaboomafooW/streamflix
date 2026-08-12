@@ -42,7 +42,7 @@ object SubDL {
         }
 
         val zip = File.createTempFile(
-            "subdl-${subtitle.releaseName ?: "subtitle"}-",
+            "subdl-${subtitle.sourceReleaseName ?: subtitle.releaseName ?: "subtitle"}-",
             ".zip",
         )
         try {
@@ -154,6 +154,18 @@ object SubDL {
         }
     }
 
+    internal fun displayResults(subtitles: List<Subtitle>): List<Subtitle> {
+        val displayNames = PlaybackTrackDisplayNames.disambiguate(
+            subtitles.map(Subtitle::displayLabel),
+        )
+        return subtitles.zip(displayNames).map { (subtitle, displayName) ->
+            subtitle.copy(
+                releaseName = displayName,
+                sourceReleaseName = subtitle.sourceReleaseName ?: subtitle.releaseName,
+            )
+        }
+    }
+
     internal fun expandSubtitle(
         subtitle: Subtitle,
         seasonNumber: Int?,
@@ -253,6 +265,7 @@ object SubDL {
         @SerializedName("full_season") val fullSeason: Boolean? = null,
         @SerializedName("unpack_files") val unpackFiles: List<UnpackedFile>? = null,
         val directFile: Boolean = false,
+        @Transient val sourceReleaseName: String? = null,
     ) {
         val languageTag: String?
             get() = SubtitleLanguage.normalize(lang ?: language)
@@ -267,9 +280,12 @@ object SubDL {
             get() = if (hi == true) "$displayLanguage [HI]" else displayLanguage
 
         val displayRelease: String
-            get() = releaseName
+            get() = sourceReleaseName
                 ?.trim()
                 ?.takeIf { it.isNotBlank() }
+                ?: releaseName
+                    ?.trim()
+                    ?.takeIf { it.isNotBlank() }
                 ?: name
                     ?.trim()
                     ?.takeIf { it.isNotBlank() }

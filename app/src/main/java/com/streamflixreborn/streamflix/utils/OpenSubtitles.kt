@@ -32,8 +32,21 @@ object OpenSubtitles {
             throw IllegalArgumentException("OpenSubtitles download link is missing")
         }
 
+        val sourceFileName = subtitle.sourceFileName
+            ?: subtitle.subFileName
+            ?: throw IllegalArgumentException("OpenSubtitles file name is missing")
+        val extension = File(sourceFileName).extension
+            .trim()
+            .lowercase(Locale.ROOT)
+            .takeIf { it.isNotBlank() }
+            ?: subtitle.subFormat
+                ?.trim()
+                ?.lowercase(Locale.ROOT)
+                ?.takeIf { it.isNotBlank() }
+            ?: throw IllegalArgumentException("OpenSubtitles subtitle format is missing")
+
         val zip = File.createTempFile(
-            "${File(subtitle.subFileName ?: "subtitle").nameWithoutExtension}-",
+            "${File(sourceFileName).nameWithoutExtension}-",
             ".${File(subtitle.subDownloadLink).extension}"
         )
 
@@ -41,26 +54,38 @@ object OpenSubtitles {
             FileOutputStream(zip).use { output -> input.copyTo(output) }
         }
 
-        val subtitleFileName = subtitle.subFileName
-            ?.takeIf { it.isNotBlank() }
-            ?: throw IllegalArgumentException("OpenSubtitles file name is missing")
-        val subtitleFile = File("${zip.parent}${File.separator}${File(subtitleFileName).name}")
-
-        if (subtitleFile.exists()) {
-            subtitleFile.delete()
+        val outputDirectory = File.createTempFile("streamflix-subtitle-", "").let { tempFile ->
+            if (!tempFile.delete() || !tempFile.mkdir()) {
+                throw IllegalStateException("Unable to create subtitle output directory")
+            }
+            tempFile
         }
+        val outputLabel = if (subtitle.sourceFileName != null) {
+            subtitle.subFileName?.trim()?.takeIf { it.isNotBlank() } ?: subtitle.displayLabel
+        } else {
+            subtitle.displayLabel
+        }
+        val safeOutputLabel = outputLabel
+            .replace('/', '_')
+            .replace('\\', '_')
+            .trim()
+            .ifBlank { "subtitle" }
+        val subtitleFile = File(outputDirectory, "$safeOutputLabel.$extension")
 
-        FileInputStream(zip).use { fileInputStream ->
-            GZIPInputStream(fileInputStream).use { gzipInputStream ->
-                val sourceCharset = getCharsetFromEncoding(subtitle.subEncoding)
-                val reader = gzipInputStream.bufferedReader(sourceCharset)
-                subtitleFile.writer(Charsets.UTF_8).use { writer ->
-                    reader.copyTo(writer)
+        try {
+            FileInputStream(zip).use { fileInputStream ->
+                GZIPInputStream(fileInputStream).use { gzipInputStream ->
+                    val sourceCharset = getCharsetFromEncoding(subtitle.subEncoding)
+                    val reader = gzipInputStream.bufferedReader(sourceCharset)
+                    subtitleFile.writer(Charsets.UTF_8).use { writer ->
+                        reader.copyTo(writer)
+                    }
                 }
             }
+        } finally {
+            zip.delete()
         }
 
-        zip.delete()
         subtitleFile.toUri()
     }
 
@@ -107,6 +132,37 @@ object OpenSubtitles {
             ?.toString()
             ?.padStart(7, '0')
     }
+
+    internal fun displayResults(subtitles: List<Subtitle>): List<Subtitle> {
+        val visible = subtitles.filterNot(Subtitle::isForced)
+        val displayNames = PlaybackTrackDisplayNames.disambiguate(
+            visible.map(Subtitle::displayLabel),
+        )
+        return visible.zip(displayNames).map { (subtitle, displayName) ->
+            subtitle.copy(
+                subFileName = displayName,
+                sourceFileName = subtitle.sourceFileName ?: subtitle.subFileName,
+            )
+        }
+    }
+
+    internal fun uniqueForcedForLanguage(
+        subtitles: List<Subtitle>,
+        language: String,
+    ): Subtitle? {
+        val requestedLanguage = primaryLanguage(language) ?: return null
+        return subtitles
+            .asSequence()
+            .filter(Subtitle::isForced)
+            .filter { subtitle -> primaryLanguage(subtitle.languageTag) == requestedLanguage }
+            .filter { subtitle -> subtitle.subDownloadLink.isNotBlank() }
+            .distinctBy { subtitle -> subtitle.stableIdentity }
+            .toList()
+            .singleOrNull()
+    }
+
+    private fun primaryLanguage(language: String?): String? =
+        SubtitleLanguage.normalize(language)?.substringBefore('-')
 
     private fun encodePathValue(value: String): String =
         URLEncoder.encode(value, StandardCharsets.UTF_8.name())
@@ -225,10 +281,14 @@ object OpenSubtitles {
         @SerializedName("ZipDownloadLink") val zipDownloadLink: String? = null,
         @SerializedName("SubtitlesLink") val subtitlesLink: String? = null,
         @SerializedName("QueryNumber") val queryNumber: String? = null,
-        @SerializedName("Score") val score: Double? = null
+        @SerializedName("Score") val score: Double? = null,
+        @Transient val sourceFileName: String? = null,
     ) {
         val isForced: Boolean
             get() = subForeignPartsOnly?.trim() == "1"
+
+        val isHearingImpaired: Boolean
+            get() = subHearingImpaired?.trim() == "1"
 
         val languageTag: String?
             get() = SubtitleLanguage.normalize(iso639 ?: subLanguageID)
@@ -240,15 +300,28 @@ object OpenSubtitles {
             )
 
         val displayLabel: String
-            get() = if (isForced) "$displayLanguage (Forced)" else displayLanguage
+            get() = buildString {
+                append(displayLanguage)
+                if (isForced) append(" (Forced)")
+                if (isHearingImpaired) append(" [HI]")
+            }
 
         val displayRelease: String
             get() = movieReleaseName
                 ?.trim()
                 ?.takeIf { it.isNotBlank() }
+                ?: sourceFileName
+                    ?.trim()
+                    ?.takeIf { it.isNotBlank() }
                 ?: subFileName
                     ?.trim()
                     ?.takeIf { it.isNotBlank() }
                 ?: "OpenSubtitles"
+
+        internal val stableIdentity: String
+            get() = idSubtitleFile
+                ?.trim()
+                ?.takeIf { it.isNotBlank() }
+                ?: subDownloadLink.trim()
     }
 }
