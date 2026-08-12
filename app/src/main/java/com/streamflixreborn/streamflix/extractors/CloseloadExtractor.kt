@@ -37,23 +37,11 @@ class CloseloadExtractor : Extractor() {
         val document = Jsoup.parse(html, link).apply { setBaseUri(link) }
         val subtitles = parseSubtitles(document, origin)
 
-        extractStaticVideo(
+        return extractStaticVideo(
             link = link,
             document = document,
             subtitles = subtitles,
-        )?.let { return it }
-
-        val resolved = BrowserStreamResolver.resolve(
-            link = link,
-            referer = RidomoviesProvider.URL,
-            timeoutMs = 15_000L,
-        ) { candidate ->
-            isCloseloadHlsUrl(candidate)
-        }
-        return resolved.copy(
-            subtitles = (subtitles + resolved.subtitles).distinctBy { subtitle -> subtitle.file },
-            type = MimeTypes.APPLICATION_M3U8,
-        )
+        ) ?: throw Exception("Can't extract Closeload video source")
     }
 
     private suspend fun extractStaticVideo(
@@ -527,15 +515,6 @@ class CloseloadExtractor : Extractor() {
         if (!lower.startsWith("http") || lower.contains("master.txt")) return false
         val path = lower.substringBefore('?').substringBefore('#')
         return path.endsWith(".m3u8") || path.endsWith(".mp4")
-    }
-
-    private fun isCloseloadHlsUrl(value: String): Boolean {
-        val url = value.trim().toHttpUrlOrNull() ?: return false
-        val host = url.host.lowercase(Locale.ROOT)
-        val path = url.encodedPath.lowercase(Locale.ROOT)
-        return Regex("""^(?:srv\d+\.)?cdnimages\d+\.shop$""").matches(host) &&
-            path.contains("/hls/") &&
-            path.endsWith("/txt/master.txt")
     }
 
     private fun isPotentialStaticUrl(value: String): Boolean {
