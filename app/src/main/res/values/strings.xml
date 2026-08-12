@@ -140,7 +140,6 @@
     <string name="player_source_retrying">%1$s failed. Retrying...</string>
     <string name="player_source_trying_next">%1$s failed. Trying %2$s...</string>
     <string name="player_source_restoring">Other sources failed. Returning to %1$s...</string>
-    <string name="player_source_unknown">Current source</string>
     <string name="player_next_episode_up_next">Up next</string>
     <string name="player_next_episode_action">Play now</string>
     <string name="player_next_episode_dismiss">Dismiss</string>

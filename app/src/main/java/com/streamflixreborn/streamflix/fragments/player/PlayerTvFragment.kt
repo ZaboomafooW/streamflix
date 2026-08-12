@@ -153,11 +153,7 @@ class PlayerTvFragment : Fragment() {
 
     private var currentVideo: Video? = null
     private var currentServer: Video.Server? = null
-    private var listenerPlayer: ExoPlayer? = null
-    private var lastWorkingServer: Video.Server? = null
-    private var restoringLastWorkingServer = false
-    private val failedServers = mutableSetOf<Video.Server>()
-    private var playbackSourceRecoveryInProgress = false
+    private val sourceRecovery = PlaybackSourceRecovery()
     private var waitingForBypass = false
     private var bypassDone = false
     private var activeBypassSession: BypassSession? = null
@@ -282,15 +278,14 @@ class PlayerTvFragment : Fragment() {
             viewModel.state.flowWithLifecycle(lifecycle, Lifecycle.State.CREATED).collect { state ->
                 when (state) {
                     PlayerViewModel.State.LoadingServers -> {
-                        lastWorkingServer = null
-                        restoringLastWorkingServer = false
-                        failedServers.clear()
+                        sourceRecovery.beginServerDiscovery()
                         showSourceStatus(getString(R.string.player_sources_loading_message))
                     }
                     is PlayerViewModel.State.SuccessLoadingServers -> {
                         sourceStatusToast?.cancel()
                         sourceStatusToast = null
                         servers = state.servers
+                        sourceRecovery.setServers(state.servers)
 
                         val sToServer = servers.firstOrNull {
                             isSerienStreamBypassUrl(it.id)
@@ -360,18 +355,18 @@ class PlayerTvFragment : Fragment() {
                                 it.id == server.id && it.name == server.name
                             } ?: state.servers.firstOrNull { it.id == server.id }
                             selectedServer?.let {
-                                failedServers.clear()
-                                restoringLastWorkingServer = false
+                                sourceRecovery.select(it)
                                 showSourceStatus(getString(R.string.player_source_trying, it.name))
-                                viewModel.selectVideo(it)
+                                viewModel.getVideo(it)
                             }
                         }
                         val preferredServer = state.servers.firstOrNull {
                             it.name.equals(args.preferredServerName, ignoreCase = true)
                         }
                         val initialServer = preferredServer ?: state.servers.first()
+                        sourceRecovery.select(initialServer)
                         showSourceStatus(getString(R.string.player_source_trying, initialServer.name))
-                        viewModel.selectVideo(initialServer)
+                        viewModel.getVideo(initialServer)
 
                     }
                     PlayerViewModel.State.NoServers -> {
@@ -399,30 +394,15 @@ class PlayerTvFragment : Fragment() {
                     is PlayerViewModel.State.SuccessLoadingVideo -> {
                         PlayerSettingsView.Settings.ExtraBuffering.init(state.video.extraBuffering)
                         PlayerSettingsView.Settings.SoftwareDecoder.init(false)
+                        sourceRecovery.videoResolved()
                         displayVideo(state.video, state.server)
-                        playbackSourceRecoveryInProgress = false
                     }
 
                     is PlayerViewModel.State.FailedLoadingVideo -> {
-                        if (restoringLastWorkingServer) {
-                            restoringLastWorkingServer = false
-                            showPlaybackUnavailable(state.error)
-                        } else {
-                            failedServers.add(state.server)
-                            val nextServer = nextUnfailedServerAfter(state.server)
-                            if (nextServer != null) {
-                                showSourceStatus(
-                                    getString(
-                                        R.string.player_source_trying_next,
-                                        state.server.name,
-                                        nextServer.name,
-                                    )
-                                )
-                                viewModel.selectVideo(nextServer)
-                            } else if (!restoreLastWorkingSource(state.server)) {
-                                showPlaybackUnavailable(state.error)
-                            }
-                        }
+                        applyRecoveryAction(
+                            sourceRecovery.videoLoadFailed(state.server),
+                            state.error,
+                        )
                     }
                     }
                 }
@@ -598,6 +578,8 @@ class PlayerTvFragment : Fragment() {
         override fun onDestroyView() {
             super.onDestroyView()
             nextEpisodePrefetchJob?.cancel()
+            sourceStatusToast?.cancel()
+            sourceStatusToast = null
             clearBypassSession(dismissDialog = true)
             releasePlayer()
             try {
@@ -637,68 +619,48 @@ class PlayerTvFragment : Fragment() {
 
     private fun recoverFromBypassFailure(server: Video.Server) {
         clearBypassSession(dismissDialog = true)
-        servers.filter { isSerienStreamBypassUrl(it.id) }.forEach(failedServers::add)
-
-        val nextServer = nextUnfailedServerAfter(server)
-        if (nextServer != null) {
-            Log.w(
-                "PlayerTvFragment",
-                "SerienStream bypass unavailable, trying next server: ${nextServer.name}",
-            )
-            showSourceStatus(
-                getString(
-                    R.string.player_source_trying_next,
-                    server.name,
-                    nextServer.name,
-                )
-            )
-            viewModel.selectVideo(nextServer)
-        } else {
+        sourceRecovery.markFailed(servers.filter { isSerienStreamBypassUrl(it.id) })
+        val action = sourceRecovery.videoLoadFailed(server)
+        if (action is PlaybackSourceRecovery.Action.Exhausted) {
             showPlaybackUnavailable(messageRes = R.string.player_sources_load_failed_message)
-        }
-    }
-
-    private fun nextUnfailedServerAfter(server: Video.Server?): Video.Server? {
-        if (servers.isEmpty()) return null
-
-        val currentIndex = if (server == null) {
-            -1
         } else {
-            servers.indexOfFirst { it === server }
-                .takeIf { it >= 0 }
-                ?: servers.indexOf(server)
+            applyRecoveryAction(action)
         }
-
-        for (offset in 1..servers.size) {
-            val index = if (currentIndex >= 0) {
-                (currentIndex + offset) % servers.size
-            } else {
-                offset - 1
-            }
-            val candidate = servers[index]
-            val isCurrent = server != null && (candidate === server || candidate == server)
-            val isLastWorking = lastWorkingServer?.let {
-                candidate === it || candidate == it
-            } ?: false
-
-            if (!isCurrent && !isLastWorking && candidate !in failedServers) {
-                return candidate
-            }
-        }
-
-        return null
     }
 
-    private fun restoreLastWorkingSource(failedServer: Video.Server?): Boolean {
-        val workingServer = lastWorkingServer ?: return false
-        val isFailedServer = failedServer != null &&
-            (workingServer === failedServer || workingServer == failedServer)
-        if (restoringLastWorkingServer || isFailedServer || workingServer in failedServers) return false
-
-        restoringLastWorkingServer = true
-        showSourceStatus(getString(R.string.player_source_restoring, workingServer.name))
-        viewModel.selectVideo(workingServer)
-        return true
+    private fun applyRecoveryAction(
+        action: PlaybackSourceRecovery.Action,
+        error: Exception? = null,
+    ) {
+        when (action) {
+            PlaybackSourceRecovery.Action.Ignore -> {
+                Log.d("PlayerTvFragment", "Ignoring duplicate playback error during source recovery")
+            }
+            is PlaybackSourceRecovery.Action.Retry -> {
+                Log.i("PlayerTvFragment", "Playback failed, retrying current server once")
+                showSourceStatus(getString(R.string.player_source_retrying, action.server.name))
+                viewModel.getVideo(action.server)
+            }
+            is PlaybackSourceRecovery.Action.TryNext -> {
+                Log.i(
+                    "PlayerTvFragment",
+                    "Playback failed, trying next server: ${action.nextServer.name}",
+                )
+                showSourceStatus(
+                    getString(
+                        R.string.player_source_trying_next,
+                        action.failedServer.name,
+                        action.nextServer.name,
+                    )
+                )
+                viewModel.getVideo(action.nextServer)
+            }
+            is PlaybackSourceRecovery.Action.Restore -> {
+                showSourceStatus(getString(R.string.player_source_restoring, action.server.name))
+                viewModel.getVideo(action.server)
+            }
+            PlaybackSourceRecovery.Action.Exhausted -> showPlaybackUnavailable(error)
+        }
     }
 
     private fun showPlaybackUnavailable(
@@ -708,9 +670,7 @@ class PlayerTvFragment : Fragment() {
         error?.let { Log.e("PlayerTvFragment", "Playback unavailable", it) }
         sourceStatusToast?.cancel()
         sourceStatusToast = null
-        restoringLastWorkingServer = false
-        failedServers.clear()
-        playbackSourceRecoveryInProgress = false
+        sourceRecovery.reset()
         Toast.makeText(
             requireContext(),
             getString(messageRes),
@@ -1098,6 +1058,150 @@ class PlayerTvFragment : Fragment() {
             }
         }
 
+        private fun attachPlayerListener(player: ExoPlayer) {
+            player.addListener(object : Player.Listener {
+                override fun onPlaybackStateChanged(playbackState: Int) {
+                    super.onPlaybackStateChanged(playbackState)
+
+                    if (playbackState == Player.STATE_READY) {
+                        binding.pvPlayer.controller.binding.exoPlayPause.nextFocusDownId = -1
+                        val videoFormat = player.videoFormat
+                        updatePlayerScale()
+                    }
+                }
+
+                override fun onTracksChanged(tracks: androidx.media3.common.Tracks) {
+                    super.onTracksChanged(tracks)
+                    val videoGroups = tracks.groups.filter { it.type == C.TRACK_TYPE_VIDEO }
+                    val videoTracks = videoGroups.sumOf { it.length }
+                    val selectedHeights = buildList {
+                        videoGroups.forEach { group ->
+                            for (i in 0 until group.length) {
+                                if (group.isTrackSelected(i)) {
+                                    add(group.getTrackFormat(i).height)
+                                }
+                            }
+                        }
+                    }
+                }
+
+                override fun onVideoSizeChanged(videoSize: VideoSize) {
+                    super.onVideoSizeChanged(videoSize)
+                    updatePlayerScale()
+                }
+
+                override fun onIsPlayingChanged(isPlaying: Boolean) {
+                    binding.pvPlayer.keepScreenOn = isPlaying
+
+                    if (isPlaying) {
+                        currentServer?.let(sourceRecovery::playbackStarted)
+                        sourceStatusToast?.cancel()
+                        sourceStatusToast = null
+                        recordRecentlyWatchedStart()
+                        startProgressHandler()
+                    } else {
+                        stopProgressHandler()
+                    }
+                    val hasUri = player.currentMediaItem?.localConfiguration?.uri
+                        ?.toString()?.isNotEmpty()
+                        ?: false
+
+                    if (!isPlaying && hasUri) {
+                        val videoType = args.videoType
+                        val watchItem: WatchItem? = when (videoType) {
+                            is Video.Type.Movie -> database.movieDao().getById(videoType.id)
+                            is Video.Type.Episode -> database.episodeDao().getById(videoType.id)
+                        }
+
+                        when {
+                            player.hasStarted() && !player.hasFinished() -> {
+                                watchItem?.isWatched = false
+                                watchItem?.watchedDate = null
+                                watchItem?.watchHistory = WatchItem.WatchHistory(
+                                    lastEngagementTimeUtcMillis = System.currentTimeMillis(),
+                                    lastPlaybackPositionMillis = player.currentPosition,
+                                    durationMillis = player.duration,
+                                )
+                            }
+
+                            player.hasFinished() -> {
+                                watchItem?.isWatched = true
+                                watchItem?.watchedDate = Calendar.getInstance()
+                                watchItem?.watchHistory = null
+
+
+                            }
+                        }
+
+                        when (videoType) {
+                            is Video.Type.Movie -> {
+                                val provider = UserPreferences.currentProvider ?: return
+                                (watchItem as? Movie)?.let {
+                                    database.movieDao().update(it)
+                                    UserDataCache.syncMovieToCache(requireContext(), provider, it)
+                                }
+                            }
+
+                            is Video.Type.Episode -> {
+                                val provider = UserPreferences.currentProvider ?: return
+                                (watchItem as? Episode)?.let { episode ->
+                                    if (player.hasFinished()) {
+                                        database.episodeDao()
+                                            .resetProgressionFromEpisode(videoType.id)
+                                        UserDataCache.removeEpisodeFromContinueWatching(requireContext(), provider, episode.id)
+                                        queueNextEpisodeForContinueWatching(provider)
+                                    }
+                                    database.episodeDao().update(episode)
+                                    if (!player.hasFinished()) {
+                                        UserDataCache.syncEpisodeToCache(requireContext(), provider, episode)
+                                    }
+
+                                    episode.tvShow?.let { tvShow ->
+                                        database.tvShowDao().getById(tvShow.id)
+                                    }?.let { tvShow ->
+                                        val episodeDao = database.episodeDao()
+                                        val isStillWatching =
+                                            episodeDao.hasAnyWatchHistoryForTvShow(tvShow.id)
+
+                                        val updatedTvShow = tvShow.copy().apply {
+                                            merge(tvShow)
+                                            isWatching =
+                                                !player.hasReallyFinished() || isStillWatching
+                                        }
+                                        database.tvShowDao().update(updatedTvShow)
+                                        CloudSyncHooks.tvShow(
+                                            requireContext(),
+                                            provider,
+                                            updatedTvShow,
+                                        )
+                                    }
+                                }
+                            }
+
+                        }
+                        if (player.hasReallyFinished()) {
+                            if (UserPreferences.autoplay) {
+                                playNextEpisodeAcrossSeasons(autoplay = true)
+                            }
+                        }
+                    }
+                }
+
+                override fun onPlayerError(error: PlaybackException) {
+                    super.onPlayerError(error)
+                    Log.e("PlayerTvFragment", "onPlayerError: ", error)
+
+                    val failedServer = currentServer
+                    if (failedServer == null) {
+                        showPlaybackUnavailable()
+                        return
+                    }
+
+                    applyRecoveryAction(sourceRecovery.playbackFailed(failedServer), error)
+                }
+            })
+        }
+
         private fun displayVideo(
             video: Video,
             server: Video.Server,
@@ -1252,180 +1356,6 @@ class PlayerTvFragment : Fragment() {
                 }
             }
 
-            val shouldAttachListener = listenerPlayer !== player
-            if (shouldAttachListener) listenerPlayer = player
-            if (shouldAttachListener) player.addListener(object : Player.Listener {
-                override fun onPlaybackStateChanged(playbackState: Int) {
-                    super.onPlaybackStateChanged(playbackState)
-
-                    if (playbackState == Player.STATE_READY) {
-                        binding.pvPlayer.controller.binding.exoPlayPause.nextFocusDownId = -1
-                        val videoFormat = player.videoFormat
-                        updatePlayerScale()
-                    }
-                }
-
-                override fun onTracksChanged(tracks: androidx.media3.common.Tracks) {
-                    super.onTracksChanged(tracks)
-                    val videoGroups = tracks.groups.filter { it.type == C.TRACK_TYPE_VIDEO }
-                    val videoTracks = videoGroups.sumOf { it.length }
-                    val selectedHeights = buildList {
-                        videoGroups.forEach { group ->
-                            for (i in 0 until group.length) {
-                                if (group.isTrackSelected(i)) {
-                                    add(group.getTrackFormat(i).height)
-                                }
-                            }
-                        }
-                    }
-                }
-
-                override fun onVideoSizeChanged(videoSize: VideoSize) {
-                    super.onVideoSizeChanged(videoSize)
-                    updatePlayerScale()
-                }
-
-                override fun onIsPlayingChanged(isPlaying: Boolean) {
-                    binding.pvPlayer.keepScreenOn = isPlaying
-
-                    if (isPlaying) {
-                        currentServer?.let { lastWorkingServer = it }
-                        restoringLastWorkingServer = false
-                        failedServers.clear()
-                        sourceStatusToast?.cancel()
-                        sourceStatusToast = null
-                        recordRecentlyWatchedStart()
-                        startProgressHandler()
-                    } else {
-                        stopProgressHandler()
-                    }
-                    val hasUri = player.currentMediaItem?.localConfiguration?.uri
-                        ?.toString()?.isNotEmpty()
-                        ?: false
-
-                    if (!isPlaying && hasUri) {
-                        val videoType = args.videoType
-                        val watchItem: WatchItem? = when (videoType) {
-                            is Video.Type.Movie -> database.movieDao().getById(videoType.id)
-                            is Video.Type.Episode -> database.episodeDao().getById(videoType.id)
-                        }
-
-                        when {
-                            player.hasStarted() && !player.hasFinished() -> {
-                                watchItem?.isWatched = false
-                                watchItem?.watchedDate = null
-                                watchItem?.watchHistory = WatchItem.WatchHistory(
-                                    lastEngagementTimeUtcMillis = System.currentTimeMillis(),
-                                    lastPlaybackPositionMillis = player.currentPosition,
-                                    durationMillis = player.duration,
-                                )
-                            }
-
-                            player.hasFinished() -> {
-                                watchItem?.isWatched = true
-                                watchItem?.watchedDate = Calendar.getInstance()
-                                watchItem?.watchHistory = null
-
-
-                            }
-                        }
-
-                        when (videoType) {
-                            is Video.Type.Movie -> {
-                                val provider = UserPreferences.currentProvider ?: return
-                                (watchItem as? Movie)?.let {
-                                    database.movieDao().update(it)
-                                    UserDataCache.syncMovieToCache(requireContext(), provider, it)
-                                }
-                            }
-
-                            is Video.Type.Episode -> {
-                                val provider = UserPreferences.currentProvider ?: return
-                                (watchItem as? Episode)?.let { episode ->
-                                    if (player.hasFinished()) {
-                                        database.episodeDao()
-                                            .resetProgressionFromEpisode(videoType.id)
-                                        UserDataCache.removeEpisodeFromContinueWatching(requireContext(), provider, episode.id)
-                                        queueNextEpisodeForContinueWatching(provider)
-                                    }
-                                    database.episodeDao().update(episode)
-                                    if (!player.hasFinished()) {
-                                        UserDataCache.syncEpisodeToCache(requireContext(), provider, episode)
-                                    }
-
-                                    episode.tvShow?.let { tvShow ->
-                                        database.tvShowDao().getById(tvShow.id)
-                                    }?.let { tvShow ->
-                                        val episodeDao = database.episodeDao()
-                                        val isStillWatching =
-                                            episodeDao.hasAnyWatchHistoryForTvShow(tvShow.id)
-
-                                        val updatedTvShow = tvShow.copy().apply {
-                                            merge(tvShow)
-                                            isWatching =
-                                                !player.hasReallyFinished() || isStillWatching
-                                        }
-                                        database.tvShowDao().update(updatedTvShow)
-                                        CloudSyncHooks.tvShow(
-                                            requireContext(),
-                                            provider,
-                                            updatedTvShow,
-                                        )
-                                    }
-                                }
-                            }
-
-                        }
-                        if (player.hasReallyFinished()) {
-                            if (UserPreferences.autoplay) {
-                                playNextEpisodeAcrossSeasons(autoplay = true)
-                            }
-                        }
-                    }
-                }
-
-                override fun onPlayerError(error: PlaybackException) {
-                    super.onPlayerError(error)
-                    Log.e("PlayerTvFragment", "onPlayerError: ", error)
-
-                    if (restoringLastWorkingServer) {
-                        restoringLastWorkingServer = false
-                        showPlaybackUnavailable(error)
-                        return
-                    }
-
-                    if (playbackSourceRecoveryInProgress) {
-                        Log.d("PlayerTvFragment", "Ignoring duplicate playback error during source recovery")
-                        return
-                    }
-                    playbackSourceRecoveryInProgress = true
-
-                    if (viewModel.retryVideoAfterPlaybackError(currentServer)) {
-                        Log.i("PlayerTvFragment", "Playback failed, retrying current server once")
-                        currentServer?.let {
-                            showSourceStatus(getString(R.string.player_source_retrying, it.name))
-                        }
-                        return
-                    }
-
-                    currentServer?.let(failedServers::add)
-
-                    val nextServer = nextUnfailedServerAfter(currentServer)
-                    if (nextServer != null) {
-                        Log.i("PlayerTvFragment", "Playback failed, trying next server: ${nextServer.name}")
-                        showSourceStatus(
-                            getString(
-                                R.string.player_source_trying_next,
-                                currentServer?.name ?: getString(R.string.player_source_unknown),
-                                nextServer.name,
-                            )
-                        )
-                        viewModel.selectVideo(nextServer)
-                    } else if (!restoreLastWorkingSource(currentServer)) {
-                        showPlaybackUnavailable()
-                    }
-                }
-            })
 
             if (startPositionMs != null) {
                 player.seekTo(startPositionMs)
@@ -1879,6 +1809,7 @@ class PlayerTvFragment : Fragment() {
                     mediaSession = MediaSession.Builder(requireContext(), player)
                         .build()
                 }
+            attachPlayerListener(player)
 
             binding.pvPlayer.player = player
             binding.settings.player = player
@@ -1890,7 +1821,6 @@ class PlayerTvFragment : Fragment() {
 
         private fun releasePlayer() {
             stopProgressHandler()
-            listenerPlayer = null
             binding.pvPlayer.player = null
             binding.settings.player = null
             binding.settings.subtitleView = null
@@ -2080,6 +2010,7 @@ class PlayerTvFragment : Fragment() {
                     true,
                 )
             }
+        attachPlayerListener(player)
 
         // Bind new player to UI view
         binding.pvPlayer.player = player
