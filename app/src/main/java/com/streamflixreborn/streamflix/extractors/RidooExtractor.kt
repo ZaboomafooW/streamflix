@@ -28,25 +28,12 @@ class RidooExtractor : Extractor() {
         if (embedUrl.host.contains("ridorapid", ignoreCase = true)) {
             val document = Service.build(embedOrigin, RidomoviesProvider.URL).get(link)
             val subtitles = parseCaptions(document, embedOrigin)
-
-            return runCatching {
-                extractRapidrame(
-                    document = document,
-                    link = link,
-                    embedOrigin = embedOrigin,
-                    subtitles = subtitles,
-                )
-            }.getOrElse {
-                val resolved = BrowserStreamResolver.resolve(
-                    link = link,
-                    referer = RidomoviesProvider.URL,
-                ) { candidate ->
-                    isHlsUrl(candidate)
-                }
-                resolved.copy(
-                    subtitles = (subtitles + resolved.subtitles).distinctBy { subtitle -> subtitle.file },
-                )
-            }
+            return extractRapidrame(
+                document = document,
+                link = link,
+                embedOrigin = embedOrigin,
+                subtitles = subtitles,
+            )
         }
 
         val document = Service.build(embedOrigin, RidomoviesProvider.URL).get(link)
@@ -74,8 +61,7 @@ class RidooExtractor : Extractor() {
             .firstOrNull { it.contains("eval(") }
             ?: throw Exception("Rapidrame player script not found")
 
-        val unpacker = JsUnpacker(script)
-        val unpacked = if (unpacker.detect()) unpacker.unpack() ?: script else script
+        val unpacked = unpackRapidrameScript(script)
         val playlist = decodePlaylist(unpacked)
             ?: throw Exception("Rapidrame playlist could not be decoded")
 
@@ -87,44 +73,220 @@ class RidooExtractor : Extractor() {
         )
     }
 
-    private fun decodePlaylist(unpacked: String): String? {
-        val partsBlock = Regex(
-            """[\w_]+\s*=\s*[\w_]+\(\[(.*?)]\)""",
-            RegexOption.DOT_MATCHES_ALL,
-        ).find(unpacked)?.groupValues?.getOrNull(1) ?: return null
+    private fun unpackRapidrameScript(script: String): String {
+        var current = script
+        repeat(MAX_PACKER_LAYERS) {
+            val unpacker = JsUnpacker(current)
+            if (!unpacker.detect()) return current
+            current = unpacker.unpack()
+                ?.takeIf { it.isNotBlank() && it != current }
+                ?: throw Exception("Rapidrame player script could not be unpacked")
+        }
 
-        val encoded = Regex("""["']([^"']+)["']""")
-            .findAll(partsBlock)
-            .map { it.groupValues[1] }
-            .joinToString("")
-            .takeIf { it.isNotBlank() }
-            ?: return null
-
-        return runCatching { base64Rot13ReverseUnmix(encoded) }
-            .getOrNull()
-            ?.trim()
-            ?.takeIf { it.toHttpUrlOrNull() != null }
+        if (JsUnpacker(current).detect()) {
+            throw Exception("Rapidrame player script exceeded the supported packer depth")
+        }
+        return current
     }
 
-    private fun base64Rot13ReverseUnmix(value: String): String {
-        var decoded = Base64.decode(value, Base64.DEFAULT)
-        decoded.forEachIndexed { index, byte ->
-            val char = (byte.toInt() and 0xFF).toChar()
-            decoded[index] = when (char) {
-                in 'A'..'Z' -> ('A'.code + (char.code - 'A'.code + 13) % 26).toByte()
-                in 'a'..'z' -> ('a'.code + (char.code - 'a'.code + 13) % 26).toByte()
-                else -> byte
-            }
-        }
-        decoded = decoded.reversedArray()
+    private fun decodePlaylist(unpacked: String): String? {
+        val decoderCall = Regex(
+            """\b(?:var|let|const)\s+[A-Za-z_$][\w$]*\s*=\s*([A-Za-z_$][\w$]*)\s*\(\s*\[(.*?)]\s*\)\s*;?""",
+            RegexOption.DOT_MATCHES_ALL,
+        )
 
-        return buildString(decoded.size) {
-            decoded.forEachIndexed { index, byte ->
-                val valueAtIndex = byte.toInt() and 0xFF
-                val adjustment = (399756995L % (index + 5)).toInt()
-                append(((valueAtIndex - adjustment + 256) % 256).toChar())
+        return decoderCall.findAll(unpacked).firstNotNullOfOrNull { match ->
+            val decoderName = match.groupValues[1]
+            val functionBody = extractFunctionBody(unpacked, decoderName)
+                ?: return@firstNotNullOfOrNull null
+            val decoder = parseRapidrameDecoder(functionBody)
+                ?: return@firstNotNullOfOrNull null
+            val encoded = Regex("""["']([^"']+)["']""")
+                .findAll(match.groupValues[2])
+                .map { it.groupValues[1] }
+                .joinToString("")
+                .takeIf { it.isNotBlank() }
+                ?: return@firstNotNullOfOrNull null
+
+            runCatching { decoder.decode(encoded) }
+                .getOrNull()
+                ?.trim()
+                ?.takeIf(::isHlsUrl)
+        }
+    }
+
+    private enum class DecoderOperation {
+        BASE64_DECODE,
+        REVERSE,
+    }
+
+    private data class RapidrameDecoder(
+        val operations: List<DecoderOperation>,
+        val accumulatorStart: Int,
+        val accumulatorStep: Int,
+        val modulus: Int,
+    ) {
+        fun decode(encoded: String): String {
+            var result = encoded.toByteArray(Charsets.ISO_8859_1)
+            operations.forEach { operation ->
+                result = when (operation) {
+                    DecoderOperation.BASE64_DECODE -> Base64.decode(
+                        String(result, Charsets.ISO_8859_1),
+                        Base64.DEFAULT,
+                    )
+                    DecoderOperation.REVERSE -> result.reversedArray()
+                }
+            }
+
+            var accumulator = accumulatorStart
+            val plain = ByteArray(result.size)
+            result.forEachIndexed { index, byte ->
+                val encodedByte = byte.toInt() and 0xFF
+                accumulator = (accumulator + accumulatorStep) % modulus
+                plain[index] = (encodedByte xor accumulator).toByte()
+                accumulator = (accumulator + encodedByte) % modulus
+            }
+            return String(plain, Charsets.ISO_8859_1)
+        }
+    }
+
+    private fun parseRapidrameDecoder(functionBody: String): RapidrameDecoder? {
+        val byteMatch = Regex(
+            """\b(?:var|let|const)\s+([A-Za-z_$][\w$]*)\s*=\s*([A-Za-z_$][\w$]*)\.charCodeAt\s*\([^)]*\)\s*;""",
+        ).find(functionBody) ?: return null
+        val byteVariable = byteMatch.groupValues[1]
+        val resultVariable = byteMatch.groupValues[2]
+
+        val plainMatch = Regex(
+            """\b(?:var|let|const)\s+([A-Za-z_$][\w$]*)\s*=\s*${Regex.escape(byteVariable)}\s*\^\s*([A-Za-z_$][\w$]*)\s*;""",
+        ).find(functionBody) ?: return null
+        val plainVariable = plainMatch.groupValues[1]
+        val accumulatorVariable = plainMatch.groupValues[2]
+
+        val accumulatorStart = Regex(
+            """\b(?:var|let|const)\s+${Regex.escape(accumulatorVariable)}\s*=\s*(\d+)\s*;""",
+        ).find(functionBody)?.groupValues?.getOrNull(1)?.toIntOrNull()
+            ?: return null
+
+        val stepMatch = Regex(
+            """\b${Regex.escape(accumulatorVariable)}\s*=\s*\(\s*${Regex.escape(accumulatorVariable)}\s*\+\s*(\d+)\s*\)\s*%\s*(\d+)\s*;""",
+        ).find(functionBody) ?: return null
+        val accumulatorStep = stepMatch.groupValues[1].toIntOrNull() ?: return null
+        val modulus = stepMatch.groupValues[2].toIntOrNull() ?: return null
+        if (modulus != BYTE_MODULUS) return null
+
+        val feedbackModulus = Regex(
+            """\b${Regex.escape(accumulatorVariable)}\s*=\s*\(\s*${Regex.escape(accumulatorVariable)}\s*\+\s*${Regex.escape(byteVariable)}\s*\)\s*%\s*(\d+)\s*;""",
+        ).find(functionBody)?.groupValues?.getOrNull(1)?.toIntOrNull()
+            ?: return null
+        if (feedbackModulus != modulus) return null
+
+        if (!Regex(
+                """String\.fromCharCode\s*\(\s*${Regex.escape(plainVariable)}\s*\)""",
+            ).containsMatchIn(functionBody)
+        ) return null
+
+        val transformSource = functionBody.substring(0, byteMatch.range.first)
+        val assignments = Regex(
+            """\b${Regex.escape(resultVariable)}\s*=\s*([^;]+);""",
+        ).findAll(transformSource)
+        val simpleIdentifier = Regex("""[A-Za-z_$][\w$]*""")
+        val base64 = Regex(
+            """atob\s*\(\s*${Regex.escape(resultVariable)}\s*\)""",
+        )
+        val reverse = Regex(
+            """${Regex.escape(resultVariable)}\.split\(\s*['"]\s*['"]\s*\)\s*\.reverse\(\s*\)\s*\.join\(\s*['"]\s*['"]\s*\)""",
+        )
+        var sawInitialization = false
+        val operations = mutableListOf<DecoderOperation>()
+
+        assignments.forEach { assignment ->
+            val expression = assignment.groupValues[1].trim()
+            when {
+                base64.matches(expression) -> operations += DecoderOperation.BASE64_DECODE
+                reverse.matches(expression) -> operations += DecoderOperation.REVERSE
+                !sawInitialization && simpleIdentifier.matches(expression) -> sawInitialization = true
+                else -> return null
             }
         }
+
+        if (operations.none { it == DecoderOperation.BASE64_DECODE }) return null
+        return RapidrameDecoder(
+            operations = operations,
+            accumulatorStart = accumulatorStart,
+            accumulatorStep = accumulatorStep,
+            modulus = modulus,
+        )
+    }
+
+    private fun extractFunctionBody(source: String, functionName: String): String? {
+        val signature = Regex(
+            """\bfunction\s+${Regex.escape(functionName)}\s*\([^)]*\)\s*\{""",
+        ).find(source) ?: return null
+        val bodyStart = signature.range.last + 1
+        var depth = 1
+        var index = bodyStart
+        var quote: Char? = null
+        var escaped = false
+        var lineComment = false
+        var blockComment = false
+
+        while (index < source.length) {
+            val char = source[index]
+            val next = source.getOrNull(index + 1)
+
+            if (lineComment) {
+                if (char == '\n' || char == '\r') lineComment = false
+                index++
+                continue
+            }
+            if (blockComment) {
+                if (char == '*' && next == '/') {
+                    blockComment = false
+                    index += 2
+                } else {
+                    index++
+                }
+                continue
+            }
+            if (quote != null) {
+                if (escaped) {
+                    escaped = false
+                } else if (char == '\\') {
+                    escaped = true
+                } else if (char == quote) {
+                    quote = null
+                }
+                index++
+                continue
+            }
+
+            when {
+                char == '/' && next == '/' -> {
+                    lineComment = true
+                    index += 2
+                }
+                char == '/' && next == '*' -> {
+                    blockComment = true
+                    index += 2
+                }
+                char == '\'' || char == '"' || char == '`' -> {
+                    quote = char
+                    index++
+                }
+                char == '{' -> {
+                    depth++
+                    index++
+                }
+                char == '}' -> {
+                    depth--
+                    if (depth == 0) return source.substring(bodyStart, index)
+                    index++
+                }
+                else -> index++
+            }
+        }
+        return null
     }
 
     private fun parseCaptions(
@@ -196,7 +358,8 @@ class RidooExtractor : Extractor() {
             lower.contains("bigbuckbunny") ||
             lower.contains("cdn.plyr.io")
         ) return false
-        return lower.substringBefore('?').substringBefore('#').endsWith(".m3u8")
+        return lower.substringBefore('?').substringBefore('#').endsWith(".m3u8") &&
+            value.toHttpUrlOrNull() != null
     }
 
     private interface Service {
@@ -225,5 +388,10 @@ class RidooExtractor : Extractor() {
 
         @GET
         suspend fun get(@Url url: String): Document
+    }
+
+    private companion object {
+        const val MAX_PACKER_LAYERS = 4
+        const val BYTE_MODULUS = 256
     }
 }
