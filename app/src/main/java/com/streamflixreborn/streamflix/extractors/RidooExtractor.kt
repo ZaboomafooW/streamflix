@@ -157,6 +157,14 @@ class RidooExtractor : Extractor() {
             }
             return String(plain, Charsets.ISO_8859_1)
         }
+
+        private fun caesarShift(value: String, shift: Int): String = value.map { char ->
+            when (char) {
+                in 'A'..'Z' -> 'A' + (char - 'A' + shift) % 26
+                in 'a'..'z' -> 'a' + (char - 'a' + shift) % 26
+                else -> char
+            }
+        }.joinToString("")
     }
 
     private fun parseRapidrameDecoder(functionBody: String): RapidrameDecoder? {
@@ -341,14 +349,6 @@ class RidooExtractor : Extractor() {
         }
         return null
     }
-
-    private fun caesarShift(value: String, shift: Int): String = value.map { char ->
-        when (char) {
-            in 'A'..'Z' -> 'A' + (char - 'A' + shift) % 26
-            in 'a'..'z' -> 'a' + (char - 'a' + shift) % 26
-            else -> char
-        }
-    }.joinToString("")
 
     private fun parseCaptions(
         document: Document,
