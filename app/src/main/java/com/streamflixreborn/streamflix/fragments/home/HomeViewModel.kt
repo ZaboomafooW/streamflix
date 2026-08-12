@@ -60,7 +60,6 @@ class HomeViewModel(database: AppDatabase) : ViewModel() {
     }
 
     private val _state = MutableStateFlow<State>(State.Loading)
-    private val continueWatchingMovieCache = ConcurrentHashMap<String, Movie>()
     private val continueWatchingTvShowCache = ConcurrentHashMap<String, TvShow>()
     private val continueWatchingSeasonEpisodesCache = ConcurrentHashMap<String, List<Episode>>()
     private val _userDataCache = MutableStateFlow<UserDataCache.UserData?>(null)
@@ -112,7 +111,6 @@ class HomeViewModel(database: AppDatabase) : ViewModel() {
                     .associateBy { it.id }
             }
 
-            val enrichedMovies = enrichContinueWatchingMovies(watchingMovies)
             val enrichedEpisodes = enrichContinueWatchingEpisodes(
                 episodes = allEpisodes.map { episode ->
                     episode.copy(
@@ -133,7 +131,7 @@ class HomeViewModel(database: AppDatabase) : ViewModel() {
                 }
             }
 
-            (enrichedMovies + enrichedEpisodes)
+            (watchingMovies + enrichedEpisodes)
                 .sortedByDescending { item ->
                     when (item) {
                         is Movie -> item.watchHistory?.lastEngagementTimeUtcMillis
@@ -345,29 +343,6 @@ class HomeViewModel(database: AppDatabase) : ViewModel() {
             }
         }
         getHome()
-    }
-
-    private suspend fun enrichContinueWatchingMovies(movies: List<Movie>): List<Movie> = coroutineScope {
-        val provider = UserPreferences.currentProvider ?: return@coroutineScope movies
-
-        movies.map { movie ->
-            async {
-                if (!movie.originalLanguage.isNullOrBlank()) return@async movie
-
-                val resolvedMovie = continueWatchingMovieCache[movie.id] ?: runCatching {
-                    provider.getMovie(movie.id)
-                }.getOrNull()?.also { fetchedMovie ->
-                    continueWatchingMovieCache[movie.id] = fetchedMovie
-                }
-
-                val originalLanguage = resolvedMovie?.originalLanguage?.takeIf { it.isNotBlank() }
-                    ?: return@async movie
-
-                movie.copy(originalLanguage = originalLanguage).apply {
-                    merge(movie)
-                }
-            }
-        }.awaitAll()
     }
 
     private suspend fun enrichContinueWatchingEpisodes(episodes: List<Episode>): List<Episode> = coroutineScope {

@@ -275,7 +275,8 @@ object EinschaltenProvider : Provider {
             genres = genres,
             cast = tmdbMovie?.cast ?: emptyList(),
             trailer = tmdbMovie?.trailer,
-            recommendations = tmdbMovie?.recommendations ?: emptyList()
+            recommendations = tmdbMovie?.recommendations ?: emptyList(),
+            originalLanguage = tmdbMovie?.originalLanguage,
         )
     }
 
