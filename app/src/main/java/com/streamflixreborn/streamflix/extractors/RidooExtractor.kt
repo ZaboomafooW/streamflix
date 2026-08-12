@@ -350,17 +350,9 @@ class RidooExtractor : Extractor() {
         "Accept-Language" to "en-US,en;q=0.9",
     )
 
-    private fun isHlsUrl(value: String): Boolean {
-        val lower = value.lowercase()
-        if (
-            lower.contains("test-videos") ||
-            lower.contains("sample-videos") ||
-            lower.contains("bigbuckbunny") ||
-            lower.contains("cdn.plyr.io")
-        ) return false
-        return lower.substringBefore('?').substringBefore('#').endsWith(".m3u8") &&
+    private fun isHlsUrl(value: String): Boolean =
+        value.substringBefore('?').substringBefore('#').endsWith(".m3u8", ignoreCase = true) &&
             value.toHttpUrlOrNull() != null
-    }
 
     private interface Service {
         companion object {
