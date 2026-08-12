@@ -4,6 +4,11 @@ import com.google.gson.annotations.SerializedName
 
 data class ApiResponse(
     val data: Data? = null,
+    val errors: List<GraphQlError> = emptyList(),
+)
+
+data class GraphQlError(
+    val message: String? = null,
 )
 
 data class Data(
@@ -36,6 +41,10 @@ data class Show(
     @SerializedName("poster_path")
     val posterPath: String? = null,
     val poster: String? = null,
+    @SerializedName("backdrop_path")
+    val backdropPath: String? = null,
+    val backdrop: String? = null,
+    val overview: String? = null,
 )
 
 data class Season(
