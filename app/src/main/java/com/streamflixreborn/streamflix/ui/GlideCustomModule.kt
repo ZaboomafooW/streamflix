@@ -11,7 +11,6 @@ import com.caverock.androidsvg.SVG
 import com.streamflixreborn.streamflix.utils.ArtworkRequestHeaders
 import com.streamflixreborn.streamflix.utils.DnsResolver
 import com.streamflixreborn.streamflix.utils.NetworkClient
-import com.streamflixreborn.streamflix.utils.RidomoviesArtworkRateLimitInterceptor
 import okhttp3.*
 import okhttp3.OkHttpClient.Builder
 import okhttp3.logging.HttpLoggingInterceptor
@@ -79,7 +78,6 @@ class GlideCustomModule : AppGlideModule() {
                 }
                 chain.proceed(fixedRequest)
             }
-            .addInterceptor(RidomoviesArtworkRateLimitInterceptor())
             .addInterceptor(logging)
             .sslSocketFactory(sslContext.socketFactory, trustManager)
             .hostnameVerifier { _, _ -> true }
