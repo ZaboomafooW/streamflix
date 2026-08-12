@@ -11,7 +11,9 @@ import com.streamflixreborn.streamflix.utils.EpisodeManager
 import com.streamflixreborn.streamflix.utils.OpenSubtitles
 import com.streamflixreborn.streamflix.utils.UserPreferences
 import com.streamflixreborn.streamflix.utils.format
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.Job
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableSharedFlow
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -32,6 +34,10 @@ class PlayerViewModel(
 
     private val _playPreviousOrNextEpisode = MutableSharedFlow<Video.Type.Episode>()
     val playPreviousOrNextEpisode: SharedFlow<Video.Type.Episode> = _playPreviousOrNextEpisode
+
+    private var exactForcedSubtitleLookupJob: Job? = null
+    private var exactForcedSubtitleDownloadJob: Job? = null
+
     init {
         getServers(videoType, id)
         getSubtitles(videoType)
@@ -117,6 +123,8 @@ class PlayerViewModel(
 
     fun getVideo(server: Video.Server) = viewModelScope.launch(Dispatchers.IO) {
         Log.d("PlayerViewModel", "Inizio estrazione video dal server: ${server.name}")
+        exactForcedSubtitleLookupJob?.cancel()
+        exactForcedSubtitleDownloadJob?.cancel()
         _state.emit(State.LoadingVideo(server))
         try {
             val video = UserPreferences.currentProvider!!.getVideo(server)
@@ -139,9 +147,50 @@ class PlayerViewModel(
 
             Log.d("PlayerViewModel", "Estrazione video completata con successo")
             _state.emit(State.SuccessLoadingVideo(video, server))
+            lookupExactForcedSubtitles(video)
         } catch (e: Exception) {
             Log.e("PlayerViewModel", "Errore estrazione video: ", e)
             _state.emit(State.FailedLoadingVideo(e, server))
+        }
+    }
+
+    private fun lookupExactForcedSubtitles(video: Video) {
+        exactForcedSubtitleLookupJob?.cancel()
+        val source = video.source
+        val headers = video.headers
+
+        exactForcedSubtitleLookupJob = viewModelScope.launch(Dispatchers.IO) {
+            try {
+                val fingerprint = OpenSubtitles.fingerprintRemoteVideo(source, headers)
+                    ?: return@launch
+                val subtitles = OpenSubtitles.search(
+                    movieHash = fingerprint.movieHash,
+                    movieByteSize = fingerprint.movieByteSize,
+                )
+                val exactForcedSubtitles = OpenSubtitles.exactForcedMatches(
+                    subtitles = subtitles,
+                    fingerprint = fingerprint,
+                )
+
+                Log.d(
+                    "PlayerViewModel",
+                    "Exact OpenSubtitles forced matches: ${exactForcedSubtitles.size}",
+                )
+                _subtitleState.emit(
+                    SubtitleState.SuccessExactForcedSubtitles(
+                        source = source,
+                        fingerprint = fingerprint,
+                        subtitles = exactForcedSubtitles,
+                    )
+                )
+            } catch (e: CancellationException) {
+                throw e
+            } catch (e: Exception) {
+                Log.d(
+                    "PlayerViewModel",
+                    "Exact OpenSubtitles forced lookup unavailable for current source: ${e.message}",
+                )
+            }
         }
     }
 
@@ -215,6 +264,42 @@ class PlayerViewModel(
         }
     }
 
+    fun downloadExactForcedSubtitle(
+        source: String,
+        subtitle: OpenSubtitles.Subtitle,
+    ) {
+        exactForcedSubtitleDownloadJob?.cancel()
+        exactForcedSubtitleDownloadJob = viewModelScope.launch(Dispatchers.IO) {
+            _subtitleState.emit(
+                SubtitleState.DownloadingExactForcedSubtitle(
+                    source = source,
+                    subtitle = subtitle,
+                )
+            )
+            try {
+                val uri = OpenSubtitles.download(subtitle)
+                _subtitleState.emit(
+                    SubtitleState.SuccessDownloadingExactForcedSubtitle(
+                        source = source,
+                        subtitle = subtitle,
+                        uri = uri,
+                    )
+                )
+            } catch (e: CancellationException) {
+                throw e
+            } catch (e: Exception) {
+                Log.e("PlayerViewModel", "Errore download forced OpenSubtitles: ", e)
+                _subtitleState.emit(
+                    SubtitleState.FailedDownloadingExactForcedSubtitle(
+                        source = source,
+                        error = e,
+                        subtitle = subtitle,
+                    )
+                )
+            }
+        }
+    }
+
     fun downloadSubDLSubtitle(subtitle: SubDL.Subtitle) = viewModelScope.launch(Dispatchers.IO) {
         Log.d("PlayerViewModel", "Inizio download sottotitolo SubDL: ${subtitle.name}")
         _subtitleState.emit(SubtitleState.DownloadingSubDLSubtitle)
@@ -244,6 +329,26 @@ class PlayerViewModel(
         data object DownloadingOpenSubtitle : SubtitleState()
         data class SuccessDownloadingOpenSubtitle(val subtitle: OpenSubtitles.Subtitle, val uri: Uri) : SubtitleState()
         data class FailedDownloadingOpenSubtitle(val error: Exception, val subtitle: OpenSubtitles.Subtitle) : SubtitleState()
+
+        data class SuccessExactForcedSubtitles(
+            val source: String,
+            val fingerprint: OpenSubtitles.VideoFingerprint,
+            val subtitles: List<OpenSubtitles.Subtitle>,
+        ) : SubtitleState()
+        data class DownloadingExactForcedSubtitle(
+            val source: String,
+            val subtitle: OpenSubtitles.Subtitle,
+        ) : SubtitleState()
+        data class SuccessDownloadingExactForcedSubtitle(
+            val source: String,
+            val subtitle: OpenSubtitles.Subtitle,
+            val uri: Uri,
+        ) : SubtitleState()
+        data class FailedDownloadingExactForcedSubtitle(
+            val source: String,
+            val error: Exception,
+            val subtitle: OpenSubtitles.Subtitle,
+        ) : SubtitleState()
 
         data class SuccessSubDLSubtitles(val subtitles: List<SubDL.Subtitle>) : SubtitleState()
         data class FailedSubDLSubtitles(val error: Exception) : SubtitleState()

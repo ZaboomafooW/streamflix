@@ -60,10 +60,13 @@ import com.streamflixreborn.streamflix.models.Video
 import com.streamflixreborn.streamflix.models.WatchItem
 import com.streamflixreborn.streamflix.providers.SerienStreamProvider
 import com.streamflixreborn.streamflix.ui.PlayerMobileView
+import com.streamflixreborn.streamflix.utils.ExternalForcedSubtitleFallback
 import com.streamflixreborn.streamflix.utils.MediaServer
+import com.streamflixreborn.streamflix.utils.OpenSubtitles
 import com.streamflixreborn.streamflix.utils.SubtitleOffsetRenderersFactory
 import com.streamflixreborn.streamflix.utils.UserPreferences
 import com.streamflixreborn.streamflix.utils.UserDataCache
+import com.streamflixreborn.streamflix.utils.appendSubtitleConfiguration
 import com.streamflixreborn.streamflix.utils.dp
 import com.streamflixreborn.streamflix.utils.getFileName
 import com.streamflixreborn.streamflix.utils.next
@@ -133,6 +136,11 @@ class PlayerMobileFragment : Fragment() {
 
     private var currentVideo: Video? = null
     private var currentServer: Video.Server? = null
+    private var exactForcedSubtitleSource: String? = null
+    private var exactForcedSubtitleFingerprint: OpenSubtitles.VideoFingerprint? = null
+    private var exactForcedSubtitles = emptyList<OpenSubtitles.Subtitle>()
+    private var pendingExactForcedSubtitleKey: String? = null
+    private val failedExactForcedSubtitleKeys = mutableSetOf<String>()
     private var isIgnoringPip = false
     private var waitingForBypass = false
     private var bypassDone = false
@@ -198,7 +206,7 @@ class PlayerMobileFragment : Fragment() {
                     .setMimeType(it.mimeType)
                     .setLabel(it.label)
                     .setLanguage(it.language)
-                    .setSelectionFlags(0)
+                    .setSelectionFlags(it.selectionFlags)
                     .build()
             } ?: listOf()
         player.setMediaItem(
@@ -413,7 +421,7 @@ class PlayerMobileFragment : Fragment() {
                 when (state) {
                     PlayerViewModel.SubtitleState.Loading -> {}
                     is PlayerViewModel.SubtitleState.SuccessOpenSubtitles -> {
-                        binding.settings.openSubtitles = state.subtitles
+                        binding.settings.openSubtitles = state.subtitles.filterNot { it.isForced }
                     }
                     is PlayerViewModel.SubtitleState.FailedOpenSubtitles -> {}
 
@@ -426,7 +434,7 @@ class PlayerMobileFragment : Fragment() {
                                 .setMimeType(it.mimeType)
                                 .setLabel(it.label)
                                 .setLanguage(it.language)
-                                .setSelectionFlags(0)
+                                .setSelectionFlags(it.selectionFlags)
                                 .build()
                         } ?: listOf()
                         player.setMediaItem(
@@ -452,6 +460,29 @@ class PlayerMobileFragment : Fragment() {
                         Toast.makeText(requireContext(), "${state.subtitle.subFileName}: ${state.error.message}", Toast.LENGTH_LONG).show()
                     }
 
+                    is PlayerViewModel.SubtitleState.SuccessExactForcedSubtitles -> {
+                        if (state.source == currentVideo?.source) {
+                            exactForcedSubtitleSource = state.source
+                            exactForcedSubtitleFingerprint = state.fingerprint
+                            exactForcedSubtitles = state.subtitles
+                            maybeApplyExternalForcedSubtitle()
+                        }
+                    }
+                    is PlayerViewModel.SubtitleState.DownloadingExactForcedSubtitle -> {}
+                    is PlayerViewModel.SubtitleState.SuccessDownloadingExactForcedSubtitle -> {
+                        applyDownloadedExternalForcedSubtitle(state)
+                    }
+                    is PlayerViewModel.SubtitleState.FailedDownloadingExactForcedSubtitle -> {
+                        if (state.source == currentVideo?.source) {
+                            val key = exactForcedSubtitleKey(state.subtitle)
+                            if (pendingExactForcedSubtitleKey == key) {
+                                pendingExactForcedSubtitleKey = null
+                            }
+                            failedExactForcedSubtitleKeys.add(key)
+                            maybeApplyExternalForcedSubtitle()
+                        }
+                    }
+
                     is PlayerViewModel.SubtitleState.SuccessSubDLSubtitles -> {
                         binding.settings.subDLSubtitles = state.subtitles
                     }
@@ -466,7 +497,7 @@ class PlayerMobileFragment : Fragment() {
                                 .setMimeType(it.mimeType)
                                 .setLabel(it.label)
                                 .setLanguage(it.language)
-                                .setSelectionFlags(0)
+                                .setSelectionFlags(it.selectionFlags)
                                 .build()
                         } ?: listOf()
                         player.setMediaItem(
@@ -906,8 +937,74 @@ class PlayerMobileFragment : Fragment() {
         }
     }
 
+    private fun resetExactForcedSubtitleState(source: String) {
+        exactForcedSubtitleSource = source
+        exactForcedSubtitleFingerprint = null
+        exactForcedSubtitles = emptyList()
+        pendingExactForcedSubtitleKey = null
+        failedExactForcedSubtitleKeys.clear()
+    }
+
+    private fun exactForcedSubtitleKey(subtitle: OpenSubtitles.Subtitle): String {
+        return subtitle.idSubtitleFile
+            ?: subtitle.subDownloadLink.takeIf { it.isNotBlank() }
+            ?: subtitle.subFileName.orEmpty()
+    }
+
+    private fun maybeApplyExternalForcedSubtitle() {
+        if (!::player.isInitialized) return
+        val source = currentVideo?.source ?: return
+        if (exactForcedSubtitleSource != source) return
+        val fingerprint = exactForcedSubtitleFingerprint ?: return
+        val audioLanguage = ExternalForcedSubtitleFallback.selectedAudioLanguage(player) ?: return
+
+        if (ExternalForcedSubtitleFallback.hasSelectedNormalSubtitle(player)) return
+        if (ExternalForcedSubtitleFallback.hasMatchingSourceForcedSubtitle(player, audioLanguage)) return
+
+        val availableSubtitles = exactForcedSubtitles.filterNot {
+            failedExactForcedSubtitleKeys.contains(exactForcedSubtitleKey(it))
+        }
+        val subtitle = OpenSubtitles.selectExactForcedSubtitle(
+            subtitles = availableSubtitles,
+            fingerprint = fingerprint,
+            audioLanguage = audioLanguage,
+        ) ?: return
+        val key = exactForcedSubtitleKey(subtitle)
+        if (key.isBlank() || pendingExactForcedSubtitleKey == key) return
+
+        pendingExactForcedSubtitleKey = key
+        viewModel.downloadExactForcedSubtitle(source, subtitle)
+    }
+
+    private fun applyDownloadedExternalForcedSubtitle(
+        state: PlayerViewModel.SubtitleState.SuccessDownloadingExactForcedSubtitle,
+    ) {
+        val key = exactForcedSubtitleKey(state.subtitle)
+        if (pendingExactForcedSubtitleKey == key) {
+            pendingExactForcedSubtitleKey = null
+        }
+        if (state.source != currentVideo?.source) return
+
+        val language = OpenSubtitles.normalizeLanguageCode(
+            state.subtitle.languageTag ?: state.subtitle.subLanguageID,
+        ) ?: return
+        val fileName = state.uri.getFileName(requireContext()) ?: state.uri.toString()
+        val configuration = MediaItem.SubtitleConfiguration.Builder(state.uri)
+            .setMimeType(fileName.toSubtitleMimeType())
+            .setLabel(state.subtitle.displayLabel)
+            .setLanguage(language)
+            .setSelectionFlags(C.SELECTION_FLAG_FORCED)
+            .build()
+
+        if (player.appendSubtitleConfiguration(configuration)) {
+            maybeApplyExternalForcedSubtitle()
+        }
+    }
 
     private fun displayVideo(video: Video, server: Video.Server) {
+        if (currentVideo?.source != video.source) {
+            resetExactForcedSubtitleState(video.source)
+        }
         currentVideo = video
         currentServer = server
         updatePlayerHeader()
@@ -1035,6 +1132,18 @@ class PlayerMobileFragment : Fragment() {
             }
         }
         player.addListener(object : Player.Listener {
+            override fun onPlaybackStateChanged(playbackState: Int) {
+                super.onPlaybackStateChanged(playbackState)
+                if (playbackState == Player.STATE_READY) {
+                    maybeApplyExternalForcedSubtitle()
+                }
+            }
+
+            override fun onTracksChanged(tracks: androidx.media3.common.Tracks) {
+                super.onTracksChanged(tracks)
+                maybeApplyExternalForcedSubtitle()
+            }
+
             override fun onIsPlayingChanged(isPlaying: Boolean) {
                 super.onIsPlayingChanged(isPlaying)
                 binding.pvPlayer.keepScreenOn = isPlaying || UserPreferences.keepScreenOnWhenPaused

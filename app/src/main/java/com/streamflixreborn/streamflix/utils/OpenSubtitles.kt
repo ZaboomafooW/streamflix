@@ -6,6 +6,7 @@ import com.google.gson.annotations.SerializedName
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import okhttp3.OkHttpClient
+import okhttp3.Request
 import retrofit2.Retrofit
 import retrofit2.converter.gson.GsonConverterFactory
 import retrofit2.http.GET
@@ -14,12 +15,32 @@ import java.io.File
 import java.io.FileInputStream
 import java.io.FileOutputStream
 import java.net.URL
+import java.nio.ByteBuffer
+import java.nio.ByteOrder
 import java.util.Locale
 import java.util.zip.GZIPInputStream
 
 object OpenSubtitles {
 
     private const val URL = "https://rest.opensubtitles.org/"
+    private const val HASH_CHUNK_SIZE = 64 * 1024
+    private const val MIN_HASHABLE_FILE_SIZE = HASH_CHUNK_SIZE * 2L
+    private const val MAX_HASHABLE_FILE_SIZE = 9_000_000_000L
+
+    private val contentRangeRegex = Regex("""bytes\s+(\d+)-(\d+)/(\d+)""", RegexOption.IGNORE_CASE)
+
+    private val iso3ToIso2: Map<String, String> by lazy {
+        Locale.getAvailableLocales()
+            .asSequence()
+            .filter { it.language.length == 2 }
+            .mapNotNull { locale ->
+                runCatching { locale.getISO3Language().lowercase(Locale.ROOT) }
+                    .getOrNull()
+                    ?.takeIf { it.isNotBlank() }
+                    ?.let { it to locale.language.lowercase(Locale.ROOT) }
+            }
+            .toMap()
+    }
 
     private val service = Service.build()
 
@@ -63,6 +84,8 @@ object OpenSubtitles {
         season: Int? = null,
         episode: Int? = null,
         subLanguageId: String? = null,
+        movieHash: String? = null,
+        movieByteSize: Long? = null,
     ): List<Subtitle> {
         val params = mapOf(
             Params.Key.EPISODE to episode?.toString(),
@@ -70,6 +93,8 @@ object OpenSubtitles {
             Params.Key.SEASON to season?.toString(),
             Params.Key.IMDB_ID to imdbId,
             Params.Key.SUB_LANGUAGE_ID to subLanguageId,
+            Params.Key.MOVIE_HASH to movieHash,
+            Params.Key.MOVIE_BYTE_SIZE to movieByteSize?.toString(),
         )
         return service.search(
             params = params
@@ -77,6 +102,189 @@ object OpenSubtitles {
                 .map { "${it.key}-${it.value}" }
                 .joinToString("/")
         )
+    }
+
+    data class VideoFingerprint(
+        val movieHash: String,
+        val movieByteSize: Long,
+    )
+
+    suspend fun fingerprintRemoteVideo(
+        source: String,
+        headers: Map<String, String>? = null,
+    ): VideoFingerprint? = withContext(Dispatchers.IO) {
+        if (!source.startsWith("http://", ignoreCase = true) &&
+            !source.startsWith("https://", ignoreCase = true)
+        ) {
+            return@withContext null
+        }
+
+        val firstRange = readRange(
+            source = source,
+            start = 0L,
+            end = HASH_CHUNK_SIZE - 1L,
+            headers = headers,
+        ) ?: return@withContext null
+
+        if (firstRange.start != 0L || firstRange.end != HASH_CHUNK_SIZE - 1L) {
+            return@withContext null
+        }
+
+        val movieByteSize = firstRange.totalSize
+        if (movieByteSize < MIN_HASHABLE_FILE_SIZE || movieByteSize >= MAX_HASHABLE_FILE_SIZE) {
+            return@withContext null
+        }
+
+        val lastStart = movieByteSize - HASH_CHUNK_SIZE
+        val lastRange = readRange(
+            source = source,
+            start = lastStart,
+            end = movieByteSize - 1L,
+            headers = headers,
+        ) ?: return@withContext null
+
+        if (lastRange.start != lastStart ||
+            lastRange.end != movieByteSize - 1L ||
+            lastRange.totalSize != movieByteSize
+        ) {
+            return@withContext null
+        }
+
+        val movieHash = computeMovieHash(
+            movieByteSize = movieByteSize,
+            firstChunk = firstRange.bytes,
+            lastChunk = lastRange.bytes,
+        ) ?: return@withContext null
+
+        VideoFingerprint(
+            movieHash = movieHash,
+            movieByteSize = movieByteSize,
+        )
+    }
+
+    internal fun computeMovieHash(
+        movieByteSize: Long,
+        firstChunk: ByteArray,
+        lastChunk: ByteArray,
+    ): String? {
+        if (firstChunk.size != HASH_CHUNK_SIZE || lastChunk.size != HASH_CHUNK_SIZE) {
+            return null
+        }
+
+        var hash = movieByteSize
+        listOf(firstChunk, lastChunk).forEach { chunk ->
+            val buffer = ByteBuffer.wrap(chunk).order(ByteOrder.LITTLE_ENDIAN)
+            while (buffer.remaining() >= Long.SIZE_BYTES) {
+                hash += buffer.long
+            }
+        }
+
+        return java.lang.Long.toUnsignedString(hash, 16).padStart(16, '0')
+    }
+
+    fun exactForcedMatches(
+        subtitles: List<Subtitle>,
+        fingerprint: VideoFingerprint,
+    ): List<Subtitle> = subtitles.filter { subtitle ->
+        subtitle.isForced &&
+            subtitle.subBad?.trim() != "1" &&
+            subtitle.subDownloadLink.isNotBlank() &&
+            subtitle.movieHash?.equals(fingerprint.movieHash, ignoreCase = true) == true &&
+            subtitle.movieByteSize?.toLongOrNull() == fingerprint.movieByteSize
+    }
+
+    fun selectExactForcedSubtitle(
+        subtitles: List<Subtitle>,
+        fingerprint: VideoFingerprint,
+        audioLanguage: String?,
+    ): Subtitle? {
+        val normalizedAudioLanguage = normalizeLanguageCode(audioLanguage) ?: return null
+
+        return exactForcedMatches(subtitles, fingerprint)
+            .filter { normalizeLanguageCode(it.languageTag ?: it.subLanguageID) == normalizedAudioLanguage }
+            .sortedWith(
+                compareByDescending<Subtitle> { it.subFromTrusted?.trim() == "1" }
+                    .thenByDescending { it.subRating?.toDoubleOrNull() ?: 0.0 }
+                    .thenByDescending { it.subDownloadsCnt?.toLongOrNull() ?: 0L }
+            )
+            .firstOrNull()
+    }
+
+    fun languagesMatch(first: String?, second: String?): Boolean {
+        val firstLanguage = normalizeLanguageCode(first) ?: return false
+        val secondLanguage = normalizeLanguageCode(second) ?: return false
+        return firstLanguage == secondLanguage
+    }
+
+    fun normalizeLanguageCode(language: String?): String? {
+        val raw = language
+            ?.trim()
+            ?.replace('_', '-')
+            ?.substringBefore('-')
+            ?.lowercase(Locale.ROOT)
+            ?.takeIf { it.isNotBlank() && it != "und" }
+            ?: return null
+
+        return when (raw.length) {
+            2 -> raw
+            3 -> iso3ToIso2[raw] ?: raw
+            else -> null
+        }
+    }
+
+    private data class RangeResult(
+        val bytes: ByteArray,
+        val start: Long,
+        val end: Long,
+        val totalSize: Long,
+    )
+
+    private fun readRange(
+        source: String,
+        start: Long,
+        end: Long,
+        headers: Map<String, String>?,
+    ): RangeResult? {
+        val request = runCatching {
+            Request.Builder()
+                .url(source)
+                .apply {
+                    headers.orEmpty().forEach { (name, value) ->
+                        if (!name.equals("Range", ignoreCase = true) &&
+                            !name.equals("Accept-Encoding", ignoreCase = true)
+                        ) {
+                            header(name, value)
+                        }
+                    }
+                }
+                .header("Accept-Encoding", "identity")
+                .header("Range", "bytes=$start-$end")
+                .build()
+        }.getOrNull() ?: return null
+
+        return runCatching {
+            NetworkClient.default.newCall(request).execute().use { response ->
+                if (response.code != 206) return@use null
+
+                val contentRange = response.header("Content-Range") ?: return@use null
+                val match = contentRangeRegex.matchEntire(contentRange.trim()) ?: return@use null
+                val actualStart = match.groupValues[1].toLongOrNull() ?: return@use null
+                val actualEnd = match.groupValues[2].toLongOrNull() ?: return@use null
+                val totalSize = match.groupValues[3].toLongOrNull() ?: return@use null
+                val bytes = response.body?.bytes() ?: return@use null
+
+                if (bytes.size.toLong() != actualEnd - actualStart + 1L) {
+                    return@use null
+                }
+
+                RangeResult(
+                    bytes = bytes,
+                    start = actualStart,
+                    end = actualEnd,
+                    totalSize = totalSize,
+                )
+            }
+        }.getOrNull()
     }
 
     // Function to get charset from opensubtitles metadata
@@ -106,6 +314,8 @@ object OpenSubtitles {
             const val EPISODE = "episode"
             const val SEASON = "season"
             const val SUB_LANGUAGE_ID = "sublanguageid"
+            const val MOVIE_HASH = "moviehash"
+            const val MOVIE_BYTE_SIZE = "moviebytesize"
         }
     }
 

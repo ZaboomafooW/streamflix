@@ -3,6 +3,7 @@ package com.streamflixreborn.streamflix.utils
 import com.google.gson.Gson
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
+import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
 import org.junit.Test
 
@@ -59,4 +60,182 @@ class OpenSubtitlesSubtitleTest {
         assertEquals("pt-BR", subtitle.languageTag)
         assertEquals("Portuguese", subtitle.displayLanguage)
     }
+
+    @Test
+    fun `OpenSubtitles movie hash uses file size and little endian chunks`() {
+        val firstChunk = ByteArray(64 * 1024)
+        val lastChunk = ByteArray(64 * 1024)
+        firstChunk[0] = 1
+
+        assertEquals(
+            "0000000000020001",
+            OpenSubtitles.computeMovieHash(
+                movieByteSize = 128 * 1024L,
+                firstChunk = firstChunk,
+                lastChunk = lastChunk,
+            ),
+        )
+    }
+
+    @Test
+    fun `OpenSubtitles movie hash rejects incomplete chunks`() {
+        assertNull(
+            OpenSubtitles.computeMovieHash(
+                movieByteSize = 128 * 1024L,
+                firstChunk = ByteArray(1024),
+                lastChunk = ByteArray(64 * 1024),
+            )
+        )
+    }
+
+    @Test
+    fun `exact forced match requires hash size forced flag and download link`() {
+        val fingerprint = OpenSubtitles.VideoFingerprint(
+            movieHash = "abcdef0123456789",
+            movieByteSize = 123456789L,
+        )
+        val valid = forcedSubtitle(
+            id = "valid",
+            movieHash = fingerprint.movieHash,
+            movieByteSize = fingerprint.movieByteSize,
+            language = "en",
+        )
+        val wrongHash = forcedSubtitle(
+            id = "wrong-hash",
+            movieHash = "0000000000000000",
+            movieByteSize = fingerprint.movieByteSize,
+            language = "en",
+        )
+        val wrongSize = forcedSubtitle(
+            id = "wrong-size",
+            movieHash = fingerprint.movieHash,
+            movieByteSize = fingerprint.movieByteSize + 1,
+            language = "en",
+        )
+        val normal = valid.copy(
+            idSubtitleFile = "normal",
+            subForeignPartsOnly = "0",
+        )
+        val bad = valid.copy(
+            idSubtitleFile = "bad",
+            subBad = "1",
+        )
+        val missingDownload = valid.copy(
+            idSubtitleFile = "missing-download",
+            subDownloadLink = "",
+        )
+
+        assertEquals(
+            listOf(valid),
+            OpenSubtitles.exactForcedMatches(
+                subtitles = listOf(valid, wrongHash, wrongSize, normal, bad, missingDownload),
+                fingerprint = fingerprint,
+            ),
+        )
+    }
+
+    @Test
+    fun `forced subtitle language follows selected audio language`() {
+        val fingerprint = OpenSubtitles.VideoFingerprint(
+            movieHash = "abcdef0123456789",
+            movieByteSize = 123456789L,
+        )
+        val english = forcedSubtitle(
+            id = "english",
+            movieHash = fingerprint.movieHash,
+            movieByteSize = fingerprint.movieByteSize,
+            language = "en",
+        )
+        val spanish = forcedSubtitle(
+            id = "spanish",
+            movieHash = fingerprint.movieHash,
+            movieByteSize = fingerprint.movieByteSize,
+            language = "es",
+        )
+
+        assertEquals(
+            english,
+            OpenSubtitles.selectExactForcedSubtitle(
+                subtitles = listOf(spanish, english),
+                fingerprint = fingerprint,
+                audioLanguage = "eng",
+            ),
+        )
+        assertEquals(
+            spanish,
+            OpenSubtitles.selectExactForcedSubtitle(
+                subtitles = listOf(english, spanish),
+                fingerprint = fingerprint,
+                audioLanguage = "spa",
+            ),
+        )
+        assertNull(
+            OpenSubtitles.selectExactForcedSubtitle(
+                subtitles = listOf(english, spanish),
+                fingerprint = fingerprint,
+                audioLanguage = "fra",
+            )
+        )
+    }
+
+    @Test
+    fun `exact same-language matches prefer trusted subtitle`() {
+        val fingerprint = OpenSubtitles.VideoFingerprint(
+            movieHash = "abcdef0123456789",
+            movieByteSize = 123456789L,
+        )
+        val popular = forcedSubtitle(
+            id = "popular",
+            movieHash = fingerprint.movieHash,
+            movieByteSize = fingerprint.movieByteSize,
+            language = "en",
+        ).copy(
+            subRating = "10.0",
+            subDownloadsCnt = "99999",
+        )
+        val trusted = forcedSubtitle(
+            id = "trusted",
+            movieHash = fingerprint.movieHash,
+            movieByteSize = fingerprint.movieByteSize,
+            language = "en",
+        ).copy(
+            subFromTrusted = "1",
+            subRating = "1.0",
+            subDownloadsCnt = "1",
+        )
+
+        assertEquals(
+            trusted,
+            OpenSubtitles.selectExactForcedSubtitle(
+                subtitles = listOf(popular, trusted),
+                fingerprint = fingerprint,
+                audioLanguage = "en-US",
+            ),
+        )
+    }
+
+    @Test
+    fun `two and three letter language codes normalize to same language`() {
+        assertEquals("en", OpenSubtitles.normalizeLanguageCode("eng"))
+        assertEquals("es", OpenSubtitles.normalizeLanguageCode("spa"))
+        assertTrue(OpenSubtitles.languagesMatch("en-US", "eng"))
+        assertTrue(OpenSubtitles.languagesMatch("es", "spa"))
+        assertFalse(OpenSubtitles.languagesMatch("en", "spa"))
+    }
+
+    private fun forcedSubtitle(
+        id: String,
+        movieHash: String,
+        movieByteSize: Long,
+        language: String,
+    ) = OpenSubtitles.Subtitle(
+        idSubtitleFile = id,
+        movieHash = movieHash,
+        movieByteSize = movieByteSize.toString(),
+        iso639 = language,
+        subLanguageID = language,
+        subForeignPartsOnly = "1",
+        subDownloadLink = "https://example.invalid/$id.gz",
+        subFileName = "$id.srt",
+    )
 }
