@@ -45,7 +45,7 @@ object EpisodeManager {
                 banner = storedTvShow.banner,
                 released = storedTvShow.released?.format("yyyy-MM-dd"),
                 imdbId = storedTvShow.imdbId,
-                originalLanguage = type.tvShow.originalLanguage,
+                originalLanguage = type.tvShow.originalLanguage ?: storedTvShow.originalLanguage,
             )
         } ?: TvShow(
             id = type.tvShow.id,
@@ -231,7 +231,9 @@ object EpisodeManager {
                     banner = tvShowFromDb?.banner ?: ep.tvShow?.banner,
                     releaseDate = tvShowFromDb?.released?.format("yyyy-MM-dd") ?: ep.tvShow?.released?.format("yyyy-MM-dd"),
                     imdbId = tvShowFromDb?.imdbId ?: ep.tvShow?.imdbId,
-                    originalLanguage = ep.tvShow?.originalLanguage ?: originalLanguage,
+                    originalLanguage = ep.tvShow?.originalLanguage
+                        ?: originalLanguage
+                        ?: tvShowFromDb?.originalLanguage,
                 ),
                 season = Episode.Season(
                     number = seasonFromDb?.number ?: seasonNumber,
