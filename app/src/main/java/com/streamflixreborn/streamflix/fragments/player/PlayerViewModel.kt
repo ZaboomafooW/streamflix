@@ -1,25 +1,22 @@
 package com.streamflixreborn.streamflix.fragments.player
 
 import android.net.Uri
-import android.os.Bundle
 import android.util.Log
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.streamflixreborn.streamflix.models.Video
-import com.streamflixreborn.streamflix.utils.CustomTabHelper
 import com.streamflixreborn.streamflix.utils.EpisodeManager
 import com.streamflixreborn.streamflix.utils.OpenSubtitles
+import com.streamflixreborn.streamflix.utils.PlaybackLanguageContext
+import com.streamflixreborn.streamflix.utils.PlaybackTrackPreferences
+import com.streamflixreborn.streamflix.utils.SubDL
 import com.streamflixreborn.streamflix.utils.UserPreferences
-import com.streamflixreborn.streamflix.utils.format
-import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Dispatchers
-import kotlinx.coroutines.Job
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableSharedFlow
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharedFlow
 import kotlinx.coroutines.launch
-import com.streamflixreborn.streamflix.utils.SubDL
 
 class PlayerViewModel(
     videoType: Video.Type,
@@ -35,11 +32,8 @@ class PlayerViewModel(
     private val _playPreviousOrNextEpisode = MutableSharedFlow<Video.Type.Episode>()
     val playPreviousOrNextEpisode: SharedFlow<Video.Type.Episode> = _playPreviousOrNextEpisode
 
-    private var exactForcedSubtitleLookupJob: Job? = null
-    private var exactForcedSubtitleDownloadJob: Job? = null
-
     init {
-        getServers(videoType, id)
+        startPlayback(videoType, id)
         getSubtitles(videoType)
     }
 
@@ -68,7 +62,8 @@ class PlayerViewModel(
                 poster = ep.tvShow.poster,
                 banner = ep.tvShow.banner,
                 releaseDate = ep.tvShow.releaseDate,
-                imdbId = ep.tvShow.imdbId
+                imdbId = ep.tvShow.imdbId,
+                originalLanguage = ep.tvShow.originalLanguage,
             ),
             season = Video.Type.Episode.Season(
                 number = ep.season.number,
@@ -95,9 +90,26 @@ class PlayerViewModel(
             playEpisode(Direction.NEXT)
         }
     }
+
     fun playEpisode(episode: Video.Type.Episode) {
-        getServers(episode, episode.id)
+        startPlayback(episode, episode.id)
         getSubtitles(episode)
+    }
+
+    private fun startPlayback(videoType: Video.Type, id: String) {
+        val originalLanguage = originalAudioLanguage(videoType)
+        PlaybackLanguageContext.setOriginalAudioLanguage(originalLanguage)
+        PlaybackTrackPreferences.activate(videoType, originalLanguage)
+        getServers(videoType, id)
+    }
+
+    private fun originalAudioLanguage(videoType: Video.Type): String? {
+        if (!UserPreferences.enableTmdb) return null
+
+        return when (videoType) {
+            is Video.Type.Movie -> videoType.originalLanguage
+            is Video.Type.Episode -> videoType.tvShow.originalLanguage
+        }
     }
 
     private fun getServers(videoType: Video.Type, id: String) = viewModelScope.launch(Dispatchers.IO) {
@@ -108,8 +120,7 @@ class PlayerViewModel(
         try {
             val servers = UserPreferences.currentProvider!!.getServers(id, videoType)
             if (servers.isEmpty()) throw Exception("No servers found")
-            
-            // LOG POTENZIATO: Mostra tutti i server disponibili per il player
+
             Log.i("StreamFlixES", "[SERVERS LIST] -> Provider: ${UserPreferences.currentProvider!!.name}")
             Log.i("StreamFlixES", "[SERVERS LIST] -> Found ${servers.size} servers: ${servers.joinToString { it.name }}")
 
@@ -123,74 +134,18 @@ class PlayerViewModel(
 
     fun getVideo(server: Video.Server) = viewModelScope.launch(Dispatchers.IO) {
         Log.d("PlayerViewModel", "Inizio estrazione video dal server: ${server.name}")
-        exactForcedSubtitleLookupJob?.cancel()
-        exactForcedSubtitleDownloadJob?.cancel()
         _state.emit(State.LoadingVideo(server))
         try {
             val video = UserPreferences.currentProvider!!.getVideo(server)
             if (video.source.isEmpty()) throw Exception("No source found")
 
-            // LOGICA SOTTOTITOLI GLOBALE: 
-            // Se il provider non ha già impostato un default (es. i "forced" in spagnolo),
-            // allora proviamo ad attivare l'ultimo sottotitolo usato dall'utente.
-            // MA: se siamo su un provider spagnolo e non ci sono forced, non dobbiamo attivare nulla.
-            val currentProviderLang = UserPreferences.currentProvider?.language ?: ""
-            val hasDefaultAlready = video.subtitles.any { it.default }
-
-            if (!hasDefaultAlready && currentProviderLang != "es") {
-                if (!(video.useServerSubtitleSetting && UserPreferences.serverAutoSubtitlesDisabled)) {
-                    video.subtitles
-                        .firstOrNull { it.label.startsWith(UserPreferences.subtitleName ?: "") }
-                        ?.default = true
-		}
-            }
+            PlaybackTrackPreferences.activateSource(server.name)
 
             Log.d("PlayerViewModel", "Estrazione video completata con successo")
             _state.emit(State.SuccessLoadingVideo(video, server))
-            lookupExactForcedSubtitles(video)
         } catch (e: Exception) {
             Log.e("PlayerViewModel", "Errore estrazione video: ", e)
             _state.emit(State.FailedLoadingVideo(e, server))
-        }
-    }
-
-    private fun lookupExactForcedSubtitles(video: Video) {
-        exactForcedSubtitleLookupJob?.cancel()
-        val source = video.source
-        val headers = video.headers
-
-        exactForcedSubtitleLookupJob = viewModelScope.launch(Dispatchers.IO) {
-            try {
-                val fingerprint = OpenSubtitles.fingerprintRemoteVideo(source, headers)
-                    ?: return@launch
-                val subtitles = OpenSubtitles.search(
-                    movieHash = fingerprint.movieHash,
-                    movieByteSize = fingerprint.movieByteSize,
-                )
-                val exactForcedSubtitles = OpenSubtitles.exactForcedMatches(
-                    subtitles = subtitles,
-                    fingerprint = fingerprint,
-                )
-
-                Log.d(
-                    "PlayerViewModel",
-                    "Exact OpenSubtitles forced matches: ${exactForcedSubtitles.size}",
-                )
-                _subtitleState.emit(
-                    SubtitleState.SuccessExactForcedSubtitles(
-                        source = source,
-                        fingerprint = fingerprint,
-                        subtitles = exactForcedSubtitles,
-                    )
-                )
-            } catch (e: CancellationException) {
-                throw e
-            } catch (e: Exception) {
-                Log.d(
-                    "PlayerViewModel",
-                    "Exact OpenSubtitles forced lookup unavailable for current source: ${e.message}",
-                )
-            }
         }
     }
 
@@ -213,7 +168,7 @@ class PlayerViewModel(
                         OpenSubtitles.search(query = videoType.title)
                     }
                 }.sortedWith(compareBy({ it.languageName }, { it.subDownloadsCnt }))
-                
+
                 Log.d("PlayerViewModel", "Ricerca OpenSubtitles completata: ${subtitles.size} risultati")
                 _subtitleState.emit(SubtitleState.SuccessOpenSubtitles(subtitles))
             } catch (e: Exception) {
@@ -241,7 +196,7 @@ class PlayerViewModel(
                         )
                     }
                 }
-                
+
                 Log.d("PlayerViewModel", "Ricerca SubDL completata: ${subtitles.size} risultati")
                 _subtitleState.emit(SubtitleState.SuccessSubDLSubtitles(subtitles))
             } catch (e: Exception) {
@@ -261,42 +216,6 @@ class PlayerViewModel(
         } catch (e: Exception) {
             Log.e("PlayerViewModel", "Errore download OpenSubtitles: ", e)
             _subtitleState.emit(SubtitleState.FailedDownloadingOpenSubtitle(e, subtitle))
-        }
-    }
-
-    fun downloadExactForcedSubtitle(
-        source: String,
-        subtitle: OpenSubtitles.Subtitle,
-    ) {
-        exactForcedSubtitleDownloadJob?.cancel()
-        exactForcedSubtitleDownloadJob = viewModelScope.launch(Dispatchers.IO) {
-            _subtitleState.emit(
-                SubtitleState.DownloadingExactForcedSubtitle(
-                    source = source,
-                    subtitle = subtitle,
-                )
-            )
-            try {
-                val uri = OpenSubtitles.download(subtitle)
-                _subtitleState.emit(
-                    SubtitleState.SuccessDownloadingExactForcedSubtitle(
-                        source = source,
-                        subtitle = subtitle,
-                        uri = uri,
-                    )
-                )
-            } catch (e: CancellationException) {
-                throw e
-            } catch (e: Exception) {
-                Log.e("PlayerViewModel", "Errore download forced OpenSubtitles: ", e)
-                _subtitleState.emit(
-                    SubtitleState.FailedDownloadingExactForcedSubtitle(
-                        source = source,
-                        error = e,
-                        subtitle = subtitle,
-                    )
-                )
-            }
         }
     }
 
@@ -329,26 +248,6 @@ class PlayerViewModel(
         data object DownloadingOpenSubtitle : SubtitleState()
         data class SuccessDownloadingOpenSubtitle(val subtitle: OpenSubtitles.Subtitle, val uri: Uri) : SubtitleState()
         data class FailedDownloadingOpenSubtitle(val error: Exception, val subtitle: OpenSubtitles.Subtitle) : SubtitleState()
-
-        data class SuccessExactForcedSubtitles(
-            val source: String,
-            val fingerprint: OpenSubtitles.VideoFingerprint,
-            val subtitles: List<OpenSubtitles.Subtitle>,
-        ) : SubtitleState()
-        data class DownloadingExactForcedSubtitle(
-            val source: String,
-            val subtitle: OpenSubtitles.Subtitle,
-        ) : SubtitleState()
-        data class SuccessDownloadingExactForcedSubtitle(
-            val source: String,
-            val subtitle: OpenSubtitles.Subtitle,
-            val uri: Uri,
-        ) : SubtitleState()
-        data class FailedDownloadingExactForcedSubtitle(
-            val source: String,
-            val error: Exception,
-            val subtitle: OpenSubtitles.Subtitle,
-        ) : SubtitleState()
 
         data class SuccessSubDLSubtitles(val subtitles: List<SubDL.Subtitle>) : SubtitleState()
         data class FailedSubDLSubtitles(val error: Exception) : SubtitleState()

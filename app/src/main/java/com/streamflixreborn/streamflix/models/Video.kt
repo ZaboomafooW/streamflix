@@ -10,7 +10,6 @@ data class Video(
     val headers: Map<String, String>? = null,
     val type: String? = null,
     val extraBuffering: Boolean = false,
-    val useServerSubtitleSetting: Boolean = false,
     val maintainToken: Boolean = false
 ) : Serializable {
 
@@ -22,6 +21,7 @@ data class Video(
             val releaseDate: String,
             val poster: String,
             val imdbId: String?,
+            val originalLanguage: String? = null,
         ) : Type(), Serializable
 
         @Parcelize
@@ -42,6 +42,7 @@ data class Video(
                 val banner: String?,
                 val releaseDate: String?,
                 val imdbId: String?,
+                val originalLanguage: String? = null,
             ) : Parcelable, Serializable
 
             @Parcelize

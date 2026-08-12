@@ -55,6 +55,7 @@ import com.streamflixreborn.streamflix.models.Movie
 import com.streamflixreborn.streamflix.models.Season
 import com.streamflixreborn.streamflix.models.TvShow
 import com.streamflixreborn.streamflix.models.Video
+import com.streamflixreborn.streamflix.models.toPlaybackTvShow
 import com.streamflixreborn.streamflix.ui.SpacingItemDecoration
 import com.streamflixreborn.streamflix.ui.ShowOptionsMobileDialog
 import com.streamflixreborn.streamflix.ui.ShowOptionsTvDialog
@@ -170,14 +171,7 @@ class TvShowViewHolder(
             title = tvShow.title,
             poster = tvShow.poster,
             overview = tvShow.overview,
-            tvShow = Video.Type.Episode.TvShow(
-                id = tvShow.id,
-                title = tvShow.title,
-                poster = tvShow.poster,
-                banner = tvShow.banner,
-                releaseDate = tvShow.released?.format("yyyy-MM-dd"),
-                imdbId = tvShow.imdbId,
-            ),
+            tvShow = tvShow.toPlaybackTvShow(),
             season = Video.Type.Episode.Season(
                 number = 1,
                 title = "Live",
@@ -665,14 +659,7 @@ class TvShowViewHolder(
                         title = episodeToWatch.title,
                         poster = episodeToWatch.poster,
                         overview = episodeToWatch.overview,
-                        tvShow = Video.Type.Episode.TvShow(
-                            id = tvShow.id,
-                            title = tvShow.title,
-                            poster = tvShow.poster,
-                            banner = tvShow.banner,
-                            releaseDate = tvShow.released?.format("yyyy-MM-dd"),
-                            imdbId = tvShow.imdbId,
-                        ),
+                        tvShow = tvShow.toPlaybackTvShow(),
                         season = Video.Type.Episode.Season(
                             number = episodeSeason?.number ?: 1,
                             title = episodeSeason?.title ?: "",
@@ -799,14 +786,7 @@ class TvShowViewHolder(
                         title = episodeToWatch.title,
                         poster = episodeToWatch.poster,
                         overview = episodeToWatch.overview,
-                        tvShow = Video.Type.Episode.TvShow(
-                            id = tvShow.id,
-                            title = tvShow.title,
-                            poster = tvShow.poster,
-                            banner = tvShow.banner,
-                            releaseDate = tvShow.released?.format("yyyy-MM-dd"),
-                            imdbId = tvShow.imdbId,
-                        ),
+                        tvShow = tvShow.toPlaybackTvShow(),
                         season = Video.Type.Episode.Season(
                             number = episodeSeason?.number ?: 1,
                             title = episodeSeason?.title ?: "",

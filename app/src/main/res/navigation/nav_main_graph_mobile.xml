@@ -162,6 +162,10 @@
             app:argType="string"
             app:nullable="true" />
         <argument
+            android:name="tvShowOriginalLanguage"
+            app:argType="string"
+            app:nullable="true" />
+        <argument
             android:name="seasonId"
             app:argType="string" />
         <argument

@@ -283,7 +283,8 @@ object StreamingItaProvider : Provider {
             released = tmdbMovie?.released?.let { "${it.get(java.util.Calendar.YEAR)}-${it.get(java.util.Calendar.MONTH) + 1}-${it.get(java.util.Calendar.DAY_OF_MONTH)}" },
             runtime = tmdbMovie?.runtime,
             banner = tmdbMovie?.banner,
-            imdbId = tmdbMovie?.imdbId
+            imdbId = tmdbMovie?.imdbId,
+            originalLanguage = tmdbMovie?.originalLanguage,
         )
     }
 
@@ -324,7 +325,8 @@ object StreamingItaProvider : Provider {
             released = tmdbTvShow?.released?.let { "${it.get(java.util.Calendar.YEAR)}-${it.get(java.util.Calendar.MONTH) + 1}-${it.get(java.util.Calendar.DAY_OF_MONTH)}" },
             runtime = tmdbTvShow?.runtime,
             banner = tmdbTvShow?.banner,
-            imdbId = tmdbTvShow?.imdbId
+            imdbId = tmdbTvShow?.imdbId,
+            originalLanguage = tmdbTvShow?.originalLanguage,
         )
     }
 

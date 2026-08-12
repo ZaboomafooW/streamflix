@@ -297,7 +297,8 @@ object MEGAKinoProvider : Provider {
             runtime = tmdbMovie?.runtime,
             genres = tmdbMovie?.genres ?: genres,
             cast = cast,
-            imdbId = tmdbMovie?.imdbId
+            imdbId = tmdbMovie?.imdbId,
+            originalLanguage = tmdbMovie?.originalLanguage,
         )
     }
 
@@ -361,7 +362,8 @@ object MEGAKinoProvider : Provider {
             runtime = tmdbTvShow?.runtime,
             genres = tmdbTvShow?.genres ?: genres,
             cast = cast,
-            imdbId = tmdbTvShow?.imdbId
+            imdbId = tmdbTvShow?.imdbId,
+            originalLanguage = tmdbTvShow?.originalLanguage,
         )
     }
 

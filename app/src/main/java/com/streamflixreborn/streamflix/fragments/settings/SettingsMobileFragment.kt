@@ -232,6 +232,9 @@ class SettingsMobileFragment : PreferenceFragmentCompat() {
     private fun displaySettings() {
         updateOverviewLabels()
         updateProviderVisibilityState()
+        SupabaseSettingsController.bind(this, lifecycleScope) { key ->
+            findPreference(key)
+        }
 
         findPreference<EditTextPreference>("provider_streamingcommunity_domain")?.apply {
             val currentValue = UserPreferences.streamingcommunityDomain
@@ -519,14 +522,6 @@ class SettingsMobileFragment : PreferenceFragmentCompat() {
         findPreference<SwitchPreference>("UPDATE_CHECK_ENABLED")?.setOnPreferenceChangeListener { _, newValue ->
             UserPreferences.updateCheckEnabled = newValue as Boolean
             true
-        }
-
-        findPreference<SwitchPreference>("SERVER_AUTO_SUBTITLES_DISABLED")?.apply {
-            isChecked = UserPreferences.serverAutoSubtitlesDisabled
-            setOnPreferenceChangeListener { _, newValue ->
-                UserPreferences.serverAutoSubtitlesDisabled = newValue as Boolean
-                true
-            }
         }
 
         val HasConfigProvider = UserPreferences.currentProvider is ProviderConfigUrl

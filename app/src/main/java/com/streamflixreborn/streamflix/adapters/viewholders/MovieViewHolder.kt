@@ -344,7 +344,7 @@ class MovieViewHolder(
                                     id = movie.id,
                                     title = movie.title,
                                     subtitle = movie.released?.format("yyyy") ?: "",
-                                    videoType = Video.Type.Movie(id = movie.id, title = movie.title, releaseDate = movie.released?.format("yyyy-MM-dd") ?: "", poster = movie.poster ?: "", imdbId = movie.imdbId),
+                                    videoType = Video.Type.Movie(id = movie.id, title = movie.title, releaseDate = movie.released?.format("yyyy-MM-dd") ?: "", poster = movie.poster ?: "", imdbId = movie.imdbId, originalLanguage = movie.originalLanguage),
                                 ))
                             }
                         }
@@ -423,6 +423,7 @@ class MovieViewHolder(
                                                 releaseDate = movie.released?.format("yyyy-MM-dd") ?: "",
                                                 poster = movie.poster ?: movie.banner ?: "",
                                                 imdbId = movie.imdbId,
+                                                originalLanguage = movie.originalLanguage,
                                             )
                                         )
                                     }
@@ -806,7 +807,7 @@ class MovieViewHolder(
                         id = movie.id,
                         title = movie.title,
                         subtitle = movie.released?.format("yyyy") ?: "",
-                        videoType = Video.Type.Movie(id = movie.id, title = movie.title, releaseDate = movie.released?.format("yyyy-MM-dd") ?: "", poster = movie.poster ?: movie.banner ?: "", imdbId = movie.imdbId),
+                        videoType = Video.Type.Movie(id = movie.id, title = movie.title, releaseDate = movie.released?.format("yyyy-MM-dd") ?: "", poster = movie.poster ?: movie.banner ?: "", imdbId = movie.imdbId, originalLanguage = movie.originalLanguage),
                     ))
                 }
             }
@@ -935,7 +936,7 @@ class MovieViewHolder(
                         id = movie.id,
                         title = movie.title,
                         subtitle = movie.released?.format("yyyy") ?: "",
-                        videoType = Video.Type.Movie(id = movie.id, title = movie.title, releaseDate = movie.released?.format("yyyy-MM-dd") ?: "", poster = movie.poster ?: movie.banner ?: "", imdbId = movie.imdbId),
+                        videoType = Video.Type.Movie(id = movie.id, title = movie.title, releaseDate = movie.released?.format("yyyy-MM-dd") ?: "", poster = movie.poster ?: movie.banner ?: "", imdbId = movie.imdbId, originalLanguage = movie.originalLanguage),
                     ))
                 }
             }

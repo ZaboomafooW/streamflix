@@ -7,9 +7,11 @@ import android.view.MotionEvent
 import android.view.View
 import android.view.ViewGroup
 import android.widget.Toast
+import androidx.media3.common.Player
 import androidx.media3.ui.PlayerControlView
 import androidx.media3.ui.PlayerView
 import com.streamflixreborn.streamflix.R
+import com.streamflixreborn.streamflix.utils.PlaybackTrackPreferences
 import java.util.Locale
 import kotlin.math.abs
 
@@ -29,6 +31,21 @@ class PlayerMobileView @JvmOverloads constructor(
         private set
 
     private var zoomToast: Toast? = null
+    private var preferencePlayer: Player? = null
+    private var preferenceListener: Player.Listener? = null
+
+    override fun setPlayer(player: Player?) {
+        if (player != null && preferencePlayer === player && preferenceListener != null) return
+
+        preferenceListener?.let { listener ->
+            preferencePlayer?.removeListener(listener)
+        }
+
+        super.setPlayer(player)
+
+        preferencePlayer = player
+        preferenceListener = player?.let(PlaybackTrackPreferences::bind)
+    }
 
     private val gestureDetector = GestureDetector(context, object : GestureDetector.SimpleOnGestureListener() {
         override fun onScroll(e1: MotionEvent?, e2: MotionEvent, distanceX: Float, distanceY: Float): Boolean {

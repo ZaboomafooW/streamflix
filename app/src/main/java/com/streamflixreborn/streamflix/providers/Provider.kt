@@ -61,6 +61,7 @@ interface Provider {
 
         val providers = mapOf(
             SflixProvider to ProviderSupport(movies = true, tvShows = true),
+            FanpelisProvider to ProviderSupport(movies = true, tvShows = true),
             SerienStreamProvider to ProviderSupport(movies = false, tvShows = true),
             StreamingCommunityProvider("it") to ProviderSupport(movies = true, tvShows = true),
             StreamingCommunityProvider("en") to ProviderSupport(movies = true, tvShows = true),
@@ -79,10 +80,12 @@ interface Provider {
             DoramasflixProvider to ProviderSupport(movies = true, tvShows = true),
             CineCalidadProvider to ProviderSupport(movies = true, tvShows = true),
             SeriesFlixProvider to ProviderSupport(movies = false, tvShows = true),
+            SeriesTurcasProvider to ProviderSupport(movies = false, tvShows = true),
             FlixLatamProvider to ProviderSupport(movies = true, tvShows = true),
             LaCartoonsProvider to ProviderSupport(movies = false, tvShows = true),
             AnimefenixProvider to ProviderSupport(movies = false, tvShows = true),
             AnimeFlvProvider to ProviderSupport(movies = false, tvShows = true),
+            JKAnimeProvider to ProviderSupport(movies = true, tvShows = true),
             TioAnimeProvider to ProviderSupport(movies = true, tvShows = true),
             AnimeAv1Provider to ProviderSupport(movies = false, tvShows = true),
             AnimeOnlineNinjaProvider to ProviderSupport(movies = true, tvShows = true),
@@ -119,6 +122,7 @@ interface Provider {
             PlutoTvItProvider to ProviderSupport(movies = false, tvShows = true),
             PlutoTvUsProvider to ProviderSupport(movies = false, tvShows = true),
             CineCityProvider to ProviderSupport(movies = false, tvShows = true),
+            CineHaxProvider to ProviderSupport(movies = true, tvShows = true),
             VavooProvider("de") to ProviderSupport(movies = false, tvShows = true),
             VavooProvider("it") to ProviderSupport(movies = false, tvShows = true),
             VavooProvider("fr") to ProviderSupport(movies = false, tvShows = true),

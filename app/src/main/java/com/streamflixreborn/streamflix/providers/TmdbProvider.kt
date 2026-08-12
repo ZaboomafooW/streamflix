@@ -464,6 +464,7 @@ class TmdbProvider(override val language: String) : Provider {
                 poster = movie.posterPath?.original,
                 banner = movie.backdropPath?.original,
                 imdbId = movie.externalIds?.imdbId,
+                originalLanguage = movie.originalLanguage,
 
                 genres = movie.genres.map { genre ->
                     Genre(
@@ -533,6 +534,7 @@ class TmdbProvider(override val language: String) : Provider {
                 poster = tv.posterPath?.original,
                 banner = tv.backdropPath?.original,
                 imdbId = tv.externalIds?.imdbId,
+                originalLanguage = tv.originalLanguage,
 
                 seasons = tv.seasons.map { season ->
                     Season(

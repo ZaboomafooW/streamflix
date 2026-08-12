@@ -72,18 +72,16 @@ import com.streamflixreborn.streamflix.models.TvShow
 import com.streamflixreborn.streamflix.models.Video
 import com.streamflixreborn.streamflix.models.WatchItem
 import com.streamflixreborn.streamflix.providers.SerienStreamProvider
+import com.streamflixreborn.streamflix.sync.CloudSyncHooks
 import com.streamflixreborn.streamflix.ui.PlayerTvView
-import com.streamflixreborn.streamflix.utils.ExternalForcedSubtitleFallback
 import com.streamflixreborn.streamflix.utils.SubtitleOffsetRenderersFactory
 import com.streamflixreborn.streamflix.utils.DnsResolver
 import com.streamflixreborn.streamflix.utils.NetworkClient
 import com.streamflixreborn.streamflix.utils.EpisodeManager
 import com.streamflixreborn.streamflix.utils.MediaServer
-import com.streamflixreborn.streamflix.utils.OpenSubtitles
 import com.streamflixreborn.streamflix.utils.PlayerGestureHelper
 import com.streamflixreborn.streamflix.utils.UserPreferences
 import com.streamflixreborn.streamflix.utils.UserDataCache
-import com.streamflixreborn.streamflix.utils.appendSubtitleConfiguration
 import com.streamflixreborn.streamflix.utils.dp
 import com.streamflixreborn.streamflix.utils.getFileName
 import com.streamflixreborn.streamflix.utils.next
@@ -155,11 +153,6 @@ class PlayerTvFragment : Fragment() {
 
     private var currentVideo: Video? = null
     private var currentServer: Video.Server? = null
-    private var exactForcedSubtitleSource: String? = null
-    private var exactForcedSubtitleFingerprint: OpenSubtitles.VideoFingerprint? = null
-    private var exactForcedSubtitles = emptyList<OpenSubtitles.Subtitle>()
-    private var pendingExactForcedSubtitleKey: String? = null
-    private val failedExactForcedSubtitleKeys = mutableSetOf<String>()
     private var waitingForBypass = false
     private var bypassDone = false
     private var activeBypassSession: BypassSession? = null
@@ -206,7 +199,7 @@ class PlayerTvFragment : Fragment() {
                     .setMimeType(it.mimeType)
                     .setLabel(it.label)
                     .setLanguage(it.language)
-                    .setSelectionFlags(it.selectionFlags)
+                    .setSelectionFlags(0)
                     .build()
             } ?: listOf()
         player.setMediaItem(
@@ -462,7 +455,7 @@ class PlayerTvFragment : Fragment() {
                         when (state) {
                             PlayerViewModel.SubtitleState.Loading -> {}
                             is PlayerViewModel.SubtitleState.SuccessOpenSubtitles -> {
-                                binding.settings.openSubtitles = state.subtitles.filterNot { it.isForced }
+                                binding.settings.openSubtitles = state.subtitles
                             }
 
                             is PlayerViewModel.SubtitleState.FailedOpenSubtitles -> {}
@@ -478,7 +471,7 @@ class PlayerTvFragment : Fragment() {
                                             .setMimeType(it.mimeType)
                                             .setLabel(it.label)
                                             .setLanguage(it.language)
-                                            .setSelectionFlags(it.selectionFlags)
+                                            .setSelectionFlags(0)
                                             .build()
                                     } ?: listOf()
                                 player.setMediaItem(
@@ -489,16 +482,14 @@ class PlayerTvFragment : Fragment() {
                                             currentSubtitleConfigurations
                                                     + MediaItem.SubtitleConfiguration.Builder(state.uri)
                                                 .setMimeType(fileName.toSubtitleMimeType())
-                                                .setLabel(state.subtitle.displayLabel)
-                                                .setLanguage(state.subtitle.languageTag)
+                                                .setLabel(fileName)
+                                                .setLanguage(state.subtitle.languageName)
                                                 .setSelectionFlags(C.SELECTION_FLAG_DEFAULT)
                                                 .build()
                                         )
                                         .setMediaMetadata(player.mediaMetadata)
                                         .build()
                                 )
-                                UserPreferences.subtitleName =
-                                    state.subtitle.displayLanguage.substringBefore(" ")
                                 player.seekTo(currentPosition)
                                 player.play()
                             }
@@ -509,32 +500,6 @@ class PlayerTvFragment : Fragment() {
                                     "${state.subtitle.subFileName}: ${state.error.message}",
                                     Toast.LENGTH_LONG
                                 ).show()
-                            }
-
-                            is PlayerViewModel.SubtitleState.SuccessExactForcedSubtitles -> {
-                                if (state.source == currentVideo?.source) {
-                                    exactForcedSubtitleSource = state.source
-                                    exactForcedSubtitleFingerprint = state.fingerprint
-                                    exactForcedSubtitles = state.subtitles
-                                    maybeApplyExternalForcedSubtitle()
-                                }
-                            }
-
-                            is PlayerViewModel.SubtitleState.DownloadingExactForcedSubtitle -> {}
-
-                            is PlayerViewModel.SubtitleState.SuccessDownloadingExactForcedSubtitle -> {
-                                applyDownloadedExternalForcedSubtitle(state)
-                            }
-
-                            is PlayerViewModel.SubtitleState.FailedDownloadingExactForcedSubtitle -> {
-                                if (state.source == currentVideo?.source) {
-                                    val key = exactForcedSubtitleKey(state.subtitle)
-                                    if (pendingExactForcedSubtitleKey == key) {
-                                        pendingExactForcedSubtitleKey = null
-                                    }
-                                    failedExactForcedSubtitleKeys.add(key)
-                                    maybeApplyExternalForcedSubtitle()
-                                }
                             }
 
                             is PlayerViewModel.SubtitleState.SuccessSubDLSubtitles -> {
@@ -554,7 +519,7 @@ class PlayerTvFragment : Fragment() {
                                             .setMimeType(it.mimeType)
                                             .setLabel(it.label)
                                             .setLanguage(it.language)
-                                            .setSelectionFlags(it.selectionFlags)
+                                            .setSelectionFlags(0)
                                             .build()
                                     } ?: listOf()
                                 player.setMediaItem(
@@ -579,9 +544,6 @@ class PlayerTvFragment : Fragment() {
                                         .setMediaMetadata(player.mediaMetadata)
                                         .build()
                                 )
-                                UserPreferences.subtitleName =
-                                    (state.subtitle.releaseName ?: state.subtitle.name
-                                    ?: fileName).substringBefore(" ")
                                 player.seekTo(currentPosition)
                                 player.play()
                             }
@@ -1001,10 +963,16 @@ class PlayerTvFragment : Fragment() {
                                         true
                                     }
 
-                                    database.tvShowDao().save(tvShow.copy().apply {
+                                    val updatedTvShow = tvShow.copy().apply {
                                         merge(tvShow)
                                         isWatching = isWatchingValue
-                                    })
+                                    }
+                                    database.tvShowDao().update(updatedTvShow)
+                                    CloudSyncHooks.tvShow(
+                                        requireContext(),
+                                        provider,
+                                        updatedTvShow,
+                                    )
                                 }
                             }
                         }
@@ -1054,79 +1022,12 @@ class PlayerTvFragment : Fragment() {
             }
         }
 
-        private fun resetExactForcedSubtitleState(source: String) {
-            exactForcedSubtitleSource = source
-            exactForcedSubtitleFingerprint = null
-            exactForcedSubtitles = emptyList()
-            pendingExactForcedSubtitleKey = null
-            failedExactForcedSubtitleKeys.clear()
-        }
-
-        private fun exactForcedSubtitleKey(subtitle: OpenSubtitles.Subtitle): String {
-            return subtitle.idSubtitleFile
-                ?: subtitle.subDownloadLink.takeIf { it.isNotBlank() }
-                ?: subtitle.subFileName.orEmpty()
-        }
-
-        private fun maybeApplyExternalForcedSubtitle() {
-            if (!::player.isInitialized) return
-            val source = currentVideo?.source ?: return
-            if (exactForcedSubtitleSource != source) return
-            val fingerprint = exactForcedSubtitleFingerprint ?: return
-            val audioLanguage = ExternalForcedSubtitleFallback.selectedAudioLanguage(player) ?: return
-
-            if (ExternalForcedSubtitleFallback.hasSelectedNormalSubtitle(player)) return
-            if (ExternalForcedSubtitleFallback.hasMatchingSourceForcedSubtitle(player, audioLanguage)) return
-
-            val availableSubtitles = exactForcedSubtitles.filterNot {
-                failedExactForcedSubtitleKeys.contains(exactForcedSubtitleKey(it))
-            }
-            val subtitle = OpenSubtitles.selectExactForcedSubtitle(
-                subtitles = availableSubtitles,
-                fingerprint = fingerprint,
-                audioLanguage = audioLanguage,
-            ) ?: return
-            val key = exactForcedSubtitleKey(subtitle)
-            if (key.isBlank() || pendingExactForcedSubtitleKey == key) return
-
-            pendingExactForcedSubtitleKey = key
-            viewModel.downloadExactForcedSubtitle(source, subtitle)
-        }
-
-        private fun applyDownloadedExternalForcedSubtitle(
-            state: PlayerViewModel.SubtitleState.SuccessDownloadingExactForcedSubtitle,
-        ) {
-            val key = exactForcedSubtitleKey(state.subtitle)
-            if (pendingExactForcedSubtitleKey == key) {
-                pendingExactForcedSubtitleKey = null
-            }
-            if (state.source != currentVideo?.source) return
-
-            val language = OpenSubtitles.normalizeLanguageCode(
-                state.subtitle.languageTag ?: state.subtitle.subLanguageID,
-            ) ?: return
-            val fileName = state.uri.getFileName(requireContext()) ?: state.uri.toString()
-            val configuration = MediaItem.SubtitleConfiguration.Builder(state.uri)
-                .setMimeType(fileName.toSubtitleMimeType())
-                .setLabel(state.subtitle.displayLabel)
-                .setLanguage(language)
-                .setSelectionFlags(C.SELECTION_FLAG_FORCED)
-                .build()
-
-            if (player.appendSubtitleConfiguration(configuration)) {
-                maybeApplyExternalForcedSubtitle()
-            }
-        }
-
         private fun displayVideo(
             video: Video,
             server: Video.Server,
             startPositionMs: Long? = null,
             shouldPlay: Boolean = true,
         ) {
-            if (currentVideo?.source != video.source) {
-                resetExactForcedSubtitleState(video.source)
-            }
             currentVideo = video
             currentServer = server
             updatePlayerHeader()
@@ -1283,7 +1184,6 @@ class PlayerTvFragment : Fragment() {
                         binding.pvPlayer.controller.binding.exoPlayPause.nextFocusDownId = -1
                         val videoFormat = player.videoFormat
                         updatePlayerScale()
-                        maybeApplyExternalForcedSubtitle()
                     }
                 }
 
@@ -1300,7 +1200,6 @@ class PlayerTvFragment : Fragment() {
                             }
                         }
                     }
-                    maybeApplyExternalForcedSubtitle()
                 }
 
                 override fun onVideoSizeChanged(videoSize: VideoSize) {
@@ -1378,11 +1277,17 @@ class PlayerTvFragment : Fragment() {
                                         val isStillWatching =
                                             episodeDao.hasAnyWatchHistoryForTvShow(tvShow.id)
 
-                                        database.tvShowDao().save(tvShow.copy().apply {
+                                        val updatedTvShow = tvShow.copy().apply {
                                             merge(tvShow)
                                             isWatching =
                                                 !player.hasReallyFinished() || isStillWatching
-                                        })
+                                        }
+                                        database.tvShowDao().update(updatedTvShow)
+                                        CloudSyncHooks.tvShow(
+                                            requireContext(),
+                                            provider,
+                                            updatedTvShow,
+                                        )
                                     }
                                 }
                             }

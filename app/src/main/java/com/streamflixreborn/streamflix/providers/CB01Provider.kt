@@ -330,7 +330,8 @@ object CB01Provider : Provider {
             runtime = tmdbMovie?.runtime ?: runtime,
             banner = tmdbMovie?.banner,
             imdbId = tmdbMovie?.imdbId,
-            cast = tmdbMovie?.cast ?: emptyList()
+            cast = tmdbMovie?.cast ?: emptyList(),
+            originalLanguage = tmdbMovie?.originalLanguage,
         )
     }
 
@@ -441,7 +442,8 @@ object CB01Provider : Provider {
             runtime = tmdbTvShow?.runtime,
             banner = tmdbTvShow?.banner,
             imdbId = tmdbTvShow?.imdbId,
-            cast = tmdbTvShow?.cast ?: emptyList()
+            cast = tmdbTvShow?.cast ?: emptyList(),
+            originalLanguage = tmdbTvShow?.originalLanguage,
         )
     }
 

@@ -90,6 +90,7 @@ class EpisodeViewHolder(
                                 banner = episode.tvShow?.banner,
                                 releaseDate = episode.tvShow?.released?.format("yyyy-MM-dd"),
                                 imdbId = episode.tvShow?.imdbId,
+                                originalLanguage = episode.tvShow?.originalLanguage,
                             ),
                             season = Video.Type.Episode.Season(
                                 number = episode.season?.number ?: 0,
@@ -190,6 +191,7 @@ class EpisodeViewHolder(
                                 banner = episode.tvShow?.banner,
                                 releaseDate = episode.tvShow?.released?.format("yyyy-MM-dd"),
                                 imdbId = episode.tvShow?.imdbId,
+                                originalLanguage = episode.tvShow?.originalLanguage,
                             ),
                             season = Video.Type.Episode.Season(
                                 number = episode.season?.number ?: 0,
@@ -306,6 +308,7 @@ class EpisodeViewHolder(
                                 banner = episode.tvShow?.banner,
                                 releaseDate = episode.tvShow?.released?.format("yyyy-MM-dd"),
                                 imdbId = episode.tvShow?.imdbId,
+                                originalLanguage = episode.tvShow?.originalLanguage,
                             ),
                             season = Video.Type.Episode.Season(
                                 number = episode.season?.number ?: 0,
@@ -407,6 +410,7 @@ class EpisodeViewHolder(
                                 banner = episode.tvShow?.banner,
                                 releaseDate = episode.tvShow?.released?.format("yyyy-MM-dd"),
                                 imdbId = episode.tvShow?.imdbId,
+                                originalLanguage = episode.tvShow?.originalLanguage,
                             ),
                             season = Video.Type.Episode.Season(
                                 number = episode.season?.number ?: 0,

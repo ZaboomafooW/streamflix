@@ -34,7 +34,7 @@ class VidzyExtractor : Extractor() {
                 file = file,
                 label = label,
                 initialDefault = default,
-                default = if (UserPreferences.serverAutoSubtitlesDisabled) false else default
+                default = default
             )
         }.toList()
     }
@@ -59,8 +59,7 @@ class VidzyExtractor : Extractor() {
         return Video(
             source = streamUrl ?: throw Exception("Can't retrieve source"),
             headers = mapOf("Referer" to mainUrl),
-            subtitles = extractSubtitles(unPacked),
-            useServerSubtitleSetting = true
+            subtitles = extractSubtitles(unPacked)
         )
     }
 

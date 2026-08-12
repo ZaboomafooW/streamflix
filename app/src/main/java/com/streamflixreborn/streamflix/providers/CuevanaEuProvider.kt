@@ -537,6 +537,7 @@ object CuevanaEuProvider : Provider {
                         poster = tmdbMovie.posterPath?.original,
                         banner = tmdbMovie.backdropPath?.original,
                         imdbId = tmdbMovie.externalIds?.imdbId,
+                        originalLanguage = tmdbMovie.originalLanguage,
                         genres = tmdbMovie.genres.map { genre ->
                             Genre(genre.id.toString(), genre.name)
                         },
@@ -721,6 +722,7 @@ object CuevanaEuProvider : Provider {
                         poster = tmdbTv.posterPath?.original,
                         banner = tmdbTv.backdropPath?.original,
                         imdbId = tmdbTv.externalIds?.imdbId,
+                        originalLanguage = tmdbTv.originalLanguage,
                         seasons = cuevanaSeasons.map { season ->
                             val tmdbSeason = tmdbTv.seasons.find { it.seasonNumber == season.number }
                             season.copy(

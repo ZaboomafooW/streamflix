@@ -306,7 +306,8 @@ object GuardaSerieProvider : Provider {
                     }
             }.getOrNull(),
             banner = tmdbMovie?.banner,
-            imdbId = tmdbMovie?.imdbId
+            imdbId = tmdbMovie?.imdbId,
+            originalLanguage = tmdbMovie?.originalLanguage,
         )
     }
 
@@ -357,7 +358,8 @@ object GuardaSerieProvider : Provider {
             seasons = seasons,
             banner = tmdbTvShow?.banner,
             imdbId = tmdbTvShow?.imdbId,
-            trailer = tmdbTvShow?.trailer
+            trailer = tmdbTvShow?.trailer,
+            originalLanguage = tmdbTvShow?.originalLanguage,
         )
     }
 

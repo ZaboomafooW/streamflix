@@ -329,9 +329,6 @@
     <string name="settings_frenchstream_use_new_interface_on">Attiva</string>
     <string name="settings_frenchstream_use_new_interface_off">Disattivata</string>
 
-    <string name="settings_server_voe_category">Impostazioni server</string>
-    <string name="settings_server_voe_title">Sottotitoli dei server disattivati di default</string>
-    <string name="settings_server_voe_summary">Se attivo, i sottotitoli dei server VOE, Vidnest e Vidzy non saranno abilitati in automatico se sono disponibili e hanno il valore default true</string>
 
 
     <string name="settings_category_interface_title">Impostazioni interfaccia</string>
@@ -503,4 +500,6 @@
     <string name="settings_refresh_cache_confirm">Aggiornare la cache?</string>
     <string name="settings_refresh_cache_message">Questo ricaricherà la cronologia visione e i dati dell\'app dal database.</string>
     <string name="settings_refresh_cache_success">Cache aggiornata con successo</string>
+    <string name="supabase_instructions_title">Istruzioni</string>
+    <string name="supabase_instructions_summary">Apri nel browser la guida dettagliata per configurare account e sincronizzazione Supabase</string>
 </resources>

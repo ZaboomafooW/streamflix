@@ -331,9 +331,6 @@
     <string name="settings_frenchstream_use_new_interface_on">Activé</string>
     <string name="settings_frenchstream_use_new_interface_off">Désactivé</string>
 
-    <string name="settings_server_voe_category">Paramètres des serveurs</string>
-    <string name="settings_server_voe_title">Désactiver les sous-titres automatiques des serveurs</string>
-    <string name="settings_server_voe_summary">Si activé, les sous-titres des serveurs VOE, Vidnest et Vidzy ne seront pas activés automatiquement même s\'ils sont disponibles et ont une valeur par défaut true</string>
 
     <string name="settings_category_interface_title">Paramètres d\'interface</string>
     <string name="settings_immersive_mode">Mode Immersif</string>
@@ -505,4 +502,6 @@
     <string name="settings_refresh_cache_confirm">Actualiser le cache ?</string>
     <string name="settings_refresh_cache_message">Cela rechargera l\'historique de visionnage et les données de l\'application depuis la base de données.</string>
     <string name="settings_refresh_cache_success">Cache actualisé avec succès</string>
+    <string name="supabase_instructions_title">Instructions</string>
+    <string name="supabase_instructions_summary">Ouvrir dans le navigateur le guide détaillé de configuration du compte et de la synchronisation Supabase</string>
 </resources>

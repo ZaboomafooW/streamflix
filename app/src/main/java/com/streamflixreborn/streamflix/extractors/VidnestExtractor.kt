@@ -2,7 +2,6 @@ package com.streamflixreborn.streamflix.extractors
 
 import com.tanasi.retrofit_jsoup.converter.JsoupConverterFactory
 import com.streamflixreborn.streamflix.models.Video
-import com.streamflixreborn.streamflix.utils.UserPreferences
 import org.jsoup.nodes.Document
 import retrofit2.Retrofit
 import retrofit2.http.GET
@@ -39,7 +38,7 @@ class VidnestExtractor : Extractor() {
                 file = file,
                 label = label,
                 initialDefault = default,
-                default = if (UserPreferences.serverAutoSubtitlesDisabled) false else default
+                default = default
             )
         }.toList()
     }
@@ -73,8 +72,7 @@ class VidnestExtractor : Extractor() {
 
         return Video(
             source = m3u8,
-            subtitles = subtitles,
-            useServerSubtitleSetting = true
+            subtitles = subtitles
         )
     }
 

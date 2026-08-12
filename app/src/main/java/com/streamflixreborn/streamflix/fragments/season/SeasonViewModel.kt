@@ -21,6 +21,7 @@ import kotlinx.coroutines.launch
 class SeasonViewModel(
     seasonId: String,
     private val tvShowId: String,
+    private val tvShowOriginalLanguage: String?,
     private val database: AppDatabase,
 ) : ViewModel() {
     var seasonNumber = 0
@@ -54,9 +55,12 @@ class SeasonViewModel(
                             ?.takeIf { !episode.isSame(it) }
                             ?.let { episode.copy().merge(it) }
                             ?: episode
-                    }.sortedBy { it.number }.onEach {
-                        it.tvShow = tvShow
-                        it.season = season
+                    }.sortedBy { it.number }.onEach { episode ->
+                        episode.tvShow = tvShow?.copy(
+                            originalLanguage = episode.tvShow?.originalLanguage
+                                ?: tvShowOriginalLanguage,
+                        ) ?: episode.tvShow
+                        episode.season = season
                     }
                 )
             }
@@ -93,7 +97,7 @@ class SeasonViewModel(
                     }
             }
 
-            val tvShow = TvShow(tvShowId)
+            val tvShow = TvShow(tvShowId, originalLanguage = tvShowOriginalLanguage)
             val season = Season(seasonId)
             episodes.forEach { episode ->
                 episode.tvShow = tvShow
@@ -102,7 +106,14 @@ class SeasonViewModel(
 
             database.episodeDao().insertAll(episodes)
 
-            EpisodeManager.addEpisodes(EpisodeManager.convertToVideoTypeEpisodes(episodes, database, seasonNumber))
+            EpisodeManager.addEpisodes(
+                EpisodeManager.convertToVideoTypeEpisodes(
+                    episodes,
+                    database,
+                    seasonNumber,
+                    tvShowOriginalLanguage,
+                )
+            )
             _state.emit(State.SuccessLoadingEpisodes(episodes))
         } catch (e: Exception) {
             Log.e("SeasonViewModel", "getSeasonEpisodes: ", e)

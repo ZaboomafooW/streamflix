@@ -158,12 +158,6 @@ object UserPreferences {
             Key.AUTOPLAY_BUFFER.setLong(value)
         }
 
-    var serverAutoSubtitlesDisabled: Boolean
-        get() = Key.SERVER_AUTO_SUBTITLES_DISABLED.getBoolean() ?: true
-        set(value) {
-            Key.SERVER_AUTO_SUBTITLES_DISABLED.setBoolean(value)
-        }
-
     var selectedTheme: String
         get() = Key.SELECTED_THEME.getString() ?: "default"
         set(value) = Key.SELECTED_THEME.setString(value)
@@ -337,9 +331,6 @@ object UserPreferences {
             Key.QUALITY_HEIGHT.setInt(value)
         }
 
-    var subtitleName: String?
-        get() = Key.SUBTITLE_NAME.getString()
-        set(value) = Key.SUBTITLE_NAME.setString(value)
     var streamingcommunityDomain: String
         get() {
             if (!::prefs.isInitialized) {
@@ -538,7 +529,6 @@ object UserPreferences {
         SCREEN_PADDING_X,
         SCREEN_PADDING_Y,
         QUALITY_HEIGHT,
-        SUBTITLE_NAME,
         SERIENSTREAM_DOMAIN,
         MOFLIX_DOMAIN,
         STREAMINGCOMMUNITY_DOMAIN,
@@ -554,7 +544,6 @@ object UserPreferences {
         SUBDL_API_KEY,
         FORCE_EXTRA_BUFFERING,
         AUTOPLAY_BUFFER,
-        SERVER_AUTO_SUBTITLES_DISABLED,
         ENABLE_TMDB,
         PARENTAL_CONTROL_PIN,
         PARENTAL_CONTROL_ADMIN_PIN,

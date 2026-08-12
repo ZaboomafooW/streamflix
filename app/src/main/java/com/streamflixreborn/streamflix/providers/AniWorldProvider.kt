@@ -313,6 +313,7 @@ object AniWorldProvider : Provider {
             trailer = tmdbTvShow?.trailer ?: tvShow.trailer,
             banner = tmdbTvShow?.banner ?: tvShow.banner,
             imdbId = tmdbTvShow?.imdbId,
+            originalLanguage = tmdbTvShow?.originalLanguage,
             seasons = tvShow.seasons.map { season ->
                 season.copy(
                     poster = tmdbTvShow?.seasons?.find { it.number == season.number }?.poster
