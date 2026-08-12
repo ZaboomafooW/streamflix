@@ -14,6 +14,9 @@ import java.io.File
 import java.io.FileInputStream
 import java.io.FileOutputStream
 import java.net.URL
+import java.net.URLEncoder
+import java.nio.charset.StandardCharsets
+import java.util.Locale
 import java.util.zip.GZIPInputStream
 
 object OpenSubtitles {
@@ -25,8 +28,12 @@ object OpenSubtitles {
     suspend fun download(
         subtitle: Subtitle,
     ): Uri = withContext(Dispatchers.IO) {
+        if (subtitle.subDownloadLink.isBlank()) {
+            throw IllegalArgumentException("OpenSubtitles download link is missing")
+        }
+
         val zip = File.createTempFile(
-            "${File(subtitle.subFileName).nameWithoutExtension}-",
+            "${File(subtitle.subFileName ?: "subtitle").nameWithoutExtension}-",
             ".${File(subtitle.subDownloadLink).extension}"
         )
 
@@ -34,7 +41,10 @@ object OpenSubtitles {
             FileOutputStream(zip).use { output -> input.copyTo(output) }
         }
 
-        val subtitleFile = File("${zip.parent}${File.separator}${subtitle.subFileName}")
+        val subtitleFileName = subtitle.subFileName
+            ?.takeIf { it.isNotBlank() }
+            ?: throw IllegalArgumentException("OpenSubtitles file name is missing")
+        val subtitleFile = File("${zip.parent}${File.separator}${File(subtitleFileName).name}")
 
         if (subtitleFile.exists()) {
             subtitleFile.delete()
@@ -42,7 +52,6 @@ object OpenSubtitles {
 
         FileInputStream(zip).use { fileInputStream ->
             GZIPInputStream(fileInputStream).use { gzipInputStream ->
-                // Writing to file using source charset and UTF_8 output
                 val sourceCharset = getCharsetFromEncoding(subtitle.subEncoding)
                 val reader = gzipInputStream.bufferedReader(sourceCharset)
                 subtitleFile.writer(Charsets.UTF_8).use { writer ->
@@ -52,7 +61,6 @@ object OpenSubtitles {
         }
 
         zip.delete()
-
         subtitleFile.toUri()
     }
 
@@ -63,42 +71,66 @@ object OpenSubtitles {
         episode: Int? = null,
         subLanguageId: String? = null,
     ): List<Subtitle> {
-        val params = mapOf(
-            Params.Key.EPISODE to episode?.toString(),
-            Params.Key.QUERY to query?.lowercase(),
-            Params.Key.SEASON to season?.toString(),
-            Params.Key.IMDB_ID to imdbId,
-            Params.Key.SUB_LANGUAGE_ID to subLanguageId,
-        )
+        val params = listOfNotNull(
+            episode?.let { Params.Key.EPISODE to it.toString() },
+            normalizeImdbId(imdbId)?.let { Params.Key.IMDB_ID to it },
+            query
+                ?.trim()
+                ?.takeIf { it.isNotBlank() }
+                ?.lowercase(Locale.ROOT)
+                ?.let(::encodePathValue)
+                ?.let { Params.Key.QUERY to it },
+            season?.let { Params.Key.SEASON to it.toString() },
+            subLanguageId
+                ?.trim()
+                ?.takeIf { it.isNotBlank() }
+                ?.lowercase(Locale.ROOT)
+                ?.let { Params.Key.SUB_LANGUAGE_ID to it },
+        ).sortedBy { it.first }
+
+        if (params.isEmpty()) return emptyList()
+
         return service.search(
-            params = params
-                .filterNotNullValues()
-                .map { "${it.key}-${it.value}" }
-                .joinToString("/")
+            params = params.joinToString("/") { (key, value) -> "$key-$value" }
         )
     }
 
-    // Function to get charset from opensubtitles metadata
+    internal fun normalizeImdbId(imdbId: String?): String? {
+        val digits = imdbId
+            ?.trim()
+            ?.removePrefix("tt")
+            ?.removePrefix("TT")
+            ?.takeIf { it.isNotBlank() && it.all(Char::isDigit) }
+            ?: return null
+
+        return digits.toLongOrNull()
+            ?.toString()
+            ?.padStart(7, '0')
+    }
+
+    private fun encodePathValue(value: String): String =
+        URLEncoder.encode(value, StandardCharsets.UTF_8.name())
+            .replace("+", "%20")
+
     private fun getCharsetFromEncoding(encoding: String?): java.nio.charset.Charset {
-        if (encoding.isNullOrBlank()) return Charsets.UTF_8 // Default fallback
+        if (encoding.isNullOrBlank()) return Charsets.UTF_8
 
         return try {
             when (encoding.uppercase()) {
-                "CP1256", "WINDOWS-1256" -> java.nio.charset.Charset.forName("Windows-1256") // Arabic
-                "CP1251", "WINDOWS-1251" -> java.nio.charset.Charset.forName("Windows-1251") // Cyrillic / Russian
-                "CP1252", "WINDOWS-1252", "ISO-8859-1" -> java.nio.charset.Charset.forName("Windows-1252") // Western European
-                "CP1254", "WINDOWS-1254" -> java.nio.charset.Charset.forName("Windows-1254") // Turkish
-                "CP1253", "WINDOWS-1253" -> java.nio.charset.Charset.forName("Windows-1253") // Greek
+                "CP1256", "WINDOWS-1256" -> java.nio.charset.Charset.forName("Windows-1256")
+                "CP1251", "WINDOWS-1251" -> java.nio.charset.Charset.forName("Windows-1251")
+                "CP1252", "WINDOWS-1252", "ISO-8859-1" -> java.nio.charset.Charset.forName("Windows-1252")
+                "CP1254", "WINDOWS-1254" -> java.nio.charset.Charset.forName("Windows-1254")
+                "CP1253", "WINDOWS-1253" -> java.nio.charset.Charset.forName("Windows-1253")
                 "UTF-8" -> Charsets.UTF_8
-                else -> java.nio.charset.Charset.forName(encoding) // Try loading dynamically
+                else -> java.nio.charset.Charset.forName(encoding)
             }
-        } catch (e: Exception) {
-            Charsets.UTF_8 // Fallback to UTF-8 if the charset name is unresolvable
+        } catch (_: Exception) {
+            Charsets.UTF_8
         }
     }
 
     object Params {
-
         object Key {
             const val IMDB_ID = "imdbid"
             const val QUERY = "query"
@@ -107,7 +139,6 @@ object OpenSubtitles {
             const val SUB_LANGUAGE_ID = "sublanguageid"
         }
     }
-
 
     private interface Service {
 
@@ -122,16 +153,14 @@ object OpenSubtitles {
                     }
                     .build()
 
-                val retrofit = Retrofit.Builder()
+                return Retrofit.Builder()
                     .baseUrl(URL)
                     .client(client)
                     .addConverterFactory(GsonConverterFactory.create())
                     .build()
-
-                return retrofit.create(Service::class.java)
+                    .create(Service::class.java)
             }
         }
-
 
         @GET("search/{params}")
         suspend fun search(
@@ -197,5 +226,29 @@ object OpenSubtitles {
         @SerializedName("SubtitlesLink") val subtitlesLink: String? = null,
         @SerializedName("QueryNumber") val queryNumber: String? = null,
         @SerializedName("Score") val score: Double? = null
-    )
+    ) {
+        val isForced: Boolean
+            get() = subForeignPartsOnly?.trim() == "1"
+
+        val languageTag: String?
+            get() = SubtitleLanguage.normalize(iso639 ?: subLanguageID)
+
+        val displayLanguage: String
+            get() = SubtitleLanguage.displayName(
+                language = iso639 ?: subLanguageID,
+                explicitName = languageName,
+            )
+
+        val displayLabel: String
+            get() = if (isForced) "$displayLanguage (Forced)" else displayLanguage
+
+        val displayRelease: String
+            get() = movieReleaseName
+                ?.trim()
+                ?.takeIf { it.isNotBlank() }
+                ?: subFileName
+                    ?.trim()
+                    ?.takeIf { it.isNotBlank() }
+                ?: "OpenSubtitles"
+    }
 }

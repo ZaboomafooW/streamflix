@@ -11,7 +11,9 @@ import com.streamflixreborn.streamflix.utils.PlaybackLanguageContext
 import com.streamflixreborn.streamflix.utils.PlaybackTrackPreferences
 import com.streamflixreborn.streamflix.utils.SubDL
 import com.streamflixreborn.streamflix.utils.UserPreferences
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.Job
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableSharedFlow
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -31,6 +33,8 @@ class PlayerViewModel(
 
     private val _playPreviousOrNextEpisode = MutableSharedFlow<Video.Type.Episode>()
     val playPreviousOrNextEpisode: SharedFlow<Video.Type.Episode> = _playPreviousOrNextEpisode
+
+    private var subtitleSearchJob: Job? = null
 
     init {
         startPlayback(videoType, id)
@@ -149,59 +153,100 @@ class PlayerViewModel(
         }
     }
 
-    fun getSubtitles(videoType: Video.Type) = viewModelScope.launch(Dispatchers.IO) {
-        Log.d("PlayerViewModel", "Inizio ricerca sottotitoli")
-        _subtitleState.emit(SubtitleState.Loading)
+    fun getSubtitles(videoType: Video.Type) {
+        subtitleSearchJob?.cancel()
+        subtitleSearchJob = viewModelScope.launch(Dispatchers.IO) {
+            Log.d("PlayerViewModel", "Inizio ricerca sottotitoli")
+            _subtitleState.emit(SubtitleState.Loading)
 
-        launch {
-            try {
-                Log.d("PlayerViewModel", "Inizio ricerca OpenSubtitles")
-                val subtitles = when (videoType) {
-                    is Video.Type.Episode -> {
-                        OpenSubtitles.search(
-                            query = videoType.tvShow.title,
-                            season = videoType.season.number,
-                            episode = videoType.number,
-                        )
-                    }
-                    is Video.Type.Movie -> {
-                        OpenSubtitles.search(query = videoType.title)
-                    }
-                }.sortedWith(compareBy({ it.languageName }, { it.subDownloadsCnt }))
-
-                Log.d("PlayerViewModel", "Ricerca OpenSubtitles completata: ${subtitles.size} risultati")
-                _subtitleState.emit(SubtitleState.SuccessOpenSubtitles(subtitles))
-            } catch (e: Exception) {
-                Log.e("PlayerViewModel", "Errore OpenSubtitles: ", e)
-                _subtitleState.emit(SubtitleState.FailedOpenSubtitles(e))
+            val rawImdbId = when (videoType) {
+                is Video.Type.Movie -> videoType.imdbId
+                is Video.Type.Episode -> videoType.tvShow.imdbId
             }
-        }
+            val imdbId = rawImdbId.takeIf { OpenSubtitles.normalizeImdbId(it) != null }
+            val title = when (videoType) {
+                is Video.Type.Movie -> videoType.title
+                is Video.Type.Episode -> videoType.tvShow.title
+            }
+            val releaseYear = when (videoType) {
+                is Video.Type.Movie -> videoType.releaseDate
+                is Video.Type.Episode -> videoType.tvShow.releaseDate
+            }?.take(4)?.toIntOrNull()
 
-        launch {
-            try {
-                Log.d("PlayerViewModel", "Inizio ricerca SubDL")
-                val subtitles = when (videoType) {
-                    is Video.Type.Episode -> {
-                        SubDL.search(
-                            filmName = videoType.tvShow.title,
-                            seasonNumber = videoType.season.number,
-                            episodeNumber = videoType.number,
-                            type = "tv"
-                        )
-                    }
-                    is Video.Type.Movie -> {
-                        SubDL.search(
-                            filmName = videoType.title,
-                            type = "movie"
-                        )
-                    }
+            launch {
+                try {
+                    Log.d("PlayerViewModel", "Inizio ricerca OpenSubtitles")
+                    val subtitles = when (videoType) {
+                        is Video.Type.Episode -> {
+                            OpenSubtitles.search(
+                                imdbId = imdbId,
+                                query = title.takeIf { imdbId == null },
+                                season = videoType.season.number,
+                                episode = videoType.number,
+                            )
+                        }
+                        is Video.Type.Movie -> {
+                            OpenSubtitles.search(
+                                imdbId = imdbId,
+                                query = title.takeIf { imdbId == null },
+                            )
+                        }
+                    }.sortedWith(
+                        compareBy<OpenSubtitles.Subtitle> { it.displayLanguage }
+                            .thenByDescending { it.score ?: 0.0 }
+                            .thenBy { it.displayRelease }
+                    )
+
+                    Log.d("PlayerViewModel", "Ricerca OpenSubtitles completata: ${subtitles.size} risultati")
+                    _subtitleState.emit(SubtitleState.SuccessOpenSubtitles(subtitles))
+                } catch (e: CancellationException) {
+                    throw e
+                } catch (e: Exception) {
+                    Log.e("PlayerViewModel", "Errore OpenSubtitles: ", e)
+                    _subtitleState.emit(SubtitleState.FailedOpenSubtitles(e))
+                }
+            }
+
+            launch {
+                if (UserPreferences.subdlApiKey.isEmpty()) {
+                    _subtitleState.emit(SubtitleState.SuccessSubDLSubtitles(emptyList()))
+                    return@launch
                 }
 
-                Log.d("PlayerViewModel", "Ricerca SubDL completata: ${subtitles.size} risultati")
-                _subtitleState.emit(SubtitleState.SuccessSubDLSubtitles(subtitles))
-            } catch (e: Exception) {
-                Log.e("PlayerViewModel", "Errore SubDL: ", e)
-                _subtitleState.emit(SubtitleState.FailedSubDLSubtitles(e))
+                try {
+                    Log.d("PlayerViewModel", "Inizio ricerca SubDL")
+                    val subtitles = when (videoType) {
+                        is Video.Type.Episode -> {
+                            SubDL.search(
+                                imdbId = imdbId,
+                                filmName = title.takeIf { imdbId == null },
+                                seasonNumber = videoType.season.number,
+                                episodeNumber = videoType.number,
+                                type = "tv",
+                                year = releaseYear,
+                            )
+                        }
+                        is Video.Type.Movie -> {
+                            SubDL.search(
+                                imdbId = imdbId,
+                                filmName = title.takeIf { imdbId == null },
+                                type = "movie",
+                                year = releaseYear,
+                            )
+                        }
+                    }.sortedWith(
+                        compareBy<SubDL.Subtitle> { it.displayLanguage }
+                            .thenBy { it.displayRelease }
+                    )
+
+                    Log.d("PlayerViewModel", "Ricerca SubDL completata: ${subtitles.size} risultati")
+                    _subtitleState.emit(SubtitleState.SuccessSubDLSubtitles(subtitles))
+                } catch (e: CancellationException) {
+                    throw e
+                } catch (e: Exception) {
+                    Log.e("PlayerViewModel", "Errore SubDL: ", e)
+                    _subtitleState.emit(SubtitleState.FailedSubDLSubtitles(e))
+                }
             }
         }
     }
@@ -255,8 +300,10 @@ class PlayerViewModel(
         data class SuccessDownloadingSubDLSubtitle(val subtitle: SubDL.Subtitle, val uri: Uri) : SubtitleState()
         data class FailedDownloadingSubDLSubtitle(val error: Exception, val subtitle: SubDL.Subtitle) : SubtitleState()
     }
+
     private var lastVideoType: Video.Type? = null
     private var lastId: String? = null
+
     fun reloadServersAfterBypass() {
         val type = lastVideoType ?: return
         val id = lastId ?: return
