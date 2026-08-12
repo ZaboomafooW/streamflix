@@ -113,7 +113,7 @@ class CloseloadExtractor : Extractor() {
                 accumulatorStart = accumulatorStart,
                 accumulatorStep = accumulatorStep,
             )
-        }.getOrNull()?.takeIf(::isPotentialStaticUrl)
+        }.getOrNull()?.takeIf(::isHttpUrl)
     }
 
     private enum class DecoderOperationType {
@@ -340,7 +340,7 @@ class CloseloadExtractor : Extractor() {
         subtitles: List<Video.Subtitle>,
     ): Video? {
         if (isPlayableMediaUrl(source)) return video(source, link, subtitles)
-        if (!source.contains("master.txt", ignoreCase = true)) return null
+        if (!isHttpUrl(source)) return null
 
         val origin = link.toHttpUrlOrNull()?.let { "${it.scheme}://${it.host}" }
             ?: mainUrl.trimEnd('/')
@@ -516,6 +516,8 @@ class CloseloadExtractor : Extractor() {
         val path = lower.substringBefore('?').substringBefore('#')
         return path.endsWith(".m3u8") || path.endsWith(".mp4")
     }
+
+    private fun isHttpUrl(value: String): Boolean = value.trim().toHttpUrlOrNull() != null
 
     private fun isPotentialStaticUrl(value: String): Boolean {
         val lower = value.trim().lowercase(Locale.ROOT)
