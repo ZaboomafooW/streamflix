@@ -115,10 +115,17 @@ class RidooExtractor : Extractor() {
         }
     }
 
-    private enum class DecoderOperation {
+    private enum class DecoderOperationType {
         BASE64_DECODE,
         REVERSE,
+        CAESAR_SHIFT,
     }
+
+    private data class DecoderOperation(
+        val position: Int,
+        val type: DecoderOperationType,
+        val shift: Int = 0,
+    )
 
     private data class RapidrameDecoder(
         val operations: List<DecoderOperation>,
@@ -127,20 +134,22 @@ class RidooExtractor : Extractor() {
         val modulus: Int,
     ) {
         fun decode(encoded: String): String {
-            var result = encoded.toByteArray(Charsets.ISO_8859_1)
+            var result = encoded
             operations.forEach { operation ->
-                result = when (operation) {
-                    DecoderOperation.BASE64_DECODE -> Base64.decode(
-                        String(result, Charsets.ISO_8859_1),
-                        Base64.DEFAULT,
+                result = when (operation.type) {
+                    DecoderOperationType.BASE64_DECODE -> String(
+                        Base64.decode(result, Base64.DEFAULT),
+                        Charsets.ISO_8859_1,
                     )
-                    DecoderOperation.REVERSE -> result.reversedArray()
+                    DecoderOperationType.REVERSE -> result.reversed()
+                    DecoderOperationType.CAESAR_SHIFT -> caesarShift(result, operation.shift)
                 }
             }
 
+            val decoded = result.toByteArray(Charsets.ISO_8859_1)
             var accumulator = accumulatorStart
-            val plain = ByteArray(result.size)
-            result.forEachIndexed { index, byte ->
+            val plain = ByteArray(decoded.size)
+            decoded.forEachIndexed { index, byte ->
                 val encodedByte = byte.toInt() and 0xFF
                 accumulator = (accumulator + accumulatorStep) % modulus
                 plain[index] = (encodedByte xor accumulator).toByte()
@@ -187,36 +196,80 @@ class RidooExtractor : Extractor() {
         ) return null
 
         val transformSource = functionBody.substring(0, byteMatch.range.first)
-        val assignments = Regex(
-            """\b${Regex.escape(resultVariable)}\s*=\s*([^;]+);""",
-        ).findAll(transformSource)
-        val simpleIdentifier = Regex("""[A-Za-z_$][\w$]*""")
-        val base64 = Regex(
-            """atob\s*\(\s*${Regex.escape(resultVariable)}\s*\)""",
-        )
-        val reverse = Regex(
-            """${Regex.escape(resultVariable)}\.split\(\s*['"]\s*['"]\s*\)\s*\.reverse\(\s*\)\s*\.join\(\s*['"]\s*['"]\s*\)""",
-        )
-        var sawInitialization = false
-        val operations = mutableListOf<DecoderOperation>()
+        val operations = parseDecoderOperations(transformSource, resultVariable) ?: return null
+        val initialization = Regex(
+            """\b(?:var|let|const)\s+${Regex.escape(resultVariable)}\s*=\s*[A-Za-z_$][\w$]*\s*;""",
+        ).findAll(transformSource).count()
+        val assignmentCount = Regex(
+            """\b${Regex.escape(resultVariable)}\s*=""",
+        ).findAll(transformSource).count()
+        if (initialization != 1 || assignmentCount != operations.size + 1) return null
 
-        assignments.forEach { assignment ->
-            val expression = assignment.groupValues[1].trim()
-            when {
-                base64.matches(expression) -> operations += DecoderOperation.BASE64_DECODE
-                reverse.matches(expression) -> operations += DecoderOperation.REVERSE
-                !sawInitialization && simpleIdentifier.matches(expression) -> sawInitialization = true
-                else -> return null
-            }
-        }
-
-        if (operations.none { it == DecoderOperation.BASE64_DECODE }) return null
         return RapidrameDecoder(
             operations = operations,
             accumulatorStart = accumulatorStart,
             accumulatorStep = accumulatorStep,
             modulus = modulus,
         )
+    }
+
+    private fun parseDecoderOperations(
+        source: String,
+        resultVariable: String,
+    ): List<DecoderOperation>? {
+        val escapedResult = Regex.escape(resultVariable)
+        val operations = mutableListOf<DecoderOperation>()
+
+        Regex(
+            """\b$escapedResult\s*=\s*atob\s*\(\s*$escapedResult\s*\)\s*;?""",
+        ).findAll(source).forEach { match ->
+            operations += DecoderOperation(
+                position = match.range.first,
+                type = DecoderOperationType.BASE64_DECODE,
+            )
+        }
+
+        Regex(
+            """\b$escapedResult\s*=\s*$escapedResult\.split\(\s*['"]\s*['"]\s*\)\s*\.reverse\(\s*\)\s*\.join\(\s*['"]\s*['"]\s*\)\s*;?""",
+        ).findAll(source).forEach { match ->
+            operations += DecoderOperation(
+                position = match.range.first,
+                type = DecoderOperationType.REVERSE,
+            )
+        }
+
+        val replaceRegex = Regex(
+            """\b$escapedResult\s*=\s*$escapedResult\.replace\s*\(/\[a-zA-Z]/g\s*,\s*function\s*\(\s*([A-Za-z_$][\w$]*)\s*\)\s*\{.*?\}\s*\)\s*;?""",
+            RegexOption.DOT_MATCHES_ALL,
+        )
+        replaceRegex.findAll(source).forEach { match ->
+            val characterVariable = match.groupValues[1]
+            val ordinalVariable = Regex(
+                """\b(?:var|let|const)\s+([A-Za-z_$][\w$]*)\s*=\s*${Regex.escape(characterVariable)}\.charCodeAt\s*\(\s*0\s*\)""",
+            ).find(match.value)?.groupValues?.getOrNull(1)
+                ?: return null
+            val baseVariable = Regex(
+                """(?:,|\b(?:var|let|const))\s*([A-Za-z_$][\w$]*)\s*=\s*\(\s*${Regex.escape(ordinalVariable)}\s*<=\s*90\s*\)\s*\?\s*65\s*:\s*97""",
+            ).find(match.value)?.groupValues?.getOrNull(1)
+                ?: return null
+            val shift = Regex(
+                """\(\s*${Regex.escape(ordinalVariable)}\s*-\s*${Regex.escape(baseVariable)}\s*\+\s*(\d+)\s*\)\s*%\s*26\s*\+\s*${Regex.escape(baseVariable)}""",
+            ).find(match.value)?.groupValues?.getOrNull(1)?.toIntOrNull()
+                ?: return null
+            if (!Regex(
+                    """String\.fromCharCode\s*\(""",
+                ).containsMatchIn(match.value)
+            ) return null
+
+            operations += DecoderOperation(
+                position = match.range.first,
+                type = DecoderOperationType.CAESAR_SHIFT,
+                shift = shift,
+            )
+        }
+
+        if (operations.none { it.type == DecoderOperationType.BASE64_DECODE }) return null
+        return operations.sortedBy { it.position }
     }
 
     private fun extractFunctionBody(source: String, functionName: String): String? {
@@ -288,6 +341,14 @@ class RidooExtractor : Extractor() {
         }
         return null
     }
+
+    private fun caesarShift(value: String, shift: Int): String = value.map { char ->
+        when (char) {
+            in 'A'..'Z' -> 'A' + (char - 'A' + shift) % 26
+            in 'a'..'z' -> 'a' + (char - 'a' + shift) % 26
+            else -> char
+        }
+    }.joinToString("")
 
     private fun parseCaptions(
         document: Document,
