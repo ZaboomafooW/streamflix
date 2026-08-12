@@ -52,8 +52,6 @@ data class Content(
     val firstAirDate: String? = null,
     @SerializedName("episode_time")
     val episodeTime: Int? = null,
-    @SerializedName("isTVShow")
-    val isTvShow: Boolean? = null,
     val genres: List<Tag> = emptyList(),
 )
 
@@ -63,19 +61,10 @@ data class Tag(
 )
 
 data class Season(
-    @SerializedName("_id")
-    val id: String,
-    val slug: String,
     val name: String? = null,
-    @SerializedName("name_es")
-    val nameEs: String? = null,
     val poster: String? = null,
     @SerializedName("poster_path")
     val posterPath: String? = null,
-    @SerializedName("serie_id")
-    val serieId: String? = null,
-    @SerializedName("serie_slug")
-    val serieSlug: String? = null,
     @SerializedName("season_number")
     val seasonNumber: Int,
 )
@@ -87,12 +76,8 @@ data class Episode(
     @SerializedName("name_es")
     val nameEs: String? = null,
     val slug: String,
-    @SerializedName("serie_id")
-    val serieId: String? = null,
     @SerializedName("episode_number")
     val episodeNumber: Int? = null,
-    @SerializedName("season_number")
-    val seasonNumber: Int? = null,
     @SerializedName("still_path")
     val stillPath: String? = null,
     @SerializedName("still_image")

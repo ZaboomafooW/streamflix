@@ -296,7 +296,6 @@ object DoramasflixProvider : Provider {
                     backdrop
                     episode_time
                     rating
-                    isTVShow
                     genres {
                       name
                       slug
@@ -316,14 +315,9 @@ object DoramasflixProvider : Provider {
             query = """
                 query listSeasons(${'$'}slug: String!) {
                   listSeasons(sort: NUMBER_ASC, filter: {serie_slug: ${'$'}slug}) {
-                    _id
-                    slug
                     name
-                    name_es
                     poster
                     poster_path
-                    serie_id
-                    serie_slug
                     season_number
                   }
                 }
@@ -350,9 +344,7 @@ object DoramasflixProvider : Provider {
                     name
                     name_es
                     slug
-                    serie_id
                     episode_number
-                    season_number
                     still_path
                     still_image
                     serie_backdrop_path
@@ -819,16 +811,16 @@ object DoramasflixProvider : Provider {
         Extractor.extract(server.id, server)
 
     override suspend fun getGenre(id: String, page: Int): Genre {
-        val shows: List<Show> = when (id) {
-            "doramas" -> getTvShows(page)
-            "peliculas" -> getMovies(page)
-            "variedades" -> getDoramaPage(page, isTvShow = true)
+        val (categoryName, shows) = when (id) {
+            "doramas" -> "Doramas" to getTvShows(page)
+            "peliculas" -> "Películas" to getMovies(page)
+            "variedades" -> "Variedades" to getDoramaPage(page, isTvShow = true)
             else -> throw Exception("Unknown Doramasflix category: $id")
         }
 
         return Genre(
             id = id,
-            name = id.replaceFirstChar { it.uppercase() },
+            name = categoryName,
             shows = shows,
         )
     }
