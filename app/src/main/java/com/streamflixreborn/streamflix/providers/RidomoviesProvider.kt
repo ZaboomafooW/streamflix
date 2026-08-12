@@ -56,6 +56,8 @@ object RidomoviesProvider : Provider {
     private val mediaPath = Regex("""/(movie|tv)/([^/?#]+)""", RegexOption.IGNORE_CASE)
     private val episodePath =
         Regex("""/tv/([^/?#]+)/season-(\d+)/episode-(\d+)""", RegexOption.IGNORE_CASE)
+    private val posterAssetSuffix =
+        Regex("""-poster-(?:list|detail|search)\.webp$""", RegexOption.IGNORE_CASE)
     private val yearRegex = Regex("""\b(?:19|20)\d{2}\b""")
     private val clearanceMutex = Mutex()
     private val tmdbIds = ConcurrentHashMap<String, Int>()
@@ -176,7 +178,8 @@ object RidomoviesProvider : Provider {
         val metadata = metadata(document("${URL}movie/$slug"), "Movie")
         if (metadata.title.isBlank()) throw Exception("Ridomovies movie details could not be loaded.")
 
-        val needsTmdb = cachedArtwork("movie", slug, "banner") == null ||
+        val ridoBanner = ridoBackdrop(metadata.poster)
+        val needsTmdb = (ridoBanner == null && cachedArtwork("movie", slug, "banner") == null) ||
             metadata.poster == null && cachedArtwork("movie", slug, "poster") == null
         val tmdbMovie = if (needsTmdb && shouldLookupTmdb("movie", slug, "details")) {
             ridoTmdbId("movie", slug, metadata.title)?.let { tmdbId ->
@@ -196,7 +199,7 @@ object RidomoviesProvider : Provider {
             runtime = metadata.runtime,
             rating = metadata.rating,
             poster = metadata.poster ?: cachedArtwork("movie", slug, "poster"),
-            banner = cachedArtwork("movie", slug, "banner"),
+            banner = ridoBanner ?: cachedArtwork("movie", slug, "banner"),
             imdbId = metadata.imdbId ?: tmdbMovie?.imdbId,
             genres = metadata.genres,
         )
@@ -209,7 +212,8 @@ object RidomoviesProvider : Provider {
         if (metadata.title.isBlank()) throw Exception("Ridomovies TV details could not be loaded.")
 
         val seasons = seasonNumbers(doc)
-        val needsTmdb = cachedArtwork("tv", slug, "banner") == null ||
+        val ridoBanner = ridoBackdrop(metadata.poster)
+        val needsTmdb = (ridoBanner == null && cachedArtwork("tv", slug, "banner") == null) ||
             metadata.poster == null && cachedArtwork("tv", slug, "poster") == null ||
             seasons.any { cachedSeasonPoster(slug, it) == null }
         val tmdbTvShow = if (needsTmdb && shouldLookupTmdb("tv", slug, "details")) {
@@ -233,7 +237,7 @@ object RidomoviesProvider : Provider {
             runtime = metadata.runtime,
             rating = metadata.rating,
             poster = metadata.poster ?: cachedArtwork("tv", slug, "poster"),
-            banner = cachedArtwork("tv", slug, "banner"),
+            banner = ridoBanner ?: cachedArtwork("tv", slug, "banner"),
             imdbId = metadata.imdbId ?: tmdbTvShow?.imdbId,
             seasons = seasons.map { number ->
                 Season(
@@ -522,7 +526,7 @@ object RidomoviesProvider : Provider {
                 quality = item.selectFirst(".movie-quality, .quality")?.text()?.trim(),
                 rating = item.selectFirst("[class*=rating]")?.text()?.let(::number),
                 poster = artwork.takeUnless { isHighlight },
-                banner = artwork.takeIf { isHighlight },
+                banner = artwork.takeIf { isHighlight } ?: ridoBackdrop(artwork),
                 overview = if (isHighlight) highlightOverview(item) else null,
             )
         }.distinctBy { "${it.movie}:${it.id}" }
@@ -565,6 +569,7 @@ object RidomoviesProvider : Provider {
         if (type !in setOf("movie", "tv")) return null
         val slug = row.string("slug") ?: row.string("slug_en") ?: return null
         val title = row.string("title") ?: row.string("original_title") ?: return null
+        val poster = asset(row.string("poster_path") ?: row.string("poster"))
         row.int("tmdb_id")?.let { rememberTmdbId(type, slug, it) }
         return Card(
             id = slug,
@@ -574,7 +579,8 @@ object RidomoviesProvider : Provider {
             runtime = row.int("duration") ?: row.int("runtime"),
             quality = row.string("quality"),
             rating = row.double("imdb_rating") ?: row.double("rating"),
-            poster = asset(row.string("poster_path") ?: row.string("poster")),
+            poster = poster,
+            banner = ridoBackdrop(poster),
             overview = row.string("overview") ?: row.string("description"),
         )
     }
@@ -601,27 +607,21 @@ object RidomoviesProvider : Provider {
 
     private fun item(card: Card): AppAdapter.Item = if (card.movie) movie(card) else tvShow(card)
 
-    private fun movie(card: Card): Movie {
-        card.banner?.let { rememberArtwork("movie", card.id, "banner", it) }
-        return Movie(
-            id = card.id, title = card.title, released = card.released,
-            runtime = card.runtime, quality = card.quality, rating = card.rating,
-            poster = card.poster ?: cachedArtwork("movie", card.id, "poster"),
-            banner = card.banner ?: cachedArtwork("movie", card.id, "banner") ?: card.poster,
-            overview = card.overview,
-        )
-    }
+    private fun movie(card: Card): Movie = Movie(
+        id = card.id, title = card.title, released = card.released,
+        runtime = card.runtime, quality = card.quality, rating = card.rating,
+        poster = card.poster ?: cachedArtwork("movie", card.id, "poster"),
+        banner = card.banner ?: cachedArtwork("movie", card.id, "banner"),
+        overview = card.overview,
+    )
 
-    private fun tvShow(card: Card): TvShow {
-        card.banner?.let { rememberArtwork("tv", card.id, "banner", it) }
-        return TvShow(
-            id = card.id, title = card.title, released = card.released,
-            runtime = card.runtime, quality = card.quality, rating = card.rating,
-            poster = card.poster ?: cachedArtwork("tv", card.id, "poster"),
-            banner = card.banner ?: cachedArtwork("tv", card.id, "banner") ?: card.poster,
-            overview = card.overview,
-        )
-    }
+    private fun tvShow(card: Card): TvShow = TvShow(
+        id = card.id, title = card.title, released = card.released,
+        runtime = card.runtime, quality = card.quality, rating = card.rating,
+        poster = card.poster ?: cachedArtwork("tv", card.id, "poster"),
+        banner = card.banner ?: cachedArtwork("tv", card.id, "banner"),
+        overview = card.overview,
+    )
 
     private fun metadata(doc: Document, wantedType: String): Metadata {
         val items = jsonLd(doc)
@@ -820,6 +820,18 @@ object RidomoviesProvider : Provider {
 
     private fun asset(value: String?): String? =
         value?.trim()?.takeIf(String::isNotBlank)?.let(::absolute)
+
+    private fun ridoBackdrop(value: String?): String? {
+        val artwork = value?.trim()?.takeIf(String::isNotBlank)?.let(::absolute)
+            ?.toHttpUrlOrNull() ?: return null
+        if (artwork.host != URL.toHttpUrl().host) return null
+        val backdropPath = artwork.encodedPath.replace(
+            posterAssetSuffix,
+            "-backdrop-player.webp",
+        )
+        if (backdropPath == artwork.encodedPath) return null
+        return artwork.newBuilder().encodedPath(backdropPath).build().toString()
+    }
 
     private fun slug(value: String): String {
         val raw = value.trim()
