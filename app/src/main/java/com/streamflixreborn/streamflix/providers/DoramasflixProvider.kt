@@ -281,71 +281,68 @@ object DoramasflixProvider : Provider {
         val episodes = getEpisodes(slug, seasonNumber)
         if (episodes.isEmpty()) return episodes
 
-        return runCatching {
-            val serieId = findDoramaBySlug(slug)?.id
-                ?: throw Exception("Doramasflix could not resolve the series ID for episode availability.")
-            val availabilityBySlug = linkedMapOf<String, Int?>()
-            var page = 1
+        val serieId = findDoramaBySlug(slug)?.id
+            ?: throw Exception("Doramasflix could not resolve the series ID for episode availability.")
+        val availabilityBySlug = linkedMapOf<String, Int?>()
+        var page = 1
 
-            while (availabilityBySlug.size < episodes.size) {
-                val response = apiRequest(
-                    operationName = "EpisodesPagination",
-                    variables = JSONObject()
-                        .put("page", page)
-                        .put("serie_id", serieId)
-                        .put("season_number", seasonNumber)
-                        .put("limit", EPISODE_AVAILABILITY_PAGE_SIZE)
-                        .put("sort", "NUMBER_ASC"),
-                    query = """
-                        query EpisodesPagination(
-                          ${'$'}page: Int!
-                          ${'$'}serie_id: ID!
-                          ${'$'}season_number: Int!
-                          ${'$'}limit: Int!
-                          ${'$'}sort: SortEpisode
-                        ) {
-                          paginationEpisode(
-                            page: ${'$'}page
-                            limit: ${'$'}limit
-                            sort: ${'$'}sort
-                            filter: {serie_id: ${'$'}serie_id, season_number: ${'$'}season_number}
-                          ) {
-                            items {
-                              _id
-                              name
-                              slug
-                              still_path
-                              episode_number
-                              count_links
-                            }
-                          }
+        while (availabilityBySlug.size < episodes.size) {
+            val response = apiRequest(
+                operationName = "EpisodesPagination",
+                variables = JSONObject()
+                    .put("page", page)
+                    .put("serie_id", serieId)
+                    .put("season_number", seasonNumber)
+                    .put("limit", EPISODE_AVAILABILITY_PAGE_SIZE)
+                    .put("sort", "NUMBER_ASC"),
+                query = """
+                    query EpisodesPagination(
+                      ${'$'}page: Int!
+                      ${'$'}serie_id: ID!
+                      ${'$'}season_number: Int!
+                      ${'$'}limit: Int!
+                      ${'$'}sort: SortEpisode
+                    ) {
+                      paginationEpisode(
+                        page: ${'$'}page
+                        limit: ${'$'}limit
+                        sort: ${'$'}sort
+                        filter: {serie_id: ${'$'}serie_id, season_number: ${'$'}season_number}
+                      ) {
+                        items {
+                          _id
+                          name
+                          slug
+                          still_path
+                          episode_number
+                          count_links
                         }
-                    """.trimIndent(),
-                )
-                val pageItems = response.data?.paginationEpisode?.items.orEmpty()
-                if (pageItems.isEmpty()) break
+                      }
+                    }
+                """.trimIndent(),
+            )
+            val pageItems = response.data?.paginationEpisode?.items.orEmpty()
+            if (pageItems.isEmpty()) break
 
-                val previousSize = availabilityBySlug.size
-                pageItems.forEach { episode ->
-                    availabilityBySlug[episode.slug] = episode.countLinks
-                }
-                if (availabilityBySlug.size == previousSize) break
-                page++
+            val previousSize = availabilityBySlug.size
+            pageItems.forEach { episode ->
+                availabilityBySlug[episode.slug] = episode.countLinks
             }
+            if (availabilityBySlug.size == previousSize) break
+            page++
+        }
 
-            if (availabilityBySlug.isEmpty()) {
-                throw Exception("Doramasflix episode availability returned no catalog entries.")
-            }
+        if (availabilityBySlug.isEmpty()) {
+            throw Exception("Doramasflix episode availability returned no catalog entries.")
+        }
 
-            episodes.filter { episode ->
-                if (!availabilityBySlug.containsKey(episode.slug)) {
-                    true
-                } else {
-                    (availabilityBySlug[episode.slug] ?: 0) > 0
-                }
-            }
-        }.getOrElse {
-            episodes
+        val missingEpisodes = episodes.filterNot { availabilityBySlug.containsKey(it.slug) }
+        if (missingEpisodes.isNotEmpty()) {
+            throw Exception("Doramasflix episode availability returned incomplete catalog data.")
+        }
+
+        return episodes.filter { episode ->
+            (availabilityBySlug[episode.slug] ?: 0) > 0
         }
     }
 
@@ -476,18 +473,20 @@ object DoramasflixProvider : Provider {
         val slug = slugFromId(id)
         val pageUrl = "$baseUrl/$path"
         return try {
-            val document = serviceHtml.getPage(pageUrl)
-            val pageTitle = document.selectFirst("h1")?.text()?.takeIf { it.isNotBlank() }
+            val document = runCatching { serviceHtml.getPage(pageUrl) }.getOrNull()
+            val pageTitle = document
+                ?.selectFirst("h1")
+                ?.text()
+                ?.takeIf { it.isNotBlank() }
             val apiMovie = findMovieBySlug(slug, pageTitle)
                 ?: throw Exception("No se pudo resolver la película en la API de Doramasflix.")
-            val title = pageTitle ?: titleFor(apiMovie)
-            val metadata = structuredMetadata(document, "Movie", pageUrl)
+            val metadata = document?.let { structuredMetadata(it, "Movie", pageUrl) }
 
             Movie(
                 id = movieId(slug),
-                title = title,
-                overview = metadata.description,
-                rating = metadata.rating,
+                title = pageTitle ?: titleFor(apiMovie),
+                overview = metadata?.description,
+                rating = metadata?.rating,
                 poster = getPosterUrl(apiMovie.posterPath ?: apiMovie.poster),
             )
         } catch (e: Exception) {
@@ -537,17 +536,13 @@ object DoramasflixProvider : Provider {
         val slug = seasonId.substringBeforeLast('/')
         val seasonNumber = seasonId.substringAfterLast('/').toIntOrNull() ?: return emptyList()
 
-        return try {
-            getAvailableEpisodes(slug, seasonNumber).map { episode ->
-                Episode(
-                    id = episode.slug,
-                    number = episode.episodeNumber ?: 0,
-                    title = "Episodio ${episode.episodeNumber ?: 0}: ${episode.name.orEmpty()}".trim(),
-                    poster = getPosterUrl(episode.stillPath),
-                )
-            }
-        } catch (_: Exception) {
-            emptyList()
+        return getAvailableEpisodes(slug, seasonNumber).map { episode ->
+            Episode(
+                id = episode.slug,
+                number = episode.episodeNumber ?: 0,
+                title = "Episodio ${episode.episodeNumber ?: 0}: ${episode.name.orEmpty()}".trim(),
+                poster = getPosterUrl(episode.stillPath),
+            )
         }
     }
 
