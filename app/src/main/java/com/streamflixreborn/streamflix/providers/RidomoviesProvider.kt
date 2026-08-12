@@ -605,7 +605,13 @@ object RidomoviesProvider : Provider {
         return row.int("tmdb_id")?.also { rememberTmdbId(type, slug, it) }
     }
 
-    private fun item(card: Card): AppAdapter.Item = if (card.movie) movie(card) else tvShow(card)
+    private fun item(card: Card): AppAdapter.Item =
+        (if (card.movie) movie(card) else tvShow(card)).also { item ->
+            when (item) {
+                is Movie -> item.providerName = name
+                is TvShow -> item.providerName = name
+            }
+        }
 
     private fun movie(card: Card): Movie = Movie(
         id = card.id, title = card.title, released = card.released,
