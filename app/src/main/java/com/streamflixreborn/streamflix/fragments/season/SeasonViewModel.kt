@@ -58,7 +58,8 @@ class SeasonViewModel(
                     }.sortedBy { it.number }.onEach { episode ->
                         episode.tvShow = tvShow?.copy(
                             originalLanguage = episode.tvShow?.originalLanguage
-                                ?: tvShowOriginalLanguage,
+                                ?: tvShowOriginalLanguage
+                                ?: tvShow.originalLanguage,
                         ) ?: episode.tvShow
                         episode.season = season
                     }

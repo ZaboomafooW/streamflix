@@ -39,7 +39,6 @@ class Movie(
     val recommendations: List<Show> = listOf(),
     override var isFavorite: Boolean = false,
 
-    @Ignore
     var originalLanguage: String? = null,
 ) : Show, WatchItem, AppAdapter.Item {
 

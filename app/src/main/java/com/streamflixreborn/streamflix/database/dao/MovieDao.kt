@@ -107,6 +107,7 @@ interface MovieDao {
                 cast = if (movie.cast.isNotEmpty()) movie.cast else existing.cast,
                 recommendations = if (movie.recommendations.isNotEmpty()) movie.recommendations else existing.recommendations,
                 isFavorite = favorite,
+                originalLanguage = movie.originalLanguage ?: existing.originalLanguage,
             )
             updated.favoritedAtMillis = if (favorite) System.currentTimeMillis() else null
             updated.isWatched = existing.isWatched
