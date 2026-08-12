@@ -358,6 +358,7 @@ object UserDataCache {
         val rating: Double? = null,
         val poster: String? = null,
         val banner: String? = null,
+        val originalLanguage: String? = null,
         val isFavorite: Boolean = false,
         val isWatched: Boolean = false,
         val favoritedAtMillis: Long? = null,
@@ -414,6 +415,7 @@ object UserDataCache {
         rating = rating,
         poster = poster,
         banner = banner,
+        originalLanguage = originalLanguage,
     ).apply {
         isFavorite = this@toMovie.isFavorite
         favoritedAtMillis = this@toMovie.favoritedAtMillis
@@ -487,6 +489,7 @@ object UserDataCache {
         rating = rating,
         poster = poster,
         banner = banner,
+        originalLanguage = originalLanguage,
         isFavorite = isFavorite,
         isWatched = isWatched,
         favoritedAtMillis = favoritedAtMillis,
