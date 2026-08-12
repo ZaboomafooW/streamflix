@@ -176,7 +176,6 @@ object RidomoviesProvider : Provider {
         val metadata = metadata(document("${URL}movie/$slug"), "Movie")
         if (metadata.title.isBlank()) throw Exception("Ridomovies movie details could not be loaded.")
 
-        metadata.poster?.let { rememberArtwork("movie", slug, "poster", it) }
         val needsTmdb = cachedArtwork("movie", slug, "banner") == null ||
             metadata.poster == null && cachedArtwork("movie", slug, "poster") == null
         val tmdbMovie = if (needsTmdb && shouldLookupTmdb("movie", slug, "details")) {
@@ -209,7 +208,6 @@ object RidomoviesProvider : Provider {
         val metadata = metadata(doc, "TVSeries")
         if (metadata.title.isBlank()) throw Exception("Ridomovies TV details could not be loaded.")
 
-        metadata.poster?.let { rememberArtwork("tv", slug, "poster", it) }
         val seasons = seasonNumbers(doc)
         val needsTmdb = cachedArtwork("tv", slug, "banner") == null ||
             metadata.poster == null && cachedArtwork("tv", slug, "poster") == null ||
@@ -452,7 +450,7 @@ object RidomoviesProvider : Provider {
     }
 
     private fun rememberTmdbId(type: String, slug: String, tmdbId: Int) {
-        if (tmdbId <= 0) return
+        if (tmdbId <= 0 || cachedTmdbId(type, slug) == tmdbId) return
         tmdbIds[tmdbMemoryKey(type, slug)] = tmdbId
         artworkCache.edit()
             .putInt("${cachePrefix(type, slug)}|tmdb-id", tmdbId)
@@ -465,6 +463,7 @@ object RidomoviesProvider : Provider {
 
     private fun rememberArtwork(type: String, slug: String, field: String, url: String?) {
         val value = url?.takeIf { it.isNotBlank() } ?: return
+        if (cachedArtwork(type, slug, field) == value) return
         artworkCache.edit()
             .putString("${cachePrefix(type, slug)}|$field", value)
             .apply()
@@ -603,7 +602,6 @@ object RidomoviesProvider : Provider {
     private fun item(card: Card): AppAdapter.Item = if (card.movie) movie(card) else tvShow(card)
 
     private fun movie(card: Card): Movie {
-        card.poster?.let { rememberArtwork("movie", card.id, "poster", it) }
         card.banner?.let { rememberArtwork("movie", card.id, "banner", it) }
         return Movie(
             id = card.id, title = card.title, released = card.released,
@@ -615,7 +613,6 @@ object RidomoviesProvider : Provider {
     }
 
     private fun tvShow(card: Card): TvShow {
-        card.poster?.let { rememberArtwork("tv", card.id, "poster", it) }
         card.banner?.let { rememberArtwork("tv", card.id, "banner", it) }
         return TvShow(
             id = card.id, title = card.title, released = card.released,
