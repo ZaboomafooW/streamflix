@@ -44,7 +44,6 @@ object SubDL {
         val zip = File.createTempFile(
             "subdl-${subtitle.releaseName ?: "subtitle"}-",
             ".zip",
-            StreamFlixApp.instance.cacheDir,
         )
         try {
             URL(downloadUrl).openStream().use { input ->
@@ -56,14 +55,9 @@ object SubDL {
                 var entry = zipInputStream.nextEntry
                 while (entry != null) {
                     if (!entry.isDirectory) {
-                        val name = File(entry.name).name
-                        val extension = File(name).extension.lowercase(Locale.ROOT)
+                        val extension = File(entry.name).extension.lowercase(Locale.ROOT)
                         if (extension in supportedSubtitleExtensions) {
-                            val output = File.createTempFile(
-                                "subdl-",
-                                ".$extension",
-                                StreamFlixApp.instance.cacheDir,
-                            )
+                            val output = File.createTempFile("subdl-", ".$extension")
                             FileOutputStream(output).use { fileOutputStream ->
                                 zipInputStream.copyTo(fileOutputStream)
                             }
@@ -100,11 +94,7 @@ object SubDL {
                 ?.takeIf { it in supportedSubtitleExtensions }
             ?: throw IllegalArgumentException("SubDL subtitle format is missing")
 
-        val file = File.createTempFile(
-            "subdl-",
-            ".$extension",
-            StreamFlixApp.instance.cacheDir,
-        )
+        val file = File.createTempFile("subdl-", ".$extension")
         URL(downloadUrl).openStream().use { input ->
             FileOutputStream(file).use { output -> input.copyTo(output) }
         }
@@ -133,6 +123,7 @@ object SubDL {
             type = type,
             year = year,
             subsPerPage = subsPerPage,
+            hi = 1,
             unpack = 1,
             client = "custom_integration",
         )
@@ -237,6 +228,7 @@ object SubDL {
             @Query("type") type: String? = null,
             @Query("year") year: Int? = null,
             @Query("subs_per_page") subsPerPage: Int? = null,
+            @Query("hi") hi: Int? = null,
             @Query("unpack") unpack: Int? = null,
             @Query("client") client: String? = null,
         ): SearchResponse

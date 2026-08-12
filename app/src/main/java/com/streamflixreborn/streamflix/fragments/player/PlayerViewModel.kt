@@ -35,6 +35,8 @@ class PlayerViewModel(
     val playPreviousOrNextEpisode: SharedFlow<Video.Type.Episode> = _playPreviousOrNextEpisode
 
     private var subtitleSearchJob: Job? = null
+    private var externalSubtitleDownloadJob: Job? = null
+    private var mediaGeneration = 0L
 
     init {
         startPlayback(videoType, id)
@@ -138,6 +140,8 @@ class PlayerViewModel(
 
     fun getVideo(server: Video.Server) = viewModelScope.launch(Dispatchers.IO) {
         Log.d("PlayerViewModel", "Inizio estrazione video dal server: ${server.name}")
+        mediaGeneration += 1
+        externalSubtitleDownloadJob?.cancel()
         _state.emit(State.LoadingVideo(server))
         try {
             val video = UserPreferences.currentProvider!!.getVideo(server)
@@ -251,29 +255,45 @@ class PlayerViewModel(
         }
     }
 
-    fun downloadSubtitle(subtitle: OpenSubtitles.Subtitle) = viewModelScope.launch(Dispatchers.IO) {
-        Log.d("PlayerViewModel", "Inizio download sottotitolo OpenSubtitles: ${subtitle.subFileName}")
-        _subtitleState.emit(SubtitleState.DownloadingOpenSubtitle)
-        try {
-            val uri = OpenSubtitles.download(subtitle)
-            Log.d("PlayerViewModel", "Download OpenSubtitles completato: $uri")
-            _subtitleState.emit(SubtitleState.SuccessDownloadingOpenSubtitle(subtitle, uri))
-        } catch (e: Exception) {
-            Log.e("PlayerViewModel", "Errore download OpenSubtitles: ", e)
-            _subtitleState.emit(SubtitleState.FailedDownloadingOpenSubtitle(e, subtitle))
+    fun downloadSubtitle(subtitle: OpenSubtitles.Subtitle) {
+        val generation = mediaGeneration
+        externalSubtitleDownloadJob?.cancel()
+        externalSubtitleDownloadJob = viewModelScope.launch(Dispatchers.IO) {
+            Log.d("PlayerViewModel", "Inizio download sottotitolo OpenSubtitles: ${subtitle.subFileName}")
+            _subtitleState.emit(SubtitleState.DownloadingOpenSubtitle)
+            try {
+                val uri = OpenSubtitles.download(subtitle)
+                if (generation != mediaGeneration) return@launch
+                Log.d("PlayerViewModel", "Download OpenSubtitles completato: $uri")
+                _subtitleState.emit(SubtitleState.SuccessDownloadingOpenSubtitle(subtitle, uri))
+            } catch (e: CancellationException) {
+                throw e
+            } catch (e: Exception) {
+                if (generation != mediaGeneration) return@launch
+                Log.e("PlayerViewModel", "Errore download OpenSubtitles: ", e)
+                _subtitleState.emit(SubtitleState.FailedDownloadingOpenSubtitle(e, subtitle))
+            }
         }
     }
 
-    fun downloadSubDLSubtitle(subtitle: SubDL.Subtitle) = viewModelScope.launch(Dispatchers.IO) {
-        Log.d("PlayerViewModel", "Inizio download sottotitolo SubDL: ${subtitle.name}")
-        _subtitleState.emit(SubtitleState.DownloadingSubDLSubtitle)
-        try {
-            val uri = SubDL.download(subtitle)
-            Log.d("PlayerViewModel", "Download SubDL completato: $uri")
-            _subtitleState.emit(SubtitleState.SuccessDownloadingSubDLSubtitle(subtitle, uri))
-        } catch (e: Exception) {
-            Log.e("PlayerViewModel", "Errore download SubDL: ", e)
-            _subtitleState.emit(SubtitleState.FailedDownloadingSubDLSubtitle(e, subtitle))
+    fun downloadSubDLSubtitle(subtitle: SubDL.Subtitle) {
+        val generation = mediaGeneration
+        externalSubtitleDownloadJob?.cancel()
+        externalSubtitleDownloadJob = viewModelScope.launch(Dispatchers.IO) {
+            Log.d("PlayerViewModel", "Inizio download sottotitolo SubDL: ${subtitle.name}")
+            _subtitleState.emit(SubtitleState.DownloadingSubDLSubtitle)
+            try {
+                val uri = SubDL.download(subtitle)
+                if (generation != mediaGeneration) return@launch
+                Log.d("PlayerViewModel", "Download SubDL completato: $uri")
+                _subtitleState.emit(SubtitleState.SuccessDownloadingSubDLSubtitle(subtitle, uri))
+            } catch (e: CancellationException) {
+                throw e
+            } catch (e: Exception) {
+                if (generation != mediaGeneration) return@launch
+                Log.e("PlayerViewModel", "Errore SubDL: ", e)
+                _subtitleState.emit(SubtitleState.FailedDownloadingSubDLSubtitle(e, subtitle))
+            }
         }
     }
 
