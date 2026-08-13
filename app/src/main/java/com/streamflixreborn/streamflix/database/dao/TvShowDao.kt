@@ -48,8 +48,21 @@ interface TvShowDao {
     @Query("SELECT * FROM tv_shows WHERE lastPlayedAtMillis IS NOT NULL ORDER BY lastPlayedAtMillis DESC LIMIT 10")
     fun getRecentlyWatched(): Flow<List<TvShow>>
 
-    @Query("UPDATE tv_shows SET lastPlayedAtMillis = :playedAtMillis, lastPlayedEpisodeId = :episodeId WHERE id = :id")
-    fun markRecentlyWatched(id: String, episodeId: String, playedAtMillis: Long): Int
+    @Query("""
+        UPDATE tv_shows SET
+            lastPlayedAtMillis = :playedAtMillis,
+            lastPlayedEpisodeId = :episodeId,
+            imdbId = COALESCE(imdbId, :imdbId),
+            tmdbId = COALESCE(tmdbId, :tmdbId)
+        WHERE id = :id
+    """)
+    fun markRecentlyWatched(
+        id: String,
+        episodeId: String,
+        playedAtMillis: Long,
+        imdbId: String?,
+        tmdbId: Int?,
+    ): Int
 
     @Query("SELECT * FROM tv_shows WHERE poster IS NULL or poster = ''")
     suspend fun getAllWithNullPoster(): List<TvShow>
