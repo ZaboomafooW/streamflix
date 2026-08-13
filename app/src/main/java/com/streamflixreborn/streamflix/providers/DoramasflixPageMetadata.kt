@@ -69,9 +69,11 @@ internal class DoramasflixPageMetadata(
             val rating = jsonLd(document)
                 .mapNotNull(::findAggregateRating)
                 .firstOrNull()
+                ?: visibleRating(document)
             val overview = stringValue(structuredContent?.get("description"))
                 ?: metaContent(document, "meta[property=og:description]")
                 ?: metaContent(document, "meta[name=description]")
+                ?: visibleOverview(document)
             val image = imageValue(structuredContent?.get("image"))
                 ?: metaContent(document, "meta[property=og:image]")
                 ?: metaContent(document, "meta[name=twitter:image]")
@@ -164,6 +166,53 @@ internal class DoramasflixPageMetadata(
                     }
                 }
                 .toList()
+
+        private fun visibleRating(document: Document): Double? {
+            val title = document.selectFirst("h1") ?: return null
+            val elements = document.getAllElements()
+            val titleIndex = elements.indexOf(title)
+            if (titleIndex < 0) return null
+
+            return elements
+                .asSequence()
+                .drop(titleIndex + 1)
+                .take(40)
+                .map { element -> element.ownText().trim() }
+                .filter { text -> text.matches(Regex("""\d(?:\.\d+)?""")) }
+                .mapNotNull(String::toDoubleOrNull)
+                .firstOrNull { value -> value > 0.0 && value <= 5.0 }
+        }
+
+        private fun visibleOverview(document: Document): String? {
+            val title = document.selectFirst("h1")
+                ?.text()
+                ?.trim()
+                ?.takeIf { it.isNotEmpty() }
+            val exactPattern = title?.let {
+                Regex(
+                    "^Ver\\s+${Regex.escape(it)}\\s+online:\\s*(.+)$",
+                    setOf(RegexOption.IGNORE_CASE, RegexOption.DOT_MATCHES_ALL),
+                )
+            }
+            val genericPattern = Regex(
+                "^Ver\\s+.+?\\s+online:\\s*(.+)$",
+                setOf(RegexOption.IGNORE_CASE, RegexOption.DOT_MATCHES_ALL),
+            )
+
+            return document.getElementsContainingOwnText(" online:")
+                .asSequence()
+                .map { element -> element.text().trim() }
+                .mapNotNull { text ->
+                    val match = exactPattern?.matchEntire(text)
+                        ?: genericPattern.matchEntire(text)
+                    match
+                        ?.groupValues
+                        ?.getOrNull(1)
+                        ?.trim()
+                        ?.takeIf { it.isNotEmpty() }
+                }
+                .firstOrNull()
+        }
 
         private fun elementImage(image: Element): String? {
             val absolute = image.absUrl("src").trim()
