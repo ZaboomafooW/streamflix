@@ -39,8 +39,19 @@ interface MovieDao {
     @Query("SELECT * FROM movies WHERE lastPlayedAtMillis IS NOT NULL ORDER BY lastPlayedAtMillis DESC LIMIT 10")
     fun getRecentlyWatched(): Flow<List<Movie>>
 
-    @Query("UPDATE movies SET lastPlayedAtMillis = :playedAtMillis WHERE id = :id")
-    fun markRecentlyWatched(id: String, playedAtMillis: Long): Int
+    @Query("""
+        UPDATE movies SET
+            lastPlayedAtMillis = :playedAtMillis,
+            imdbId = COALESCE(imdbId, :imdbId),
+            tmdbId = COALESCE(tmdbId, :tmdbId)
+        WHERE id = :id
+    """)
+    fun markRecentlyWatched(
+        id: String,
+        playedAtMillis: Long,
+        imdbId: String?,
+        tmdbId: Int?,
+    ): Int
 
     @Insert(onConflict = OnConflictStrategy.REPLACE)
     fun insert(movie: Movie)
