@@ -82,7 +82,7 @@ class BackupRestoreManager(
     fun exportUserData(): String? {
         return try {
             val root = JSONObject()
-            root.put("version", 5)
+            root.put("version", 6)
             root.put("exportedAt", System.currentTimeMillis())
 
             val providersArray = JSONArray()
@@ -108,6 +108,8 @@ class BackupRestoreManager(
                 moviesToExport.forEach { movie ->
                     val obj = JSONObject().apply {
                         put("id", movie.id)
+                        put("tmdbId", movie.tmdbId ?: JSONObject.NULL)
+                        put("imdbId", movie.imdbId ?: JSONObject.NULL)
                         put("title", movie.title)
                         put("poster", movie.poster)
                         put("banner", movie.banner)
@@ -128,6 +130,8 @@ class BackupRestoreManager(
                 tvShowsToExport.forEach { show ->
                     val obj = JSONObject().apply {
                         put("id", show.id)
+                        put("tmdbId", show.tmdbId ?: JSONObject.NULL)
+                        put("imdbId", show.imdbId ?: JSONObject.NULL)
                         put("title", show.title)
                         put("poster", show.poster)
                         put("banner", show.banner)
@@ -166,6 +170,8 @@ class BackupRestoreManager(
                         put("title", ep.title)
                         put("poster", ep.poster)
                         put("tvShowId", ep.tvShow?.id)
+                        put("tvShowTmdbId", ep.tvShow?.tmdbId ?: JSONObject.NULL)
+                        put("tvShowImdbId", ep.tvShow?.imdbId ?: JSONObject.NULL)
                         put("seasonId", ep.season?.id)
                         put("isWatched", ep.isWatched)
                         put("watchedDate", ep.watchedDate?.timeInMillis ?: JSONObject.NULL)
@@ -180,7 +186,7 @@ class BackupRestoreManager(
             }
 
             root.put("providers", providersArray)
-            Log.d(TAG, "Export successful for version 5. Total providers exported: ${providersArray.length()}")
+            Log.d(TAG, "Export successful for version 6. Total providers exported: ${providersArray.length()}")
             root.toString()
         } catch (t: Throwable) {
             Log.e(TAG, "Error during exportUserData", t)
@@ -240,7 +246,9 @@ class BackupRestoreManager(
 
                         val tvShow = TvShow(
                             id = s.optString("id", ""),
-                            title = s.optString("title", "")
+                            title = s.optString("title", ""),
+                            imdbId = s.optStringOrNull("imdbId"),
+                            tmdbId = s.optIntOrNull("tmdbId"),
                         ).apply {
                             poster = s.optStringOrNull("poster")
                             banner = s.optStringOrNull("banner")
@@ -268,7 +276,9 @@ class BackupRestoreManager(
                         
                         val movie = Movie(
                             id = m.optString("id", ""),
-                            title = m.optString("title", "")
+                            title = m.optString("title", ""),
+                            imdbId = m.optStringOrNull("imdbId"),
+                            tmdbId = m.optIntOrNull("tmdbId"),
                         ).apply {
                             poster = m.optStringOrNull("poster")
                             banner = m.optStringOrNull("banner")
@@ -296,7 +306,14 @@ class BackupRestoreManager(
                             number = e.optInt("number", 0)
                             title = e.optStringOrNull("title")
                             poster = e.optStringOrNull("poster")
-                            e.optStringOrNull("tvShowId")?.let { tvId -> tvShow = TvShow(tvId, "") }
+                            e.optStringOrNull("tvShowId")?.let { tvId ->
+                                tvShow = TvShow(
+                                    id = tvId,
+                                    title = "",
+                                    imdbId = e.optStringOrNull("tvShowImdbId"),
+                                    tmdbId = e.optIntOrNull("tvShowTmdbId"),
+                                )
+                            }
                             e.optStringOrNull("seasonId")?.let { sId -> season = Season(sId, 0) }
                             this.isWatched = isWatched
                             this.watchedDate = watchedDate
@@ -397,6 +414,10 @@ private fun JSONObject.toWatchHistory(): WatchItem.WatchHistory? {
 
 private fun JSONObject.optLongOrNull(name: String): Long? {
     return if (has(name) && !isNull(name)) optLong(name) else null
+}
+
+private fun JSONObject.optIntOrNull(name: String): Int? {
+    return if (has(name) && !isNull(name)) optInt(name) else null
 }
 
 private fun JSONObject.optStringOrNull(name: String): String? {
