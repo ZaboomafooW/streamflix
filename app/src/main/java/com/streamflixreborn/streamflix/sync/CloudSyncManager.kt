@@ -534,40 +534,44 @@ object CloudSyncManager {
 
                 db.runInTransaction {
                     statesToApply.filter { it.mediaType == "movie" }.forEach { state ->
-                        val movie = db.movieDao().getById(state.mediaId)
-                            ?: Movie(
-                                id = state.mediaId,
-                                title = state.title,
-                                poster = state.poster,
-                                banner = state.banner,
-                                imdbId = state.imdbId,
-                                tmdbId = state.tmdbId,
-                            )
-                        movie.imdbId = state.imdbId ?: movie.imdbId
-                        movie.tmdbId = state.tmdbId ?: movie.tmdbId
-                        movie.isFavorite = state.isFavorite
-                        movie.favoritedAtMillis = state.favoritedAtMillis
-                        movie.isWatched = state.isWatched
-                        movie.watchedDate = state.watchedAtMillis.toCalendar()
-                        movie.watchHistory = state.toWatchHistory()
+                        val existingMovie = db.movieDao().getById(state.mediaId)
+                        val movie = existingMovie ?: Movie(
+                            id = state.mediaId,
+                            title = state.title,
+                            poster = state.poster,
+                            banner = state.banner,
+                            imdbId = state.imdbId,
+                            tmdbId = state.tmdbId,
+                        )
+                        movie.imdbId = movie.imdbId ?: state.imdbId
+                        movie.tmdbId = movie.tmdbId ?: state.tmdbId
+                        if (existingMovie == null || existingMovie.cloudStateTimestamp() <= state.clientUpdatedAtMillis) {
+                            movie.isFavorite = state.isFavorite
+                            movie.favoritedAtMillis = state.favoritedAtMillis
+                            movie.isWatched = state.isWatched
+                            movie.watchedDate = state.watchedAtMillis.toCalendar()
+                            movie.watchHistory = state.toWatchHistory()
+                        }
                         db.movieDao().insert(movie)
                     }
 
                     statesToApply.filter { it.mediaType == "tv_show" }.forEach { state ->
-                        val show = db.tvShowDao().getById(state.mediaId)
-                            ?: TvShow(
-                                id = state.mediaId,
-                                title = state.title,
-                                poster = state.poster,
-                                banner = state.banner,
-                                imdbId = state.imdbId,
-                                tmdbId = state.tmdbId,
-                            )
-                        show.imdbId = state.imdbId ?: show.imdbId
-                        show.tmdbId = state.tmdbId ?: show.tmdbId
-                        show.isFavorite = state.isFavorite
-                        show.favoritedAtMillis = state.favoritedAtMillis
-                        show.isWatching = state.isWatching ?: true
+                        val existingShow = db.tvShowDao().getById(state.mediaId)
+                        val show = existingShow ?: TvShow(
+                            id = state.mediaId,
+                            title = state.title,
+                            poster = state.poster,
+                            banner = state.banner,
+                            imdbId = state.imdbId,
+                            tmdbId = state.tmdbId,
+                        )
+                        show.imdbId = show.imdbId ?: state.imdbId
+                        show.tmdbId = show.tmdbId ?: state.tmdbId
+                        if (existingShow == null || existingShow.cloudStateTimestamp() <= state.clientUpdatedAtMillis) {
+                            show.isFavorite = state.isFavorite
+                            show.favoritedAtMillis = state.favoritedAtMillis
+                            show.isWatching = state.isWatching ?: true
+                        }
                         db.tvShowDao().insert(show)
                     }
 
@@ -582,8 +586,8 @@ object CloudSyncManager {
                                 imdbId = state.parentShowImdbId,
                                 tmdbId = state.parentShowTmdbId,
                             )
-                            hydratedShow.imdbId = state.parentShowImdbId ?: hydratedShow.imdbId
-                            hydratedShow.tmdbId = state.parentShowTmdbId ?: hydratedShow.tmdbId
+                            hydratedShow.imdbId = hydratedShow.imdbId ?: state.parentShowImdbId
+                            hydratedShow.tmdbId = hydratedShow.tmdbId ?: state.parentShowTmdbId
                             db.tvShowDao().insert(hydratedShow)
                             hydratedShow
                         }
@@ -596,19 +600,21 @@ object CloudSyncManager {
                                 tvShow = show,
                             ).also(db.seasonDao()::insert)
                         }
-                        val episode = db.episodeDao().getById(state.mediaId)
-                            ?: Episode(
-                                id = state.mediaId,
-                                number = state.episodeNumber ?: 0,
-                                title = state.title,
-                                poster = state.poster,
-                                tvShow = show,
-                                season = season,
-                            )
-                        if (show != null) episode.tvShow = show
-                        episode.isWatched = state.isWatched
-                        episode.watchedDate = state.watchedAtMillis.toCalendar()
-                        episode.watchHistory = state.toWatchHistory()
+                        val existingEpisode = db.episodeDao().getById(state.mediaId)
+                        val episode = existingEpisode ?: Episode(
+                            id = state.mediaId,
+                            number = state.episodeNumber ?: 0,
+                            title = state.title,
+                            poster = state.poster,
+                            tvShow = show,
+                            season = season,
+                        )
+                        if (existingEpisode == null || existingEpisode.cloudStateTimestamp() <= state.clientUpdatedAtMillis) {
+                            if (show != null) episode.tvShow = show
+                            episode.isWatched = state.isWatched
+                            episode.watchedDate = state.watchedAtMillis.toCalendar()
+                            episode.watchHistory = state.toWatchHistory()
+                        }
                         db.episodeDao().insert(episode)
                     }
                 }
@@ -637,17 +643,23 @@ object CloudSyncManager {
     ): Boolean {
         return when (state.mediaType) {
             "movie" -> database.movieDao().getById(state.mediaId)?.let { movie ->
-                if (movie.cloudStateTimestamp() > state.clientUpdatedAtMillis) return false
+                if (movie.cloudStateTimestamp() > state.clientUpdatedAtMillis) {
+                    return movie.needsIdentityEnrichment(state)
+                }
                 !movie.matchesRemoteState(state)
             } ?: true
 
             "tv_show" -> database.tvShowDao().getById(state.mediaId)?.let { show ->
-                if (show.cloudStateTimestamp() > state.clientUpdatedAtMillis) return false
+                if (show.cloudStateTimestamp() > state.clientUpdatedAtMillis) {
+                    return show.needsIdentityEnrichment(state)
+                }
                 !show.matchesRemoteState(state)
             } ?: true
 
             "episode" -> database.episodeDao().getById(state.mediaId)?.let { episode ->
-                if (episode.cloudStateTimestamp() > state.clientUpdatedAtMillis) return false
+                if (episode.cloudStateTimestamp() > state.clientUpdatedAtMillis) {
+                    return database.parentIdentityNeedsEnrichment(state)
+                }
                 !episode.matchesRemoteState(state) || !database.parentIdentityMatches(state)
             } ?: true
 
@@ -656,8 +668,8 @@ object CloudSyncManager {
     }
 
     private fun Movie.matchesRemoteState(state: RemoteMediaState): Boolean =
-        identityMatches(tmdbId, state.tmdbId) &&
-            identityMatches(imdbId, state.imdbId) &&
+        identitySatisfied(tmdbId, state.tmdbId) &&
+            identitySatisfied(imdbId, state.imdbId) &&
             isFavorite == state.isFavorite &&
             favoritedAtMillis == state.favoritedAtMillis &&
             isWatched == state.isWatched &&
@@ -667,8 +679,8 @@ object CloudSyncManager {
             watchHistory?.durationMillis == state.durationMillis
 
     private fun TvShow.matchesRemoteState(state: RemoteMediaState): Boolean =
-        identityMatches(tmdbId, state.tmdbId) &&
-            identityMatches(imdbId, state.imdbId) &&
+        identitySatisfied(tmdbId, state.tmdbId) &&
+            identitySatisfied(imdbId, state.imdbId) &&
             isFavorite == state.isFavorite &&
             favoritedAtMillis == state.favoritedAtMillis &&
             isWatching == (state.isWatching ?: true)
@@ -681,15 +693,33 @@ object CloudSyncManager {
             watchHistory?.lastPlaybackPositionMillis == state.playbackPositionMillis &&
             watchHistory?.durationMillis == state.durationMillis
 
-    private fun <T> identityMatches(local: T?, remote: T?): Boolean =
-        remote == null || local == remote
+    private fun Movie.needsIdentityEnrichment(state: RemoteMediaState): Boolean =
+        identityNeedsEnrichment(tmdbId, state.tmdbId) ||
+            identityNeedsEnrichment(imdbId, state.imdbId)
+
+    private fun TvShow.needsIdentityEnrichment(state: RemoteMediaState): Boolean =
+        identityNeedsEnrichment(tmdbId, state.tmdbId) ||
+            identityNeedsEnrichment(imdbId, state.imdbId)
+
+    private fun <T> identitySatisfied(local: T?, remote: T?): Boolean =
+        remote == null || local != null
+
+    private fun <T> identityNeedsEnrichment(local: T?, remote: T?): Boolean =
+        local == null && remote != null
 
     private fun AppDatabase.parentIdentityMatches(state: RemoteMediaState): Boolean {
         val showId = state.parentShowId ?: return true
         if (state.parentShowTmdbId == null && state.parentShowImdbId == null) return true
         val show = tvShowDao().getById(showId) ?: return false
-        return identityMatches(show.tmdbId, state.parentShowTmdbId) &&
-            identityMatches(show.imdbId, state.parentShowImdbId)
+        return identitySatisfied(show.tmdbId, state.parentShowTmdbId) &&
+            identitySatisfied(show.imdbId, state.parentShowImdbId)
+    }
+
+    private fun AppDatabase.parentIdentityNeedsEnrichment(state: RemoteMediaState): Boolean {
+        val showId = state.parentShowId ?: return false
+        val show = tvShowDao().getById(showId)
+        return identityNeedsEnrichment(show?.tmdbId, state.parentShowTmdbId) ||
+            identityNeedsEnrichment(show?.imdbId, state.parentShowImdbId)
     }
 
     private fun hydrateEpisodeParent(database: AppDatabase, episode: Episode) {
