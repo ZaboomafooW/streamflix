@@ -63,6 +63,7 @@ class TmdbProvider(override val language: String) : Provider {
                     rating = multi.voteAverage.toDouble(),
                     poster = multi.posterPath?.w500,
                     banner = multi.backdropPath?.original,
+                    tmdbId = multi.id,
                 )
 
                 is TMDb3.Tv -> TvShow(
@@ -73,6 +74,7 @@ class TmdbProvider(override val language: String) : Provider {
                     rating = multi.voteAverage.toDouble(),
                     poster = multi.posterPath?.w500,
                     banner = multi.backdropPath?.original,
+                    tmdbId = multi.id,
                 )
 
                 else -> null
@@ -388,6 +390,7 @@ class TmdbProvider(override val language: String) : Provider {
                     rating = multi.voteAverage.toDouble(),
                     poster = multi.posterPath?.w500,
                     banner = multi.backdropPath?.original,
+                    tmdbId = multi.id,
                 )
 
                 is TMDb3.Tv -> TvShow(
@@ -398,6 +401,7 @@ class TmdbProvider(override val language: String) : Provider {
                     rating = multi.voteAverage.toDouble(),
                     poster = multi.posterPath?.w500,
                     banner = multi.backdropPath?.original,
+                    tmdbId = multi.id,
                 )
 
                 else -> null
@@ -417,6 +421,7 @@ class TmdbProvider(override val language: String) : Provider {
                 rating = movie.voteAverage.toDouble(),
                 poster = movie.posterPath?.w500,
                 banner = movie.backdropPath?.original,
+                tmdbId = movie.id,
             )
         }
 
@@ -433,6 +438,7 @@ class TmdbProvider(override val language: String) : Provider {
                 rating = tv.voteAverage.toDouble(),
                 poster = tv.posterPath?.w500,
                 banner = tv.backdropPath?.original,
+                tmdbId = tv.id,
             )
         }
 
@@ -488,6 +494,7 @@ class TmdbProvider(override val language: String) : Provider {
                             rating = multi.voteAverage.toDouble(),
                             poster = multi.posterPath?.w500,
                             banner = multi.backdropPath?.original,
+                            tmdbId = multi.id,
                         )
 
                         is TMDb3.Tv -> TvShow(
@@ -498,6 +505,7 @@ class TmdbProvider(override val language: String) : Provider {
                             rating = multi.voteAverage.toDouble(),
                             poster = multi.posterPath?.w500,
                             banner = multi.backdropPath?.original,
+                            tmdbId = multi.id,
                         )
 
                         else -> null
@@ -566,6 +574,7 @@ class TmdbProvider(override val language: String) : Provider {
                             rating = multi.voteAverage.toDouble(),
                             poster = multi.posterPath?.w500,
                             banner = multi.backdropPath?.original,
+                            tmdbId = multi.id,
                         )
 
                         is TMDb3.Tv -> TvShow(
@@ -576,6 +585,7 @@ class TmdbProvider(override val language: String) : Provider {
                             rating = multi.voteAverage.toDouble(),
                             poster = multi.posterPath?.w500,
                             banner = multi.backdropPath?.original,
+                            tmdbId = multi.id,
                         )
 
                         else -> null
@@ -640,6 +650,7 @@ class TmdbProvider(override val language: String) : Provider {
                     rating = movie.voteAverage.toDouble(),
                     poster = movie.posterPath?.w500,
                     banner = movie.backdropPath?.original,
+                    tmdbId = movie.id,
                 )
             }.mix(TMDb3.Discover.tv(
                 page = page,
@@ -654,6 +665,7 @@ class TmdbProvider(override val language: String) : Provider {
                     rating = tv.voteAverage.toDouble(),
                     poster = tv.posterPath?.w500,
                     banner = tv.backdropPath?.original,
+                    tmdbId = tv.id,
                 )
             })
         )
@@ -689,6 +701,7 @@ class TmdbProvider(override val language: String) : Provider {
                                 rating = multi.voteAverage.toDouble(),
                                 poster = multi.posterPath?.w500,
                                 banner = multi.backdropPath?.original,
+                                tmdbId = multi.id,
                             )
 
                             is TMDb3.Tv -> TvShow(
@@ -699,6 +712,7 @@ class TmdbProvider(override val language: String) : Provider {
                                 rating = multi.voteAverage.toDouble(),
                                 poster = multi.posterPath?.w500,
                                 banner = multi.backdropPath?.original,
+                                tmdbId = multi.id,
                             )
 
                         else -> null
@@ -736,11 +750,9 @@ class TmdbProvider(override val language: String) : Provider {
 
         when (lang) {
             "it" -> {
-                // Se la lingua è italiano, includiamo solo i server noti per l'italiano.
                 servers.add(VixSrcExtractor().server(videoType))
             }
             "de" -> {
-                // Solo server tedeschi
                 servers.addAll(0, MoflixExtractor().servers(videoType))
                 if (videoType is Video.Type.Movie) {
                     servers.add(EinschaltenExtractor().server(videoType))
@@ -748,21 +760,17 @@ class TmdbProvider(override val language: String) : Provider {
                 VideasyExtractor().server(identifiedVideoType, language)?.let { servers.add(it) }
             }
             "fr" -> {
-                // Solo server francesi
                 servers.addAll(FrembedExtractor(UserPreferences.getProviderCache(FrembedProvider, UserPreferences.PROVIDER_URL)).servers(videoType))
                 servers.addAll(AfterDarkExtractor(UserPreferences.getProviderCache(AfterDarkProvider, UserPreferences.PROVIDER_URL)).servers(identifiedVideoType))
             }
             "es" -> {
-                // TMDB Spagnolo: Utilizza ESCLUSIVAMENTE server certificati con audio spagnolo ([LAT] o [CAST])
-                
                 val targetTitle = when (videoType) {
                     is Video.Type.Movie -> videoType.title
                     is Video.Type.Episode -> videoType.tvShow.title
                 }
-                
+
                 Log.i("StreamFlixES", "[SEARCH START] -> Target: $targetTitle (${if (videoType is Video.Type.Movie) "Movie" else "TV Show"})")
 
-                // Funzione di matching rigorosa per i titoli e tipo
                 fun isMatch(item: AppAdapter.Item, target: String): Boolean {
                     val isCorrectType = if (videoType is Video.Type.Movie) item is Movie else item is TvShow
                     if (!isCorrectType) return false
@@ -770,17 +778,14 @@ class TmdbProvider(override val language: String) : Provider {
                     val itemTitle = if (item is Movie) item.title else (item as TvShow).title
                     val nItem = itemTitle.lowercase().replace(Regex("[^a-z0-9]"), "")
                     val nTarget = target.lowercase().replace(Regex("[^a-z0-9]"), "")
-                    
-                    // Match esatto (normalizzato) ha la priorità
+
                     if (nItem == nTarget) return true
-                    
-                    // Match parziale se contenuto e differenza lunghezza minima
+
                     if (nItem.contains(nTarget) || nTarget.contains(nItem)) {
                         val diff = Math.abs(nItem.length - nTarget.length)
                         if (diff <= 5) return true
                     }
-                    
-                    // Match per parole (almeno una deve corrispondere esattamente se il target è corto, o tutte se lungo)
+
                     val cleanWords: (String) -> Set<String> = { s ->
                         s.lowercase()
                             .replace(Regex("[^a-z0-9 ]"), " ")
@@ -790,13 +795,9 @@ class TmdbProvider(override val language: String) : Provider {
                     }
                     val nItemWords = cleanWords(itemTitle)
                     val nTargetWords = cleanWords(target)
-                    
+
                     if (nItemWords.isEmpty() || nTargetWords.isEmpty()) return false
-                    
-                    // Se il target ha solo una parola importante, deve esserci
                     if (nTargetWords.size == 1) return nItemWords.contains(nTargetWords.first())
-                    
-                    // Altrimenti tutte le parole del target devono essere presenti nell'item
                     return nItemWords.containsAll(nTargetWords) || nTargetWords.containsAll(nItemWords)
                 }
 
@@ -808,11 +809,11 @@ class TmdbProvider(override val language: String) : Provider {
                                 val searchResults = provider.search(targetTitle, 1)
                                 val bestMatch = searchResults.firstOrNull { isMatch(it, targetTitle) }
                                 val id = if (bestMatch is Movie) bestMatch.id else (bestMatch as? TvShow)?.id
-                                
+
                                 if (id != null) {
                                     val matchTitle = if (bestMatch is Movie) bestMatch.title else (bestMatch as? TvShow)?.title
                                     Log.i("StreamFlixES", "[MATCH FOUND] -> Provider: ${provider.name}, Matched: '$matchTitle', ID: $id")
-                                    
+
                                     val allServers = provider.getServers(id, videoType)
                                     val filtered = allServers.filter { s ->
                                         val n = s.name.uppercase()
@@ -825,9 +826,9 @@ class TmdbProvider(override val language: String) : Provider {
                                     Log.d("StreamFlixES", "[NO MATCH] -> ${provider.name} did not find a valid match for '$targetTitle'")
                                     emptyList()
                                 }
-                            } catch (e: Exception) { 
+                            } catch (e: Exception) {
                                 Log.e("StreamFlixES", "[PROVIDER ERROR] -> ${provider.name}: ${e.message}")
-                                emptyList() 
+                                emptyList()
                             }
                         }
                     }
@@ -835,7 +836,6 @@ class TmdbProvider(override val language: String) : Provider {
                 }
             }
             else -> {
-                // Per inglese (en) o altre lingue non specifiche, usiamo i server globali
                 servers.addAll(listOf(
                     VixSrcExtractor().server(videoType),
                     TwoEmbedExtractor().server(videoType),
@@ -859,22 +859,15 @@ class TmdbProvider(override val language: String) : Provider {
             }
         }
 
-        // ORDINE PRIORITÀ FINALE: Portiamo i server con audio Spagnolo e Filemoon in cima
         val finalServers = if (language.startsWith("es")) {
             servers.sortedByDescending { server ->
                 val n = server.name.uppercase()
                 when {
-                    // Filemoon e tag audio spagnoli hanno la massima priorità
                     n.contains("FILEMOON") -> 110
                     n.contains("[CAS]") || n.contains("[LAT]") || n.contains("[ES]") || n.contains("SPAIN") || n.contains("[CAST]") ||
                     n.contains("LATINO") || n.contains("SPANISH") || n.contains("CASTELLANO") || n.contains("(LAT)") || n.contains("(ESP)") -> 100
-                    
-                    // Altri aggregatori multi-lingua
                     n.contains("VIDSRC") || n.contains("VIDLINK") -> 80
-                    
-                    // Sottotitoli o inglese
                     n.contains("[EN]") || n.contains("[SUB]") || n.contains("(EN)") || n.contains("(SUB)") -> 50
-                    
                     else -> 0
                 }
             }
@@ -889,19 +882,18 @@ class TmdbProvider(override val language: String) : Provider {
     override suspend fun getVideo(server: Video.Server): Video {
         val url = server.src.ifEmpty { server.id }
         Log.i("StreamFlixES", "[SERVER] -> Using: ${server.name} (URL: $url)")
-        
+
         val video = when {
             server.video != null -> server.video!!
             else -> Extractor.extract(url, server)
         }
 
-        // LOGICA SOTTOTITOLI FORZATI: Se siamo in spagnolo, attiviamo solo i forced di default
         if (language.startsWith("es")) {
             var forcedFound = false
             video.subtitles.forEach { sub ->
                 val label = sub.label.lowercase()
-                val isSpanish = label.contains("spanish") || label.contains("español") || 
-                                label.contains("espanol") || label.contains("castellano") || 
+                val isSpanish = label.contains("spanish") || label.contains("español") ||
+                                label.contains("espanol") || label.contains("castellano") ||
                                 label.contains(" lat ")
                 val isForced = label.contains("forced") || label.contains("forzati") || label.contains("forzato")
 
@@ -913,13 +905,13 @@ class TmdbProvider(override val language: String) : Provider {
                     sub.default = false
                 }
             }
-            
+
             if (!forcedFound) {
                 video.subtitles.forEach { it.default = false }
                 Log.i("StreamFlixES", "[SUBTITLE] -> TMDb (es): No forced subs found, keeping them OFF")
             }
         }
-        
+
         Log.i("StreamFlixES", "[VIDEO] -> Final source: ${video.source}")
         return video
     }
