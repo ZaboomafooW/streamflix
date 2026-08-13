@@ -2,6 +2,8 @@ package com.streamflixreborn.streamflix.extractors
 
 import com.streamflixreborn.streamflix.models.Video
 import kotlinx.coroutines.runBlocking
+import org.junit.Assert.assertEquals
+import org.junit.Assert.assertThrows
 import org.junit.Assert.assertTrue
 import org.junit.Test
 
@@ -39,6 +41,40 @@ class ExplicitTmdbExtractorTest {
         )
 
         assertTrue(AfterDarkExtractor().servers(movie).isEmpty())
+    }
+
+    @Test
+    fun moflixRejectsMovieWithoutExplicitTmdbIdentityBeforeNetworkWork() = runBlocking {
+        assertTrue(MoflixExtractor().servers(movieType("12345", null)).isEmpty())
+    }
+
+    @Test
+    fun primeSrcRejectsMovieWithoutExplicitTmdbIdentityBeforeNetworkWork() = runBlocking {
+        assertTrue(PrimeSrcExtractor().servers(movieType("12345", null)).isEmpty())
+    }
+
+    @Test
+    fun frembedRejectsMovieWithoutExplicitTmdbIdentityBeforeNetworkWork() = runBlocking {
+        assertTrue(FrembedExtractor().servers(movieType("12345", null)).isEmpty())
+    }
+
+    @Test
+    fun vidsrcNetUsesExplicitTmdbIdInsteadOfNumericProviderId() {
+        val server = VidsrcNetExtractor().server(
+            movieType(
+                providerId = "99999",
+                tmdbId = 12345,
+            ),
+        )
+
+        assertEquals("https://vidsrc-embed.ru/embed/movie?tmdb=12345", server.src)
+    }
+
+    @Test
+    fun vidsrcNetRejectsMovieWithoutExplicitTmdbIdentity() {
+        assertThrows(IllegalArgumentException::class.java) {
+            VidsrcNetExtractor().server(movieType("12345", null))
+        }
     }
 
     private fun movieType(
