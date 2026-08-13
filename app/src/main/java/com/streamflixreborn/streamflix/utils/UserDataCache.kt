@@ -3,6 +3,8 @@ package com.streamflixreborn.streamflix.utils
 import android.content.Context
 import android.util.Log
 import com.google.gson.Gson
+import com.google.gson.JsonSyntaxException
+import com.google.gson.reflect.TypeToken
 import com.streamflixreborn.streamflix.adapters.AppAdapter
 import com.streamflixreborn.streamflix.database.AppDatabase
 import com.streamflixreborn.streamflix.models.Episode
@@ -35,6 +37,10 @@ object UserDataCache {
         continueWatchingEpisodes = continueWatchingEpisodes.sortedByDescending { it.lastEngagementTimeUtcMillis ?: 0L },
     )
 
+    // -------------------------
+    // CACHE FILE
+    // -------------------------
+
     private fun cacheKey(provider: Provider): String {
         val baseUrlKey = provider.baseUrl.trim().trimEnd('/')
         return listOf(provider.name, baseUrlKey)
@@ -49,11 +55,18 @@ object UserDataCache {
         return file
     }
 
+    // -------------------------
+    // READ / WRITE
+    // -------------------------
+
     fun read(context: Context, provider: Provider): UserData? {
         val key = cacheKey(provider)
+
         memoryCache[key]?.let { return it }
+
         val file = cacheFile(context, key)
         if (!file.exists()) return null
+
         return runCatching {
             gson.fromJson(file.readText(), UserData::class.java).normalized().also {
                 memoryCache[key] = it
@@ -65,14 +78,19 @@ object UserDataCache {
         val key = cacheKey(provider)
         val normalizedData = newData.normalized()
         val oldData = memoryCache[key]
+
+        // ✅ prevent spam
         if (oldData == normalizedData) return
+
         memoryCache[key] = normalizedData
+
         runCatching {
             cacheFile(context, key).apply {
                 parentFile?.mkdirs()
                 writeText(gson.toJson(normalizedData))
             }
         }
+
         UserDataNotifier.notifyChanged()
     }
 
@@ -85,12 +103,19 @@ object UserDataCache {
     fun clearAll(context: Context) {
         memoryCache.clear()
         val cacheDir = File(context.filesDir, "user-data-cache")
-        if (cacheDir.exists()) cacheDir.deleteRecursively()
+        if (cacheDir.exists()) {
+            cacheDir.deleteRecursively()
+        }
     }
+
+    // -------------------------
+    // WRITE HELPERS (FIXED)
+    // -------------------------
 
     fun writeMovies(context: Context, provider: Provider, movies: List<Movie>) {
         val current = read(context, provider) ?: UserData()
         val moviesById = movies.associateBy { it.id }
+
         val newData = current.copy(
             favoritesMovies = current.favoritesMovies.mapNotNull { cached ->
                 moviesById[cached.id]?.takeIf { it.isFavorite }?.toCached()
@@ -101,35 +126,45 @@ object UserDataCache {
             } + movies.filter { it.watchHistory != null && current.continueWatchingMovies.none { cached -> cached.id == it.id } }
                 .map { it.toCached() }
         )
+
         write(context, provider, newData)
     }
 
     fun writeTvShows(context: Context, provider: Provider, tvShows: List<TvShow>) {
         val current = read(context, provider) ?: UserData()
         val tvShowsById = tvShows.associateBy { it.id }
+
         val newData = current.copy(
             favoritesTvShows = current.favoritesTvShows.mapNotNull { cached ->
                 tvShowsById[cached.id]?.takeIf { it.isFavorite }?.toCached()
             } + tvShows.filter { it.isFavorite && current.favoritesTvShows.none { cached -> cached.id == it.id } }
                 .map { it.toCached() }
         )
+
         write(context, provider, newData)
     }
 
     fun writeEpisodes(context: Context, provider: Provider, episodes: List<Episode>) {
         val current = read(context, provider) ?: UserData()
         val episodesById = episodes.associateBy { it.id }
+
         val newData = current.copy(
             continueWatchingEpisodes = current.continueWatchingEpisodes.mapNotNull { cached ->
                 episodesById[cached.id]?.takeIf { it.watchHistory != null }?.toCached()
             } + episodes.filter { it.watchHistory != null && current.continueWatchingEpisodes.none { cached -> cached.id == it.id } }
                 .map { it.toCached() }
         )
+
         write(context, provider, newData)
     }
 
+    // -------------------------
+    // MOVIES
+    // -------------------------
+
     fun removeMovieFromContinueWatching(context: Context, provider: Provider, id: String) {
         val current = read(context, provider) ?: UserData()
+
         runCatching {
             val db = AppDatabase.getInstance(context)
             db.movieDao().getById(id)?.let { movie ->
@@ -139,6 +174,7 @@ object UserDataCache {
                 db.movieDao().update(movie)
             }
         }
+
         write(context, provider, current.copy(
             continueWatchingMovies = current.continueWatchingMovies.filter { it.id != id }
         ))
@@ -148,8 +184,10 @@ object UserDataCache {
 
     fun addMovieToContinueWatching(context: Context, provider: Provider, movie: Movie) {
         val current = read(context, provider) ?: UserData()
+
         write(context, provider, current.copy(
-            continueWatchingMovies = (current.continueWatchingMovies + movie.toCached()).distinctBy { it.id }
+            continueWatchingMovies = (current.continueWatchingMovies + movie.toCached())
+                .distinctBy { it.id }
         ))
         CloudSyncHooks.movie(context, provider, movie)
         UserDataNotifier.notifyChanged()
@@ -157,6 +195,7 @@ object UserDataCache {
 
     fun removeMovieFromFavorites(context: Context, provider: Provider, id: String) {
         val current = read(context, provider) ?: UserData()
+
         write(context, provider, current.copy(
             favoritesMovies = current.favoritesMovies.filter { it.id != id }
         ))
@@ -170,15 +209,22 @@ object UserDataCache {
             isFavorite = true
             favoritedAtMillis = favoritedAtMillis ?: System.currentTimeMillis()
         }
+
         write(context, provider, current.copy(
-            favoritesMovies = (current.favoritesMovies + favoritedMovie.toCached()).distinctBy { it.id }
+            favoritesMovies = (current.favoritesMovies + favoritedMovie.toCached())
+                .distinctBy { it.id }
         ))
         UserDataNotifier.notifyChanged()
         CloudSyncHooks.movie(context, provider, favoritedMovie)
     }
 
+    // -------------------------
+    // EPISODES
+    // -------------------------
+
     fun removeEpisodeFromContinueWatching(context: Context, provider: Provider, id: String) {
         val current = read(context, provider) ?: UserData()
+
         write(context, provider, current.copy(
             continueWatchingEpisodes = current.continueWatchingEpisodes.filter { it.id != id }
         ))
@@ -188,15 +234,22 @@ object UserDataCache {
 
     fun addEpisodeToContinueWatching(context: Context, provider: Provider, episode: Episode) {
         val current = read(context, provider) ?: UserData()
+
         write(context, provider, current.copy(
-            continueWatchingEpisodes = (current.continueWatchingEpisodes + episode.toCached()).distinctBy { it.id }
+            continueWatchingEpisodes = (current.continueWatchingEpisodes + episode.toCached())
+                .distinctBy { it.id }
         ))
         UserDataNotifier.notifyChanged()
         CloudSyncHooks.episode(context, provider, episode)
     }
 
+    // -------------------------
+    // TV SHOWS
+    // -------------------------
+
     fun removeTvShowFromFavorites(context: Context, provider: Provider, id: String) {
         val current = read(context, provider) ?: UserData()
+
         write(context, provider, current.copy(
             favoritesTvShows = current.favoritesTvShows.filter { it.id != id }
         ))
@@ -210,29 +263,40 @@ object UserDataCache {
             isFavorite = true
             favoritedAtMillis = favoritedAtMillis ?: System.currentTimeMillis()
         }
+
         write(context, provider, current.copy(
-            favoritesTvShows = (current.favoritesTvShows + favoritedTvShow.toCached()).distinctBy { it.id }
+            favoritesTvShows = (current.favoritesTvShows + favoritedTvShow.toCached())
+                .distinctBy { it.id }
         ))
         UserDataNotifier.notifyChanged()
         CloudSyncHooks.tvShow(context, provider, favoritedTvShow)
     }
 
+    // -------------------------
+    // CACHE SYNC (Keep cache & DB in sync)
+    // -------------------------
+
     fun syncMovieToCache(context: Context, provider: Provider, movie: Movie) {
         val current = read(context, provider) ?: UserData()
+        
         val updatedContinueWatching = if (movie.watchHistory != null) {
-            (current.continueWatchingMovies.filter { it.id != movie.id } + movie.toCached()).distinctBy { it.id }
+            (current.continueWatchingMovies.filter { it.id != movie.id } + movie.toCached())
+                .distinctBy { it.id }
         } else {
             current.continueWatchingMovies.filter { it.id != movie.id }
         }
+        
         val updatedFavorites = if (movie.isFavorite) {
             (current.favoritesMovies.filter { it.id != movie.id } + movie.toCached().copy(
                 favoritedAtMillis = movie.favoritedAtMillis
                     ?: current.favoritesMovies.firstOrNull { it.id == movie.id }?.favoritedAtMillis
                     ?: System.currentTimeMillis()
-            )).distinctBy { it.id }
+            ))
+                .distinctBy { it.id }
         } else {
             current.favoritesMovies.filter { it.id != movie.id }
         }
+        
         write(context, provider, current.copy(
             continueWatchingMovies = updatedContinueWatching,
             favoritesMovies = updatedFavorites
@@ -243,11 +307,14 @@ object UserDataCache {
 
     fun syncEpisodeToCache(context: Context, provider: Provider, episode: Episode) {
         val current = read(context, provider) ?: UserData()
+        
         val updatedContinueWatching = if (episode.watchHistory != null) {
-            (current.continueWatchingEpisodes.filter { it.id != episode.id } + episode.toCached()).distinctBy { it.id }
+            (current.continueWatchingEpisodes.filter { it.id != episode.id } + episode.toCached())
+                .distinctBy { it.id }
         } else {
             current.continueWatchingEpisodes.filter { it.id != episode.id }
         }
+        
         write(context, provider, current.copy(
             continueWatchingEpisodes = updatedContinueWatching
         ))
@@ -257,21 +324,28 @@ object UserDataCache {
 
     fun syncTvShowToCache(context: Context, provider: Provider, tvShow: TvShow) {
         val current = read(context, provider) ?: UserData()
+
         val updatedFavorites = if (tvShow.isFavorite) {
             (current.favoritesTvShows.filter { it.id != tvShow.id } + tvShow.toCached().copy(
                 favoritedAtMillis = tvShow.favoritedAtMillis
                     ?: current.favoritesTvShows.firstOrNull { it.id == tvShow.id }?.favoritedAtMillis
                     ?: System.currentTimeMillis()
-            )).distinctBy { it.id }
+            ))
+                .distinctBy { it.id }
         } else {
             current.favoritesTvShows.filter { it.id != tvShow.id }
         }
+
         write(context, provider, current.copy(
             favoritesTvShows = updatedFavorites
         ))
         UserDataNotifier.notifyChanged()
         CloudSyncHooks.tvShow(context, provider, tvShow)
     }
+
+
+
+
 
     data class CachedMovie(
         val id: String,
@@ -333,6 +407,7 @@ object UserDataCache {
         val seasonTitle: String? = null,
         val seasonPoster: String? = null,
     )
+
 
     fun CachedMovie.toMovie() = Movie(
         id = id,
@@ -413,8 +488,7 @@ object UserDataCache {
             )
         }
     }
-
-    fun Movie.toCached() = CachedMovie(
+    fun Movie.toCached() = UserDataCache.CachedMovie(
         id = id,
         title = title,
         overview = overview,
@@ -434,8 +508,7 @@ object UserDataCache {
         lastPlaybackPositionMillis = watchHistory?.lastPlaybackPositionMillis,
         durationMillis = watchHistory?.durationMillis
     )
-
-    fun TvShow.toCached() = CachedTvShow(
+    fun TvShow.toCached() = UserDataCache.CachedTvShow(
         id = id,
         title = title,
         overview = overview,
@@ -451,8 +524,7 @@ object UserDataCache {
         isFavorite = isFavorite,
         favoritedAtMillis = favoritedAtMillis,
     )
-
-    fun Episode.toCached() = CachedEpisode(
+    fun Episode.toCached() = UserDataCache.CachedEpisode(
         id = id,
         number = number,
         title = title,
@@ -463,12 +535,14 @@ object UserDataCache {
         lastEngagementTimeUtcMillis = watchHistory?.lastEngagementTimeUtcMillis,
         lastPlaybackPositionMillis = watchHistory?.lastPlaybackPositionMillis,
         durationMillis = watchHistory?.durationMillis,
+
         tvShowId = tvShow?.id,
         tvShowTitle = tvShow?.title,
         tvShowPoster = tvShow?.poster,
         tvShowBanner = tvShow?.banner,
         tvShowImdbId = tvShow?.imdbId,
         tvShowTmdbId = tvShow?.tmdbId,
+
         seasonId = season?.id,
         seasonNumber = season?.number,
         seasonTitle = season?.title,
