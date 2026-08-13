@@ -234,6 +234,7 @@ object UserDataCache {
 
     fun addEpisodeToContinueWatching(context: Context, provider: Provider, episode: Episode) {
         val current = read(context, provider) ?: UserData()
+        hydrateEpisodeParent(context, provider, episode)
 
         write(context, provider, current.copy(
             continueWatchingEpisodes = (current.continueWatchingEpisodes + episode.toCached())
@@ -307,6 +308,7 @@ object UserDataCache {
 
     fun syncEpisodeToCache(context: Context, provider: Provider, episode: Episode) {
         val current = read(context, provider) ?: UserData()
+        hydrateEpisodeParent(context, provider, episode)
         
         val updatedContinueWatching = if (episode.watchHistory != null) {
             (current.continueWatchingEpisodes.filter { it.id != episode.id } + episode.toCached())
@@ -341,6 +343,23 @@ object UserDataCache {
         ))
         UserDataNotifier.notifyChanged()
         CloudSyncHooks.tvShow(context, provider, tvShow)
+    }
+
+    private fun hydrateEpisodeParent(context: Context, provider: Provider, episode: Episode) {
+        val showId = episode.tvShow?.id ?: return
+        runCatching {
+            val usesCurrentDatabase = UserPreferences.currentProvider?.name == provider.name
+            val db = if (usesCurrentDatabase) {
+                AppDatabase.getInstance(context)
+            } else {
+                AppDatabase.getInstanceForProvider(provider.name, context)
+            }
+            try {
+                db.tvShowDao().getById(showId)?.let { episode.tvShow = it }
+            } finally {
+                if (!usesCurrentDatabase) db.close()
+            }
+        }
     }
 
 
