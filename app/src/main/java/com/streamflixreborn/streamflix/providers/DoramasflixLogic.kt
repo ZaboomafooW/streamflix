@@ -6,22 +6,37 @@ import java.time.ZoneOffset
 internal object DoramasflixLogic {
 
     fun isEpisodeAvailable(countLinks: Int?): Boolean =
-        countLinks != null && countLinks > 0
+        countLinks == null || countLinks > 0
 
     fun episodeArtwork(
         stillPath: String?,
         backdrop: String?,
         stillImage: String?,
         seriesBackdropPath: String?,
+        repeatedSeasonArtwork: String? = null,
     ): String? {
-        val seriesBackdrop = seriesBackdropPath
-            ?.trim()
-            ?.takeIf { it.isNotEmpty() }
+        val excludedArtwork = setOfNotNull(
+            seriesBackdropPath?.trim()?.takeIf { it.isNotEmpty() },
+            repeatedSeasonArtwork?.trim()?.takeIf { it.isNotEmpty() },
+        )
 
         return listOf(stillPath, backdrop, stillImage)
             .asSequence()
             .mapNotNull { it?.trim()?.takeIf(String::isNotEmpty) }
-            .firstOrNull { it != seriesBackdrop }
+            .firstOrNull { it !in excludedArtwork }
+    }
+
+    fun repeatedEpisodeArtwork(artwork: List<String?>): String? {
+        if (artwork.size <= 1) return null
+
+        val normalized = artwork.map { value ->
+            value?.trim()?.takeIf { it.isNotEmpty() }
+        }
+        val first = normalized.firstOrNull() ?: return null
+
+        return first.takeIf { candidate ->
+            normalized.all { it == candidate }
+        }
     }
 
     fun <T> mixAlternating(
@@ -59,9 +74,6 @@ internal object DoramasflixLogic {
         }
     }
 
-    fun normalizeRating(rating: Double?): Double? =
-        rating?.takeIf { it > 0.0 }
-
     fun normalizeTrailer(trailer: String?): String? {
         val value = trailer?.trim()?.takeIf { it.isNotEmpty() } ?: return null
         return when {
@@ -91,7 +103,7 @@ internal object DoramasflixLogic {
         val value = name?.trim()?.takeIf { it.isNotEmpty() } ?: return null
         return when (value.lowercase()) {
             "dood" -> "DoodStream"
-            "ok" -> "Okru"
+            "ok", "okru", "ok.ru" -> "OK.ru"
             "voe" -> "VOE"
             "mixdrop" -> "MixDrop"
             "streamwish" -> "Streamwish"

@@ -2,9 +2,94 @@ package com.streamflixreborn.streamflix.providers
 
 import org.jsoup.Jsoup
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertNull
 import org.junit.Test
 
 class DoramasflixPageMetadataTest {
+
+    @Test
+    fun `content page uses genuine json ld aggregate rating`() {
+        val document = Jsoup.parse(
+            """
+                <html><head>
+                  <script type="application/ld+json">
+                    {
+                      "@type": "TVSeries",
+                      "name": "Meeting You",
+                      "aggregateRating": {
+                        "@type": "AggregateRating",
+                        "ratingValue": 4.142857142857143,
+                        "bestRating": 5,
+                        "ratingCount": 14
+                      }
+                    }
+                  </script>
+                </head><body></body></html>
+            """.trimIndent(),
+        )
+
+        assertEquals(
+            4.142857142857143,
+            DoramasflixPageMetadata.parseContent(document).rating,
+        )
+    }
+
+    @Test
+    fun `unrated content does not manufacture a rating`() {
+        val zeroCountDocument = Jsoup.parse(
+            """
+                <html><head>
+                  <script type="application/ld+json">
+                    {
+                      "@type": "Movie",
+                      "aggregateRating": {
+                        "ratingValue": 4.5,
+                        "ratingCount": 0
+                      }
+                    }
+                  </script>
+                </head><body></body></html>
+            """.trimIndent(),
+        )
+        val noRatingDocument = Jsoup.parse(
+            """
+                <html><head>
+                  <script type="application/ld+json">
+                    {"@type":"Movie","name":"Just For Meeting You"}
+                  </script>
+                </head><body></body></html>
+            """.trimIndent(),
+        )
+
+        assertNull(DoramasflixPageMetadata.parseContent(zeroCountDocument).rating)
+        assertNull(DoramasflixPageMetadata.parseContent(noRatingDocument).rating)
+    }
+
+    @Test
+    fun `invalid json ld does not prevent other metadata from being inspected`() {
+        val document = Jsoup.parse(
+            """
+                <html><head>
+                  <script type="application/ld+json">not-json</script>
+                  <script type="application/ld+json">
+                    {
+                      "@graph": [
+                        {
+                          "@type": "TVSeries",
+                          "aggregateRating": {
+                            "ratingValue": "4.8",
+                            "ratingCount": "25"
+                          }
+                        }
+                      ]
+                    }
+                  </script>
+                </head><body></body></html>
+            """.trimIndent(),
+        )
+
+        assertEquals(4.8, DoramasflixPageMetadata.parseContent(document).rating)
+    }
 
     @Test
     fun `people page maps explicit Doramasflix identity fields`() {

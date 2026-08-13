@@ -9,15 +9,16 @@ import org.junit.Test
 class DoramasflixLogicTest {
 
     @Test
-    fun `positive link count marks an episode available`() {
+    fun `positive or missing link count keeps an episode available`() {
         assertTrue(DoramasflixLogic.isEpisodeAvailable(1))
         assertTrue(DoramasflixLogic.isEpisodeAvailable(6))
+        assertTrue(DoramasflixLogic.isEpisodeAvailable(null))
     }
 
     @Test
-    fun `zero or missing link count marks an episode unavailable`() {
+    fun `explicit nonpositive link count marks an episode unavailable`() {
         assertFalse(DoramasflixLogic.isEpisodeAvailable(0))
-        assertFalse(DoramasflixLogic.isEpisodeAvailable(null))
+        assertFalse(DoramasflixLogic.isEpisodeAvailable(-1))
     }
 
     @Test
@@ -56,6 +57,33 @@ class DoramasflixLogicTest {
                 seriesBackdropPath = "/series.jpg",
             )
         )
+    }
+
+    @Test
+    fun `repeated season artwork is suppressed while distinct alternate artwork survives`() {
+        assertEquals(
+            "/episode-alt.jpg",
+            DoramasflixLogic.episodeArtwork(
+                stillPath = "/repeated.jpg",
+                backdrop = "/episode-alt.jpg",
+                stillImage = null,
+                seriesBackdropPath = "/series.jpg",
+                repeatedSeasonArtwork = "/repeated.jpg",
+            )
+        )
+    }
+
+    @Test
+    fun `only one shared nonblank artwork across a multi episode season is repeated`() {
+        assertEquals(
+            "/same.jpg",
+            DoramasflixLogic.repeatedEpisodeArtwork(
+                listOf("/same.jpg", " /same.jpg ", "/same.jpg")
+            )
+        )
+        assertNull(DoramasflixLogic.repeatedEpisodeArtwork(listOf("/a.jpg", "/b.jpg")))
+        assertNull(DoramasflixLogic.repeatedEpisodeArtwork(listOf("/same.jpg", null)))
+        assertNull(DoramasflixLogic.repeatedEpisodeArtwork(listOf("/same.jpg")))
     }
 
     @Test
@@ -102,13 +130,6 @@ class DoramasflixLogicTest {
     }
 
     @Test
-    fun `zero rating is treated as unrated while positive rating is preserved`() {
-        assertNull(DoramasflixLogic.normalizeRating(0.0))
-        assertNull(DoramasflixLogic.normalizeRating(null))
-        assertEquals(4.142857142857143, DoramasflixLogic.normalizeRating(4.142857142857143))
-    }
-
-    @Test
     fun `trailer video id is normalized to youtube URL`() {
         assertEquals(
             "https://www.youtube.com/watch?v=3OAJckfWgiY",
@@ -133,9 +154,10 @@ class DoramasflixLogicTest {
     }
 
     @Test
-    fun `server registry names are normalized only where StreamFlix extractor names differ`() {
+    fun `server registry names are normalized to human readable service names`() {
         assertEquals("DoodStream", DoramasflixLogic.normalizeServerName("Dood"))
-        assertEquals("Okru", DoramasflixLogic.normalizeServerName("Ok"))
+        assertEquals("OK.ru", DoramasflixLogic.normalizeServerName("Ok"))
+        assertEquals("OK.ru", DoramasflixLogic.normalizeServerName("Okru"))
         assertEquals("VOE", DoramasflixLogic.normalizeServerName("Voe"))
         assertEquals("VidHide", DoramasflixLogic.normalizeServerName("VidHide"))
     }

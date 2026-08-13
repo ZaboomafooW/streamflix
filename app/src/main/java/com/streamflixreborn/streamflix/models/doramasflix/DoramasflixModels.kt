@@ -47,7 +47,6 @@ data class Content(
     val backdropPath: String? = null,
     val backdrop: String? = null,
     val overview: String? = null,
-    val rating: Double? = null,
     val trailer: String? = null,
     @SerializedName("release_date")
     val releaseDate: String? = null,

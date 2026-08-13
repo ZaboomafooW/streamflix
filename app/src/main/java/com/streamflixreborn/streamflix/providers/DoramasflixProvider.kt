@@ -335,7 +335,6 @@ object DoramasflixProvider : Provider {
                     backdrop_path
                     backdrop
                     runtime
-                    rating
                     genres {
                       name
                       slug
@@ -376,7 +375,6 @@ object DoramasflixProvider : Provider {
                     backdrop_path
                     backdrop
                     episode_time
-                    rating
                     genres {
                       name
                       slug
@@ -515,7 +513,7 @@ object DoramasflixProvider : Provider {
     private suspend fun getServerNamesByCode(): Map<String, String> {
         serverNamesByCode?.let { return it }
 
-        val discovered = runCatching {
+        val discovered = try {
             catalogRequest(
                 operationName = "ListServers",
                 variables = JSONObject(),
@@ -536,7 +534,8 @@ object DoramasflixProvider : Provider {
                     code to serverName
                 }
                 .toMap()
-        }.getOrElse {
+        } catch (error: Exception) {
+            if (error is CancellationException) throw error
             emptyMap()
         }
 
@@ -697,24 +696,26 @@ object DoramasflixProvider : Provider {
         }
     }
 
-    override suspend fun getMovie(id: String): Movie {
+    override suspend fun getMovie(id: String): Movie = coroutineScope {
         val slug = slugFromId(id)
-        val content = detailMovie(slug)
-        val recommendations = getSimilarMovies(content.id)
+        val detailDeferred = async { detailMovie(slug) }
+        val pageMetadataDeferred = async { pageMetadata.getOptionalContent(movieId(slug)) }
+        val content = detailDeferred.await()
+        val recommendationsDeferred = async { getSimilarMovies(content.id) }
 
-        return Movie(
+        Movie(
             id = movieId(slug),
             title = titleFor(content),
             overview = content.overview?.takeIf { it.isNotBlank() },
             released = content.releaseDate,
             runtime = content.runtime,
             trailer = DoramasflixLogic.normalizeTrailer(content.trailer),
-            rating = DoramasflixLogic.normalizeRating(content.rating),
+            rating = pageMetadataDeferred.await().rating,
             poster = posterUrl(content.posterPath ?: content.poster),
             banner = backdropUrl(content.backdropPath ?: content.backdrop),
             genres = genresFor(content),
             cast = castFor(content),
-            recommendations = recommendations,
+            recommendations = recommendationsDeferred.await(),
         )
     }
 
@@ -722,6 +723,7 @@ object DoramasflixProvider : Provider {
         val slug = slugFromId(id)
         val detailDeferred = async { detailDorama(slug) }
         val seasonsDeferred = async { getSeasons(slug) }
+        val pageMetadataDeferred = async { pageMetadata.getOptionalContent(doramaId(slug)) }
 
         val content = detailDeferred.await()
         val recommendationsDeferred = async { getSimilarDoramas(content.id) }
@@ -734,7 +736,7 @@ object DoramasflixProvider : Provider {
             released = content.firstAirDate,
             runtime = content.episodeTime,
             trailer = DoramasflixLogic.normalizeTrailer(content.trailer),
-            rating = DoramasflixLogic.normalizeRating(content.rating),
+            rating = pageMetadataDeferred.await().rating,
             poster = posterUrl(content.posterPath ?: content.poster),
             banner = backdropUrl(content.backdropPath ?: content.backdrop),
             seasons = seasonsData.map { season ->
@@ -758,28 +760,39 @@ object DoramasflixProvider : Provider {
         val seasonNumber = seasonId.substringAfterLast('/').toIntOrNull()
             ?: throw Exception("Invalid Doramasflix season ID: $seasonId")
 
-        return getEpisodes(slug, seasonNumber)
+        val episodes = getEpisodes(slug, seasonNumber)
             .filter { DoramasflixLogic.isEpisodeAvailable(it.countLinks) }
-            .map { episode ->
-                Episode(
-                    id = episode.slug,
-                    number = episode.episodeNumber ?: 0,
-                    title = episode.nameEs
-                        ?.takeIf { it.isNotBlank() }
-                        ?: episode.name?.takeIf { it.isNotBlank() }
-                        ?: "Episodio ${episode.episodeNumber ?: 0}",
-                    released = DoramasflixLogic.normalizeAirDate(episode.airDate),
-                    poster = posterUrl(
-                        DoramasflixLogic.episodeArtwork(
-                            stillPath = episode.stillPath,
-                            backdrop = episode.backdrop,
-                            stillImage = episode.stillImage,
-                            seriesBackdropPath = episode.serieBackdropPath,
-                        )
-                    ),
-                    overview = episode.overview?.takeIf { it.isNotBlank() },
-                )
-            }
+        val primaryArtwork = episodes.map { episode ->
+            DoramasflixLogic.episodeArtwork(
+                stillPath = episode.stillPath,
+                backdrop = episode.backdrop,
+                stillImage = episode.stillImage,
+                seriesBackdropPath = episode.serieBackdropPath,
+            )
+        }
+        val repeatedArtwork = DoramasflixLogic.repeatedEpisodeArtwork(primaryArtwork)
+
+        return episodes.map { episode ->
+            Episode(
+                id = episode.slug,
+                number = episode.episodeNumber ?: 0,
+                title = episode.nameEs
+                    ?.takeIf { it.isNotBlank() }
+                    ?: episode.name?.takeIf { it.isNotBlank() }
+                    ?: "Episodio ${episode.episodeNumber ?: 0}",
+                released = DoramasflixLogic.normalizeAirDate(episode.airDate),
+                poster = posterUrl(
+                    DoramasflixLogic.episodeArtwork(
+                        stillPath = episode.stillPath,
+                        backdrop = episode.backdrop,
+                        stillImage = episode.stillImage,
+                        seriesBackdropPath = episode.serieBackdropPath,
+                        repeatedSeasonArtwork = repeatedArtwork,
+                    )
+                ),
+                overview = episode.overview?.takeIf { it.isNotBlank() },
+            )
+        }
     }
 
     private suspend fun resolveMovieBackendId(slug: String): String {
@@ -891,7 +904,7 @@ object DoramasflixProvider : Provider {
             "callistanise.com" -> "VidHide"
             "jessicayeahcatch.com" -> "VOE"
             "streamtape.com" -> "Streamtape"
-            "ok.ru" -> "Okru"
+            "ok.ru" -> "OK.ru"
             "m1xdrop.bz", "miixdrop.com" -> "MixDrop"
             "primeload.co" -> "Primeload"
             else -> host
