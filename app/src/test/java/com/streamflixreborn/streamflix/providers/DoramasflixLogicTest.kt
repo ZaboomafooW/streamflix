@@ -77,15 +77,13 @@ class DoramasflixLogicTest {
     }
 
     @Test
-    fun `API episode artwork is authoritative even when it matches series artwork`() {
+    fun `API episode artwork is authoritative before website and TMDb`() {
         assertEquals(
             "/series.jpg",
             DoramasflixLogic.episodeArtwork(
                 stillPath = "/series.jpg",
                 backdrop = "/alternate.jpg",
                 stillImage = "/image.jpg",
-                seriesBackdropPath = "/series.jpg",
-                repeatedSeasonArtwork = "/series.jpg",
                 websiteArtwork = "/website.jpg",
                 tmdbArtwork = "/tmdb.jpg",
             )
