@@ -1,0 +1,342 @@
+package com.streamflixreborn.streamflix.providers
+
+import com.google.gson.JsonElement
+import com.google.gson.JsonObject
+import com.google.gson.JsonParser
+import com.tanasi.retrofit_jsoup.converter.JsoupConverterFactory
+import com.streamflixreborn.streamflix.models.Movie
+import com.streamflixreborn.streamflix.models.People
+import com.streamflixreborn.streamflix.models.Show
+import com.streamflixreborn.streamflix.models.TvShow
+import kotlinx.coroutines.CancellationException
+import okhttp3.OkHttpClient
+import org.jsoup.nodes.Document
+import org.jsoup.nodes.Element
+import retrofit2.HttpException
+import retrofit2.Retrofit
+import retrofit2.http.GET
+import retrofit2.http.Headers
+import retrofit2.http.Url
+
+internal data class DoramasflixContentMetadata(
+    val rating: Double? = null,
+    val overview: String? = null,
+    val image: String? = null,
+)
+
+internal class DoramasflixPageMetadata(
+    baseUrl: String,
+    client: OkHttpClient,
+) {
+    private val baseUrl = baseUrl.trimEnd('/')
+    private val service = Retrofit.Builder()
+        .baseUrl("${this.baseUrl}/")
+        .client(client)
+        .addConverterFactory(JsoupConverterFactory.create())
+        .build()
+        .create(PageService::class.java)
+
+    suspend fun getOptionalContent(path: String): DoramasflixContentMetadata = try {
+        parseContent(service.getPage("$baseUrl/${path.removePrefix("/")}"))
+    } catch (error: Exception) {
+        if (error is CancellationException) throw error
+        DoramasflixContentMetadata()
+    }
+
+    suspend fun getPeople(id: String): People = try {
+        parsePeople(
+            document = service.getPage("$baseUrl/reparto/${id.removePrefix("/")}"),
+            id = id,
+        )
+    } catch (error: HttpException) {
+        throw Exception("Doramasflix actor details failed: HTTP ${error.code()}", error)
+    }
+
+    private interface PageService {
+        @GET
+        @Headers(
+            "Accept: text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8",
+            "User-Agent: Mozilla/5.0 (Linux; Android 10; Android TV) AppleWebKit/537.36 Chrome/140.0.0.0 Safari/537.36",
+        )
+        suspend fun getPage(@Url url: String): Document
+    }
+
+    companion object {
+        internal fun parseContent(document: Document): DoramasflixContentMetadata {
+            val structuredContent = jsonLd(document)
+                .mapNotNull(::findStructuredContent)
+                .firstOrNull()
+            val rating = jsonLd(document)
+                .mapNotNull(::findAggregateRating)
+                .firstOrNull()
+            val overview = stringValue(structuredContent?.get("description"))
+                ?: metaContent(document, "meta[property=og:description]")
+                ?: metaContent(document, "meta[name=description]")
+            val image = imageValue(structuredContent?.get("image"))
+                ?: metaContent(document, "meta[property=og:image]")
+                ?: metaContent(document, "meta[name=twitter:image]")
+
+            return DoramasflixContentMetadata(
+                rating = rating,
+                overview = overview,
+                image = image,
+            )
+        }
+
+        internal fun parsePeople(
+            document: Document,
+            id: String,
+        ): People {
+            val structuredPerson = jsonLd(document)
+                .mapNotNull { element -> findTypedObject(element, "Person") }
+                .firstOrNull()
+
+            val name = stringValue(structuredPerson?.get("name"))
+                ?: document.selectFirst("h1")
+                    ?.text()
+                    ?.trim()
+                    ?.takeIf { it.isNotEmpty() }
+                ?: throw Exception("Doramasflix actor details could not be loaded.")
+
+            return People(
+                id = id,
+                name = name,
+                image = imageValue(structuredPerson?.get("image")),
+                biography = stringValue(structuredPerson?.get("description")),
+                placeOfBirth = placeValue(structuredPerson?.get("birthPlace"))
+                    ?: labeledValue(document, "Lugar de nacimiento"),
+                birthday = stringValue(structuredPerson?.get("birthDate"))
+                    ?: labeledDate(document, "Cumpleaños"),
+                deathday = stringValue(structuredPerson?.get("deathDate")),
+                filmography = peopleFilmography(document),
+            )
+        }
+
+        private fun peopleFilmography(document: Document): List<Show> =
+            document.select("h2")
+                .asSequence()
+                .filter { heading ->
+                    val label = heading.text().trim()
+                    label.equals("Doramas", ignoreCase = true) ||
+                        label.equals("Películas", ignoreCase = true) ||
+                        label.equals("Peliculas", ignoreCase = true)
+                }
+                .mapNotNull(Element::nextElementSibling)
+                .flatMap { container -> container.select("a[href]").asSequence() }
+                .mapNotNull { link ->
+                    val path = link.attr("href")
+                        .substringBefore('?')
+                        .trim()
+                        .removePrefix("/")
+                    val isDorama = path.startsWith("doramas-online/")
+                    val isMovie = path.startsWith("peliculas-online/")
+                    if (!isDorama && !isMovie) return@mapNotNull null
+
+                    val title = link.selectFirst("img[alt]")
+                        ?.attr("alt")
+                        ?.trim()
+                        ?.takeIf { it.isNotEmpty() }
+                        ?: link.selectFirst("h3")
+                            ?.text()
+                            ?.trim()
+                            ?.takeIf { it.isNotEmpty() }
+                        ?: return@mapNotNull null
+                    val poster = link.selectFirst("img")
+                        ?.let(::elementImage)
+
+                    when {
+                        isDorama -> TvShow(
+                            id = path,
+                            title = title,
+                            poster = poster,
+                        )
+                        else -> Movie(
+                            id = path,
+                            title = title,
+                            poster = poster,
+                        )
+                    }
+                }
+                .distinctBy { show ->
+                    when (show) {
+                        is Movie -> "movie:${show.id}"
+                        is TvShow -> "tv:${show.id}"
+                    }
+                }
+                .toList()
+
+        private fun elementImage(image: Element): String? {
+            val absolute = image.absUrl("src").trim()
+            val raw = image.attr("src").trim()
+            val value = absolute.ifEmpty { raw }.takeIf { it.isNotEmpty() } ?: return null
+            return when {
+                value.startsWith("//") -> "https:$value"
+                else -> value
+            }
+        }
+
+        private fun metaContent(
+            document: Document,
+            selector: String,
+        ): String? = document.selectFirst(selector)
+            ?.attr("content")
+            ?.trim()
+            ?.takeIf { it.isNotEmpty() }
+
+        private fun jsonLd(document: Document): Sequence<JsonElement> =
+            document.select("script[type=application/ld+json]")
+                .asSequence()
+                .mapNotNull { script ->
+                    val json = script.data().ifBlank { script.html() }
+                    runCatching { JsonParser.parseString(json) }.getOrNull()
+                }
+
+        private fun findStructuredContent(element: JsonElement): JsonObject? {
+            val supportedTypes = setOf("Movie", "TVSeries", "Episode", "TVEpisode", "CreativeWorkSeries")
+            if (element.isJsonObject) {
+                val jsonObject = element.asJsonObject
+                val typeElement = jsonObject.get("@type")
+                val matches = when {
+                    typeElement == null || typeElement.isJsonNull -> false
+                    typeElement.isJsonArray -> typeElement.asJsonArray.any { value -> stringValue(value) in supportedTypes }
+                    else -> stringValue(typeElement) in supportedTypes
+                }
+                if (matches) return jsonObject
+                return jsonObject.entrySet().asSequence()
+                    .mapNotNull { (_, value) -> findStructuredContent(value) }
+                    .firstOrNull()
+            }
+            if (element.isJsonArray) {
+                return element.asJsonArray.asSequence()
+                    .mapNotNull(::findStructuredContent)
+                    .firstOrNull()
+            }
+            return null
+        }
+
+        private fun findTypedObject(
+            element: JsonElement,
+            type: String,
+        ): JsonObject? {
+            if (element.isJsonObject) {
+                val jsonObject = element.asJsonObject
+                val typeElement = jsonObject.get("@type")
+                val matches = when {
+                    typeElement == null || typeElement.isJsonNull -> false
+                    typeElement.isJsonArray -> typeElement.asJsonArray.any { value ->
+                        stringValue(value).equals(type, ignoreCase = true)
+                    }
+                    else -> stringValue(typeElement).equals(type, ignoreCase = true)
+                }
+
+                if (matches) return jsonObject
+
+                return jsonObject.entrySet()
+                    .asSequence()
+                    .mapNotNull { (_, value) -> findTypedObject(value, type) }
+                    .firstOrNull()
+            }
+
+            if (element.isJsonArray) {
+                return element.asJsonArray
+                    .asSequence()
+                    .mapNotNull { value -> findTypedObject(value, type) }
+                    .firstOrNull()
+            }
+
+            return null
+        }
+
+        private fun findAggregateRating(element: JsonElement): Double? {
+            if (element.isJsonObject) {
+                val jsonObject = element.asJsonObject
+                val aggregateElement = jsonObject.get("aggregateRating")
+                val aggregateRating = if (aggregateElement?.isJsonObject == true) {
+                    aggregateElement.asJsonObject
+                } else {
+                    null
+                }
+
+                if (aggregateRating != null) {
+                    val ratingValue = aggregateRating.get("ratingValue")
+                        ?.let(::numberOrNull)
+                        ?.takeIf { it > 0.0 }
+                    val ratingCount = aggregateRating.get("ratingCount")
+                        ?.let(::numberOrNull)
+                        ?.takeIf { it > 0.0 }
+
+                    if (ratingValue != null && ratingCount != null) {
+                        return ratingValue
+                    }
+                }
+
+                return jsonObject.entrySet()
+                    .asSequence()
+                    .mapNotNull { (_, value) -> findAggregateRating(value) }
+                    .firstOrNull()
+            }
+
+            if (element.isJsonArray) {
+                return element.asJsonArray
+                    .asSequence()
+                    .mapNotNull(::findAggregateRating)
+                    .firstOrNull()
+            }
+
+            return null
+        }
+
+        private fun imageValue(element: JsonElement?): String? = when {
+            element == null || element.isJsonNull -> null
+            element.isJsonObject -> {
+                val image = element.asJsonObject
+                stringValue(image.get("url")) ?: stringValue(image.get("contentUrl"))
+            }
+            element.isJsonArray -> element.asJsonArray.asSequence().mapNotNull(::imageValue).firstOrNull()
+            else -> stringValue(element)
+        }
+
+        private fun placeValue(element: JsonElement?): String? = when {
+            element == null || element.isJsonNull -> null
+            element.isJsonObject -> stringValue(element.asJsonObject.get("name"))
+            else -> stringValue(element)
+        }
+
+        private fun stringValue(element: JsonElement?): String? =
+            element
+                ?.takeUnless { it.isJsonNull || it.isJsonObject || it.isJsonArray }
+                ?.let { value -> runCatching { value.asString }.getOrNull() }
+                ?.trim()
+                ?.takeIf { it.isNotEmpty() }
+
+        private fun numberOrNull(element: JsonElement): Double? =
+            runCatching { element.asDouble }.getOrNull()
+
+        private fun labeledDate(
+            document: Document,
+            label: String,
+        ): String? = labeledValue(document, label)
+            ?.let { value -> Regex("\\b\\d{4}-\\d{2}-\\d{2}\\b").find(value)?.value }
+
+        private fun labeledValue(
+            document: Document,
+            label: String,
+        ): String? {
+            val pattern = Regex(
+                "${Regex.escape(label)}\\s*:?\\s*(.+)",
+                RegexOption.IGNORE_CASE,
+            )
+
+            return document.getElementsContainingOwnText(label)
+                .asSequence()
+                .mapNotNull { element ->
+                    pattern.find(element.text())
+                        ?.groupValues
+                        ?.getOrNull(1)
+                        ?.trim()
+                        ?.takeIf { it.isNotEmpty() }
+                }
+                .firstOrNull()
+        }
+    }
+}

@@ -5,6 +5,7 @@ import android.view.LayoutInflater
 import android.view.View
 import android.view.ViewGroup
 import android.widget.Toast
+import androidx.appcompat.app.AlertDialog
 import androidx.fragment.app.Fragment
 import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.flowWithLifecycle
@@ -155,6 +156,8 @@ class PeopleTvFragment : Fragment() {
             else -> View.VISIBLE
         }
 
+        displayBiography(people)
+
         appAdapter.submitList(people.filmography.onEach {
             when (it) {
                 is Movie -> it.itemType = AppAdapter.Type.MOVIE_GRID_TV_ITEM
@@ -166,6 +169,42 @@ class PeopleTvFragment : Fragment() {
             appAdapter.setOnLoadMoreListener { viewModel.loadMorePeopleFilmography() }
         } else {
             appAdapter.setOnLoadMoreListener(null)
+        }
+    }
+
+    private fun displayBiography(people: People) {
+        val biography = people.biography
+            ?.trim()
+            ?.takeIf { it.isNotEmpty() }
+
+        if (biography == null) {
+            binding.llPeopleBiography.visibility = View.GONE
+            binding.btnPeopleBiographyReadMore.setOnClickListener(null)
+            return
+        }
+
+        binding.llPeopleBiography.visibility = View.VISIBLE
+        binding.tvPeopleBiography.text = biography
+        binding.btnPeopleBiographyReadMore.visibility = View.GONE
+        binding.btnPeopleBiographyReadMore.setOnClickListener {
+            AlertDialog.Builder(requireContext())
+                .setTitle(people.name.takeIf { it.isNotBlank() } ?: getString(R.string.people_biography))
+                .setMessage(biography)
+                .setPositiveButton(android.R.string.ok, null)
+                .show()
+        }
+
+        binding.tvPeopleBiography.post {
+            val currentBinding = _binding ?: return@post
+            val textLayout = currentBinding.tvPeopleBiography.layout
+            val lastLine = textLayout?.lineCount?.minus(1) ?: -1
+            val isTruncated = textLayout != null &&
+                lastLine >= 0 &&
+                textLayout.getEllipsisCount(lastLine) > 0
+            currentBinding.btnPeopleBiographyReadMore.visibility = when {
+                isTruncated -> View.VISIBLE
+                else -> View.GONE
+            }
         }
     }
 }

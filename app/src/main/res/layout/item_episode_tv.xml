@@ -51,15 +51,29 @@
 
     <TextView
         android:id="@+id/tv_episode_info"
-        android:layout_width="0dp"
+        android:layout_width="wrap_content"
         android:layout_height="wrap_content"
-        android:layout_marginTop="0dp"
-        android:gravity="center"
+        android:layout_marginStart="12dp"
         android:textSize="16sp"
-        app:layout_constraintEnd_toEndOf="parent"
         app:layout_constraintStart_toStartOf="parent"
         app:layout_constraintTop_toBottomOf="@id/iv_episode_poster"
-        tools:text="Episode #" />
+        tools:text="Episode 28" />
+
+    <TextView
+        android:id="@+id/tv_episode_released"
+        android:layout_width="0dp"
+        android:layout_height="wrap_content"
+        android:layout_marginStart="12dp"
+        android:layout_marginEnd="12dp"
+        android:ellipsize="end"
+        android:gravity="end"
+        android:maxLines="1"
+        android:textSize="12sp"
+        android:textStyle="bold"
+        app:layout_constraintBaseline_toBaselineOf="@id/tv_episode_info"
+        app:layout_constraintEnd_toEndOf="parent"
+        app:layout_constraintStart_toEndOf="@id/tv_episode_info"
+        tools:text="Friday - November 27, 2020" />
 
     <TextView
         android:id="@+id/tv_episode_title"
@@ -68,39 +82,28 @@
         android:gravity="center"
         android:textColor="#FFFFFF"
         android:textSize="18sp"
-        android:textStyle="bold"
+      android:textStyle="bold"
         app:layout_constraintEnd_toEndOf="parent"
         app:layout_constraintStart_toStartOf="parent"
         app:layout_constraintTop_toBottomOf="@id/tv_episode_info"
-        tools:text="Title" />
-
-    <TextView
-        android:id="@+id/tv_episode_released"
-        android:layout_width="0dp"
-        android:layout_height="wrap_content"
-        android:layout_marginTop="4dp"
-        android:gravity="center"
-        android:textSize="12sp"
-        android:textStyle="bold"
-        app:layout_constraintEnd_toEndOf="parent"
-        app:layout_constraintStart_toStartOf="parent"
-        app:layout_constraintTop_toBottomOf="@id/tv_episode_title"
-        tools:text="Release date" />
+        tools:text="Reuniendome contigo 1x28" />
 
     <TextView
         android:id="@+id/tv_episode_overview"
         android:layout_width="0dp"
         android:layout_height="wrap_content"
         android:layout_marginStart="12dp"
+        android:layout_marginTop="4dp"
         android:layout_marginEnd="10dp"
-        android:textSize="12sp"
         android:ellipsize="end"
+        android:maxLines="4"
         android:scrollHorizontally="false"
         android:singleLine="false"
-        android:maxLines="4"
-        app:layout_constraintTop_toBottomOf="@id/tv_episode_title"
-        app:layout_constraintStart_toStartOf="parent"
+        android:textSize="12sp"
         app:layout_constraintEnd_toEndOf="parent"
+        app:layout_constraintStart_toStartOf="parent"
+        app:layout_constraintTop_toBottomOf="@id/tv_episode_title"
         tools:text="Overview" />
 
+    
 </androidx.constraintlayout.widget.ConstraintLayout>
