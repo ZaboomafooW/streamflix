@@ -1364,7 +1364,13 @@ class PlayerTvFragment : Fragment() {
             val playedAtMillis = System.currentTimeMillis()
             when (val videoType = currentVideoTypeForUi()) {
                 is Video.Type.Movie -> {
-                    if (database.movieDao().markRecentlyWatched(videoType.id, playedAtMillis) == 0) {
+                    if (database.movieDao().markRecentlyWatched(
+                            id = videoType.id,
+                            playedAtMillis = playedAtMillis,
+                            imdbId = videoType.imdbId,
+                            tmdbId = videoType.tmdbId,
+                        ) == 0
+                    ) {
                         database.movieDao().insert(
                             Movie(
                                 id = videoType.id,
@@ -1372,6 +1378,7 @@ class PlayerTvFragment : Fragment() {
                                 released = videoType.releaseDate,
                                 poster = videoType.poster,
                                 imdbId = videoType.imdbId,
+                                tmdbId = videoType.tmdbId,
                             ).apply {
                                 lastPlayedAtMillis = playedAtMillis
                             }
@@ -1388,6 +1395,7 @@ class PlayerTvFragment : Fragment() {
                             poster = videoType.tvShow.poster,
                             banner = videoType.tvShow.banner,
                             imdbId = videoType.tvShow.imdbId,
+                            tmdbId = videoType.tvShow.tmdbId,
                         ).apply {
                             lastPlayedAtMillis = playedAtMillis
                             lastPlayedEpisodeId = videoType.id
@@ -1414,6 +1422,8 @@ class PlayerTvFragment : Fragment() {
                         id = videoType.tvShow.id,
                         episodeId = videoType.id,
                         playedAtMillis = playedAtMillis,
+                        imdbId = videoType.tvShow.imdbId,
+                        tmdbId = videoType.tvShow.tmdbId,
                     )
                 }
             }
@@ -1479,6 +1489,8 @@ class PlayerTvFragment : Fragment() {
                     title = nextEpisode.tvShow.title,
                     poster = nextEpisode.tvShow.poster,
                     banner = nextEpisode.tvShow.banner,
+                    imdbId = nextEpisode.tvShow.imdbId,
+                    tmdbId = nextEpisode.tvShow.tmdbId,
                 ),
                 season = Season(
                     number = nextEpisode.season.number,

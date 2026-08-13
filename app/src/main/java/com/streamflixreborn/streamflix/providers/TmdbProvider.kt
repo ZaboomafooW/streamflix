@@ -63,6 +63,7 @@ class TmdbProvider(override val language: String) : Provider {
                     rating = multi.voteAverage.toDouble(),
                     poster = multi.posterPath?.w500,
                     banner = multi.backdropPath?.original,
+                    tmdbId = multi.id,
                 )
 
                 is TMDb3.Tv -> TvShow(
@@ -73,6 +74,7 @@ class TmdbProvider(override val language: String) : Provider {
                     rating = multi.voteAverage.toDouble(),
                     poster = multi.posterPath?.w500,
                     banner = multi.backdropPath?.original,
+                    tmdbId = multi.id,
                 )
 
                 else -> null
@@ -388,6 +390,7 @@ class TmdbProvider(override val language: String) : Provider {
                     rating = multi.voteAverage.toDouble(),
                     poster = multi.posterPath?.w500,
                     banner = multi.backdropPath?.original,
+                    tmdbId = multi.id,
                 )
 
                 is TMDb3.Tv -> TvShow(
@@ -398,6 +401,7 @@ class TmdbProvider(override val language: String) : Provider {
                     rating = multi.voteAverage.toDouble(),
                     poster = multi.posterPath?.w500,
                     banner = multi.backdropPath?.original,
+                    tmdbId = multi.id,
                 )
 
                 else -> null
@@ -417,6 +421,7 @@ class TmdbProvider(override val language: String) : Provider {
                 rating = movie.voteAverage.toDouble(),
                 poster = movie.posterPath?.w500,
                 banner = movie.backdropPath?.original,
+                tmdbId = movie.id,
             )
         }
 
@@ -433,6 +438,7 @@ class TmdbProvider(override val language: String) : Provider {
                 rating = tv.voteAverage.toDouble(),
                 poster = tv.posterPath?.w500,
                 banner = tv.backdropPath?.original,
+                tmdbId = tv.id,
             )
         }
 
@@ -488,6 +494,7 @@ class TmdbProvider(override val language: String) : Provider {
                             rating = multi.voteAverage.toDouble(),
                             poster = multi.posterPath?.w500,
                             banner = multi.backdropPath?.original,
+                            tmdbId = multi.id,
                         )
 
                         is TMDb3.Tv -> TvShow(
@@ -498,11 +505,13 @@ class TmdbProvider(override val language: String) : Provider {
                             rating = multi.voteAverage.toDouble(),
                             poster = multi.posterPath?.w500,
                             banner = multi.backdropPath?.original,
+                            tmdbId = multi.id,
                         )
 
                         else -> null
                     }
                 } ?: listOf(),
+                tmdbId = movie.id,
             )
         }
 
@@ -565,6 +574,7 @@ class TmdbProvider(override val language: String) : Provider {
                             rating = multi.voteAverage.toDouble(),
                             poster = multi.posterPath?.w500,
                             banner = multi.backdropPath?.original,
+                            tmdbId = multi.id,
                         )
 
                         is TMDb3.Tv -> TvShow(
@@ -575,11 +585,13 @@ class TmdbProvider(override val language: String) : Provider {
                             rating = multi.voteAverage.toDouble(),
                             poster = multi.posterPath?.w500,
                             banner = multi.backdropPath?.original,
+                            tmdbId = multi.id,
                         )
 
                         else -> null
                     }
                 } ?: listOf(),
+                tmdbId = tv.id,
             )
         }
 
@@ -638,6 +650,7 @@ class TmdbProvider(override val language: String) : Provider {
                     rating = movie.voteAverage.toDouble(),
                     poster = movie.posterPath?.w500,
                     banner = movie.backdropPath?.original,
+                    tmdbId = movie.id,
                 )
             }.mix(TMDb3.Discover.tv(
                 page = page,
@@ -652,6 +665,7 @@ class TmdbProvider(override val language: String) : Provider {
                     rating = tv.voteAverage.toDouble(),
                     poster = tv.posterPath?.w500,
                     banner = tv.backdropPath?.original,
+                    tmdbId = tv.id,
                 )
             })
         )
@@ -687,6 +701,7 @@ class TmdbProvider(override val language: String) : Provider {
                                 rating = multi.voteAverage.toDouble(),
                                 poster = multi.posterPath?.w500,
                                 banner = multi.backdropPath?.original,
+                                tmdbId = multi.id,
                             )
 
                             is TMDb3.Tv -> TvShow(
@@ -697,6 +712,7 @@ class TmdbProvider(override val language: String) : Provider {
                                 rating = multi.voteAverage.toDouble(),
                                 poster = multi.posterPath?.w500,
                                 banner = multi.backdropPath?.original,
+                                tmdbId = multi.id,
                             )
 
                         else -> null
@@ -719,6 +735,16 @@ class TmdbProvider(override val language: String) : Provider {
     override suspend fun getServers(id: String, videoType: Video.Type): List<Video.Server> {
         val servers = mutableListOf<Video.Server>()
         val lang = language.lowercase().substringBefore("-")
+        val identifiedVideoType = when (videoType) {
+            is Video.Type.Movie -> videoType.copy(
+                tmdbId = videoType.tmdbId ?: videoType.id.toIntOrNull()
+            )
+            is Video.Type.Episode -> videoType.copy(
+                tvShow = videoType.tvShow.copy(
+                    tmdbId = videoType.tvShow.tmdbId ?: videoType.tvShow.id.toIntOrNull()
+                )
+            )
+        }
 
         Log.d("TmdbProvider", "getServers: lang=$language, simplifiedLang=$lang")
 
@@ -733,12 +759,12 @@ class TmdbProvider(override val language: String) : Provider {
                 if (videoType is Video.Type.Movie) {
                     servers.add(EinschaltenExtractor().server(videoType))
                 }
-                VideasyExtractor().server(videoType, language)?.let { servers.add(it) }
+                VideasyExtractor().server(identifiedVideoType, language)?.let { servers.add(it) }
             }
             "fr" -> {
                 // Solo server francesi
                 servers.addAll(FrembedExtractor(UserPreferences.getProviderCache(FrembedProvider, UserPreferences.PROVIDER_URL)).servers(videoType))
-                servers.addAll(AfterDarkExtractor(UserPreferences.getProviderCache(AfterDarkProvider, UserPreferences.PROVIDER_URL)).servers(videoType))
+                servers.addAll(AfterDarkExtractor(UserPreferences.getProviderCache(AfterDarkProvider, UserPreferences.PROVIDER_URL)).servers(identifiedVideoType))
             }
             "es" -> {
                 // TMDB Spagnolo: Utilizza ESCLUSIVAMENTE server certificati con audio spagnolo ([LAT] o [CAST])
@@ -842,7 +868,7 @@ class TmdbProvider(override val language: String) : Provider {
                 servers.addAll(PrimeSrcExtractor().servers(videoType))
 
                 if (language == "en") {
-                    servers.addAll(1, VideasyExtractor().servers(videoType, language))
+                    servers.addAll(1, VideasyExtractor().servers(identifiedVideoType, language))
                 }
             }
         }
@@ -903,7 +929,8 @@ class TmdbProvider(override val language: String) : Provider {
             }
             
             if (!forcedFound) {
-                video.subtitles.forEach { it.default = false }
+                video.subtitles.forEach { it.default = false
+                }
                 Log.i("StreamFlixES", "[SUBTITLE] -> TMDb (es): No forced subs found, keeping them OFF")
             }
         }
