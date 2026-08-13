@@ -1,7 +1,10 @@
 package com.streamflixreborn.streamflix.providers
 
+import com.streamflixreborn.streamflix.models.Movie
+import com.streamflixreborn.streamflix.models.TvShow
 import org.jsoup.Jsoup
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertTrue
 import org.junit.Test
 
 class DoramasflixFilmographyTest {
@@ -47,11 +50,20 @@ class DoramasflixFilmographyTest {
         )
 
         assertEquals(3, people.filmography.size)
-        assertEquals("doramas-online/in-your-radiant-season", people.filmography[0].id)
-        assertEquals("In Your Radiant Season", people.filmography[0].title)
-        assertEquals("doramas-online/castaway-diva", people.filmography[1].id)
-        assertEquals("Castaway Diva", people.filmography[1].title)
-        assertEquals("peliculas-online/example-film", people.filmography[2].id)
-        assertEquals("Example Film", people.filmography[2].title)
+
+        assertTrue(people.filmography[0] is TvShow)
+        val radiantSeason = people.filmography[0] as TvShow
+        assertEquals("doramas-online/in-your-radiant-season", radiantSeason.id)
+        assertEquals("In Your Radiant Season", radiantSeason.title)
+
+        assertTrue(people.filmography[1] is TvShow)
+        val castawayDiva = people.filmography[1] as TvShow
+        assertEquals("doramas-online/castaway-diva", castawayDiva.id)
+        assertEquals("Castaway Diva", castawayDiva.title)
+
+        assertTrue(people.filmography[2] is Movie)
+        val exampleFilm = people.filmography[2] as Movie
+        assertEquals("peliculas-online/example-film", exampleFilm.id)
+        assertEquals("Example Film", exampleFilm.title)
     }
 }
