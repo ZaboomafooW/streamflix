@@ -346,7 +346,7 @@ object UserDataCache {
     }
 
     private fun hydrateEpisodeParent(context: Context, provider: Provider, episode: Episode) {
-        val showId = episode.tvShow?.id ?: return
+        val currentShow = episode.tvShow ?: return
         runCatching {
             val usesCurrentDatabase = UserPreferences.currentProvider?.name == provider.name
             val db = if (usesCurrentDatabase) {
@@ -355,7 +355,14 @@ object UserDataCache {
                 AppDatabase.getInstanceForProvider(provider.name, context)
             }
             try {
-                db.tvShowDao().getById(showId)?.let { episode.tvShow = it }
+                val storedShow = db.tvShowDao().getById(currentShow.id) ?: return@runCatching
+                episode.tvShow = currentShow.copy(
+                    title = currentShow.title.ifBlank { storedShow.title },
+                    poster = currentShow.poster ?: storedShow.poster,
+                    banner = currentShow.banner ?: storedShow.banner,
+                    imdbId = currentShow.imdbId ?: storedShow.imdbId,
+                    tmdbId = currentShow.tmdbId ?: storedShow.tmdbId,
+                )
             } finally {
                 if (!usesCurrentDatabase) db.close()
             }
