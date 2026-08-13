@@ -104,6 +104,7 @@ object AfterDarkProvider : Provider, ProviderPortalUrl, ProviderConfigUrl {
                 overview = overview ?: "",
                 banner = backdropPath?.original,
                 poster = posterPath?.w500,
+                tmdbId = tmdbId,
             )
             else -> Movie(
                 id = tmdbId.toString(),
@@ -111,6 +112,7 @@ object AfterDarkProvider : Provider, ProviderPortalUrl, ProviderConfigUrl {
                 overview = overview ?: "",
                 banner = backdropPath?.original,
                 poster = posterPath?.w500,
+                tmdbId = tmdbId,
             )
         }
 
@@ -132,6 +134,7 @@ object AfterDarkProvider : Provider, ProviderPortalUrl, ProviderConfigUrl {
                 rating = voteAverage.toDouble(),
                 poster = posterPath?.w500,
                 banner = backdropPath?.original,
+                tmdbId = id,
             )
 
             is TMDb3.Tv -> TvShow(
@@ -142,6 +145,7 @@ object AfterDarkProvider : Provider, ProviderPortalUrl, ProviderConfigUrl {
                 rating = voteAverage.toDouble(),
                 poster = posterPath?.w500,
                 banner = backdropPath?.original,
+                tmdbId = id,
             )
 
             else -> null
@@ -275,6 +279,7 @@ object AfterDarkProvider : Provider, ProviderPortalUrl, ProviderConfigUrl {
                     rating = multi.voteAverage.toDouble(),
                     poster = multi.posterPath?.w500,
                     banner = multi.backdropPath?.original,
+                    tmdbId = multi.id,
                 )
 
                 is TMDb3.Tv -> TvShow(
@@ -285,6 +290,7 @@ object AfterDarkProvider : Provider, ProviderPortalUrl, ProviderConfigUrl {
                     rating = multi.voteAverage.toDouble(),
                     poster = multi.posterPath?.w500,
                     banner = multi.backdropPath?.original,
+                    tmdbId = multi.id,
                 )
 
                 else -> null
@@ -399,6 +405,7 @@ object AfterDarkProvider : Provider, ProviderPortalUrl, ProviderConfigUrl {
                             rating = multi.voteAverage.toDouble(),
                             poster = multi.posterPath?.w500,
                             banner = multi.backdropPath?.original,
+                            tmdbId = multi.id,
                         )
 
                         is TMDb3.Tv -> TvShow(
@@ -409,6 +416,7 @@ object AfterDarkProvider : Provider, ProviderPortalUrl, ProviderConfigUrl {
                             rating = multi.voteAverage.toDouble(),
                             poster = multi.posterPath?.w500,
                             banner = multi.backdropPath?.original,
+                            tmdbId = multi.id,
                         )
 
                         else -> null
@@ -477,6 +485,7 @@ object AfterDarkProvider : Provider, ProviderPortalUrl, ProviderConfigUrl {
                             rating = multi.voteAverage.toDouble(),
                             poster = multi.posterPath?.w500,
                             banner = multi.backdropPath?.original,
+                            tmdbId = multi.id,
                         )
 
                         is TMDb3.Tv -> TvShow(
@@ -487,6 +496,7 @@ object AfterDarkProvider : Provider, ProviderPortalUrl, ProviderConfigUrl {
                             rating = multi.voteAverage.toDouble(),
                             poster = multi.posterPath?.w500,
                             banner = multi.backdropPath?.original,
+                            tmdbId = multi.id,
                         )
 
                         else -> null
@@ -575,6 +585,7 @@ object AfterDarkProvider : Provider, ProviderPortalUrl, ProviderConfigUrl {
                                 rating = multi.voteAverage.toDouble(),
                                 poster = multi.posterPath?.w500,
                                 banner = multi.backdropPath?.original,
+                                tmdbId = multi.id,
                             )
 
                             is TMDb3.Tv -> TvShow(
@@ -585,6 +596,7 @@ object AfterDarkProvider : Provider, ProviderPortalUrl, ProviderConfigUrl {
                                 rating = multi.voteAverage.toDouble(),
                                 poster = multi.posterPath?.w500,
                                 banner = multi.backdropPath?.original,
+                                tmdbId = multi.id,
                             )
 
                             else -> null
