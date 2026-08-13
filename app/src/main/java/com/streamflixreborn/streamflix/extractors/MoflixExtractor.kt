@@ -18,11 +18,15 @@ class MoflixExtractor : Extractor() {
     override val aliasUrls = listOf("https://moflix-stream.xyz")
 
     suspend fun servers(videoType: Video.Type): List<Video.Server> {
+        val tmdbId = when (videoType) {
+            is Video.Type.Episode -> videoType.tvShow.tmdbId
+            is Video.Type.Movie -> videoType.tmdbId
+        } ?: return emptyList()
         val service = Service.build(mainUrl)
 
         val url = when (videoType) {
             is Video.Type.Episode -> {
-                val id = Base64.encode("tmdb|series|${videoType.tvShow.id}".toByteArray(), Base64.NO_WRAP).toString(Charsets.UTF_8)
+                val id = Base64.encode("tmdb|series|$tmdbId".toByteArray(), Base64.NO_WRAP).toString(Charsets.UTF_8)
                 val mediaId = try {
                     service.getResponse(
                         "$mainUrl/api/v1/titles/$id?loader=titlePage",
@@ -34,7 +38,7 @@ class MoflixExtractor : Extractor() {
                 "$mainUrl/api/v1/titles/$mediaId/seasons/${videoType.season.number}/episodes/${videoType.number}?loader=episodePage"
             }
             is Video.Type.Movie -> {
-                val id = Base64.encode("tmdb|movie|${videoType.id}".toByteArray(), Base64.NO_WRAP).toString(Charsets.UTF_8)
+                val id = Base64.encode("tmdb|movie|$tmdbId".toByteArray(), Base64.NO_WRAP).toString(Charsets.UTF_8)
                 "$mainUrl/api/v1/titles/$id?loader=titlePage"
             }
         }
