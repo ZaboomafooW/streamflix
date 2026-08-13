@@ -1,5 +1,6 @@
 package com.streamflixreborn.streamflix.providers
 
+import com.google.gson.JsonParser
 import java.time.Instant
 import java.time.ZoneOffset
 
@@ -109,5 +110,30 @@ internal object DoramasflixLogic {
             "streamwish" -> "Streamwish"
             else -> value
         }
+    }
+
+    fun graphQlErrorMessage(body: String?): String? {
+        val root = body
+            ?.trim()
+            ?.takeIf { it.isNotEmpty() }
+            ?.let { raw -> runCatching { JsonParser.parseString(raw) }.getOrNull() }
+            ?.takeIf { it.isJsonObject }
+            ?.asJsonObject
+            ?: return null
+
+        val errors = root.getAsJsonArray("errors") ?: return null
+        return errors
+            .asSequence()
+            .mapNotNull { error ->
+                error.takeIf { it.isJsonObject }
+                    ?.asJsonObject
+                    ?.get("message")
+                    ?.let { message -> runCatching { message.asString }.getOrNull() }
+                    ?.trim()
+                    ?.takeIf { it.isNotEmpty() }
+            }
+            .distinct()
+            .joinToString("; ")
+            .takeIf { it.isNotEmpty() }
     }
 }

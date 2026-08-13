@@ -109,6 +109,30 @@ class DoramasflixLogicTest {
     }
 
     @Test
+    fun `graphql error body returns concise distinct messages`() {
+        assertEquals(
+            "Variable limit has the wrong type.; Another validation failure.",
+            DoramasflixLogic.graphQlErrorMessage(
+                """
+                    {
+                      "errors": [
+                        {"message": "Variable limit has the wrong type."},
+                        {"message": "Variable limit has the wrong type."},
+                        {"message": "Another validation failure."}
+                      ]
+                    }
+                """.trimIndent(),
+            )
+        )
+    }
+
+    @Test
+    fun `invalid graphql error body has no user detail`() {
+        assertNull(DoramasflixLogic.graphQlErrorMessage("not-json"))
+        assertNull(DoramasflixLogic.graphQlErrorMessage("{\"data\":{}}"))
+    }
+
+    @Test
     fun `protocol relative playback URL is normalized to https`() {
         assertEquals(
             "https://ok.ru/videoembed/123",

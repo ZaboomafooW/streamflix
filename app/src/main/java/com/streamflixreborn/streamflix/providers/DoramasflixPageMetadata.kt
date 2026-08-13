@@ -1,12 +1,14 @@
 package com.streamflixreborn.streamflix.providers
 
 import com.google.gson.JsonElement
+import com.google.gson.JsonObject
 import com.google.gson.JsonParser
 import com.tanasi.retrofit_jsoup.converter.JsoupConverterFactory
 import com.streamflixreborn.streamflix.models.People
 import kotlinx.coroutines.CancellationException
 import okhttp3.OkHttpClient
 import org.jsoup.nodes.Document
+import retrofit2.HttpException
 import retrofit2.Retrofit
 import retrofit2.http.GET
 import retrofit2.http.Headers
@@ -35,11 +37,14 @@ internal class DoramasflixPageMetadata(
         DoramasflixContentMetadata()
     }
 
-    suspend fun getPeople(id: String): People =
+    suspend fun getPeople(id: String): People = try {
         parsePeople(
             document = service.getPage("$baseUrl/reparto/${id.removePrefix("/")}"),
             id = id,
         )
+    } catch (error: HttpException) {
+        throw Exception("Doramasflix actor details failed: HTTP ${error.code()}", error)
+    }
 
     private interface PageService {
         @GET
@@ -52,12 +57,7 @@ internal class DoramasflixPageMetadata(
 
     companion object {
         internal fun parseContent(document: Document): DoramasflixContentMetadata {
-            val rating = document.select("script[type=application/ld+json]")
-                .asSequence()
-                .mapNotNull { script ->
-                    val json = script.data().ifBlank { script.html() }
-                    runCatching { JsonParser.parseString(json) }.getOrNull()
-                }
+            val rating = jsonLd(document)
                 .mapNotNull(::findAggregateRating)
                 .firstOrNull()
 
@@ -68,18 +68,69 @@ internal class DoramasflixPageMetadata(
             document: Document,
             id: String,
         ): People {
-            val name = document.selectFirst("h1")
-                ?.text()
-                ?.trim()
-                ?.takeIf { it.isNotEmpty() }
+            val structuredPerson = jsonLd(document)
+                .mapNotNull { element -> findTypedObject(element, "Person") }
+                .firstOrNull()
+
+            val name = stringValue(structuredPerson?.get("name"))
+                ?: document.selectFirst("h1")
+                    ?.text()
+                    ?.trim()
+                    ?.takeIf { it.isNotEmpty() }
                 ?: throw Exception("Doramasflix actor details could not be loaded.")
 
             return People(
                 id = id,
                 name = name,
-                birthday = labeledDate(document, "Cumpleaños"),
-                placeOfBirth = labeledValue(document, "Lugar de nacimiento"),
+                image = imageValue(structuredPerson?.get("image")),
+                biography = stringValue(structuredPerson?.get("description")),
+                placeOfBirth = placeValue(structuredPerson?.get("birthPlace"))
+                    ?: labeledValue(document, "Lugar de nacimiento"),
+                birthday = stringValue(structuredPerson?.get("birthDate"))
+                    ?: labeledDate(document, "Cumpleaños"),
+                deathday = stringValue(structuredPerson?.get("deathDate")),
             )
+        }
+
+        private fun jsonLd(document: Document): Sequence<JsonElement> =
+            document.select("script[type=application/ld+json]")
+                .asSequence()
+                .mapNotNull { script ->
+                    val json = script.data().ifBlank { script.html() }
+                    runCatching { JsonParser.parseString(json) }.getOrNull()
+                }
+
+        private fun findTypedObject(
+            element: JsonElement,
+            type: String,
+        ): JsonObject? {
+            if (element.isJsonObject) {
+                val jsonObject = element.asJsonObject
+                val typeElement = jsonObject.get("@type")
+                val matches = when {
+                    typeElement == null || typeElement.isJsonNull -> false
+                    typeElement.isJsonArray -> typeElement.asJsonArray.any { value ->
+                        stringValue(value).equals(type, ignoreCase = true)
+                    }
+                    else -> stringValue(typeElement).equals(type, ignoreCase = true)
+                }
+
+                if (matches) return jsonObject
+
+                return jsonObject.entrySet()
+                    .asSequence()
+                    .mapNotNull { (_, value) -> findTypedObject(value, type) }
+                    .firstOrNull()
+            }
+
+            if (element.isJsonArray) {
+                return element.asJsonArray
+                    .asSequence()
+                    .mapNotNull { value -> findTypedObject(value, type) }
+                    .firstOrNull()
+            }
+
+            return null
         }
 
         private fun findAggregateRating(element: JsonElement): Double? {
@@ -120,6 +171,28 @@ internal class DoramasflixPageMetadata(
 
             return null
         }
+
+        private fun imageValue(element: JsonElement?): String? = when {
+            element == null || element.isJsonNull -> null
+            element.isJsonObject -> {
+                val image = element.asJsonObject
+                stringValue(image.get("url")) ?: stringValue(image.get("contentUrl"))
+            }
+            else -> stringValue(element)
+        }
+
+        private fun placeValue(element: JsonElement?): String? = when {
+            element == null || element.isJsonNull -> null
+            element.isJsonObject -> stringValue(element.asJsonObject.get("name"))
+            else -> stringValue(element)
+        }
+
+        private fun stringValue(element: JsonElement?): String? =
+            element
+                ?.takeUnless { it.isJsonNull || it.isJsonObject || it.isJsonArray }
+                ?.let { value -> runCatching { value.asString }.getOrNull() }
+                ?.trim()
+                ?.takeIf { it.isNotEmpty() }
 
         private fun numberOrNull(element: JsonElement): Double? =
             runCatching { element.asDouble }.getOrNull()

@@ -1,6 +1,7 @@
 package com.streamflixreborn.streamflix.providers
 
 import android.util.Base64
+import android.util.Log
 import com.streamflixreborn.streamflix.adapters.AppAdapter
 import com.streamflixreborn.streamflix.extractors.Extractor
 import com.streamflixreborn.streamflix.models.Category
@@ -26,6 +27,7 @@ import okhttp3.MediaType.Companion.toMediaType
 import okhttp3.OkHttpClient
 import okhttp3.RequestBody.Companion.toRequestBody
 import org.json.JSONObject
+import retrofit2.HttpException
 import retrofit2.Retrofit
 import retrofit2.converter.gson.GsonConverterFactory
 import retrofit2.http.Body
@@ -129,6 +131,24 @@ object DoramasflixProvider : Provider {
         .toString()
         .toRequestBody("application/json".toMediaType())
 
+    private fun requestContext(operationName: String): String = when (operationName) {
+        "searchAll" -> "Doramasflix search"
+        "DoramasCarrousel" -> "Doramasflix Home featured Doramas"
+        "MoviesCarrousel" -> "Doramasflix Home featured movies"
+        "DetailMovieSlug" -> "Doramasflix movie details"
+        "DetailDoramaSlug" -> "Doramasflix series details"
+        "similarsMovies" -> "Doramasflix movie recommendations"
+        "SimilarsDoramas" -> "Doramasflix series recommendations"
+        "listSeasons" -> "Doramasflix seasons"
+        "listEpisodes" -> "Doramasflix episodes"
+        "ListServers" -> "Doramasflix server list"
+        "PaginationMovie" -> "Doramasflix movies catalog"
+        "PaginationDorama" -> "Doramasflix Doramas catalog"
+        "MovieLinks" -> "Doramasflix movie playback sources"
+        "EpisodeLinksOnline" -> "Doramasflix episode playback sources"
+        else -> "Doramasflix $operationName"
+    }
+
     private fun ApiResponse.requireData(context: String): Data {
         if (errors.isNotEmpty()) {
             val message = errors
@@ -141,31 +161,67 @@ object DoramasflixProvider : Provider {
                 throw Exception("$context is temporarily rate limiting requests. Please try again shortly.")
             }
 
-            throw Exception("$context returned an error: $message")
+            throw Exception("$context failed: $message")
         }
 
         return data ?: throw Exception("$context returned no data.")
+    }
+
+    private fun httpFailure(
+        context: String,
+        error: HttpException,
+    ): Exception {
+        val detail = runCatching {
+            DoramasflixLogic.graphQlErrorMessage(
+                error.response()?.errorBody()?.string()
+            )
+        }.getOrNull()
+
+        val message = buildString {
+            append(context)
+            append(" failed: HTTP ")
+            append(error.code())
+            detail?.let {
+                append(" — ")
+                append(it)
+            }
+        }
+        return Exception(message, error)
     }
 
     private suspend fun catalogRequest(
         operationName: String,
         variables: JSONObject,
         query: String,
-    ): Data = catalogService.getApiResponse(
-        referer = "$baseUrl/",
-        body = requestBody(operationName, variables, query),
-    ).requireData("Doramasflix catalog API")
+    ): Data {
+        val context = requestContext(operationName)
+        return try {
+            catalogService.getApiResponse(
+                referer = "$baseUrl/",
+                body = requestBody(operationName, variables, query),
+            ).requireData(context)
+        } catch (error: HttpException) {
+            throw httpFailure(context, error)
+        }
+    }
 
     private suspend fun playbackRequest(
         operationName: String,
         variables: JSONObject,
         query: String,
-    ): Data = playbackService.getPlaybackResponse(
-        origin = baseUrl,
-        referer = "$baseUrl/",
-        userAgent = "Mozilla/5.0 (Linux; Android 10; Android TV) AppleWebKit/537.36 Chrome/140.0.0.0 Safari/537.36",
-        body = requestBody(operationName, variables, query),
-    ).requireData("Doramasflix playback API")
+    ): Data {
+        val context = requestContext(operationName)
+        return try {
+            playbackService.getPlaybackResponse(
+                origin = baseUrl,
+                referer = "$baseUrl/",
+                userAgent = "Mozilla/5.0 (Linux; Android 10; Android TV) AppleWebKit/537.36 Chrome/140.0.0.0 Safari/537.36",
+                body = requestBody(operationName, variables, query),
+            ).requireData(context)
+        } catch (error: HttpException) {
+            throw httpFailure(context, error)
+        }
+    }
 
     private fun imageUrl(path: String?, size: String): String? {
         val value = path?.trim()?.takeIf { it.isNotEmpty() } ?: return null
@@ -259,12 +315,12 @@ object DoramasflixProvider : Provider {
         return data
     }
 
-    private suspend fun getFeaturedDoramas(): List<Content> =
+    private suspend fun getFeaturedDoramas(): List<Content> = try {
         catalogRequest(
             operationName = "DoramasCarrousel",
-            variables = JSONObject().put("limit", featuredDoramaLimit),
+            variables = JSONObject().put("limit", featuredDoramaLimit.toDouble()),
             query = """
-                query DoramasCarrousel(${'$'}limit: Int) {
+                query DoramasCarrousel(${'$'}limit: Float) {
                   carrouselDoramas(limit: ${'$'}limit) {
                     _id
                     name
@@ -278,13 +334,18 @@ object DoramasflixProvider : Provider {
                 }
             """.trimIndent(),
         ).carrouselDoramas.orEmpty()
+    } catch (error: Exception) {
+        if (error is CancellationException) throw error
+        Log.w("DoramasflixProvider", "Featured Doramas are unavailable", error)
+        emptyList()
+    }
 
-    private suspend fun getFeaturedMovies(): List<Content> =
+    private suspend fun getFeaturedMovies(): List<Content> = try {
         catalogRequest(
             operationName = "MoviesCarrousel",
-            variables = JSONObject().put("limit", featuredMovieLimit),
+            variables = JSONObject().put("limit", featuredMovieLimit.toDouble()),
             query = """
-                query MoviesCarrousel(${'$'}limit: Int) {
+                query MoviesCarrousel(${'$'}limit: Float) {
                   carrouselMovies(limit: ${'$'}limit) {
                     _id
                     name
@@ -296,6 +357,11 @@ object DoramasflixProvider : Provider {
                 }
             """.trimIndent(),
         ).carrouselMovies.orEmpty()
+    } catch (error: Exception) {
+        if (error is CancellationException) throw error
+        Log.w("DoramasflixProvider", "Featured movies are unavailable", error)
+        emptyList()
+    }
 
     private fun featuredDorama(content: Content): Show? {
         val banner = backdropUrl(content.backdropPath ?: content.backdrop) ?: return null
