@@ -108,14 +108,16 @@ object FrembedProvider : Provider, ProviderPortalUrl, ProviderConfigUrl {
             this.map { it ->
                 TvShow( id = it.tmdb.toString(),
                     title = it.title,
-                    poster = it.poster_path?.w500
+                    poster = it.poster_path?.w500,
+                    tmdbId = it.tmdb,
                 )
             }
         else
             this.map { it ->
                 Movie( id = it.tmdb.toString(),
                     title = it.title,
-                    poster = it.poster_path?.w500
+                    poster = it.poster_path?.w500,
+                    tmdbId = it.tmdb,
                 )
             }
 
@@ -169,12 +171,6 @@ object FrembedProvider : Provider, ProviderPortalUrl, ProviderConfigUrl {
         var media_type: String?,
     )
 
-    data class FrembedListEpItem(
-        val epi: Int,
-        val id: Int,
-        val title: String?
-    )
-
     fun FrembedShortCutItem.toShow(movie: Boolean = false, tvshow: Boolean = false): Show =
         if ((sa != null && (media_type == null || media_type != "movie") && movie == false) || tvshow)
             TvShow(
@@ -186,7 +182,9 @@ object FrembedProvider : Provider, ProviderPortalUrl, ProviderConfigUrl {
                     } },
                 poster = (poster?.w500)?:poster_path,
                 banner = poster?.original,
-                rating = rating
+                rating = rating,
+                imdbId = imdb,
+                tmdbId = tmdb?.toIntOrNull(),
             )
         else {
             Movie(
@@ -194,7 +192,9 @@ object FrembedProvider : Provider, ProviderPortalUrl, ProviderConfigUrl {
                 title = title_fr?:title?:name?:"Movie",
                 poster = (poster?.w500)?:poster_path,
                 banner = poster?.original,
-                rating = rating
+                rating = rating,
+                imdbId = imdb,
+                tmdbId = tmdb?.toIntOrNull(),
             )
         }
 
@@ -310,6 +310,7 @@ object FrembedProvider : Provider, ProviderPortalUrl, ProviderConfigUrl {
                 poster = movie.poster?.w500,
                 banner = movie.backdrops?.randomOrNull()?.original,
                 imdbId = movie.imdb,
+                tmdbId = movie.tmdb,
                 genres = movie.genres?.split(", ")?.map { genre ->
                     Genre(
                         genre,
@@ -362,6 +363,7 @@ object FrembedProvider : Provider, ProviderPortalUrl, ProviderConfigUrl {
                     banner = tvshow.backdrops?.randomOrNull()?.original,
 
                 imdbId = tvshow.imdb,
+                tmdbId = tvshow.tmdb,
                 genres = tvshow.genres?.split(", ")?.map { genre ->
                     Genre(
                         genre,
