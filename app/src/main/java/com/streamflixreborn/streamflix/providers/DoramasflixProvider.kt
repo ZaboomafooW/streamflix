@@ -64,6 +64,8 @@ object DoramasflixProvider : Provider {
         .dns(DnsResolver.doh)
         .build()
 
+    private val pageMetadata = DoramasflixPageMetadata(baseUrl, client)
+
     private val catalogService = Retrofit.Builder()
         .baseUrl(apiUrl)
         .addConverterFactory(GsonConverterFactory.create())
@@ -605,11 +607,13 @@ object DoramasflixProvider : Provider {
         }
     }
 
-    override suspend fun getMovie(id: String): Movie {
+    override suspend fun getMovie(id: String): Movie = coroutineScope {
         val slug = slugFromId(id)
-        val content = detailMovie(slug)
+        val detailDeferred = async { detailMovie(slug) }
+        val castDeferred = async { pageMetadata.getOptionalCast(movieId(slug)) }
+        val content = detailDeferred.await()
 
-        return Movie(
+        Movie(
             id = movieId(slug),
             title = titleFor(content),
             overview = content.overview?.takeIf { it.isNotBlank() },
@@ -620,6 +624,7 @@ object DoramasflixProvider : Provider {
             poster = posterUrl(content.posterPath ?: content.poster),
             banner = backdropUrl(content.backdropPath ?: content.backdrop),
             genres = genresFor(content),
+            cast = castDeferred.await(),
         )
     }
 
@@ -627,6 +632,7 @@ object DoramasflixProvider : Provider {
         val slug = slugFromId(id)
         val detailDeferred = async { detailDorama(slug) }
         val seasonsDeferred = async { getSeasons(slug) }
+        val castDeferred = async { pageMetadata.getOptionalCast(doramaId(slug)) }
 
         val content = detailDeferred.await()
         val seasonsData = seasonsDeferred.await()
@@ -652,6 +658,7 @@ object DoramasflixProvider : Provider {
                 )
             },
             genres = genresFor(content),
+            cast = castDeferred.await(),
         )
     }
 
@@ -894,6 +901,8 @@ object DoramasflixProvider : Provider {
         )
     }
 
-    override suspend fun getPeople(id: String, page: Int): People =
-        throw Exception("Doramasflix people lookup is not implemented.")
+    override suspend fun getPeople(id: String, page: Int): People = when {
+        page > 1 -> People(id = id, name = "")
+        else -> pageMetadata.getPeople(id)
+    }
 }
