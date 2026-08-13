@@ -414,6 +414,7 @@ object AfterDarkProvider : Provider, ProviderPortalUrl, ProviderConfigUrl {
                         else -> null
                     }
                 } ?: listOf(),
+                tmdbId = movie.id,
             )
            }
 
@@ -491,6 +492,7 @@ object AfterDarkProvider : Provider, ProviderPortalUrl, ProviderConfigUrl {
                         else -> null
                     }
                 } ?: listOf(),
+                tmdbId = tv.id,
             )
         }
 
@@ -635,7 +637,17 @@ object AfterDarkProvider : Provider, ProviderPortalUrl, ProviderConfigUrl {
     }
 
     override suspend fun getServers(id: String, videoType: Video.Type): List<Video.Server> {
-        return AfterDarkExtractor(baseUrl).servers(videoType)
+        val identifiedVideoType = when (videoType) {
+            is Video.Type.Movie -> videoType.copy(
+                tmdbId = videoType.tmdbId ?: videoType.id.toIntOrNull()
+            )
+            is Video.Type.Episode -> videoType.copy(
+                tvShow = videoType.tvShow.copy(
+                    tmdbId = videoType.tvShow.tmdbId ?: videoType.tvShow.id.toIntOrNull()
+                )
+            )
+        }
+        return AfterDarkExtractor(baseUrl).servers(identifiedVideoType)
     }
 
     suspend fun getRealUrlsFor(section: String): List<String> {
