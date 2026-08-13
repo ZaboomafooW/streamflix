@@ -57,7 +57,7 @@ class VidsrcNetExtractor : Extractor() {
 
         val playerId = Regex("Playerjs.*file: ([a-zA-Z0-9]*?) ,")
             .find(script)?.groupValues?.get(1)
-            ?: ""
+            ?: "";
 
         val decryptedData =
             if (playerId.isNotBlank()) {
@@ -80,19 +80,22 @@ class VidsrcNetExtractor : Extractor() {
             ?.replace(Regex("\\{[a-z]\\d+\\}"), "quibblezoomfable.com")
             ?: throw Exception("No stream found after decryption")
 
+        /* Now try to extract subtitles */
         val regex = Regex(
-            """default_subtitles\s*=\s*["']([^"']+)["']""",
-            RegexOption.DOT_MATCHES_ALL
+                """default_subtitles\s*=\s*["']([^"']+)["']""",
+                RegexOption.DOT_MATCHES_ALL
         )
 
-        val subtitlesRaw = regex.find(script)?.groupValues?.get(1) ?: ""
+        val subtitlesRaw = regex.find(script)?.groupValues?.get(1)?:""
         val subtitles = if (subtitlesRaw.isNotBlank()) {
             val base = iframedoc.toUri()
             val baseUrl = "${base.scheme}://${base.host}"
+
+            /* Subtitles are selected based on the provider's language, except when the language is English */
             val preferredSubtitle =
                 if (subtitlesRaw.isNotEmpty() &&
                     !UserPreferences.providerLanguage.isNullOrEmpty() && UserPreferences.providerLanguage != "en")
-                    UserPreferences.providerLanguage.orEmpty()
+                        UserPreferences.providerLanguage.orEmpty()
                 else ""
 
             var alreadySet = false
@@ -106,12 +109,12 @@ class VidsrcNetExtractor : Extractor() {
                     Video.Subtitle(
                         label = Html.fromHtml(language).toString(),
                         file = "${baseUrl}/${url}",
-                        default = if (!alreadySet && preferredSubtitle.isNotEmpty() && language.contains(
+                        default = if (alreadySet == false && preferredSubtitle.isNotEmpty() && language.contains(
                                 preferredSubtitle, ignoreCase = true
-                            )) {
-                            alreadySet = true
-                            true
-                        } else false
+                                    )) {
+                                        alreadySet = true
+                                        true
+                                    } else false
                     )
                 }
         } else emptyList()
@@ -266,6 +269,8 @@ class VidsrcNetExtractor : Extractor() {
         }
         return e
     }
+
+
 
     private interface Service {
 
