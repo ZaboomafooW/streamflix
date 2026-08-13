@@ -365,11 +365,11 @@ object CloudSyncManager {
             else -> remote
         }
         return newest.copy(
-            tmdbId = newest.tmdbId ?: oldest.tmdbId,
-            imdbId = newest.imdbId ?: oldest.imdbId,
-            parentShowId = newest.parentShowId ?: oldest.parentShowId,
-            parentShowTmdbId = newest.parentShowTmdbId ?: oldest.parentShowTmdbId,
-            parentShowImdbId = newest.parentShowImdbId ?: oldest.parentShowImdbId,
+            tmdbId = local.tmdbId ?: remote.tmdbId,
+            imdbId = local.imdbId ?: remote.imdbId,
+            parentShowId = local.parentShowId ?: remote.parentShowId,
+            parentShowTmdbId = local.parentShowTmdbId ?: remote.parentShowTmdbId,
+            parentShowImdbId = local.parentShowImdbId ?: remote.parentShowImdbId,
             parentShowTitle = newest.parentShowTitle ?: oldest.parentShowTitle,
             parentShowPoster = newest.parentShowPoster ?: oldest.parentShowPoster,
             parentShowBanner = newest.parentShowBanner ?: oldest.parentShowBanner,
