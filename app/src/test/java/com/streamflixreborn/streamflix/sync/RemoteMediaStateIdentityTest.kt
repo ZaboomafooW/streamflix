@@ -133,6 +133,60 @@ class RemoteMediaStateIdentityTest {
     }
 
     @Test
+    fun staleRemoteFavoriteCanEnrichIdentityWithoutRestoringFavoriteState() {
+        val remote = movieState(
+            tmdbId = 12345,
+            imdbId = "tt1234567",
+            updatedAt = 100L,
+        ).copy(
+            isFavorite = true,
+            favoritedAtMillis = 90L,
+        )
+        val local = movieState(
+            tmdbId = null,
+            imdbId = null,
+            updatedAt = 200L,
+        ).copy(
+            isFavorite = false,
+            favoritedAtMillis = null,
+        )
+
+        val merged = merge(remote, local)
+
+        assertEquals(12345, merged.tmdbId)
+        assertEquals("tt1234567", merged.imdbId)
+        assertFalse(merged.isFavorite)
+        assertNull(merged.favoritedAtMillis)
+    }
+
+    @Test
+    fun staleRemoteWatchedStateCanEnrichIdentityWithoutRestoringWatchedState() {
+        val remote = movieState(
+            tmdbId = 12345,
+            imdbId = "tt1234567",
+            updatedAt = 100L,
+        ).copy(
+            isWatched = true,
+            watchedAtMillis = 90L,
+        )
+        val local = movieState(
+            tmdbId = null,
+            imdbId = null,
+            updatedAt = 200L,
+        ).copy(
+            isWatched = false,
+            watchedAtMillis = null,
+        )
+
+        val merged = merge(remote, local)
+
+        assertEquals(12345, merged.tmdbId)
+        assertEquals("tt1234567", merged.imdbId)
+        assertFalse(merged.isWatched)
+        assertNull(merged.watchedAtMillis)
+    }
+
+    @Test
     fun episodeParentIdentityMergePrefersKnownLocalAndFillsLocalNulls() {
         val remote = episodeState(
             parentTmdbId = 99999,
