@@ -90,7 +90,7 @@ class DoramasflixPageMetadataTest {
             """.trimIndent(),
         )
 
-        val metadata = DoramasflixPageMetada.parseContent(document)
+        val metadata = DoramasflixPageMetadata.parseContent(document)
         assertEquals("Structured overview", metadata.overview)
         assertEquals("https://doramasflix.in/structured.jpg", metadata.image)
     }
