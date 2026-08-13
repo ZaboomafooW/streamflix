@@ -1,6 +1,7 @@
 package com.streamflixreborn.streamflix.models
 
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertFalse
 import org.junit.Test
 
 class MediaIdentityTest {
@@ -61,6 +62,22 @@ class MediaIdentityTest {
     }
 
     @Test
+    fun identityOnlyDifferenceIsMeaningfulForMovieMergeChecks() {
+        val missing = Movie(
+            id = "provider-native-slug",
+            title = "Example",
+        )
+        val known = Movie(
+            id = "provider-native-slug",
+            title = "Example",
+            imdbId = "tt1234567",
+            tmdbId = 12345,
+        )
+
+        assertFalse(missing.isSame(known))
+    }
+
+    @Test
     fun tvShowCopyCarriesAllIdentityNamespaces() {
         val show = TvShow(
             id = "provider-native-show-id",
@@ -74,6 +91,22 @@ class MediaIdentityTest {
         assertEquals("provider-native-show-id", copy.id)
         assertEquals("tt7654321", copy.imdbId)
         assertEquals(54321, copy.tmdbId)
+    }
+
+    @Test
+    fun identityOnlyDifferenceIsMeaningfulForTvShowMergeChecks() {
+        val missing = TvShow(
+            id = "provider-native-show-id",
+            title = "Example Show",
+        )
+        val known = TvShow(
+            id = "provider-native-show-id",
+            title = "Example Show",
+            imdbId = "tt7654321",
+            tmdbId = 54321,
+        )
+
+        assertFalse(missing.isSame(known))
     }
 
     @Test
