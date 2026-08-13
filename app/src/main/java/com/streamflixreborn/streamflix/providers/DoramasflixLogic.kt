@@ -3,11 +3,37 @@ package com.streamflixreborn.streamflix.providers
 import com.google.gson.JsonParser
 import java.time.Instant
 import java.time.ZoneOffset
+import java.util.Locale
+
+internal data class DoramasflixRatingDecision(
+    val rating: Double?,
+    val useHtmlFallback: Boolean,
+)
 
 internal object DoramasflixLogic {
 
-    fun isEpisodeAvailable(countLinks: Int?): Boolean =
-        countLinks == null || countLinks > 0
+    fun resolveApiRating(
+        rating: Double?,
+        ratingCount: Int?,
+    ): DoramasflixRatingDecision {
+        if (ratingCount != null) {
+            if (ratingCount <= 0) {
+                return DoramasflixRatingDecision(rating = null, useHtmlFallback = false)
+            }
+
+            val validRating = rating?.takeIf { it > 0.0 }
+            return DoramasflixRatingDecision(
+                rating = validRating,
+                useHtmlFallback = validRating == null,
+            )
+        }
+
+        val validRating = rating?.takeIf { it > 0.0 }
+        return DoramasflixRatingDecision(
+            rating = validRating,
+            useHtmlFallback = validRating == null,
+        )
+    }
 
     fun episodeArtwork(
         stillPath: String?,
@@ -110,6 +136,49 @@ internal object DoramasflixLogic {
             "streamwish" -> "Streamwish"
             else -> value
         }
+    }
+
+    fun subtitleDescriptor(
+        languageCode: String?,
+        type: String?,
+    ): String? {
+        val language = languageCode
+            ?.trim()
+            ?.takeIf { it.isNotEmpty() }
+            ?.uppercase(Locale.ROOT)
+        val subtitleType = type
+            ?.trim()
+            ?.takeIf { it.isNotEmpty() }
+            ?.uppercase(Locale.ROOT)
+
+        return listOfNotNull(language, subtitleType)
+            .joinToString(" ")
+            .takeIf { it.isNotEmpty() }
+    }
+
+    fun playbackSourceName(
+        serverName: String,
+        languageName: String?,
+        languageCode: String?,
+        subtitleDescriptors: List<String>,
+    ): String {
+        val language = languageName
+            ?.trim()
+            ?.takeIf { it.isNotEmpty() }
+            ?: languageCode?.trim()?.takeIf { it.isNotEmpty() }
+
+        val subtitles = subtitleDescriptors
+            .map(String::trim)
+            .filter(String::isNotEmpty)
+            .distinct()
+            .joinToString(", ")
+            .takeIf { it.isNotEmpty() }
+
+        return listOfNotNull(
+            serverName.trim().takeIf { it.isNotEmpty() },
+            language,
+            subtitles,
+        ).joinToString(" · ")
     }
 
     fun graphQlErrorMessage(body: String?): String? {

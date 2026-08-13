@@ -9,7 +9,7 @@ class DoramasflixModelsTest {
     private val gson = Gson()
 
     @Test
-    fun `detail response keeps cast route identity and profile image`() {
+    fun `detail response keeps provider metadata without overloading shared ids`() {
         val response = gson.fromJson(
             """
                 {
@@ -17,7 +17,13 @@ class DoramasflixModelsTest {
                     "detailDorama": {
                       "_id": "5f999d21631e2550d18719b1",
                       "name": "Meeting You",
+                      "name_es": "Reuniendome contigo",
+                      "original_name": "谢谢让我遇见你",
                       "slug": "meeting-you",
+                      "tmdb_id": 111762,
+                      "rating": 4.142857142857143,
+                      "rating_count": 14,
+                      "rating_total": 58,
                       "cast": [
                         {
                           "name": "Guo Junchen",
@@ -34,10 +40,116 @@ class DoramasflixModelsTest {
             ApiResponse::class.java,
         )
 
-        val cast = response.data?.detailDorama?.cast.orEmpty().single()
+        val detail = response.data?.detailDorama!!
+        val cast = detail.cast.orEmpty().single()
+        assertEquals("111762", detail.tmdbId)
+        assertEquals("谢谢让我遇见你", detail.originalName)
+        assertEquals(14, detail.ratingCount)
         assertEquals("1599859-guo-junchen", cast.slug)
-        assertEquals("Guo Junchen", cast.name)
+        assertEquals("Nan Xi", cast.character)
         assertEquals("/m6Ub6fRrw03atP60nCj4o55ojrO.jpg", cast.profilePath)
+    }
+
+    @Test
+    fun `movie tmdb id preserves provider supplied non numeric value`() {
+        val response = gson.fromJson(
+            """
+                {
+                  "data": {
+                    "detailMovie": {
+                      "_id": "6a063522cf9003a05959be73",
+                      "name": "The Roundup: No Way Out",
+                      "slug": "the-roundup-no-way-out",
+                      "tmdb_id": "955555-3"
+                    }
+                  }
+                }
+            """.trimIndent(),
+            ApiResponse::class.java,
+        )
+
+        assertEquals("955555-3", response.data?.detailMovie?.tmdbId)
+    }
+
+    @Test
+    fun `full search and episode pagination keep page information`() {
+        val response = gson.fromJson(
+            """
+                {
+                  "data": {
+                    "searchFullDoramas": {
+                      "count": 406,
+                      "pageInfo": {
+                        "currentPage": 2,
+                        "perPage": 5,
+                        "pageCount": 82,
+                        "itemCount": 5,
+                        "hasNextPage": true,
+                        "hasPreviousPage": true
+                      },
+                      "items": [{"_id":"1","slug":"love-by-chance","name":"Love By Chance"}]
+                    },
+                    "paginationEpisode": {
+                      "count": 28,
+                      "pageInfo": {
+                        "currentPage": 3,
+                        "perPage": 10,
+                        "pageCount": 3,
+                        "itemCount": 8,
+                        "hasNextPage": false,
+                        "hasPreviousPage": true
+                      },
+                      "items": [{"_id":"ep28","slug":"meeting-you-1x28","episode_number":28,"count_links":2}]
+                    }
+                  }
+                }
+            """.trimIndent(),
+            ApiResponse::class.java,
+        )
+
+        assertEquals(82, response.data?.searchFullDoramas?.pageInfo?.pageCount)
+        assertEquals(true, response.data?.searchFullDoramas?.pageInfo?.hasNextPage)
+        assertEquals(28, response.data?.paginationEpisode?.count)
+        assertEquals(false, response.data?.paginationEpisode?.pageInfo?.hasNextPage)
+        assertEquals(28, response.data?.paginationEpisode?.items?.single()?.episodeNumber)
+    }
+
+    @Test
+    fun `playback response keeps provider languages and hard subtitle descriptors`() {
+        val response = gson.fromJson(
+            """
+                {
+                  "data": {
+                    "detailEpisode": {
+                      "_id": "ep1",
+                      "slug": "meeting-you-1x1",
+                      "name": "Meeting You 1x1",
+                      "langs": [
+                        {"name":"Mandarín","code":"zh","code_flix":"13111"}
+                      ]
+                    },
+                    "getEpisodeLinks": {
+                      "links_online": [
+                        {
+                          "server": "1230",
+                          "lang": "13111",
+                          "link": "https://example.test/embed",
+                          "page": "doramasmp4",
+                          "subtitles": [{"language_code":"es","type":"HARDSUB"}]
+                        }
+                      ]
+                    }
+                  }
+                }
+            """.trimIndent(),
+            ApiResponse::class.java,
+        )
+
+        assertEquals("13111", response.data?.detailEpisode?.langs.orEmpty().single().codeFlix)
+        val link = response.data?.getEpisodeLinks?.linksOnline.orEmpty().single()
+        assertEquals("doramasmp4", link.page)
+        assertEquals("es", link.subtitles.orEmpty().single().languageCode)
+        assertEquals("HARDSUB", link.subtitles.orEmpty().single().type)
     }
 
     @Test
@@ -51,6 +163,7 @@ class DoramasflixModelsTest {
                         "_id": "62e5cd19b9bdfc7e7f29f156",
                         "name": "The Roundup",
                         "name_es": "Fuerza Bruta",
+                        "original_name": "범죄도시 2",
                         "slug": "the-roundup",
                         "poster_path": "/poster.jpg"
                       }
@@ -71,6 +184,7 @@ class DoramasflixModelsTest {
         )
 
         assertEquals("the-roundup", response.data?.similarsMovies.orEmpty().single().slug)
+        assertEquals("범죄도시 2", response.data?.similarsMovies.orEmpty().single().originalName)
         assertEquals("lovely-runner", response.data?.similarsDoramas.orEmpty().single().slug)
     }
 }

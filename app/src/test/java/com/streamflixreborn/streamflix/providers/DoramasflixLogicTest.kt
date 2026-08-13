@@ -9,16 +9,24 @@ import org.junit.Test
 class DoramasflixLogicTest {
 
     @Test
-    fun `positive or missing link count keeps an episode available`() {
-        assertTrue(DoramasflixLogic.isEpisodeAvailable(1))
-        assertTrue(DoramasflixLogic.isEpisodeAvailable(6))
-        assertTrue(DoramasflixLogic.isEpisodeAvailable(null))
+    fun `rated API value is authoritative without html fallback`() {
+        val decision = DoramasflixLogic.resolveApiRating(4.142857142857143, 14)
+        assertEquals(4.142857142857143, decision.rating)
+        assertFalse(decision.useHtmlFallback)
     }
 
     @Test
-    fun `explicit nonpositive link count marks an episode unavailable`() {
-        assertFalse(DoramasflixLogic.isEpisodeAvailable(0))
-        assertFalse(DoramasflixLogic.isEpisodeAvailable(-1))
+    fun `zero API rating count means unrated without html fallback`() {
+        val decision = DoramasflixLogic.resolveApiRating(0.0, 0)
+        assertNull(decision.rating)
+        assertFalse(decision.useHtmlFallback)
+    }
+
+    @Test
+    fun `missing API rating metadata requests html fallback`() {
+        val decision = DoramasflixLogic.resolveApiRating(null, null)
+        assertNull(decision.rating)
+        assertTrue(decision.useHtmlFallback)
     }
 
     @Test
@@ -184,5 +192,36 @@ class DoramasflixLogicTest {
         assertEquals("OK.ru", DoramasflixLogic.normalizeServerName("Okru"))
         assertEquals("VOE", DoramasflixLogic.normalizeServerName("Voe"))
         assertEquals("VidHide", DoramasflixLogic.normalizeServerName("VidHide"))
+    }
+
+    @Test
+    fun `hard subtitle descriptor preserves language and type`() {
+        assertEquals("ES HARDSUB", DoramasflixLogic.subtitleDescriptor("es", "HARDSUB"))
+    }
+
+    @Test
+    fun `playback label uses provider language before raw numeric code`() {
+        assertEquals(
+            "VOE · Mandarín · ES HARDSUB",
+            DoramasflixLogic.playbackSourceName(
+                serverName = "VOE",
+                languageName = "Mandarín",
+                languageCode = "13111",
+                subtitleDescriptors = listOf("ES HARDSUB"),
+            ),
+        )
+    }
+
+    @Test
+    fun `playback label keeps unknown provider language code`() {
+        assertEquals(
+            "VOE · 999",
+            DoramasflixLogic.playbackSourceName(
+                serverName = "VOE",
+                languageName = null,
+                languageCode = "999",
+                subtitleDescriptors = emptyList(),
+            ),
+        )
     }
 }
