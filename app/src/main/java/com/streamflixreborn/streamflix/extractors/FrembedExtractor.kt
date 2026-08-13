@@ -143,10 +143,14 @@ class FrembedExtractor (var newUrl: String = "") : Extractor() {
     }
 
     suspend fun servers(videoType: Video.Type): List<Video.Server> {
+        val tmdbId = when (videoType) {
+            is Video.Type.Movie -> videoType.tmdbId
+            is Video.Type.Episode -> videoType.tvShow.tmdbId
+        } ?: return emptyList()
         Log.d("FrembedExtractor", "Fetching servers for videoType: $videoType using mainUrl: $mainUrl")
         return try {
-            val ret = when(videoType) { is Video.Type.Movie -> service.getMovieLinks( videoType.id)
-                                        is Video.Type.Episode -> service.getTvShowLinks(videoType.tvShow.id, videoType.season.number, videoType.number) }
+            val ret = when(videoType) { is Video.Type.Movie -> service.getMovieLinks(tmdbId.toString())
+                                        is Video.Type.Episode -> service.getTvShowLinks(tmdbId.toString(), videoType.season.number, videoType.number) }
             val initialServers = ret.toServers()
             Log.d("FrembedExtractor", "Initial servers found: ${initialServers.size}")
 
