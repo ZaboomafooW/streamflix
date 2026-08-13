@@ -21,6 +21,7 @@ import com.streamflixreborn.streamflix.models.doramasflix.LanguageMetadata
 import com.streamflixreborn.streamflix.models.doramasflix.OnlineLink
 import com.streamflixreborn.streamflix.models.doramasflix.Season as DoramasflixSeason
 import com.streamflixreborn.streamflix.utils.DnsResolver
+import com.streamflixreborn.streamflix.utils.TmdbUtils
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.async
 import kotlinx.coroutines.coroutineScope
@@ -63,6 +64,7 @@ object DoramasflixProvider : Provider {
 
     private val movieBackendIds = ConcurrentHashMap<String, String>()
     private val doramaBackendIds = ConcurrentHashMap<String, String>()
+    private val doramaTmdbIds = ConcurrentHashMap<String, String>()
     private val episodeBackendIds = ConcurrentHashMap<String, String>()
 
     @Volatile
@@ -259,8 +261,13 @@ object DoramasflixProvider : Provider {
 
     private fun cacheDorama(content: Content) {
         val slug = contentSlug(content) ?: return
-        val backendId = contentBackendId(content) ?: return
-        doramaBackendIds[slug] = backendId
+        contentBackendId(content)?.let { backendId ->
+            doramaBackendIds[slug] = backendId
+        }
+        content.tmdbId
+            ?.trim()
+            ?.takeIf { value -> value.isNotEmpty() && value.all { it.isDigit() } }
+            ?.let { tmdbId -> doramaTmdbIds[slug] = tmdbId }
     }
 
     private fun episodeCacheKey(showSlug: String, episodeSlug: String) = "$showSlug|$episodeSlug"
@@ -788,6 +795,26 @@ object DoramasflixProvider : Provider {
             ?: throw Exception("Doramasflix could not resolve the series ID.")
     }
 
+    private suspend fun resolveDoramaTmdbId(slug: String): String? {
+        doramaTmdbIds[slug]?.let { return it }
+        detailDorama(slug)
+        return doramaTmdbIds[slug]
+    }
+
+    private suspend fun getTmdbEpisodeArtwork(
+        slug: String,
+        seasonNumber: Int,
+    ): Map<Int, String> {
+        val tmdbId = resolveDoramaTmdbId(slug) ?: return emptyMap()
+        return TmdbUtils.getEpisodesBySeason(tmdbId, seasonNumber)
+            .mapNotNull { episode ->
+                val poster = episode.poster?.trim()?.takeIf { it.isNotEmpty() }
+                    ?: return@mapNotNull null
+                episode.number to poster
+            }
+            .toMap()
+    }
+
     private suspend fun getEpisodes(
         slug: String,
         seasonNumber: Int,
@@ -1175,6 +1202,7 @@ object DoramasflixProvider : Provider {
             ?: throw Exception("Invalid Doramasflix season ID: $seasonId")
 
         val episodes = getEpisodes(slug, seasonNumber)
+        val tmdbArtwork = getTmdbEpisodeArtwork(slug, seasonNumber)
         val primaryArtwork = episodes.map { episode ->
             DoramasflixLogic.episodeArtwork(
                 stillPath = episode.stillPath,
@@ -1183,12 +1211,25 @@ object DoramasflixProvider : Provider {
                 seriesBackdropPath = episode.serieBackdropPath,
             )
         }
-        val repeatedArtwork = DoramasflixLogic.repeatedEpisodeArtwork(primaryArtwork)
+        val duplicatedArtwork = DoramasflixLogic.duplicatedEpisodeArtwork(primaryArtwork)
 
-        return episodes.mapNotNull { episode ->
+        return episodes.mapIndexedNotNull { index, episode ->
             val episodeSlug = episode.slug?.trim()?.takeIf { it.isNotEmpty() }
-                ?: return@mapNotNull null
+                ?: return@mapIndexedNotNull null
             val number = episode.episodeNumber ?: 0
+            val suspiciousDuplicate = primaryArtwork
+                .getOrNull(index)
+                ?.takeIf { it in duplicatedArtwork }
+            val doramasArtwork = posterUrl(
+                DoramasflixLogic.episodeArtwork(
+                    stillPath = episode.stillPath,
+                    backdrop = episode.backdrop,
+                    stillImage = episode.stillImage,
+                    seriesBackdropPath = episode.serieBackdropPath,
+                    repeatedSeasonArtwork = suspiciousDuplicate,
+                )
+            )
+
             Episode(
                 id = episodeSlug,
                 number = number,
@@ -1197,15 +1238,7 @@ object DoramasflixProvider : Provider {
                     ?: episode.name?.takeIf { it.isNotBlank() }
                     ?: "Episodio $number",
                 released = DoramasflixLogic.normalizeAirDate(episode.airDate),
-                poster = posterUrl(
-                    DoramasflixLogic.episodeArtwork(
-                        stillPath = episode.stillPath,
-                        backdrop = episode.backdrop,
-                        stillImage = episode.stillImage,
-                        seriesBackdropPath = episode.serieBackdropPath,
-                        repeatedSeasonArtwork = repeatedArtwork,
-                    )
-                ),
+                poster = doramasArtwork ?: tmdbArtwork[number],
                 overview = episode.overview?.takeIf { it.isNotBlank() },
             )
         }

@@ -4,10 +4,14 @@ import com.google.gson.JsonElement
 import com.google.gson.JsonObject
 import com.google.gson.JsonParser
 import com.tanasi.retrofit_jsoup.converter.JsoupConverterFactory
+import com.streamflixreborn.streamflix.models.Movie
 import com.streamflixreborn.streamflix.models.People
+import com.streamflixreborn.streamflix.models.Show
+import com.streamflixreborn.streamflix.models.TvShow
 import kotlinx.coroutines.CancellationException
 import okhttp3.OkHttpClient
 import org.jsoup.nodes.Document
+import org.jsoup.nodes.Element
 import retrofit2.HttpException
 import retrofit2.Retrofit
 import retrofit2.http.GET
@@ -89,7 +93,71 @@ internal class DoramasflixPageMetadata(
                 birthday = stringValue(structuredPerson?.get("birthDate"))
                     ?: labeledDate(document, "Cumpleaños"),
                 deathday = stringValue(structuredPerson?.get("deathDate")),
+                filmography = peopleFilmography(document),
             )
+        }
+
+        private fun peopleFilmography(document: Document): List<Show> =
+            document.select("h2")
+                .asSequence()
+                .filter { heading ->
+                    val label = heading.text().trim()
+                    label.equals("Doramas", ignoreCase = true) ||
+                        label.equals("Películas", ignoreCase = true) ||
+                        label.equals("Peliculas", ignoreCase = true)
+                }
+                .mapNotNull(Element::nextElementSibling)
+                .flatMap { container -> container.select("a[href]").asSequence() }
+                .mapNotNull { link ->
+                    val path = link.attr("href")
+                        .substringBefore('?')
+                        .trim()
+                        .removePrefix("/")
+                    val isDorama = path.startsWith("doramas-online/")
+                    val isMovie = path.startsWith("peliculas-online/")
+                    if (!isDorama && !isMovie) return@mapNotNull null
+
+                    val title = link.selectFirst("img[alt]")
+                        ?.attr("alt")
+                        ?.trim()
+                        ?.takeIf { it.isNotEmpty() }
+                        ?: link.selectFirst("h3")
+                            ?.text()
+                            ?.trim()
+                            ?.takeIf { it.isNotEmpty() }
+                        ?: return@mapNotNull null
+                    val poster = link.selectFirst("img")
+                        ?.let(::elementImage)
+
+                    when {
+                        isDorama -> TvShow(
+                            id = path,
+                            title = title,
+                            poster = poster,
+                        )
+                        else -> Movie(
+                            id = path,
+                            title = title,
+                            poster = poster,
+                        )
+                    }
+                }
+                .distinctBy { show ->
+                    when (show) {
+                        is Movie -> "movie:${show.id}"
+                        is TvShow -> "tv:${show.id}"
+                    }
+                }
+                .toList()
+
+        private fun elementImage(image: Element): String? {
+            val absolute = image.absUrl("src").trim()
+            val raw = image.attr("src").trim()
+            val value = absolute.ifEmpty { raw }.takeIf { it.isNotEmpty() } ?: return null
+            return when {
+                value.startsWith("//") -> "https:$value"
+                else -> value
+            }
         }
 
         private fun jsonLd(document: Document): Sequence<JsonElement> =

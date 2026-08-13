@@ -95,6 +95,27 @@ class DoramasflixLogicTest {
     }
 
     @Test
+    fun `duplicate episode artwork is identified even when only part of season repeats`() {
+        assertEquals(
+            setOf("/shared.jpg"),
+            DoramasflixLogic.duplicatedEpisodeArtwork(
+                listOf("/one.jpg", "/two.jpg", " /shared.jpg ", "/shared.jpg", null)
+            )
+        )
+        assertEquals(
+            setOf("/same.jpg"),
+            DoramasflixLogic.duplicatedEpisodeArtwork(
+                listOf("/same.jpg", "/same.jpg", "/same.jpg")
+            )
+        )
+        assertTrue(
+            DoramasflixLogic.duplicatedEpisodeArtwork(
+                listOf("/one.jpg", "/two.jpg", null)
+            ).isEmpty()
+        )
+    }
+
+    @Test
     fun `home carousel mixes doramas and movies in Doramasflix order`() {
         assertEquals(
             listOf("D1", "M1", "D2", "D3", "D4", "D5", "D6"),

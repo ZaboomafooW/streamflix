@@ -66,6 +66,14 @@ internal object DoramasflixLogic {
         }
     }
 
+    fun duplicatedEpisodeArtwork(artwork: List<String?>): Set<String> =
+        artwork
+            .mapNotNull { value -> value?.trim()?.takeIf { it.isNotEmpty() } }
+            .groupingBy { it }
+            .eachCount()
+            .filterValues { count -> count > 1 }
+            .keys
+
     fun <T> mixAlternating(
         first: List<T>,
         second: List<T>,
