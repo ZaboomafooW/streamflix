@@ -2,8 +2,6 @@ package com.streamflixreborn.streamflix.utils
 
 import com.streamflixreborn.streamflix.models.Episode
 import com.streamflixreborn.streamflix.models.TvShow
-import com.streamflixreborn.streamflix.utils.UserDataCache.toCached
-import com.streamflixreborn.streamflix.utils.UserDataCache.toEpisode
 import org.junit.Assert.assertEquals
 import org.junit.Test
 
@@ -22,7 +20,9 @@ class UserDataCacheIdentityTest {
             ),
         )
 
-        val restored = episode.toCached().toEpisode()
+        val restored = with(UserDataCache) {
+            episode.toCached().toEpisode()
+        }
 
         assertEquals("show-native-id", restored.tvShow?.id)
         assertEquals("tt7654321", restored.tvShow?.imdbId)
