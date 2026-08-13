@@ -92,8 +92,11 @@ class BackupRestoreManager(
                     .filter { it.isWatched || it.watchedDate != null || it.watchHistory != null || it.isFavorite || it.lastPlayedAtMillis != null }
                 val tvShowsToExport = p.tvShowDao.getAllForBackup()
                     .filter { it.isWatching || it.isFavorite || it.lastPlayedAtMillis != null }
-                val episodesToExport = p.episodeDao.getAllForBackup()
-                    .filter { it.isWatched || it.watchedDate != null || it.watchHistory != null }
+                val episodesToExport = hydrateEpisodeParents(
+                    p,
+                    p.episodeDao.getAllForBackup()
+                        .filter { it.isWatched || it.watchedDate != null || it.watchHistory != null },
+                )
                 
                 // Se non ci sono dati, saltiamo il provider per tenere il file pulito.
                 if (moviesToExport.isEmpty() && tvShowsToExport.isEmpty() && episodesToExport.isEmpty()) {
@@ -340,7 +343,10 @@ class BackupRestoreManager(
             val movies = providerCtx.movieDao.getFavorites().first()
             val tvShows = providerCtx.tvShowDao.getFavorites().first()
             val watchingMovies = providerCtx.movieDao.getWatchingMovies().first()
-            val watchingEpisodes = providerCtx.episodeDao.getWatchingEpisodes().first()
+            val watchingEpisodes = hydrateEpisodeParents(
+                providerCtx,
+                providerCtx.episodeDao.getWatchingEpisodes().first(),
+            )
 
             UserDataCache.writeMovies(context, providerCtx.provider, movies + watchingMovies)
             UserDataCache.writeTvShows(context, providerCtx.provider, tvShows)
@@ -349,6 +355,14 @@ class BackupRestoreManager(
         } catch (e: Exception) {
             Log.e(TAG, "Error building cache for provider ${providerCtx.name}", e)
         }
+    }
+
+    private fun hydrateEpisodeParents(
+        providerCtx: ProviderBackupContext,
+        episodes: List<Episode>,
+    ): List<Episode> = episodes.onEach { episode ->
+        val showId = episode.tvShow?.id ?: return@onEach
+        providerCtx.tvShowDao.getById(showId)?.let { episode.tvShow = it }
     }
 
     private fun addDatabaseFilesToZip(zip: ZipOutputStream, providerName: String) {
