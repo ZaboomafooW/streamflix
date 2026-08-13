@@ -319,6 +319,7 @@ object PoseidonHD2Provider : Provider {
                                     else -> null
                                 }
                             } ?: emptyList(),
+                            tmdbId = tmdbId.toInt(),
                         )
                     }
                 } catch (_: Exception) { }
@@ -339,7 +340,8 @@ object PoseidonHD2Provider : Provider {
                 overview = json.optString("overview", ""),
                 released = json.optString("releaseDate", "").take(10),
                 rating = json.optJSONObject("rate")?.optDouble("average", 0.0) ?: 0.0,
-                poster = poster
+                poster = poster,
+                tmdbId = tmdbId.toIntOrNull(),
             )
         }
 
@@ -387,7 +389,8 @@ object PoseidonHD2Provider : Provider {
                             season.copy(title = tmdbSeason?.name ?: season.title, poster = tmdbSeason?.posterPath?.w500 ?: season.poster)
                         },
                         genres = tmdbTv.genres.map { Genre(it.id.toString(), it.name) },
-                        cast = tmdbTv.credits?.cast?.map { People(it.id.toString(), it.name, it.profilePath?.w500) } ?: emptyList()
+                        cast = tmdbTv.credits?.cast?.map { People(it.id.toString(), it.name, it.profilePath?.w500) } ?: emptyList(),
+                        tmdbId = tmdbId.toInt(),
                     )
                 }
             } catch (_: Exception) { }
@@ -409,7 +412,8 @@ object PoseidonHD2Provider : Provider {
             released = json.optString("releaseDate", "").take(10),
             rating = json.optJSONObject("rate")?.optDouble("average", 0.0) ?: 0.0,
             poster = poster,
-            seasons = seasons
+            seasons = seasons,
+            tmdbId = tmdbId.toIntOrNull(),
         )
     }
 
@@ -587,17 +591,17 @@ object PoseidonHD2Provider : Provider {
         
         return null
     }
-
+    
     override suspend fun getVideo(server: Video.Server): Video {
         var finalUrl = server.src
-
+        
         if (finalUrl.contains("voe.sx") || server.name.contains("VOE", ignoreCase = true)) {
             val path = finalUrl.toUri().path?.trimStart('/') ?: ""
             if (!path.startsWith("e/")) {
                 finalUrl = "https://voe.sx/e/$path"
             }
         }
-
+        
         return Extractor.extract(finalUrl, server)
     }
 }
