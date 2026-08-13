@@ -82,24 +82,11 @@ class DoramasflixLogicTest {
     }
 
     @Test
-    fun `only one shared nonblank artwork across a multi episode season is repeated`() {
-        assertEquals(
-            "/same.jpg",
-            DoramasflixLogic.repeatedEpisodeArtwork(
-                listOf("/same.jpg", " /same.jpg ", "/same.jpg")
-            )
-        )
-        assertNull(DoramasflixLogic.repeatedEpisodeArtwork(listOf("/a.jpg", "/b.jpg")))
-        assertNull(DoramasflixLogic.repeatedEpisodeArtwork(listOf("/same.jpg", null)))
-        assertNull(DoramasflixLogic.repeatedEpisodeArtwork(listOf("/same.jpg")))
-    }
-
-    @Test
-    fun `duplicate episode artwork is identified even when only part of season repeats`() {
+    fun `sole repeated nonblank episode artwork is treated as shared placeholder`() {
         assertEquals(
             setOf("/shared.jpg"),
             DoramasflixLogic.duplicatedEpisodeArtwork(
-                listOf("/one.jpg", "/two.jpg", " /shared.jpg ", "/shared.jpg", null)
+                listOf(" /shared.jpg ", "/shared.jpg", null, null)
             )
         )
         assertEquals(
@@ -108,9 +95,23 @@ class DoramasflixLogicTest {
                 listOf("/same.jpg", "/same.jpg", "/same.jpg")
             )
         )
+    }
+
+    @Test
+    fun `duplicate among otherwise distinct episode artwork is preserved`() {
+        assertTrue(
+            DoramasflixLogic.duplicatedEpisodeArtwork(
+                listOf("/one.jpg", "/shared.jpg", "/shared.jpg", "/two.jpg", null)
+            ).isEmpty()
+        )
         assertTrue(
             DoramasflixLogic.duplicatedEpisodeArtwork(
                 listOf("/one.jpg", "/two.jpg", null)
+            ).isEmpty()
+        )
+        assertTrue(
+            DoramasflixLogic.duplicatedEpisodeArtwork(
+                listOf("/same.jpg", null)
             ).isEmpty()
         )
     }

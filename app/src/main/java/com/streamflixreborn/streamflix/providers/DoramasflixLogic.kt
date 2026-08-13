@@ -53,26 +53,18 @@ internal object DoramasflixLogic {
             .firstOrNull { it !in excludedArtwork }
     }
 
-    fun repeatedEpisodeArtwork(artwork: List<String?>): String? {
-        if (artwork.size <= 1) return null
+    fun duplicatedEpisodeArtwork(artwork: List<String?>): Set<String> {
+        val normalized = artwork
+            .mapNotNull { value -> value?.trim()?.takeIf { it.isNotEmpty() } }
+        if (normalized.size <= 1) return emptySet()
 
-        val normalized = artwork.map { value ->
-            value?.trim()?.takeIf { it.isNotEmpty() }
-        }
-        val first = normalized.firstOrNull() ?: return null
-
-        return first.takeIf { candidate ->
-            normalized.all { it == candidate }
+        val sharedArtwork = normalized.first()
+        return if (normalized.all { it == sharedArtwork }) {
+            setOf(sharedArtwork)
+        } else {
+            emptySet()
         }
     }
-
-    fun duplicatedEpisodeArtwork(artwork: List<String?>): Set<String> =
-        artwork
-            .mapNotNull { value -> value?.trim()?.takeIf { it.isNotEmpty() } }
-            .groupingBy { it }
-            .eachCount()
-            .filterValues { count -> count > 1 }
-            .keys
 
     fun <T> mixAlternating(
         first: List<T>,
