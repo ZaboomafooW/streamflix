@@ -21,11 +21,11 @@ class VidsrcNetExtractor : Extractor() {
     override val mainUrl = "https://vidsrc-embed.ru"
     override val aliasUrls = listOf("https://vsembed.ru")
 
-    fun server(videoType: Video.Type): Video.Server? {
+    fun server(videoType: Video.Type): Video.Server {
         val tmdbId = when (videoType) {
             is Video.Type.Episode -> videoType.tvShow.tmdbId
             is Video.Type.Movie -> videoType.tmdbId
-        } ?: return null
+        } ?: throw IllegalArgumentException("Vidsrc.net requires explicit TMDb identity")
         return Video.Server(
             id = name,
             name = name,
