@@ -177,6 +177,7 @@ class TvShowViewHolder(
                 banner = tvShow.banner,
                 releaseDate = tvShow.released?.format("yyyy-MM-dd"),
                 imdbId = tvShow.imdbId,
+                tmdbId = tvShow.tmdbId,
             ),
             season = Video.Type.Episode.Season(
                 number = 1,
@@ -672,6 +673,7 @@ class TvShowViewHolder(
                             banner = tvShow.banner,
                             releaseDate = tvShow.released?.format("yyyy-MM-dd"),
                             imdbId = tvShow.imdbId,
+                            tmdbId = tvShow.tmdbId,
                         ),
                         season = Video.Type.Episode.Season(
                             number = episodeSeason?.number ?: 1,
@@ -806,6 +808,7 @@ class TvShowViewHolder(
                             banner = tvShow.banner,
                             releaseDate = tvShow.released?.format("yyyy-MM-dd"),
                             imdbId = tvShow.imdbId,
+                            tmdbId = tvShow.tmdbId,
                         ),
                         season = Video.Type.Episode.Season(
                             number = episodeSeason?.number ?: 1,
