@@ -24,6 +24,32 @@ internal object DoramasflixLogic {
             .firstOrNull { it != seriesBackdrop }
     }
 
+    fun <T> mixAlternating(
+        first: List<T>,
+        second: List<T>,
+        limit: Int = first.size + second.size,
+    ): List<T> {
+        if (limit <= 0) return emptyList()
+
+        val result = ArrayList<T>(minOf(limit, first.size + second.size))
+        var firstIndex = 0
+        var secondIndex = 0
+
+        while (
+            result.size < limit &&
+            (firstIndex < first.size || secondIndex < second.size)
+        ) {
+            if (firstIndex < first.size && result.size < limit) {
+                result += first[firstIndex++]
+            }
+            if (secondIndex < second.size && result.size < limit) {
+                result += second[secondIndex++]
+            }
+        }
+
+        return result
+    }
+
     fun normalizePlaybackTarget(link: String): String? {
         val normalized = link.trim()
         return when {

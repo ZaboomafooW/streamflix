@@ -48,6 +48,8 @@ object DoramasflixProvider : Provider {
     private const val apiUrl = "https://sv7.fluxcedene.net/"
     private const val playbackApiUrl = "https://userapi.cloudfleir.xyz/"
     private const val playbackApp = "com.asiapp.doramasgo"
+    private const val featuredDoramaLimit = 6
+    private const val featuredMovieLimit = 1
 
     private val movieBackendIds = ConcurrentHashMap<String, String>()
     private val episodeBackendIds = ConcurrentHashMap<String, String>()
@@ -242,6 +244,63 @@ object DoramasflixProvider : Provider {
         return data
     }
 
+    private suspend fun getFeaturedDoramas(): List<Content> =
+        catalogRequest(
+            operationName = "DoramasCarrousel",
+            variables = JSONObject().put("limit", featuredDoramaLimit),
+            query = """
+                query DoramasCarrousel(${'$'}limit: Int) {
+                  carrouselDoramas(limit: ${'$'}limit) {
+                    _id
+                    name
+                    name_es
+                    slug
+                    poster_path
+                    poster
+                    backdrop_path
+                    backdrop
+                  }
+                }
+            """.trimIndent(),
+        ).carrouselDoramas.orEmpty()
+
+    private suspend fun getFeaturedMovies(): List<Content> =
+        catalogRequest(
+            operationName = "MoviesCarrousel",
+            variables = JSONObject().put("limit", featuredMovieLimit),
+            query = """
+                query MoviesCarrousel(${'$'}limit: Int) {
+                  carrouselMovies(limit: ${'$'}limit) {
+                    _id
+                    name
+                    name_es
+                    slug
+                    backdrop_path
+                    backdrop
+                  }
+                }
+            """.trimIndent(),
+        ).carrouselMovies.orEmpty()
+
+    private fun featuredDorama(content: Content): Show? {
+        val banner = backdropUrl(content.backdropPath ?: content.backdrop) ?: return null
+        return TvShow(
+            id = doramaId(content.slug),
+            title = titleFor(content),
+            poster = posterUrl(content.posterPath ?: content.poster),
+            banner = banner,
+        )
+    }
+
+    private fun featuredMovie(content: Content): Show? {
+        val banner = backdropUrl(content.backdropPath ?: content.backdrop) ?: return null
+        return Movie(
+            id = movieId(content.slug),
+            title = titleFor(content),
+            banner = banner,
+        )
+    }
+
     private suspend fun detailMovie(slug: String): Content {
         val content = catalogRequest(
             operationName = "DetailMovieSlug",
@@ -396,10 +455,20 @@ object DoramasflixProvider : Provider {
     }
 
     override suspend fun getHome(): List<Category> = coroutineScope {
+        val featuredDoramas = async { getFeaturedDoramas() }
+        val featuredMovies = async { getFeaturedMovies() }
         val doramas = async { getTvShows(1) }
         val movies = async { getMovies(1) }
 
+        val featured = DoramasflixLogic.mixAlternating(
+            first = featuredDoramas.await().mapNotNull(::featuredDorama),
+            second = featuredMovies.await().mapNotNull(::featuredMovie),
+        )
+
         buildList {
+            featured.takeIf { it.isNotEmpty() }?.let {
+                add(Category(name = Category.FEATURED, list = it))
+            }
             doramas.await().takeIf { it.isNotEmpty() }?.let {
                 add(Category(name = "Doramas Populares", list = it))
             }

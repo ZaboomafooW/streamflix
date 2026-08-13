@@ -59,6 +59,28 @@ class DoramasflixLogicTest {
     }
 
     @Test
+    fun `home carousel mixes doramas and movies in Doramasflix order`() {
+        assertEquals(
+            listOf("D1", "M1", "D2", "D3", "D4", "D5", "D6"),
+            DoramasflixLogic.mixAlternating(
+                first = listOf("D1", "D2", "D3", "D4", "D5", "D6"),
+                second = listOf("M1"),
+            ),
+        )
+    }
+
+    @Test
+    fun `home carousel preserves the remaining feed when the other is exhausted`() {
+        assertEquals(
+            listOf("D1", "M1", "M2"),
+            DoramasflixLogic.mixAlternating(
+                first = listOf("D1"),
+                second = listOf("M1", "M2"),
+            ),
+        )
+    }
+
+    @Test
     fun `protocol relative playback URL is normalized to https`() {
         assertEquals(
             "https://ok.ru/videoembed/123",

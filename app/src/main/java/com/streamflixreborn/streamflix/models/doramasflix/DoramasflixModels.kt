@@ -18,6 +18,8 @@ data class Data(
     val searchMovie: List<Content>? = null,
     val detailDorama: Content? = null,
     val detailMovie: Content? = null,
+    val carrouselDoramas: List<Content>? = null,
+    val carrouselMovies: List<Content>? = null,
     val listSeasons: List<Season>? = null,
     val listEpisodes: List<Episode>? = null,
     val listServers: List<ServerMetadata>? = null,
