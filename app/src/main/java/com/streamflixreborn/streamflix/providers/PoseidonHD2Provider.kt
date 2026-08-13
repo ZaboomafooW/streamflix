@@ -131,7 +131,6 @@ object PoseidonHD2Provider : Provider {
             } else null
         }
 
-        // 2. TABS (Movies)
         val tabMap = listOf(
             "tabLastMovies" to "Últimas películas",
             "tabTopMovies" to "Películas destacadas",
@@ -144,7 +143,6 @@ object PoseidonHD2Provider : Provider {
             }
         }
 
-        // 3. SERIES
         json.optJSONArray("series")?.let { array ->
             val list = (0 until array.length()).mapNotNull { i -> parseNextItem(array.getJSONObject(i)) }
             if (list.isNotEmpty()) categories.add(Category("Últimas series", list))
@@ -155,7 +153,6 @@ object PoseidonHD2Provider : Provider {
             if (list.isNotEmpty()) categories.add(Category("Series destacadas (Hoy)", list))
         }
 
-        // 4. EPISODES
         json.optJSONArray("episodes")?.let { array ->
             val list = (0 until array.length()).mapNotNull { i ->
                 val item = array.getJSONObject(i)
@@ -215,12 +212,8 @@ object PoseidonHD2Provider : Provider {
                          else null
 
             when {
-                href.contains("/pelicula/") -> {
-                    items.add(Movie(id = href.substringAfter("/pelicula/"), title = title, released = year, poster = poster))
-                }
-                href.contains("/serie/") -> {
-                    items.add(TvShow(id = href.substringAfter("/serie/"), title = title, released = year, poster = poster))
-                }
+                href.contains("/pelicula/") -> items.add(Movie(id = href.substringAfter("/pelicula/"), title = title, released = year, poster = poster))
+                href.contains("/serie/") -> items.add(TvShow(id = href.substringAfter("/serie/"), title = title, released = year, poster = poster))
             }
         }
         return items.distinctBy { if (it is Movie) it.id else (it as TvShow).id }
@@ -233,23 +226,11 @@ object PoseidonHD2Provider : Provider {
             val linkElement = element.selectFirst("a") ?: return@mapNotNull null
             val href = linkElement.attr("href")
             if (!href.contains("/pelicula/")) return@mapNotNull null
-            
-            val title = element.selectFirst(".Title")?.text() 
-                ?: element.selectFirst("h3")?.text() 
-                ?: return@mapNotNull null
-            
+            val title = element.selectFirst(".Title")?.text() ?: element.selectFirst("h3")?.text() ?: return@mapNotNull null
             val rawImgUrl = element.selectFirst("img")?.attr("src") ?: ""
             val imgUrl = rawImgUrl.toUri().getQueryParameter("url") ?: rawImgUrl
-            val poster = if (imgUrl.startsWith("http")) imgUrl 
-                         else if (imgUrl.isNotEmpty()) "${baseUrl.trimEnd('/')}/${imgUrl.trimStart('/')}" 
-                         else null
-
-            Movie(
-                id = href.substringAfter("/pelicula/"),
-                title = title,
-                poster = poster,
-                released = element.selectFirst(".Year")?.text()
-            )
+            val poster = if (imgUrl.startsWith("http")) imgUrl else if (imgUrl.isNotEmpty()) "${baseUrl.trimEnd('/')}/${imgUrl.trimStart('/')}" else null
+            Movie(id = href.substringAfter("/pelicula/"), title = title, poster = poster, released = element.selectFirst(".Year")?.text())
         }.distinctBy { it.id }
     }
 
@@ -260,23 +241,11 @@ object PoseidonHD2Provider : Provider {
             val linkElement = element.selectFirst("a") ?: return@mapNotNull null
             val href = linkElement.attr("href")
             if (!href.contains("/serie/")) return@mapNotNull null
-            
-            val title = element.selectFirst(".Title")?.text() 
-                ?: element.selectFirst("h3")?.text() 
-                ?: return@mapNotNull null
-            
+            val title = element.selectFirst(".Title")?.text() ?: element.selectFirst("h3")?.text() ?: return@mapNotNull null
             val rawImgUrl = element.selectFirst("img")?.attr("src") ?: ""
             val imgUrl = rawImgUrl.toUri().getQueryParameter("url") ?: rawImgUrl
-            val poster = if (imgUrl.startsWith("http")) imgUrl 
-                         else if (imgUrl.isNotEmpty()) "${baseUrl.trimEnd('/')}/${imgUrl.trimStart('/')}" 
-                         else null
-
-            TvShow(
-                id = href.substringAfter("/serie/"),
-                title = title,
-                poster = poster,
-                released = element.selectFirst(".Year")?.text()
-            )
+            val poster = if (imgUrl.startsWith("http")) imgUrl else if (imgUrl.isNotEmpty()) "${baseUrl.trimEnd('/')}/${imgUrl.trimStart('/')}" else null
+            TvShow(id = href.substringAfter("/serie/"), title = title, poster = poster, released = element.selectFirst(".Year")?.text())
         }.distinctBy { it.id }
     }
 
@@ -303,10 +272,7 @@ object PoseidonHD2Provider : Provider {
                             overview = tmdbMovie.overview,
                             released = tmdbMovie.releaseDate,
                             runtime = tmdbMovie.runtime,
-                            trailer = tmdbMovie.videos?.results
-                                ?.sortedBy { it.publishedAt ?: "" }
-                                ?.firstOrNull { it.site == TMDb3.Video.VideoSite.YOUTUBE }
-                                ?.let { "https://www.youtube.com/watch?v=${it.key}" },
+                            trailer = tmdbMovie.videos?.results?.sortedBy { it.publishedAt ?: "" }?.firstOrNull { it.site == TMDb3.Video.VideoSite.YOUTUBE }?.let { "https://www.youtube.com/watch?v=${it.key}" },
                             rating = tmdbMovie.voteAverage.toDouble(),
                             poster = tmdbMovie.posterPath?.original,
                             banner = tmdbMovie.backdropPath?.original,
@@ -319,6 +285,7 @@ object PoseidonHD2Provider : Provider {
                                     else -> null
                                 }
                             } ?: emptyList(),
+                            tmdbId = tmdbId.toInt(),
                         )
                     }
                 } catch (_: Exception) { }
@@ -329,26 +296,19 @@ object PoseidonHD2Provider : Provider {
             val images = json.optJSONObject("images")
             val rawPoster = images?.optString("poster") ?: ""
             val imgUrl = rawPoster.toUri().getQueryParameter("url") ?: rawPoster
-            val poster = if (imgUrl.startsWith("http")) imgUrl 
-                         else if (imgUrl.isNotEmpty()) "${baseUrl.trimEnd('/')}/${imgUrl.trimStart('/')}" 
-                         else null
-
+            val poster = if (imgUrl.startsWith("http")) imgUrl else if (imgUrl.isNotEmpty()) "${baseUrl.trimEnd('/')}/${imgUrl.trimStart('/')}" else null
             return Movie(
                 id = id,
                 title = title,
                 overview = json.optString("overview", ""),
                 released = json.optString("releaseDate", "").take(10),
                 rating = json.optJSONObject("rate")?.optDouble("average", 0.0) ?: 0.0,
-                poster = poster
+                poster = poster,
+                tmdbId = tmdbId.toIntOrNull(),
             )
         }
 
-        return Movie(
-            id = id,
-            title = document.selectFirst("h1")?.text() ?: "",
-            overview = document.select(".Description p").text(),
-            poster = document.select(".Image img").attr("src")
-        )
+        return Movie(id = id, title = document.selectFirst("h1")?.text() ?: "", overview = document.select(".Description p").text(), poster = document.select(".Image img").attr("src"))
     }
 
     override suspend fun getTvShow(id: String): TvShow {
@@ -356,7 +316,6 @@ object PoseidonHD2Provider : Provider {
         val jsonData = document.selectFirst("script#__NEXT_DATA__")?.data() ?: return TvShow(id = id, title = "Unknown")
         val json = JSONObject(jsonData).getJSONObject("props").getJSONObject("pageProps").getJSONObject("thisSerie")
         val tmdbId = json.optString("TMDbId")
-
         val seasonsJson = json.optJSONArray("seasons") ?: JSONArray()
         val seasons = (0 until seasonsJson.length()).map { i ->
             val num = seasonsJson.getJSONObject(i).getInt("number")
@@ -367,11 +326,7 @@ object PoseidonHD2Provider : Provider {
             try {
                 return TMDb3.TvSeries.details(
                     seriesId = tmdbId.toInt(),
-                    appendToResponse = listOf(
-                        TMDb3.Params.AppendToResponse.Tv.CREDITS,
-                        TMDb3.Params.AppendToResponse.Tv.RECOMMENDATIONS,
-                        TMDb3.Params.AppendToResponse.Tv.VIDEOS,
-                    ),
+                    appendToResponse = listOf(TMDb3.Params.AppendToResponse.Tv.CREDITS, TMDb3.Params.AppendToResponse.Tv.RECOMMENDATIONS, TMDb3.Params.AppendToResponse.Tv.VIDEOS),
                     language = language
                 ).let { tmdbTv ->
                     TvShow(
@@ -387,7 +342,8 @@ object PoseidonHD2Provider : Provider {
                             season.copy(title = tmdbSeason?.name ?: season.title, poster = tmdbSeason?.posterPath?.w500 ?: season.poster)
                         },
                         genres = tmdbTv.genres.map { Genre(it.id.toString(), it.name) },
-                        cast = tmdbTv.credits?.cast?.map { People(it.id.toString(), it.name, it.profilePath?.w500) } ?: emptyList()
+                        cast = tmdbTv.credits?.cast?.map { People(it.id.toString(), it.name, it.profilePath?.w500) } ?: emptyList(),
+                        tmdbId = tmdbId.toInt(),
                     )
                 }
             } catch (_: Exception) { }
@@ -398,10 +354,7 @@ object PoseidonHD2Provider : Provider {
         val images = json.optJSONObject("images")
         val rawPoster = images?.optString("poster") ?: ""
         val imgUrl = rawPoster.toUri().getQueryParameter("url") ?: rawPoster
-        val poster = if (imgUrl.startsWith("http")) imgUrl 
-                     else if (imgUrl.isNotEmpty()) "${baseUrl.trimEnd('/')}/${imgUrl.trimStart('/')}"
-                     else null
-
+        val poster = if (imgUrl.startsWith("http")) imgUrl else if (imgUrl.isNotEmpty()) "${baseUrl.trimEnd('/')}/${imgUrl.trimStart('/')}" else null
         return TvShow(
             id = id,
             title = title,
@@ -409,40 +362,31 @@ object PoseidonHD2Provider : Provider {
             released = json.optString("releaseDate", "").take(10),
             rating = json.optJSONObject("rate")?.optDouble("average", 0.0) ?: 0.0,
             poster = poster,
-            seasons = seasons
+            seasons = seasons,
+            tmdbId = tmdbId.toIntOrNull(),
         )
     }
 
     override suspend fun getEpisodesBySeason(seasonId: String): List<Episode> {
         val seriesPath = seasonId.substringBefore("/temporada")
         val seasonNum = seasonId.substringAfterLast("/")
-        
         val document = getDocument("$baseUrl/serie/$seriesPath")
         val jsonData = document.selectFirst("script#__NEXT_DATA__")?.data() ?: return emptyList()
         val json = JSONObject(jsonData).getJSONObject("props").getJSONObject("pageProps")
-        
         val serieObj = if (json.has("thisSerie")) json.getJSONObject("thisSerie") else json.optJSONObject("serie")
         val seasonsArray = serieObj?.optJSONArray("seasons") ?: return emptyList()
-
         for (i in 0 until seasonsArray.length()) {
             val seasonObj = seasonsArray.getJSONObject(i)
             if (seasonObj.optInt("number").toString() != seasonNum) continue
-
             val episodesArray = seasonObj.optJSONArray("episodes") ?: return emptyList()
             return (0 until episodesArray.length()).map { idx ->
                 val ep = episodesArray.getJSONObject(idx)
                 val slug = ep.optJSONObject("url")?.optString("slug") ?: ""
-                
                 val rawPoster = ep.optString("image")
                 val imgUrl = rawPoster.toUri().getQueryParameter("url") ?: rawPoster
-                val poster = if (imgUrl.startsWith("http")) imgUrl 
-                             else if (imgUrl.isNotEmpty()) "$baseUrl${imgUrl.trimStart('/')}" 
-                             else null
-
+                val poster = if (imgUrl.startsWith("http")) imgUrl else if (imgUrl.isNotEmpty()) "$baseUrl${imgUrl.trimStart('/')}" else null
                 Episode(
-                    id = slug.removePrefix("series/")
-                        .replace("/seasons/", "/temporada/")
-                        .replace("/episodes/", "/episodio/"),
+                    id = slug.removePrefix("series/").replace("/seasons/", "/temporada/").replace("/episodes/", "/episodio/"),
                     number = ep.optInt("number"),
                     title = ep.optString("title"),
                     poster = poster,
@@ -459,26 +403,15 @@ object PoseidonHD2Provider : Provider {
         val shows = document.select("li.TPostMv, article.TPost, div.TPost, div.col article").mapNotNull { element ->
             val linkElement = element.selectFirst("a") ?: return@mapNotNull null
             val href = linkElement.attr("href")
-            
-            val title = element.selectFirst(".Title")?.text() 
-                ?: element.selectFirst("h3")?.text() 
-                ?: return@mapNotNull null
-            
+            val title = element.selectFirst(".Title")?.text() ?: element.selectFirst("h3")?.text() ?: return@mapNotNull null
             val rawImgUrl = element.selectFirst("img")?.attr("src") ?: ""
             val imgUrl = rawImgUrl.toUri().getQueryParameter("url") ?: rawImgUrl
-            val poster = if (imgUrl.startsWith("http")) imgUrl 
-                         else if (imgUrl.isNotEmpty()) "${baseUrl.trimEnd('/')}/${imgUrl.trimStart('/')}" 
-                         else null
-
+            val poster = if (imgUrl.startsWith("http")) imgUrl else if (imgUrl.isNotEmpty()) "${baseUrl.trimEnd('/')}/${imgUrl.trimStart('/')}" else null
             val showId = href.removePrefix("/pelicula/").removePrefix("/serie/")
-
-            if (href.contains("/pelicula/")) {
-                Movie(id = showId, title = title, poster = poster)
-            } else if (href.contains("/serie/")) {
-                TvShow(id = showId, title = title, poster = poster)
-            } else null
+            if (href.contains("/pelicula/")) Movie(id = showId, title = title, poster = poster)
+            else if (href.contains("/serie/")) TvShow(id = showId, title = title, poster = poster)
+            else null
         }.distinctBy { if (it is Movie) it.id else (it as TvShow).id }
-        
         return Genre(id = id, name = id.replaceFirstChar { it.uppercase() }, shows = shows)
     }
 
@@ -489,28 +422,17 @@ object PoseidonHD2Provider : Provider {
     override suspend fun getServers(id: String, videoType: Video.Type): List<Video.Server> {
         val url = when (videoType) {
             is Video.Type.Movie -> "${baseUrl.trimEnd('/')}/pelicula/$id"
-            is Video.Type.Episode -> {
-                if (id.contains("/episodio/")) {
-                    "${baseUrl.trimEnd('/')}/serie/$id"
-                } else {
-                    "${baseUrl.trimEnd('/')}/serie/$id/temporada/${videoType.season.number}/episodio/${videoType.number}"
-                }
-            }
+            is Video.Type.Episode -> if (id.contains("/episodio/")) "${baseUrl.trimEnd('/')}/serie/$id" else "${baseUrl.trimEnd('/')}/serie/$id/temporada/${videoType.season.number}/episodio/${videoType.number}"
         }
         val document = getDocument(url)
         val jsonData = document.selectFirst("script#__NEXT_DATA__")?.data() ?: return emptyList()
         val json = JSONObject(jsonData).getJSONObject("props").getJSONObject("pageProps")
-        
         val videoObj = when (videoType) {
             is Video.Type.Movie -> json.optJSONObject("thisMovie")?.optJSONObject("videos")
-            is Video.Type.Episode -> {
-                (json.optJSONObject("episode") ?: json.optJSONObject("thisEpisode"))?.optJSONObject("videos")
-            }
+            is Video.Type.Episode -> (json.optJSONObject("episode") ?: json.optJSONObject("thisEpisode"))?.optJSONObject("videos")
         } ?: return emptyList()
-
         val servers = mutableListOf<Video.Server>()
         val languages = mapOf("latino" to "[LAT]", "spanish" to "[CAST]", "english" to "[SUB]")
-        
         coroutineScope {
             val deferredServers = mutableListOf<Deferred<Video.Server?>>()
             for ((langKey, tag) in languages) {
@@ -519,18 +441,11 @@ object PoseidonHD2Provider : Provider {
                     val obj = array.getJSONObject(i)
                     val cyberlocker = obj.optString("cyberlocker")
                     val embedUrl = obj.optString("result")
-                    
                     deferredServers.add(async {
                         try {
-                            // Resolve the bridge URL to the real embed URL
                             val realUrl = resolvePlayerUrl(embedUrl) ?: embedUrl
                             if (realUrl.isEmpty()) return@async null
-                            
-                            Video.Server(
-                                id = realUrl,
-                                name = "$cyberlocker $tag".trim(),
-                                src = realUrl
-                            )
+                            Video.Server(id = realUrl, name = "$cyberlocker $tag".trim(), src = realUrl)
                         } catch (e: Exception) {
                             Log.e(TAG, "Error resolving player URL: $embedUrl", e)
                             null
@@ -546,58 +461,30 @@ object PoseidonHD2Provider : Provider {
     private suspend fun resolvePlayerUrl(playerUrl: String): String? {
         val currentHost = UserPreferences.poseidonDomain.removePrefix("www.")
         if (!playerUrl.contains("player.$currentHost")) return playerUrl
-        
-        // Try resolving with OkHttp first (fast)
         try {
-            val client = NetworkClient.default.newBuilder()
-                .connectTimeout(5, TimeUnit.SECONDS)
-                .readTimeout(5, TimeUnit.SECONDS)
-                .followRedirects(true)
-                .build()
-            
-            val request = okhttp3.Request.Builder()
-                .url(playerUrl)
-                .header("Referer", baseUrl)
-                .header("User-Agent", NetworkClient.USER_AGENT)
-                .build()
-            
+            val client = NetworkClient.default.newBuilder().connectTimeout(5, TimeUnit.SECONDS).readTimeout(5, TimeUnit.SECONDS).followRedirects(true).build()
+            val request = okhttp3.Request.Builder().url(playerUrl).header("Referer", baseUrl).header("User-Agent", NetworkClient.USER_AGENT).build()
             val response = withContext(Dispatchers.IO) { client.newCall(request).execute() }
             val html = response.body?.string() ?: ""
-            
-            if (html.contains("cf-browser-verification") || html.contains("Just a moment...")) {
-                // Cloudflare detected. We could use WebView here, but not in parallel for 18 servers.
-                // We'll return null and let the caller decide (or just return the original URL)
-                return null
-            }
-
+            if (html.contains("cf-browser-verification") || html.contains("Just a moment...")) return null
             val doc = Jsoup.parse(html)
             val iframe = doc.selectFirst("iframe")?.attr("src")
-            if (!iframe.isNullOrEmpty() && iframe.startsWith("http")) {
-                return iframe
-            } else {
-                val scriptContent = doc.select("script").firstOrNull { it.data().contains("var url =") }?.data()
-                val regex = Regex("var url\\s*=\\s*['\"](https?://[^'\"]+)['\"]")
-                val match = regex.find(scriptContent ?: "")
-                val foundUrl = match?.groupValues?.get(1)
-                if (!foundUrl.isNullOrEmpty()) return foundUrl
-            }
+            if (!iframe.isNullOrEmpty() && iframe.startsWith("http")) return iframe
+            val scriptContent = doc.select("script").firstOrNull { it.data().contains("var url =") }?.data()
+            val foundUrl = Regex("var url\\s*=\\s*['\"](https?://[^'\"]+)['\"]").find(scriptContent ?: "")?.groupValues?.get(1)
+            if (!foundUrl.isNullOrEmpty()) return foundUrl
         } catch (e: Exception) {
             Log.w(TAG, "OkHttp resolution failed for $playerUrl")
         }
-        
         return null
     }
 
     override suspend fun getVideo(server: Video.Server): Video {
         var finalUrl = server.src
-
         if (finalUrl.contains("voe.sx") || server.name.contains("VOE", ignoreCase = true)) {
             val path = finalUrl.toUri().path?.trimStart('/') ?: ""
-            if (!path.startsWith("e/")) {
-                finalUrl = "https://voe.sx/e/$path"
-            }
+            if (!path.startsWith("e/")) finalUrl = "https://voe.sx/e/$path"
         }
-
         return Extractor.extract(finalUrl, server)
     }
 }
