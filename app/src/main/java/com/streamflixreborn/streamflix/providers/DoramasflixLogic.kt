@@ -55,13 +55,10 @@ internal object DoramasflixLogic {
             .mapNotNull { value -> value?.trim()?.takeIf { it.isNotEmpty() } }
             .firstOrNull()
 
-    @Suppress("UNUSED_PARAMETER")
     fun episodeArtwork(
         stillPath: String?,
         backdrop: String?,
         stillImage: String?,
-        seriesBackdropPath: String? = null,
-        repeatedSeasonArtwork: String? = null,
         websiteArtwork: String? = null,
         tmdbArtwork: String? = null,
     ): String? = firstNonBlank(
