@@ -155,17 +155,22 @@ object ArtworkRepair {
     ) {
         if (hasUsableArtwork(currentMovie.poster, currentMovie.banner)) return
 
-        val lookupTitle = currentMovie.title.ifBlank { fallbackTitle.orEmpty() }
-        if (lookupTitle.isBlank()) return
+        val explicitTmdbId = currentMovie.tmdbId
+        val tmdbMovie = if (explicitTmdbId != null) {
+            TmdbUtils.getMovieById(explicitTmdbId, language = providerLanguage)
+        } else {
+            val lookupTitle = currentMovie.title.ifBlank { fallbackTitle.orEmpty() }
+            lookupTitle.takeIf { it.isNotBlank() }
+                ?.let { TmdbUtils.getMovie(it, language = providerLanguage) }
+        } ?: return
 
-        val tmdbMovie = TmdbUtils.getMovie(lookupTitle, language = providerLanguage) ?: return
         if (!isRemoteArtworkUrl(currentMovie.poster) && isRemoteArtworkUrl(tmdbMovie.poster)) {
             currentMovie.poster = tmdbMovie.poster
         }
         if (!isRemoteArtworkUrl(currentMovie.banner) && isRemoteArtworkUrl(tmdbMovie.banner)) {
             currentMovie.banner = tmdbMovie.banner
         }
-        if (currentMovie.imdbId.isNullOrBlank()) {
+        if (explicitTmdbId != null && currentMovie.imdbId.isNullOrBlank()) {
             currentMovie.imdbId = tmdbMovie.imdbId
         }
     }
@@ -177,17 +182,22 @@ object ArtworkRepair {
     ) {
         if (hasUsableArtwork(currentTvShow.poster, currentTvShow.banner)) return
 
-        val lookupTitle = currentTvShow.title.ifBlank { fallbackTitle.orEmpty() }
-        if (lookupTitle.isBlank()) return
+        val explicitTmdbId = currentTvShow.tmdbId
+        val tmdbTvShow = if (explicitTmdbId != null) {
+            TmdbUtils.getTvShowById(explicitTmdbId, language = providerLanguage)
+        } else {
+            val lookupTitle = currentTvShow.title.ifBlank { fallbackTitle.orEmpty() }
+            lookupTitle.takeIf { it.isNotBlank() }
+                ?.let { TmdbUtils.getTvShow(it, language = providerLanguage) }
+        } ?: return
 
-        val tmdbTvShow = TmdbUtils.getTvShow(lookupTitle, language = providerLanguage) ?: return
         if (!isRemoteArtworkUrl(currentTvShow.poster) && isRemoteArtworkUrl(tmdbTvShow.poster)) {
             currentTvShow.poster = tmdbTvShow.poster
         }
         if (!isRemoteArtworkUrl(currentTvShow.banner) && isRemoteArtworkUrl(tmdbTvShow.banner)) {
             currentTvShow.banner = tmdbTvShow.banner
         }
-        if (currentTvShow.imdbId.isNullOrBlank()) {
+        if (explicitTmdbId != null && currentTvShow.imdbId.isNullOrBlank()) {
             currentTvShow.imdbId = tmdbTvShow.imdbId
         }
     }
