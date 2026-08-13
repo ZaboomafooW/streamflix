@@ -73,6 +73,28 @@ class DoramasflixPageMetadataTest {
     }
 
     @Test
+    fun `content page falls back to current visible Doramasflix rating and overview`() {
+        val document = Jsoup.parse(
+            """
+                <html><body>
+                  <h1>Dream to You</h1>
+                  <h2>Dreaming of You</h2>
+                  <div>4.5</div>
+                  <div>2026 Dorama</div>
+                  <p>Ver Dream to You online: Un apasionado estudiante conoce a alguien que cambia su vida.</p>
+                </body></html>
+            """.trimIndent(),
+        )
+
+        val metadata = DoramasflixPageMetadata.parseContent(document)
+        assertEquals(4.5, metadata.rating)
+        assertEquals(
+            "Un apasionado estudiante conoce a alguien que cambia su vida.",
+            metadata.overview,
+        )
+    }
+
+    @Test
     fun `structured content stays ahead of social metadata`() {
         val document = Jsoup.parse(
             """
