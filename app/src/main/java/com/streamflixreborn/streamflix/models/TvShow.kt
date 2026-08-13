@@ -83,6 +83,8 @@ class TvShow(
         }
 
     fun isSame(tvShow: TvShow): Boolean {
+        if (tmdbId != tvShow.tmdbId) return false
+        if (imdbId != tvShow.imdbId) return false
         if (isFavorite != tvShow.isFavorite) return false
         if (favoritedAtMillis != tvShow.favoritedAtMillis) return false
         if (isWatching != tvShow.isWatching) return false

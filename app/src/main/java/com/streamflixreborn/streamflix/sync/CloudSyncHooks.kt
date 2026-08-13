@@ -6,6 +6,7 @@ import com.streamflixreborn.streamflix.models.Episode
 import com.streamflixreborn.streamflix.models.Movie
 import com.streamflixreborn.streamflix.models.TvShow
 import com.streamflixreborn.streamflix.providers.Provider
+import com.streamflixreborn.streamflix.utils.UserPreferences
 
 object CloudSyncHooks {
     fun movie(context: Context, provider: Provider, movie: Movie) {
@@ -35,6 +36,7 @@ object CloudSyncHooks {
     }
 
     fun episode(context: Context, provider: Provider, episode: Episode) {
+        hydrateEpisodeParent(context, provider, episode)
         enqueue(context) { userId, now ->
             RemoteMediaState.fromEpisode(userId, provider.name, episode, now)
         }
@@ -45,6 +47,30 @@ object CloudSyncHooks {
         val episode = runCatching { AppDatabase.getInstance(context).episodeDao().getById(id) }.getOrNull()
             ?: Episode(id = id)
         episode(context, provider, episode)
+    }
+
+    private fun hydrateEpisodeParent(context: Context, provider: Provider, episode: Episode) {
+        val currentShow = episode.tvShow ?: return
+        runCatching {
+            val usesCurrentDatabase = UserPreferences.currentProvider?.name == provider.name
+            val database = if (usesCurrentDatabase) {
+                AppDatabase.getInstance(context)
+            } else {
+                AppDatabase.getInstanceForProvider(provider.name, context)
+            }
+            try {
+                val storedShow = database.tvShowDao().getById(currentShow.id) ?: return@runCatching
+                episode.tvShow = currentShow.copy(
+                    title = currentShow.title.ifBlank { storedShow.title },
+                    poster = currentShow.poster ?: storedShow.poster,
+                    banner = currentShow.banner ?: storedShow.banner,
+                    imdbId = currentShow.imdbId ?: storedShow.imdbId,
+                    tmdbId = currentShow.tmdbId ?: storedShow.tmdbId,
+                )
+            } finally {
+                if (!usesCurrentDatabase) database.close()
+            }
+        }
     }
 
     private inline fun enqueue(

@@ -51,6 +51,8 @@ class Movie(
 
 
     fun isSame(movie: Movie): Boolean {
+        if (tmdbId != movie.tmdbId) return false
+        if (imdbId != movie.imdbId) return false
         if (isFavorite != movie.isFavorite) return false
         if (favoritedAtMillis != movie.favoritedAtMillis) return false
         if (isWatched != movie.isWatched) return false
