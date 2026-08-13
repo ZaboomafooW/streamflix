@@ -20,6 +20,8 @@ import retrofit2.http.Url
 
 internal data class DoramasflixContentMetadata(
     val rating: Double? = null,
+    val overview: String? = null,
+    val image: String? = null,
 )
 
 internal class DoramasflixPageMetadata(
@@ -61,11 +63,24 @@ internal class DoramasflixPageMetadata(
 
     companion object {
         internal fun parseContent(document: Document): DoramasflixContentMetadata {
+            val structuredContent = jsonLd(document)
+                .mapNotNull(::findStructuredContent)
+                .firstOrNull()
             val rating = jsonLd(document)
                 .mapNotNull(::findAggregateRating)
                 .firstOrNull()
+            val overview = stringValue(structuredContent?.get("description"))
+                ?: metaContent(document, "meta[property=og:description]")
+                ?: metaContent(document, "meta[name=description]")
+            val image = imageValue(structuredContent?.get("image"))
+                ?: metaContent(document, "meta[property=og:image]")
+                ?: metaContent(document, "meta[name=twitter:image]")
 
-            return DoramasflixContentMetadata(rating = rating)
+            return DoramasflixContentMetadata(
+                rating = rating,
+                overview = overview,
+                image = image,
+            )
         }
 
         internal fun parsePeople(
@@ -160,6 +175,14 @@ internal class DoramasflixPageMetadata(
             }
         }
 
+        private fun metaContent(
+            document: Document,
+            selector: String,
+        ): String? = document.selectFirst(selector)
+            ?.attr("content")
+            ?.trim()
+            ?.takeIf { it.isNotEmpty() }
+
         private fun jsonLd(document: Document): Sequence<JsonElement> =
             document.select("script[type=application/ld+json]")
                 .asSequence()
@@ -167,6 +190,29 @@ internal class DoramasflixPageMetadata(
                     val json = script.data().ifBlank { script.html() }
                     runCatching { JsonParser.parseString(json) }.getOrNull()
                 }
+
+        private fun findStructuredContent(element: JsonElement): JsonObject? {
+            val supportedTypes = setOf("Movie", "TVSeries", "Episode", "TVEpisode", "CreativeWorkSeries")
+            if (element.isJsonObject) {
+                val jsonObject = element.asJsonObject
+                val typeElement = jsonObject.get("@type")
+                val matches = when {
+                    typeElement == null || typeElement.isJsonNull -> false
+                    typeElement.isJsonArray -> typeElement.asJsonArray.any { value -> stringValue(value) in supportedTypes }
+                    else -> stringValue(typeElement) in supportedTypes
+                }
+                if (matches) return jsonObject
+                return jsonObject.entrySet().asSequence()
+                    .mapNotNull { (_, value) -> findStructuredContent(value) }
+                    .firstOrNull()
+            }
+            if (element.isJsonArray) {
+                return element.asJsonArray.asSequence()
+                    .mapNotNull(::findStructuredContent)
+                    .firstOrNull()
+            }
+            return null
+        }
 
         private fun findTypedObject(
             element: JsonElement,
@@ -246,6 +292,7 @@ internal class DoramasflixPageMetadata(
                 val image = element.asJsonObject
                 stringValue(image.get("url")) ?: stringValue(image.get("contentUrl"))
             }
+            element.isJsonArray -> element.asJsonArray.asSequence().mapNotNull(::imageValue).firstOrNull()
             else -> stringValue(element)
         }
 

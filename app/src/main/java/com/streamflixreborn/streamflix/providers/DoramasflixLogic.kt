@@ -35,36 +35,42 @@ internal object DoramasflixLogic {
         )
     }
 
+    fun resolveRating(
+        apiRating: Double?,
+        apiRatingCount: Int?,
+        websiteRating: Double?,
+        tmdbRating: Double?,
+    ): Double? {
+        val api = resolveApiRating(apiRating, apiRatingCount)
+        if (!api.useHtmlFallback) return api.rating
+
+        return websiteRating?.takeIf { it > 0.0 }
+            ?: tmdbRating
+                ?.takeIf { it > 0.0 }
+                ?.div(2.0)
+    }
+
+    fun firstNonBlank(vararg values: String?): String? =
+        values.asSequence()
+            .mapNotNull { value -> value?.trim()?.takeIf { it.isNotEmpty() } }
+            .firstOrNull()
+
+    @Suppress("UNUSED_PARAMETER")
     fun episodeArtwork(
         stillPath: String?,
         backdrop: String?,
         stillImage: String?,
-        seriesBackdropPath: String?,
+        seriesBackdropPath: String? = null,
         repeatedSeasonArtwork: String? = null,
-    ): String? {
-        val excludedArtwork = setOfNotNull(
-            seriesBackdropPath?.trim()?.takeIf { it.isNotEmpty() },
-            repeatedSeasonArtwork?.trim()?.takeIf { it.isNotEmpty() },
-        )
-
-        return listOf(stillPath, backdrop, stillImage)
-            .asSequence()
-            .mapNotNull { it?.trim()?.takeIf(String::isNotEmpty) }
-            .firstOrNull { it !in excludedArtwork }
-    }
-
-    fun duplicatedEpisodeArtwork(artwork: List<String?>): Set<String> {
-        val normalized = artwork
-            .mapNotNull { value -> value?.trim()?.takeIf { it.isNotEmpty() } }
-        if (normalized.size <= 1) return emptySet()
-
-        val sharedArtwork = normalized.first()
-        return if (normalized.all { it == sharedArtwork }) {
-            setOf(sharedArtwork)
-        } else {
-            emptySet()
-        }
-    }
+        websiteArtwork: String? = null,
+        tmdbArtwork: String? = null,
+    ): String? = firstNonBlank(
+        stillPath,
+        backdrop,
+        stillImage,
+        websiteArtwork,
+        tmdbArtwork,
+    )
 
     fun <T> mixAlternating(
         first: List<T>,

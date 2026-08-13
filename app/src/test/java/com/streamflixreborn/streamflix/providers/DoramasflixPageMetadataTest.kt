@@ -35,6 +35,67 @@ class DoramasflixPageMetadataTest {
     }
 
     @Test
+    fun `content page preserves structured description and image`() {
+        val document = Jsoup.parse(
+            """
+                <html><head>
+                  <script type="application/ld+json">
+                    {
+                      "@type": "TVSeries",
+                      "name": "Meeting You",
+                      "description": "Una descripción real del título.",
+                      "image": {"url": "https://image.tmdb.org/t/p/original/meeting.jpg"}
+                    }
+                  </script>
+                </head><body></body></html>
+            """.trimIndent(),
+        )
+
+        val metadata = DoramasflixPageMetadata.parseContent(document)
+        assertEquals("Una descripción real del título.", metadata.overview)
+        assertEquals("https://image.tmdb.org/t/p/original/meeting.jpg", metadata.image)
+    }
+
+    @Test
+    fun `content page falls back to explicit social metadata`() {
+        val document = Jsoup.parse(
+            """
+                <html><head>
+                  <meta property="og:description" content="Descripción desde la página">
+                  <meta property="og:image" content="https://doramasflix.in/image.jpg">
+                </head><body></body></html>
+            """.trimIndent(),
+        )
+
+        val metadata = DoramasflixPageMetadata.parseContent(document)
+        assertEquals("Descripción desde la página", metadata.overview)
+        assertEquals("https://doramasflix.in/image.jpg", metadata.image)
+    }
+
+    @Test
+    fun `structured content stays ahead of social metadata`() {
+        val document = Jsoup.parse(
+            """
+                <html><head>
+                  <script type="application/ld+json">
+                    {
+                      "@type": "Movie",
+                      "description": "Structured overview",
+                      "image": "https://doramasflix.in/structured.jpg"
+                    }
+                  </script>
+                  <meta property="og:description" content="OG overview">
+                  <meta property="og:image" content="https://doramasflix.in/og.jpg">
+                </head><body></body></html>
+            """.trimIndent(),
+        )
+
+        val metadata = DoramasflixPageMetada.parseContent(document)
+        assertEquals("Structured overview", metadata.overview)
+        assertEquals("https://doramasflix.in/structured.jpg", metadata.image)
+    }
+
+    @Test
     fun `unrated content does not manufacture a rating`() {
         val zeroCountDocument = Jsoup.parse(
             """

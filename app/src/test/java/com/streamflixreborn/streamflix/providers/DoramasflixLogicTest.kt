@@ -30,90 +30,120 @@ class DoramasflixLogicTest {
     }
 
     @Test
-    fun `series backdrop is not presented as an episode still`() {
+    fun `rating fallback follows API website then TMDb on Doramasflix scale`() {
+        assertEquals(
+            4.7,
+            DoramasflixLogic.resolveRating(
+                apiRating = null,
+                apiRatingCount = null,
+                websiteRating = 4.7,
+                tmdbRating = 8.2,
+            )
+        )
+        assertEquals(
+            4.1,
+            DoramasflixLogic.resolveRating(
+                apiRating = null,
+                apiRatingCount = null,
+                websiteRating = null,
+                tmdbRating = 8.2,
+            )
+        )
+    }
+
+    @Test
+    fun `API rating remains ahead of website and TMDb`() {
+        assertEquals(
+            4.142857142857143,
+            DoramasflixLogic.resolveRating(
+                apiRating = 4.142857142857143,
+                apiRatingCount = 14,
+                websiteRating = 4.9,
+                tmdbRating = 8.0,
+            )
+        )
+    }
+
+    @Test
+    fun `explicit unrated API value does not inherit website or TMDb rating`() {
         assertNull(
+            DoramasflixLogic.resolveRating(
+                apiRating = 0.0,
+                apiRatingCount = 0,
+                websiteRating = 4.5,
+                tmdbRating = 7.4,
+            )
+        )
+    }
+
+    @Test
+    fun `API episode artwork is authoritative even when it matches series artwork`() {
+        assertEquals(
+            "/series.jpg",
             DoramasflixLogic.episodeArtwork(
                 stillPath = "/series.jpg",
+                backdrop = "/alternate.jpg",
+                stillImage = "/image.jpg",
+                seriesBackdropPath = "/series.jpg",
+                repeatedSeasonArtwork = "/series.jpg",
+                websiteArtwork = "/website.jpg",
+                tmdbArtwork = "/tmdb.jpg",
+            )
+        )
+    }
+
+    @Test
+    fun `episode artwork follows API fields before website and TMDb`() {
+        assertEquals(
+            "/backdrop.jpg",
+            DoramasflixLogic.episodeArtwork(
+                stillPath = null,
+                backdrop = "/backdrop.jpg",
+                stillImage = "/still-image.jpg",
+                websiteArtwork = "/website.jpg",
+                tmdbArtwork = "/tmdb.jpg",
+            )
+        )
+        assertEquals(
+            "/still-image.jpg",
+            DoramasflixLogic.episodeArtwork(
+                stillPath = null,
+                backdrop = null,
+                stillImage = "/still-image.jpg",
+                websiteArtwork = "/website.jpg",
+                tmdbArtwork = "/tmdb.jpg",
+            )
+        )
+    }
+
+    @Test
+    fun `episode artwork uses website before TMDb when API has none`() {
+        assertEquals(
+            "/website.jpg",
+            DoramasflixLogic.episodeArtwork(
+                stillPath = null,
                 backdrop = null,
                 stillImage = null,
-                seriesBackdropPath = "/series.jpg",
+                websiteArtwork = "/website.jpg",
+                tmdbArtwork = "/tmdb.jpg",
             )
         )
-    }
-
-    @Test
-    fun `distinct episode still is preserved`() {
         assertEquals(
-            "/episode.jpg",
+            "/tmdb.jpg",
             DoramasflixLogic.episodeArtwork(
-                stillPath = "/episode.jpg",
+                stillPath = null,
                 backdrop = null,
                 stillImage = null,
-                seriesBackdropPath = "/series.jpg",
+                websiteArtwork = null,
+                tmdbArtwork = "/tmdb.jpg",
             )
         )
     }
 
     @Test
-    fun `distinct alternate artwork is used when still path is series fallback`() {
-        assertEquals(
-            "/episode-alt.jpg",
-            DoramasflixLogic.episodeArtwork(
-                stillPath = "/series.jpg",
-                backdrop = "/episode-alt.jpg",
-                stillImage = "/episode-image.jpg",
-                seriesBackdropPath = "/series.jpg",
-            )
-        )
-    }
-
-    @Test
-    fun `repeated season artwork is suppressed while distinct alternate artwork survives`() {
-        assertEquals(
-            "/episode-alt.jpg",
-            DoramasflixLogic.episodeArtwork(
-                stillPath = "/repeated.jpg",
-                backdrop = "/episode-alt.jpg",
-                stillImage = null,
-                seriesBackdropPath = "/series.jpg",
-                repeatedSeasonArtwork = "/repeated.jpg",
-            )
-        )
-    }
-
-    @Test
-    fun `sole repeated nonblank episode artwork is treated as shared placeholder`() {
-        assertEquals(
-            setOf("/shared.jpg"),
-            DoramasflixLogic.duplicatedEpisodeArtwork(
-                listOf(" /shared.jpg ", "/shared.jpg", null, null)
-            )
-        )
-        assertEquals(
-            setOf("/same.jpg"),
-            DoramasflixLogic.duplicatedEpisodeArtwork(
-                listOf("/same.jpg", "/same.jpg", "/same.jpg")
-            )
-        )
-    }
-
-    @Test
-    fun `duplicate among otherwise distinct episode artwork is preserved`() {
-        assertTrue(
-            DoramasflixLogic.duplicatedEpisodeArtwork(
-                listOf("/one.jpg", "/shared.jpg", "/shared.jpg", "/two.jpg", null)
-            ).isEmpty()
-        )
-        assertTrue(
-            DoramasflixLogic.duplicatedEpisodeArtwork(
-                listOf("/one.jpg", "/two.jpg", null)
-            ).isEmpty()
-        )
-        assertTrue(
-            DoramasflixLogic.duplicatedEpisodeArtwork(
-                listOf("/same.jpg", null)
-            ).isEmpty()
-        )
+    fun `first nonblank metadata preserves fallback order`() {
+        assertEquals("website", DoramasflixLogic.firstNonBlank(null, " ", "website", "tmdb"))
+        assertNull(DoramasflixLogic.firstNonBlank(null, " "))
     }
 
     @Test

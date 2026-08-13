@@ -22,6 +22,7 @@ import com.streamflixreborn.streamflix.models.doramasflix.OnlineLink
 import com.streamflixreborn.streamflix.models.doramasflix.Season as DoramasflixSeason
 import com.streamflixreborn.streamflix.utils.DnsResolver
 import com.streamflixreborn.streamflix.utils.TmdbUtils
+import com.streamflixreborn.streamflix.utils.format
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.async
 import kotlinx.coroutines.coroutineScope
@@ -235,6 +236,9 @@ object DoramasflixProvider : Provider {
     private fun contentBackendId(content: Content): String? =
         content.id?.trim()?.takeIf { it.isNotEmpty() }
 
+    private fun numericTmdbId(content: Content): Int? =
+        content.tmdbId?.trim()?.toIntOrNull()
+
     private fun genresFor(content: Content): List<Genre> =
         content.genres.orEmpty().mapNotNull { tag ->
             val genreName = tag.name?.trim()?.takeIf { it.isNotEmpty() } ?: return@mapNotNull null
@@ -286,13 +290,131 @@ object DoramasflixProvider : Provider {
     private fun listRating(content: Content): Double? =
         DoramasflixLogic.resolveApiRating(content.rating, content.ratingCount).rating
 
-    private suspend fun detailRating(
+    private suspend fun optionalMovieDetail(slug: String): Content? = try {
+        detailMovie(slug)
+    } catch (error: Exception) {
+        if (error is CancellationException) throw error
+        null
+    }
+
+    private suspend fun optionalDoramaDetail(slug: String): Content? = try {
+        detailDorama(slug)
+    } catch (error: Exception) {
+        if (error is CancellationException) throw error
+        null
+    }
+
+    private suspend fun resolveMovieMetadata(
         content: Content,
-        pagePath: String,
-    ): Double? {
-        val decision = DoramasflixLogic.resolveApiRating(content.rating, content.ratingCount)
-        if (!decision.useHtmlFallback) return decision.rating
-        return pageMetadata.getOptionalContent(pagePath).rating
+        slug: String,
+    ): Movie {
+        val apiOverview = content.overview?.trim()?.takeIf { it.isNotEmpty() }
+        val apiPoster = contentPoster(content)
+        val apiBanner = contentBackdrop(content)
+        val apiRating = DoramasflixLogic.resolveApiRating(content.rating, content.ratingCount)
+        val websiteNeeded = apiRating.useHtmlFallback || apiOverview == null || apiBanner == null
+        val website = if (websiteNeeded) {
+            pageMetadata.getOptionalContent(movieId(slug))
+        } else {
+            DoramasflixContentMetadata()
+        }
+
+        val websiteRating = website.rating?.takeIf { it > 0.0 }
+        val overviewAfterWebsite = apiOverview ?: website.overview
+        val bannerAfterWebsite = apiBanner ?: website.image
+        val tmdbNeeded = numericTmdbId(content) != null && (
+            (apiRating.useHtmlFallback && websiteRating == null) ||
+                overviewAfterWebsite == null ||
+                apiPoster == null ||
+                bannerAfterWebsite == null ||
+                content.releaseDate.isNullOrBlank() ||
+                content.runtime == null ||
+                content.trailer.isNullOrBlank()
+            )
+        val tmdb = if (tmdbNeeded) {
+            numericTmdbId(content)?.let { TmdbUtils.getMovieById(it, language) }
+        } else {
+            null
+        }
+
+        val apiGenres = genresFor(content)
+        val apiCast = castFor(content)
+        return Movie(
+            id = movieId(slug),
+            title = titleFor(content),
+            overview = overviewAfterWebsite ?: tmdb?.overview,
+            released = content.releaseDate?.takeIf { it.isNotBlank() }
+                ?: tmdb?.released?.format("yyyy-MM-dd"),
+            runtime = content.runtime ?: tmdb?.runtime,
+            trailer = DoramasflixLogic.normalizeTrailer(content.trailer) ?: tmdb?.trailer,
+            rating = DoramasflixLogic.resolveRating(
+                apiRating = content.rating,
+                apiRatingCount = content.ratingCount,
+                websiteRating = website.rating,
+                tmdbRating = tmdb?.rating,
+            ),
+            poster = apiPoster ?: tmdb?.poster,
+            banner = bannerAfterWebsite ?: tmdb?.banner,
+            imdbId = tmdb?.imdbId,
+            genres = apiGenres,
+            cast = apiCast,
+        )
+    }
+
+    private suspend fun resolveDoramaMetadata(
+        content: Content,
+        slug: String,
+    ): TvShow {
+        val apiOverview = content.overview?.trim()?.takeIf { it.isNotEmpty() }
+        val apiPoster = contentPoster(content)
+        val apiBanner = contentBackdrop(content)
+        val apiRating = DoramasflixLogic.resolveApiRating(content.rating, content.ratingCount)
+        val websiteNeeded = apiRating.useHtmlFallback || apiOverview == null || apiBanner == null
+        val website = if (websiteNeeded) {
+            pageMetadata.getOptionalContent(doramaId(slug))
+        } else {
+            DoramasflixContentMetadata()
+        }
+
+        val websiteRating = website.rating?.takeIf { it > 0.0 }
+        val overviewAfterWebsite = apiOverview ?: website.overview
+        val bannerAfterWebsite = apiBanner ?: website.image
+        val tmdbNeeded = numericTmdbId(content) != null && (
+            (apiRating.useHtmlFallback && websiteRating == null) ||
+                overviewAfterWebsite == null ||
+                apiPoster == null ||
+                bannerAfterWebsite == null ||
+                content.firstAirDate.isNullOrBlank() ||
+                content.trailer.isNullOrBlank()
+            )
+        val tmdb = if (tmdbNeeded) {
+            numericTmdbId(content)?.let { TmdbUtils.getTvShowById(it, language) }
+        } else {
+            null
+        }
+
+        val apiGenres = genresFor(content)
+        val apiCast = castFor(content)
+        return TvShow(
+            id = doramaId(slug),
+            title = titleFor(content),
+            overview = overviewAfterWebsite ?: tmdb?.overview,
+            released = content.firstAirDate?.takeIf { it.isNotBlank() }
+                ?: tmdb?.released?.format("yyyy-MM-dd"),
+            runtime = content.episodeTime,
+            trailer = DoramasflixLogic.normalizeTrailer(content.trailer) ?: tmdb?.trailer,
+            rating = DoramasflixLogic.resolveRating(
+                apiRating = content.rating,
+                apiRatingCount = content.ratingCount,
+                websiteRating = website.rating,
+                tmdbRating = tmdb?.rating,
+            ),
+            poster = apiPoster ?: tmdb?.poster,
+            banner = bannerAfterWebsite ?: tmdb?.banner,
+            imdbId = tmdb?.imdbId,
+            genres = apiGenres,
+            cast = apiCast,
+        )
     }
 
     private suspend fun searchDoramas(input: String, page: Int): List<Content> {
@@ -463,6 +585,8 @@ object DoramasflixProvider : Provider {
                     name
                     name_es
                     slug
+                    poster_path
+                    poster
                     backdrop_path
                     backdrop
                   }
@@ -477,23 +601,28 @@ object DoramasflixProvider : Provider {
         emptyList()
     }
 
-    private fun featuredDorama(content: Content): Show? {
+    private suspend fun featuredDorama(content: Content): Show? {
         val slug = contentSlug(content) ?: return null
-        val banner = contentBackdrop(content) ?: return null
-        return TvShow(
+        val detailed = optionalDoramaDetail(slug) ?: content
+        val resolved = resolveDoramaMetadata(detailed, slug)
+        val banner = contentBackdrop(content) ?: resolved.banner ?: return null
+        return resolved.copy(
             id = doramaId(slug),
-            title = titleFor(content),
-            poster = contentPoster(content),
+            title = titleFor(detailed),
+            poster = contentPoster(content) ?: resolved.poster,
             banner = banner,
         )
     }
 
-    private fun featuredMovie(content: Content): Show? {
+    private suspend fun featuredMovie(content: Content): Show? {
         val slug = contentSlug(content) ?: return null
-        val banner = contentBackdrop(content) ?: return null
-        return Movie(
+        val detailed = optionalMovieDetail(slug) ?: content
+        val resolved = resolveMovieMetadata(detailed, slug)
+        val banner = contentBackdrop(content) ?: resolved.banner ?: return null
+        return resolved.copy(
             id = movieId(slug),
-            title = titleFor(content),
+            title = titleFor(detailed),
+            poster = contentPoster(content) ?: resolved.poster,
             banner = banner,
         )
     }
@@ -801,18 +930,13 @@ object DoramasflixProvider : Provider {
         return doramaTmdbIds[slug]
     }
 
-    private suspend fun getTmdbEpisodeArtwork(
+    private suspend fun getTmdbEpisodeMetadata(
         slug: String,
         seasonNumber: Int,
-    ): Map<Int, String> {
+    ): Map<Int, Episode> {
         val tmdbId = resolveDoramaTmdbId(slug) ?: return emptyMap()
-        return TmdbUtils.getEpisodesBySeason(tmdbId, seasonNumber)
-            .mapNotNull { episode ->
-                val poster = episode.poster?.trim()?.takeIf { it.isNotEmpty() }
-                    ?: return@mapNotNull null
-                episode.number to poster
-            }
-            .toMap()
+        return TmdbUtils.getEpisodesBySeason(tmdbId, seasonNumber, language)
+            .associateBy { it.number }
     }
 
     private suspend fun getEpisodes(
@@ -922,14 +1046,16 @@ object DoramasflixProvider : Provider {
     }
 
     override suspend fun getHome(): List<Category> = coroutineScope {
-        val featuredDoramas = async { getFeaturedDoramas() }
-        val featuredMovies = async { getFeaturedMovies() }
+        val featuredDoramasDeferred = async { getFeaturedDoramas() }
+        val featuredMoviesDeferred = async { getFeaturedMovies() }
         val doramas = async { getTvShows(1) }
         val movies = async { getMovies(1) }
 
+        val featuredDoramas = featuredDoramasDeferred.await().mapNotNull { featuredDorama(it) }
+        val featuredMovies = featuredMoviesDeferred.await().mapNotNull { featuredMovie(it) }
         val featured = DoramasflixLogic.mixAlternating(
-            first = featuredDoramas.await().mapNotNull(::featuredDorama),
-            second = featuredMovies.await().mapNotNull(::featuredMovie),
+            first = featuredDoramas,
+            second = featuredMovies,
         )
 
         buildList {
@@ -1139,22 +1265,9 @@ object DoramasflixProvider : Provider {
         val backendId = contentBackendId(content)
             ?: throw Exception("Doramasflix could not resolve movie '$slug'.")
         val recommendationsDeferred = async { getSimilarMovies(backendId) }
-        val ratingDeferred = async { detailRating(content, movieId(slug)) }
+        val resolved = resolveMovieMetadata(content, slug)
 
-        Movie(
-            id = movieId(slug),
-            title = titleFor(content),
-            overview = content.overview?.takeIf { it.isNotBlank() },
-            released = content.releaseDate,
-            runtime = content.runtime,
-            trailer = DoramasflixLogic.normalizeTrailer(content.trailer),
-            rating = ratingDeferred.await(),
-            poster = contentPoster(content),
-            banner = contentBackdrop(content),
-            genres = genresFor(content),
-            cast = castFor(content),
-            recommendations = recommendationsDeferred.await(),
-        )
+        resolved.copy(recommendations = recommendationsDeferred.await())
     }
 
     override suspend fun getTvShow(id: String): TvShow = coroutineScope {
@@ -1165,19 +1278,10 @@ object DoramasflixProvider : Provider {
         val backendId = contentBackendId(content)
             ?: throw Exception("Doramasflix could not resolve series '$slug'.")
         val recommendationsDeferred = async { getSimilarDoramas(backendId) }
-        val ratingDeferred = async { detailRating(content, doramaId(slug)) }
+        val resolved = resolveDoramaMetadata(content, slug)
         val seasonsData = seasonsDeferred.await()
 
-        TvShow(
-            id = doramaId(slug),
-            title = titleFor(content),
-            overview = content.overview?.takeIf { it.isNotBlank() },
-            released = content.firstAirDate,
-            runtime = content.episodeTime,
-            trailer = DoramasflixLogic.normalizeTrailer(content.trailer),
-            rating = ratingDeferred.await(),
-            poster = contentPoster(content),
-            banner = contentBackdrop(content),
+        resolved.copy(
             seasons = seasonsData.mapNotNull { season ->
                 val seasonNumber = season.seasonNumber ?: return@mapNotNull null
                 Season(
@@ -1190,8 +1294,6 @@ object DoramasflixProvider : Provider {
                     poster = posterUrl(season.posterPath ?: season.poster),
                 )
             },
-            genres = genresFor(content),
-            cast = castFor(content),
             recommendations = recommendationsDeferred.await(),
         )
     }
@@ -1202,33 +1304,35 @@ object DoramasflixProvider : Provider {
             ?: throw Exception("Invalid Doramasflix season ID: $seasonId")
 
         val episodes = getEpisodes(slug, seasonNumber)
-        val tmdbArtwork = getTmdbEpisodeArtwork(slug, seasonNumber)
-        val primaryArtwork = episodes.map { episode ->
+        val apiArtwork = episodes.map { episode ->
             DoramasflixLogic.episodeArtwork(
                 stillPath = episode.stillPath,
                 backdrop = episode.backdrop,
                 stillImage = episode.stillImage,
-                seriesBackdropPath = episode.serieBackdropPath,
             )
         }
-        val duplicatedArtwork = DoramasflixLogic.duplicatedEpisodeArtwork(primaryArtwork)
+        val needsTmdbMetadata = episodes.indices.any { index ->
+            apiArtwork[index] == null ||
+                episodes[index].overview.isNullOrBlank() ||
+                DoramasflixLogic.normalizeAirDate(episodes[index].airDate) == null
+        }
+        val tmdbMetadata = if (needsTmdbMetadata) {
+            getTmdbEpisodeMetadata(slug, seasonNumber)
+        } else {
+            emptyMap()
+        }
 
         return episodes.mapIndexedNotNull { index, episode ->
             val episodeSlug = episode.slug?.trim()?.takeIf { it.isNotEmpty() }
                 ?: return@mapIndexedNotNull null
             val number = episode.episodeNumber ?: 0
-            val suspiciousDuplicate = primaryArtwork
-                .getOrNull(index)
-                ?.takeIf { it in duplicatedArtwork }
-            val doramasArtwork = posterUrl(
-                DoramasflixLogic.episodeArtwork(
-                    stillPath = episode.stillPath,
-                    backdrop = episode.backdrop,
-                    stillImage = episode.stillImage,
-                    seriesBackdropPath = episode.serieBackdropPath,
-                    repeatedSeasonArtwork = suspiciousDuplicate,
-                )
-            )
+            val apiImage = apiArtwork[index]
+            val websiteImage = if (apiImage == null) {
+                pageMetadata.getOptionalContent("episodios/$episodeSlug").image
+            } else {
+                null
+            }
+            val tmdbEpisode = tmdbMetadata[number]
 
             Episode(
                 id = episodeSlug,
@@ -1236,10 +1340,17 @@ object DoramasflixProvider : Provider {
                 title = episode.nameEs
                     ?.takeIf { it.isNotBlank() }
                     ?: episode.name?.takeIf { it.isNotBlank() }
+                    ?: tmdbEpisode?.title?.takeIf { it.isNotBlank() }
                     ?: "Episodio $number",
-                released = DoramasflixLogic.normalizeAirDate(episode.airDate),
-                poster = doramasArtwork ?: tmdbArtwork[number],
-                overview = episode.overview?.takeIf { it.isNotBlank() },
+                released = DoramasflixLogic.normalizeAirDate(episode.airDate)
+                    ?: tmdbEpisode?.released?.format("yyyy-MM-dd"),
+                poster = posterUrl(apiImage)
+                    ?: websiteImage
+                    ?: tmdbEpisode?.poster,
+                overview = episode.overview
+                    ?.trim()
+                    ?.takeIf { it.isNotEmpty() }
+                    ?: tmdbEpisode?.overview?.trim()?.takeIf { it.isNotEmpty() },
             )
         }
     }
