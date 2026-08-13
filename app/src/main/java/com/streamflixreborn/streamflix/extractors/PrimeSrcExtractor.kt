@@ -13,9 +13,13 @@ class PrimeSrcExtractor : Extractor() {
     override val mainUrl = "https://primesrc.me"
 
     suspend fun servers(videoType: Video.Type): List<Video.Server> {
+        val tmdbId = when (videoType) {
+            is Video.Type.Episode -> videoType.tvShow.tmdbId
+            is Video.Type.Movie -> videoType.tmdbId
+        } ?: return emptyList()
         val apiUrl = when (videoType) {
-            is Video.Type.Episode -> "$mainUrl/api/v1/s?tmdb=${videoType.tvShow.id}&season=${videoType.season.number}&episode=${videoType.number}&type=tv"
-            is Video.Type.Movie -> "$mainUrl/api/v1/s?tmdb=${videoType.id}&type=movie"
+            is Video.Type.Episode -> "$mainUrl/api/v1/s?tmdb=$tmdbId&season=${videoType.season.number}&episode=${videoType.number}&type=tv"
+            is Video.Type.Movie -> "$mainUrl/api/v1/s?tmdb=$tmdbId&type=movie"
         }
 
         return try {
