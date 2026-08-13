@@ -20,6 +20,8 @@ data class Data(
     val detailMovie: Content? = null,
     val carrouselDoramas: List<Content>? = null,
     val carrouselMovies: List<Content>? = null,
+    val similarsDoramas: List<Content>? = null,
+    val similarsMovies: List<Content>? = null,
     val listSeasons: List<Season>? = null,
     val listEpisodes: List<Episode>? = null,
     val listServers: List<ServerMetadata>? = null,
@@ -55,6 +57,16 @@ data class Content(
     @SerializedName("episode_time")
     val episodeTime: Int? = null,
     val genres: List<Tag> = emptyList(),
+    val cast: List<CastMember> = emptyList(),
+)
+
+data class CastMember(
+    val name: String? = null,
+    val slug: String? = null,
+    val character: String? = null,
+    @SerializedName("profile_path")
+    val profilePath: String? = null,
+    val ref: String? = null,
 )
 
 data class Tag(

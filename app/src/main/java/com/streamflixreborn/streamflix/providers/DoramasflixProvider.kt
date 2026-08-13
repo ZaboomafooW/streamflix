@@ -18,6 +18,7 @@ import com.streamflixreborn.streamflix.models.doramasflix.Data
 import com.streamflixreborn.streamflix.models.doramasflix.Episode as DoramasflixEpisode
 import com.streamflixreborn.streamflix.models.doramasflix.OnlineLink
 import com.streamflixreborn.streamflix.utils.DnsResolver
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.async
 import kotlinx.coroutines.coroutineScope
 import okhttp3.Cache
@@ -50,6 +51,7 @@ object DoramasflixProvider : Provider {
     private const val playbackApp = "com.asiapp.doramasgo"
     private const val featuredDoramaLimit = 6
     private const val featuredMovieLimit = 1
+    private const val recommendationLimit = 12
 
     private val movieBackendIds = ConcurrentHashMap<String, String>()
     private val episodeBackendIds = ConcurrentHashMap<String, String>()
@@ -200,6 +202,17 @@ object DoramasflixProvider : Provider {
             Genre(id = genreId, name = genreName)
         }
 
+    private fun castFor(content: Content): List<People> =
+        content.cast.mapNotNull { member ->
+            val id = member.slug?.trim()?.takeIf { it.isNotEmpty() } ?: return@mapNotNull null
+            val name = member.name?.trim()?.takeIf { it.isNotEmpty() } ?: return@mapNotNull null
+            People(
+                id = id,
+                name = name,
+                image = imageUrl(member.profilePath, "w185"),
+            )
+        }.distinctBy { it.id }
+
     private fun cacheMovie(content: Content) {
         movieBackendIds[content.slug] = content.id
     }
@@ -327,6 +340,13 @@ object DoramasflixProvider : Provider {
                       name
                       slug
                     }
+                    cast {
+                      name
+                      slug
+                      character
+                      profile_path
+                      ref
+                    }
                   }
                 }
             """.trimIndent(),
@@ -361,11 +381,81 @@ object DoramasflixProvider : Provider {
                       name
                       slug
                     }
+                    cast {
+                      name
+                      slug
+                      character
+                      profile_path
+                      ref
+                    }
                   }
                 }
             """.trimIndent(),
         ).detailDorama
             ?: throw Exception("Doramasflix could not find dorama '$slug'.")
+
+    private suspend fun getSimilarMovies(movieBackendId: String): List<Movie> = try {
+        val items = catalogRequest(
+            operationName = "similarsMovies",
+            variables = JSONObject()
+                .put("limit", recommendationLimit)
+                .put("movie_id", movieBackendId),
+            query = """
+                query similarsMovies(${'$'}limit: Int, ${'$'}movie_id: String!) {
+                  similarsMovies(limit: ${'$'}limit, movie_id: ${'$'}movie_id) {
+                    _id
+                    slug
+                    name
+                    name_es
+                    poster_path
+                    poster
+                  }
+                }
+            """.trimIndent(),
+        ).similarsMovies.orEmpty()
+
+        items.forEach(::cacheMovie)
+        items.map { content ->
+            Movie(
+                id = movieId(content.slug),
+                title = titleFor(content),
+                poster = posterUrl(content.posterPath ?: content.poster),
+            )
+        }
+    } catch (error: Exception) {
+        if (error is CancellationException) throw error
+        emptyList()
+    }
+
+    private suspend fun getSimilarDoramas(doramaBackendId: String): List<TvShow> = try {
+        catalogRequest(
+            operationName = "SimilarsDoramas",
+            variables = JSONObject()
+                .put("limit", recommendationLimit)
+                .put("dorama_id", doramaBackendId),
+            query = """
+                query SimilarsDoramas(${'$'}limit: Int, ${'$'}dorama_id: String) {
+                  similarsDoramas(limit: ${'$'}limit, dorama_id: ${'$'}dorama_id) {
+                    _id
+                    slug
+                    name
+                    name_es
+                    poster_path
+                    poster
+                  }
+                }
+            """.trimIndent(),
+        ).similarsDoramas.orEmpty().map { content ->
+            TvShow(
+                id = doramaId(content.slug),
+                title = titleFor(content),
+                poster = posterUrl(content.posterPath ?: content.poster),
+            )
+        }
+    } catch (error: Exception) {
+        if (error is CancellationException) throw error
+        emptyList()
+    }
 
     private suspend fun getSeasons(
         slug: String,
@@ -607,13 +697,12 @@ object DoramasflixProvider : Provider {
         }
     }
 
-    override suspend fun getMovie(id: String): Movie = coroutineScope {
+    override suspend fun getMovie(id: String): Movie {
         val slug = slugFromId(id)
-        val detailDeferred = async { detailMovie(slug) }
-        val castDeferred = async { pageMetadata.getOptionalCast(movieId(slug)) }
-        val content = detailDeferred.await()
+        val content = detailMovie(slug)
+        val recommendations = getSimilarMovies(content.id)
 
-        Movie(
+        return Movie(
             id = movieId(slug),
             title = titleFor(content),
             overview = content.overview?.takeIf { it.isNotBlank() },
@@ -624,7 +713,8 @@ object DoramasflixProvider : Provider {
             poster = posterUrl(content.posterPath ?: content.poster),
             banner = backdropUrl(content.backdropPath ?: content.backdrop),
             genres = genresFor(content),
-            cast = castDeferred.await(),
+            cast = castFor(content),
+            recommendations = recommendations,
         )
     }
 
@@ -632,9 +722,9 @@ object DoramasflixProvider : Provider {
         val slug = slugFromId(id)
         val detailDeferred = async { detailDorama(slug) }
         val seasonsDeferred = async { getSeasons(slug) }
-        val castDeferred = async { pageMetadata.getOptionalCast(doramaId(slug)) }
 
         val content = detailDeferred.await()
+        val recommendationsDeferred = async { getSimilarDoramas(content.id) }
         val seasonsData = seasonsDeferred.await()
 
         TvShow(
@@ -658,7 +748,8 @@ object DoramasflixProvider : Provider {
                 )
             },
             genres = genresFor(content),
-            cast = castDeferred.await(),
+            cast = castFor(content),
+            recommendations = recommendationsDeferred.await(),
         )
     }
 

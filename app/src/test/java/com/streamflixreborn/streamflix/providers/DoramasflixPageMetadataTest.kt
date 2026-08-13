@@ -7,32 +7,6 @@ import org.junit.Test
 class DoramasflixPageMetadataTest {
 
     @Test
-    fun `cast uses Doramasflix reparto links as people identities`() {
-        val document = Jsoup.parse(
-            """
-                <html><body>
-                  <a href="/reparto/3590388-Bao-Shangen">Bao Shangen,</a>
-                  <a href="https://doramasflix.in/reparto/2986719-Daniel-Zhou?from=cast">Daniel Zhou</a>
-                  <a href="/reparto/3590388-Bao-Shangen">Bao Shangen</a>
-                  <a href="/productoras/netflix">Netflix</a>
-                </body></html>
-            """.trimIndent(),
-            "https://doramasflix.in/doramas-online/never-ending-summer",
-        )
-
-        val cast = DoramasflixPageMetadata.parseCast(document)
-
-        assertEquals(
-            listOf("3590388-Bao-Shangen", "2986719-Daniel-Zhou"),
-            cast.map { it.id },
-        )
-        assertEquals(
-            listOf("Bao Shangen", "Daniel Zhou"),
-            cast.map { it.name },
-        )
-    }
-
-    @Test
     fun `people page maps explicit Doramasflix identity fields`() {
         val document = Jsoup.parse(
             """
