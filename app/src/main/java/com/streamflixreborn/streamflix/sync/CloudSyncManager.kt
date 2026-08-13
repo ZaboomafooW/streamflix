@@ -381,11 +381,8 @@ object CloudSyncManager {
             title = newest.title.ifBlank { oldest.title },
             poster = newest.poster ?: oldest.poster,
             banner = newest.banner ?: oldest.banner,
-            isFavorite = remote.isFavorite || local.isFavorite,
-            favoritedAtMillis = maxNullable(
-                remote.favoritedAtMillis,
-                local.favoritedAtMillis,
-            ),
+            isFavorite = newest.isFavorite,
+            favoritedAtMillis = newest.favoritedAtMillis,
             // Watched state is replaceable. OR made it impossible for a newer
             // local "unwatched" state to clear a stale cloud completion.
             isWatched = newest.isWatched,
@@ -393,19 +390,13 @@ object CloudSyncManager {
             lastEngagementAtMillis = latestHistory?.lastEngagementAtMillis,
             playbackPositionMillis = latestHistory?.playbackPositionMillis,
             durationMillis = latestHistory?.durationMillis,
-            isWatching = local.isWatching ?: remote.isWatching ?: newest.isWatching,
+            isWatching = newest.isWatching ?: oldest.isWatching,
             clientUpdatedAtMillis = maxOf(
                 remote.clientUpdatedAtMillis,
                 local.clientUpdatedAtMillis,
                 mergedAtMillis,
             ),
         )
-    }
-
-    private fun maxNullable(first: Long?, second: Long?): Long? = when {
-        first == null -> second
-        second == null -> first
-        else -> maxOf(first, second)
     }
 
     private suspend fun fetchRemote(): List<RemoteMediaState> =
