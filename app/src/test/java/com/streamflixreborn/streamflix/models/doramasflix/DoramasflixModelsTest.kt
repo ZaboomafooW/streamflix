@@ -70,15 +70,11 @@ class DoramasflixModelsTest {
     }
 
     @Test
-    fun `pagination retains the continuation flag used by the provider`() {
+    fun `episode pagination retains the continuation flag used by the provider`() {
         val response = gson.fromJson(
             """
                 {
                   "data": {
-                    "searchFullDoramas": {
-                      "pageInfo": {"hasNextPage": true},
-                      "items": [{"_id":"1","slug":"love-by-chance","name":"Love By Chance"}]
-                    },
                     "paginationEpisode": {
                       "pageInfo": {"hasNextPage": false},
                       "items": [{"_id":"ep28","slug":"meeting-you-1x28","episode_number":28}]
@@ -89,9 +85,28 @@ class DoramasflixModelsTest {
             ApiResponse::class.java,
         )
 
-        assertTrue(response.data?.searchFullDoramas?.pageInfo?.hasNextPage == true)
         assertFalse(response.data?.paginationEpisode?.pageInfo?.hasNextPage == true)
         assertEquals(28, response.data?.paginationEpisode?.items?.single()?.episodeNumber)
+    }
+
+    @Test
+    fun `content pages deserialize stable provider items without pagination metadata`() {
+        val response = gson.fromJson(
+            """
+                {
+                  "data": {
+                    "searchFullDoramas": {
+                      "items": [{"_id":"1","slug":"love-by-chance","name":"Love By Chance"}]
+                    }
+                  }
+                }
+            """.trimIndent(),
+            ApiResponse::class.java,
+        )
+
+        val item = response.data?.searchFullDoramas?.items.orEmpty().single()
+        assertEquals("1", item.id)
+        assertEquals("love-by-chance", item.slug)
     }
 
     @Test
@@ -101,9 +116,6 @@ class DoramasflixModelsTest {
                 {
                   "data": {
                     "detailEpisode": {
-                      "_id": "ep1",
-                      "slug": "meeting-you-1x1",
-                      "name": "Meeting You 1x1",
                       "langs": [
                         {"name":"Mandarín","code":"zh","code_flix":"13111"}
                       ]
