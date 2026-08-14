@@ -27,6 +27,7 @@ internal object DoramasflixLogic {
         "no overview",
         "no overview available",
     )
+    private val genericOverviewNormalizedValues = genericOverviewValues.map(::normalizeWords).toSet()
 
     private val genericImagePattern = Regex(
         "(?:^|[/_.-])(placeholder|no[-_ ]?image|image[-_ ]?not[-_ ]?found|sin[-_ ]?imagen|missing[-_ ]?image)(?:[/_.-]|$)",
@@ -116,7 +117,7 @@ internal object DoramasflixLogic {
     fun meaningfulOverview(value: String?): String? {
         val overview = value?.trim()?.takeIf { it.isNotEmpty() } ?: return null
         val normalized = normalizeWords(overview)
-        if (normalized in genericOverviewValues.map(::normalizeWords)) return null
+        if (normalized in genericOverviewNormalizedValues) return null
 
         val lower = overview.lowercase(Locale.ROOT)
         if (
@@ -304,14 +305,23 @@ internal object DoramasflixLogic {
 
     fun normalizeAirDate(airDate: String?): String? {
         val value = airDate?.trim()?.takeIf { it.isNotEmpty() } ?: return null
-        val epochMillis = value.toLongOrNull()
-        if (epochMillis != null) {
-            return runCatching {
-                Instant.ofEpochMilli(epochMillis)
-                    .atZone(ZoneOffset.UTC)
-                    .toLocalDate()
-                    .toString()
-            }.getOrNull()
+        val numeric = value.toLongOrNull()
+        if (numeric != null && value.all(Char::isDigit)) {
+            return when (value.length) {
+                10 -> runCatching {
+                    Instant.ofEpochSecond(numeric)
+                        .atZone(ZoneOffset.UTC)
+                        .toLocalDate()
+                        .toString()
+                }.getOrNull()
+                in 11..17 -> runCatching {
+                    Instant.ofEpochMilli(numeric)
+                        .atZone(ZoneOffset.UTC)
+                        .toLocalDate()
+                        .toString()
+                }.getOrNull()
+                else -> null
+            }
         }
 
         return value
