@@ -96,6 +96,47 @@ class DoramasflixLogicTest {
     }
 
     @Test
+    fun `Spanish Doramasflix title is the single display title`() {
+        assertEquals(
+            "Acaramelados",
+            DoramasflixLogic.displayTitle(
+                nameEs = "Acaramelados",
+                name = "Our Sticky Love",
+                originalName = "우리 영화",
+            ),
+        )
+        assertEquals(
+            "Muertos de Amor",
+            DoramasflixLogic.displayTitle(
+                nameEs = "Muertos de Amor",
+                name = "Spooky in Love",
+                originalName = null,
+            ),
+        )
+    }
+
+    @Test
+    fun `display title falls back without concatenating aliases`() {
+        assertEquals(
+            "Our Sticky Love",
+            DoramasflixLogic.displayTitle(
+                nameEs = " ",
+                name = "Our Sticky Love",
+                originalName = "우리 영화",
+            ),
+        )
+        assertEquals(
+            "우리 영화",
+            DoramasflixLogic.displayTitle(
+                nameEs = null,
+                name = null,
+                originalName = "우리 영화",
+            ),
+        )
+        assertNull(DoramasflixLogic.displayTitle(null, " ", null))
+    }
+
+    @Test
     fun `obvious image placeholders are unusable`() {
         assertNull(DoramasflixLogic.meaningfulImage("https://cdn.example/no-image.jpg"))
         assertNull(DoramasflixLogic.meaningfulImage("/assets/placeholder-poster.png"))
