@@ -200,13 +200,15 @@ object DoramasflixProvider : Provider {
     private fun backdropUrl(path: String?) = imageUrl(path, "w1280")
 
     private fun contentPoster(content: Content): String? =
-        posterUrl(content.posterPath ?: content.poster)
+        posterUrl(DoramasflixLogic.firstNonBlank(content.posterPath, content.poster))
 
     private fun contentBackdrop(content: Content): String? =
         backdropUrl(
-            content.backdropPath
-                ?: content.backdrop
-                ?: content.images?.backdrops?.firstOrNull()
+            DoramasflixLogic.firstNonBlank(
+                content.backdropPath,
+                content.backdrop,
+                content.images?.backdrops?.firstOrNull(),
+            )
         )
 
     private fun normalizePath(id: String): String = id
@@ -237,7 +239,7 @@ object DoramasflixProvider : Provider {
         content.id?.trim()?.takeIf { it.isNotEmpty() }
 
     private fun numericTmdbId(content: Content): Int? =
-        content.tmdbId?.trim()?.toIntOrNull()
+        content.tmdbId?.trim()?.toIntOrNull()?.takeIf { it > 0 }
 
     private fun genresFor(content: Content): List<Genre> =
         content.genres.orEmpty().mapNotNull { tag ->
@@ -268,10 +270,9 @@ object DoramasflixProvider : Provider {
         contentBackendId(content)?.let { backendId ->
             doramaBackendIds[slug] = backendId
         }
-        content.tmdbId
-            ?.trim()
-            ?.takeIf { value -> value.isNotEmpty() && value.all { it.isDigit() } }
-            ?.let { tmdbId -> doramaTmdbIds[slug] = tmdbId }
+        numericTmdbId(content)?.let { tmdbId ->
+            doramaTmdbIds[slug] = tmdbId.toString()
+        }
     }
 
     private fun episodeCacheKey(showSlug: String, episodeSlug: String) = "$showSlug|$episodeSlug"
@@ -371,7 +372,9 @@ object DoramasflixProvider : Provider {
         val apiRating = DoramasflixLogic.resolveApiRating(content.rating, content.ratingCount)
         val websiteNeeded = apiRating.useHtmlFallback || apiOverview == null || apiBanner == null
         val website = if (websiteNeeded) {
-            pageMetadata.getOptionalContent(doramaId(slug))
+            pageMetadata.getOptionalContent(
+                DoramasflixLogic.doramaWebsitePath(slug, content.isTvShow)
+            )
         } else {
             DoramasflixContentMetadata()
         }
@@ -1291,7 +1294,9 @@ object DoramasflixProvider : Provider {
                         ?.takeIf { it.isNotBlank() }
                         ?: season.name?.takeIf { it.isNotBlank() }
                         ?: "Temporada $seasonNumber",
-                    poster = posterUrl(season.posterPath ?: season.poster),
+                    poster = posterUrl(
+                        DoramasflixLogic.firstNonBlank(season.posterPath, season.poster)
+                    ),
                 )
             },
             recommendations = recommendationsDeferred.await(),
@@ -1545,15 +1550,16 @@ object DoramasflixProvider : Provider {
         }
 
         val registry = getServerNamesByCode()
-        val languagesByCode = playback.languages
-            .mapNotNull { metadata ->
-                val code = metadata.codeFlix?.trim()?.takeIf { it.isNotEmpty() }
-                    ?: return@mapNotNull null
-                val name = metadata.name?.trim()?.takeIf { it.isNotEmpty() }
-                    ?: return@mapNotNull null
-                code to name
+        val languagesByCode = mutableMapOf<String, String>()
+        for (metadata in playback.languages) {
+            val name = metadata.name?.trim()?.takeIf { it.isNotEmpty() } ?: continue
+            listOf(metadata.codeFlix, metadata.code).forEach { rawCode ->
+                rawCode
+                    ?.trim()
+                    ?.takeIf { it.isNotEmpty() }
+                    ?.let { code -> languagesByCode[code] = name }
             }
-            .toMap()
+        }
         var primeloadCount = 0
         var invalidCount = 0
 

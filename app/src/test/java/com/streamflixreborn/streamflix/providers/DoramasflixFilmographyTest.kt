@@ -10,34 +10,36 @@ import org.junit.Test
 class DoramasflixFilmographyTest {
 
     @Test
-    fun `people filmography uses only actor Doramasflix sections`() {
+    fun `people filmography follows current actor section headings`() {
         val document = Jsoup.parse(
             """
                 <html><head>
                   <script type="application/ld+json">
-                    {"@type":"Person","name":"Chae Jong-hyeop"}
+                    {"@type":"Person","name":"Test Person"}
                   </script>
                 </head><body>
-                  <h2>Doramas</h2>
+                  <h2>Doramas de Test Person</h2>
+                  <p>Actor description before the title grid.</p>
                   <div class="grid">
-                    <a href="/doramas-online/in-your-radiant-season">
-                      <img src="https://image.tmdb.org/t/p/w342/radiant.jpg" alt="In Your Radiant Season">
+                    <a href="/doramas-online/first-show">
+                      <img src="https://example.com/first.jpg" alt="First Show">
                     </a>
-                    <a href="/doramas-online/castaway-diva">
-                      <img src="https://image.tmdb.org/t/p/w342/castaway.jpg">
-                      <h3>Castaway Diva</h3>
+                    <a href="/doramas-online/second-show">
+                      <img src="https://example.com/second.jpg">
+                      <h3>Second Show</h3>
                     </a>
                   </div>
-                  <h2>Peliculas</h2>
+                  <h2>Peliculas de Test Person</h2>
+                  <p>Movie description before the title grid.</p>
                   <div class="grid">
                     <a href="/peliculas-online/example-film">
-                      <img src="https://image.tmdb.org/t/p/w342/film.jpg" alt="Example Film">
+                      <img src="https://example.com/film.jpg" alt="Example Film">
                     </a>
                   </div>
                   <h2>Popular</h2>
                   <div class="grid">
                     <a href="/doramas-online/unrelated-title">
-                      <img src="https://image.tmdb.org/t/p/w342/unrelated.jpg" alt="Unrelated Title">
+                      <img src="https://example.com/unrelated.jpg" alt="Unrelated Title">
                     </a>
                   </div>
                 </body></html>
@@ -46,24 +48,24 @@ class DoramasflixFilmographyTest {
 
         val people = DoramasflixPageMetadata.parsePeople(
             document = document,
-            id = "2934419-chae-jong-hyeop",
+            id = "test-person",
         )
 
         assertEquals(3, people.filmography.size)
 
         assertTrue(people.filmography[0] is TvShow)
-        val radiantSeason = people.filmography[0] as TvShow
-        assertEquals("doramas-online/in-your-radiant-season", radiantSeason.id)
-        assertEquals("In Your Radiant Season", radiantSeason.title)
+        val firstShow = people.filmography[0] as TvShow
+        assertEquals("doramas-online/first-show", firstShow.id)
+        assertEquals("First Show", firstShow.title)
 
         assertTrue(people.filmography[1] is TvShow)
-        val castawayDiva = people.filmography[1] as TvShow
-        assertEquals("doramas-online/castaway-diva", castawayDiva.id)
-        assertEquals("Castaway Diva", castawayDiva.title)
+        val secondShow = people.filmography[1] as TvShow
+        assertEquals("doramas-online/second-show", secondShow.id)
+        assertEquals("Second Show", secondShow.title)
 
         assertTrue(people.filmography[2] is Movie)
-        val exampleFilm = people.filmography[2] as Movie
-        assertEquals("peliculas-online/example-film", exampleFilm.id)
-        assertEquals("Example Film", exampleFilm.title)
+        val movie = people.filmography[2] as Movie
+        assertEquals("peliculas-online/example-film", movie.id)
+        assertEquals("Example Film", movie.title)
     }
 }

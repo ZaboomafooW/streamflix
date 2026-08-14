@@ -55,6 +55,15 @@ internal object DoramasflixLogic {
             .mapNotNull { value -> value?.trim()?.takeIf { it.isNotEmpty() } }
             .firstOrNull()
 
+    fun doramaWebsitePath(
+        slug: String,
+        isTvShow: Boolean?,
+    ): String = if (isTvShow == true) {
+        "variedades-online/$slug"
+    } else {
+        "doramas-online/$slug"
+    }
+
     fun episodeArtwork(
         stillPath: String?,
         backdrop: String?,

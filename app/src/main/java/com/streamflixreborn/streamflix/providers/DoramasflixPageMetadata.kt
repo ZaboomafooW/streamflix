@@ -114,25 +114,37 @@ internal class DoramasflixPageMetadata(
             )
         }
 
+        private fun isFilmographyHeading(heading: Element): Boolean {
+            val label = heading.text().trim()
+            return label.equals("Doramas", ignoreCase = true) ||
+                label.startsWith("Doramas de ", ignoreCase = true) ||
+                label.equals("Películas", ignoreCase = true) ||
+                label.equals("Peliculas", ignoreCase = true) ||
+                label.startsWith("Películas de ", ignoreCase = true) ||
+                label.startsWith("Peliculas de ", ignoreCase = true) ||
+                label.equals("Variedades", ignoreCase = true) ||
+                label.startsWith("Variedades de ", ignoreCase = true)
+        }
+
         private fun peopleFilmography(document: Document): List<Show> =
             document.select("h2")
                 .asSequence()
-                .filter { heading ->
-                    val label = heading.text().trim()
-                    label.equals("Doramas", ignoreCase = true) ||
-                        label.equals("Películas", ignoreCase = true) ||
-                        label.equals("Peliculas", ignoreCase = true)
+                .filter(::isFilmographyHeading)
+                .flatMap { heading ->
+                    heading.nextElementSiblings()
+                        .asSequence()
+                        .takeWhile { sibling -> !sibling.tagName().equals("h2", ignoreCase = true) }
+                        .flatMap { container -> container.select("a[href]").asSequence() }
                 }
-                .mapNotNull(Element::nextElementSibling)
-                .flatMap { container -> container.select("a[href]").asSequence() }
                 .mapNotNull { link ->
                     val path = link.attr("href")
                         .substringBefore('?')
                         .trim()
                         .removePrefix("/")
                     val isDorama = path.startsWith("doramas-online/")
+                    val isVariety = path.startsWith("variedades-online/")
                     val isMovie = path.startsWith("peliculas-online/")
-                    if (!isDorama && !isMovie) return@mapNotNull null
+                    if (!isDorama && !isVariety && !isMovie) return@mapNotNull null
 
                     val title = link.selectFirst("img[alt]")
                         ?.attr("alt")
@@ -147,16 +159,23 @@ internal class DoramasflixPageMetadata(
                         ?.let(::elementImage)
 
                     when {
-                        isDorama -> TvShow(
+                        isMovie -> Movie(
                             id = path,
                             title = title,
                             poster = poster,
                         )
-                        else -> Movie(
-                            id = path,
-                            title = title,
-                            poster = poster,
-                        )
+                        else -> {
+                            val id = if (isVariety) {
+                                "doramas-online/${path.substringAfter("variedades-online/")}"
+                            } else {
+                                path
+                            }
+                            TvShow(
+                                id = id,
+                                title = title,
+                                poster = poster,
+                            )
+                        }
                     }
                 }
                 .distinctBy { show ->
