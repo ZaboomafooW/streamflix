@@ -2,6 +2,7 @@ package com.streamflixreborn.streamflix.providers
 
 import android.util.Base64
 import android.util.Log
+import com.google.gson.JsonParseException
 import com.streamflixreborn.streamflix.adapters.AppAdapter
 import com.streamflixreborn.streamflix.extractors.Extractor
 import com.streamflixreborn.streamflix.models.Category
@@ -195,6 +196,8 @@ object DoramasflixProvider : Provider {
             throw httpFailure(context, error)
         } catch (error: IOException) {
             throw DoramasflixUnavailableException(error)
+        } catch (error: JsonParseException) {
+            throw DoramasflixUnavailableException(error)
         }
     }
 
@@ -328,7 +331,10 @@ object DoramasflixProvider : Provider {
             genresFor(content).isEmpty()
     }
 
-    private fun doramaNeedsExternal(content: Content, seasons: List<DoramasflixSeason> = emptyList()): Boolean {
+    private fun doramaNeedsExternal(
+        content: Content,
+        seasons: List<DoramasflixSeason> = emptyList(),
+    ): Boolean {
         val rating = DoramasflixLogic.resolveApiRating(content.rating, content.ratingCount)
         val seasonMetadataMissing = seasons.any { season ->
             DoramasflixLogic.firstNonBlank(season.nameEs, season.name) == null ||
@@ -339,7 +345,6 @@ object DoramasflixProvider : Provider {
             contentPoster(content) == null ||
             contentBackdrop(content) == null ||
             DoramasflixLogic.normalizeDate(content.firstAirDate) == null ||
-            DoramasflixLogic.meaningfulRuntime(content.episodeTime) == null ||
             DoramasflixLogic.normalizeTrailer(content.trailer) == null ||
             rating.allowExternalFallback ||
             genresFor(content).isEmpty() ||
@@ -454,11 +459,17 @@ object DoramasflixProvider : Provider {
                     perPage: ${'$'}perPage
                     fuzzy: ${'$'}fuzzy
                   ) {
-                    count
-                    pageInfo { currentPage perPage pageCount itemCount hasNextPage hasPreviousPage }
                     items {
-                      _id slug name name_es original_name poster_path
-                      first_air_date isTVShow rating rating_count rating_total tmdb_id
+                      _id
+                      slug
+                      name
+                      name_es
+                      original_name
+                      poster_path
+                      first_air_date
+                      rating
+                      rating_count
+                      tmdb_id
                     }
                   }
                 }
@@ -493,11 +504,17 @@ object DoramasflixProvider : Provider {
                     perPage: ${'$'}perPage
                     fuzzy: ${'$'}fuzzy
                   ) {
-                    count
-                    pageInfo { currentPage perPage pageCount itemCount hasNextPage hasPreviousPage }
                     items {
-                      _id slug name name_es original_name poster_path
-                      release_date rating rating_count rating_total tmdb_id
+                      _id
+                      slug
+                      name
+                      name_es
+                      original_name
+                      poster_path
+                      release_date
+                      rating
+                      rating_count
+                      tmdb_id
                     }
                   }
                 }
@@ -515,7 +532,14 @@ object DoramasflixProvider : Provider {
             query = """
                 query DoramasCarrousel(${'$'}limit: Int) {
                   carrouselDoramas(limit: ${'$'}limit) {
-                    _id name name_es slug poster_path poster backdrop_path backdrop
+                    _id
+                    name
+                    name_es
+                    slug
+                    poster_path
+                    poster
+                    backdrop_path
+                    backdrop
                   }
                 }
             """.trimIndent(),
@@ -539,7 +563,14 @@ object DoramasflixProvider : Provider {
             query = """
                 query MoviesCarrousel(${'$'}limit: Int) {
                   carrouselMovies(limit: ${'$'}limit) {
-                    _id name name_es slug poster_path poster backdrop_path backdrop
+                    _id
+                    name
+                    name_es
+                    slug
+                    poster_path
+                    poster
+                    backdrop_path
+                    backdrop
                   }
                 }
             """.trimIndent(),
@@ -587,8 +618,22 @@ object DoramasflixProvider : Provider {
             query = """
                 query DetailMovieSlug(${'$'}slug: String!) {
                   detailMovie(filter: {slug: ${'$'}slug}) {
-                    _id slug name name_es original_name tmdb_id overview trailer release_date
-                    poster_path poster backdrop_path backdrop runtime rating rating_count rating_total
+                    _id
+                    slug
+                    name
+                    name_es
+                    original_name
+                    tmdb_id
+                    overview
+                    trailer
+                    release_date
+                    poster_path
+                    poster
+                    backdrop_path
+                    backdrop
+                    runtime
+                    rating
+                    rating_count
                     images { backdrops }
                     genres { name slug }
                     cast { name profile_path slug }
@@ -609,9 +654,23 @@ object DoramasflixProvider : Provider {
             query = """
                 query DetailDoramaSlug(${'$'}slug: String!) {
                   detailDorama(filter: {slug: ${'$'}slug}) {
-                    _id slug name name_es original_name tmdb_id overview trailer isTVShow
-                    first_air_date poster_path poster backdrop_path backdrop episode_time
-                    rating rating_count rating_total images { backdrops }
+                    _id
+                    slug
+                    name
+                    name_es
+                    original_name
+                    tmdb_id
+                    overview
+                    trailer
+                    first_air_date
+                    poster_path
+                    poster
+                    backdrop_path
+                    backdrop
+                    episode_time
+                    rating
+                    rating_count
+                    images { backdrops }
                     genres { name slug }
                     cast { name profile_path slug }
                   }
@@ -633,7 +692,13 @@ object DoramasflixProvider : Provider {
             query = """
                 query similarsMovies(${'$'}limit: Int, ${'$'}movie_id: String!) {
                   similarsMovies(limit: ${'$'}limit, movie_id: ${'$'}movie_id) {
-                    _id slug name name_es original_name poster_path poster
+                    _id
+                    slug
+                    name
+                    name_es
+                    original_name
+                    poster_path
+                    poster
                   }
                 }
             """.trimIndent(),
@@ -657,7 +722,13 @@ object DoramasflixProvider : Provider {
             query = """
                 query SimilarsDoramas(${'$'}limit: Int, ${'$'}dorama_id: String) {
                   similarsDoramas(limit: ${'$'}limit, dorama_id: ${'$'}dorama_id) {
-                    _id slug name name_es original_name poster_path poster
+                    _id
+                    slug
+                    name
+                    name_es
+                    original_name
+                    poster_path
+                    poster
                   }
                 }
             """.trimIndent(),
@@ -679,7 +750,12 @@ object DoramasflixProvider : Provider {
             query = """
                 query ListSeasons(${'$'}slug: String!) {
                   listSeasons(sort: NUMBER_ASC, filter: {serie_slug: ${'$'}slug}) {
-                    _id slug name name_es poster poster_path serie_id season_number
+                    name
+                    name_es
+                    poster
+                    poster_path
+                    serie_id
+                    season_number
                   }
                 }
             """.trimIndent(),
@@ -758,11 +834,19 @@ object DoramasflixProvider : Provider {
                         filter: {serie_id: ${'$'}serie_id, season_number: ${'$'}season_number}
                       ) {
                         items {
-                          _id slug name name_es serie_backdrop_path backdrop still_path still_image
-                          serie_id episode_number season_number date_string air_date overview count_links
+                          _id
+                          slug
+                          name
+                          name_es
+                          backdrop
+                          still_path
+                          still_image
+                          episode_number
+                          date_string
+                          air_date
+                          overview
                         }
-                        count
-                        pageInfo { currentPage perPage pageCount itemCount hasNextPage hasPreviousPage }
+                        pageInfo { hasNextPage }
                       }
                     }
                 """.trimIndent(),
@@ -875,14 +959,26 @@ object DoramasflixProvider : Provider {
                   ${'$'}filter: FilterMoviesInput
                 ) {
                   paginationMovie(
-                    page: ${'$'}page limit: ${'$'}limit sort: ${'$'}sort filter: ${'$'}filter
+                    page: ${'$'}page
+                    limit: ${'$'}limit
+                    sort: ${'$'}sort
+                    filter: ${'$'}filter
                   ) {
                     items {
-                      _id slug name name_es original_name poster_path poster backdrop_path backdrop
-                      release_date rating rating_count rating_total tmdb_id
+                      _id
+                      slug
+                      name
+                      name_es
+                      original_name
+                      poster_path
+                      poster
+                      backdrop_path
+                      backdrop
+                      release_date
+                      rating
+                      rating_count
+                      tmdb_id
                     }
-                    count
-                    pageInfo { currentPage perPage pageCount itemCount hasNextPage hasPreviousPage }
                   }
                 }
             """.trimIndent(),
@@ -914,14 +1010,26 @@ object DoramasflixProvider : Provider {
                   ${'$'}filter: FilterDoramasInput
                 ) {
                   paginationDorama(
-                    page: ${'$'}page limit: ${'$'}limit sort: ${'$'}sort filter: ${'$'}filter
+                    page: ${'$'}page
+                    limit: ${'$'}limit
+                    sort: ${'$'}sort
+                    filter: ${'$'}filter
                   ) {
                     items {
-                      _id slug name name_es original_name poster_path poster backdrop_path backdrop
-                      first_air_date isTVShow rating rating_count rating_total tmdb_id
+                      _id
+                      slug
+                      name
+                      name_es
+                      original_name
+                      poster_path
+                      poster
+                      backdrop_path
+                      backdrop
+                      first_air_date
+                      rating
+                      rating_count
+                      tmdb_id
                     }
-                    count
-                    pageInfo { currentPage perPage pageCount itemCount hasNextPage hasPreviousPage }
                   }
                 }
             """.trimIndent(),
@@ -1077,12 +1185,14 @@ object DoramasflixProvider : Provider {
                     query = """
                         query MoviePlaybackContext(${'$'}slug: String!, ${'$'}movie_id: ID!) {
                           detailMovie(filter: {slug: ${'$'}slug}) {
-                            _id slug name
-                            langs { name code code_flix flag }
+                            langs { name code code_flix }
                           }
                           getMovieLinks(id: ${'$'}movie_id, app: "$playbackApp") {
                             links_online {
-                              server lang link page is_recommended
+                              server
+                              lang
+                              link
+                              is_recommended
                               subtitles { language_code type }
                             }
                           }
@@ -1108,12 +1218,14 @@ object DoramasflixProvider : Provider {
                     query = """
                         query EpisodePlaybackContext(${'$'}slug: String!, ${'$'}episode_id: ID!) {
                           detailEpisode(filter: {slug: ${'$'}slug}) {
-                            _id slug name
-                            langs { name code code_flix flag }
+                            langs { name code code_flix }
                           }
                           getEpisodeLinks(id: ${'$'}episode_id, app: "$playbackApp") {
                             links_online {
-                              server lang link page _id is_recommended
+                              server
+                              lang
+                              link
+                              is_recommended
                               subtitles { language_code type }
                             }
                           }
