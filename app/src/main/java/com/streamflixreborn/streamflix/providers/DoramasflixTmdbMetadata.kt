@@ -12,6 +12,7 @@ import com.streamflixreborn.streamflix.utils.TMDb3
 import com.streamflixreborn.streamflix.utils.TMDb3.original
 import com.streamflixreborn.streamflix.utils.TMDb3.w500
 import com.streamflixreborn.streamflix.utils.UserPreferences
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.async
 import kotlinx.coroutines.awaitAll
 import kotlinx.coroutines.coroutineScope
@@ -98,7 +99,7 @@ internal object DoramasflixTmdbMetadata {
 
     suspend fun movie(id: Int): Movie? {
         if (!UserPreferences.enableTmdb) return null
-        return runCatching {
+        return optionalRequest {
             val details = service.movie(id, mediaParams())
             Movie(
                 id = details.id.toString(),
@@ -120,12 +121,12 @@ internal object DoramasflixTmdbMetadata {
                     )
                 },
             )
-        }.getOrNull()
+        }
     }
 
     suspend fun tvShow(id: Int): TvShow? {
         if (!UserPreferences.enableTmdb) return null
-        return runCatching {
+        return optionalRequest {
             val details = service.tvShow(id, mediaParams())
             TvShow(
                 id = details.id.toString(),
@@ -155,22 +156,18 @@ internal object DoramasflixTmdbMetadata {
                     )
                 },
             )
-        }.getOrNull()
+        }
     }
 
     suspend fun episodes(id: Int, seasonNumber: Int): List<Episode> {
         if (!UserPreferences.enableTmdb) return emptyList()
-        val details = runCatching {
+        val details = optionalRequest {
             service.season(
                 seriesId = id,
                 seasonNumber = seasonNumber,
-                params = mapOf(
-                    "language" to language,
-                    "append_to_response" to "images",
-                    "include_image_language" to imageLanguages,
-                ),
+                params = mapOf("language" to language),
             )
-        }.getOrNull() ?: return emptyList()
+        } ?: return emptyList()
 
         val episodes = details.episodes.orEmpty()
         if (episodes.isEmpty()) return emptyList()
@@ -180,7 +177,7 @@ internal object DoramasflixTmdbMetadata {
             episodes.map { episode ->
                 async {
                     val images = imageSemaphore.withPermit {
-                        runCatching {
+                        optionalRequest {
                             service.episodeImages(
                                 seriesId = id,
                                 seasonNumber = seasonNumber,
@@ -190,7 +187,7 @@ internal object DoramasflixTmdbMetadata {
                                     "include_image_language" to imageLanguages,
                                 ),
                             ).stills
-                        }.getOrDefault(emptyList())
+                        }.orEmpty()
                     }
 
                     Episode(
@@ -208,7 +205,7 @@ internal object DoramasflixTmdbMetadata {
 
     suspend fun person(id: Int): People? {
         if (!UserPreferences.enableTmdb) return null
-        return runCatching {
+        return optionalRequest {
             val details = service.person(id, mapOf("language" to language))
             People(
                 id = details.id.toString(),
@@ -219,7 +216,7 @@ internal object DoramasflixTmdbMetadata {
                 birthday = details.birthday,
                 deathday = details.deathday,
             )
-        }.getOrNull()
+        }
     }
 
     internal fun preferredImagePath(
@@ -256,6 +253,7 @@ internal object DoramasflixTmdbMetadata {
         "language" to language,
         "append_to_response" to appendedMedia,
         "include_image_language" to imageLanguages,
+        "include_video_language" to "es,null",
     )
 
     private fun spanishTrailer(videos: TMDb3.Result<TMDb3.Video>?): String? {
@@ -266,6 +264,14 @@ internal object DoramasflixTmdbMetadata {
             .maxByOrNull { it.publishedAt.orEmpty() }
             ?: youtubeVideos.maxByOrNull { it.publishedAt.orEmpty() }
         return selected?.key?.let { "https://www.youtube.com/watch?v=$it" }
+    }
+
+    private suspend fun <T> optionalRequest(block: suspend () -> T): T? = try {
+        block()
+    } catch (error: CancellationException) {
+        throw error
+    } catch (_: Exception) {
+        null
     }
 
     private fun String?.nonBlank(): String? = this?.trim()?.takeIf { it.isNotEmpty() }
