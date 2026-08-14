@@ -396,7 +396,7 @@ object DoramasflixProvider : Provider {
         val external = tmdbMovie(content) ?: return provider
         return provider.copy(
             overview = DoramasflixLogic.firstNonBlank(external.overview, provider.overview),
-            released = external.released?.format("yyyy-MM-dd") ?: provider.released,
+            released = external.released?.format("yyyy-MM-dd") ?: provider.released?.format("yyyy-MM-dd"),
             runtime = DoramasflixLogic.meaningfulRuntime(external.runtime) ?: provider.runtime,
             trailer = DoramasflixLogic.normalizeTrailer(external.trailer) ?: provider.trailer,
             rating = external.rating?.takeIf { it > 0.0 }?.div(2.0) ?: provider.rating,
@@ -414,7 +414,7 @@ object DoramasflixProvider : Provider {
         val external = tmdbDorama(content) ?: return provider
         return provider.copy(
             overview = DoramasflixLogic.firstNonBlank(external.overview, provider.overview),
-            released = external.released?.format("yyyy-MM-dd") ?: provider.released,
+            released = external.released?.format("yyyy-MM-dd") ?: provider.released?.format("yyyy-MM-dd"),
             runtime = DoramasflixLogic.meaningfulRuntime(external.runtime) ?: provider.runtime,
             trailer = DoramasflixLogic.normalizeTrailer(external.trailer) ?: provider.trailer,
             rating = external.rating?.takeIf { it > 0.0 }?.div(2.0) ?: provider.rating,
