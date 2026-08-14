@@ -21,7 +21,6 @@ import com.streamflixreborn.streamflix.models.doramasflix.LanguageMetadata
 import com.streamflixreborn.streamflix.models.doramasflix.OnlineLink
 import com.streamflixreborn.streamflix.models.doramasflix.Season as DoramasflixSeason
 import com.streamflixreborn.streamflix.utils.DnsResolver
-import com.streamflixreborn.streamflix.utils.TmdbUtils
 import com.streamflixreborn.streamflix.utils.UserPreferences
 import com.streamflixreborn.streamflix.utils.format
 import kotlinx.coroutines.CancellationException
@@ -78,6 +77,7 @@ object DoramasflixProvider : Provider {
     private val tmdbMovieCache = ConcurrentHashMap<String, TimedCache<Movie>>()
     private val tmdbDoramaCache = ConcurrentHashMap<String, TimedCache<TvShow>>()
     private val tmdbSeasonCache = ConcurrentHashMap<String, TimedCache<List<Episode>>>()
+    private val tmdbPeopleCache = ConcurrentHashMap<String, TimedCache<People>>()
 
     @Volatile
     private var serverNamesByCode: Map<String, String>? = null
@@ -263,6 +263,13 @@ object DoramasflixProvider : Provider {
     private fun numericTmdbId(content: Content): Int? =
         content.tmdbId?.trim()?.toIntOrNull()?.takeIf { it > 0 }
 
+    private fun tmdbPersonId(value: String?): Int? = value
+        ?.trim()
+        ?.substringAfterLast('/')
+        ?.substringBefore('-')
+        ?.toIntOrNull()
+        ?.takeIf { it > 0 }
+
     private fun genresFor(content: Content): List<Genre> =
         content.genres.orEmpty().mapNotNull { tag ->
             val genreName = tag.name?.trim()?.takeIf { it.isNotEmpty() } ?: return@mapNotNull null
@@ -280,6 +287,40 @@ object DoramasflixProvider : Provider {
                 image = DoramasflixLogic.meaningfulImage(imageUrl(member.profilePath, "w185")),
             )
         }.distinctBy { it.id }
+
+    private fun rebindTmdbCast(
+        content: Content,
+        externalCast: List<People>,
+    ): List<People> {
+        if (externalCast.isEmpty()) return emptyList()
+        val providerCast = content.cast.orEmpty()
+
+        val providerIdsByTmdbId = providerCast.mapNotNull { member ->
+            val slug = member.slug?.trim()?.takeIf { it.isNotEmpty() } ?: return@mapNotNull null
+            val personId = member.ref?.trim()?.toIntOrNull()?.takeIf { it > 0 }
+                ?: tmdbPersonId(slug)
+                ?: return@mapNotNull null
+            personId.toString() to slug
+        }.toMap()
+
+        val providerIdsByName = providerCast
+            .mapNotNull { member ->
+                val slug = member.slug?.trim()?.takeIf { it.isNotEmpty() } ?: return@mapNotNull null
+                val name = member.name?.trim()?.takeIf { it.isNotEmpty() } ?: return@mapNotNull null
+                name.lowercase(Locale.ROOT) to slug
+            }
+            .groupBy({ it.first }, { it.second })
+            .mapNotNull { (name, slugs) ->
+                slugs.distinct().singleOrNull()?.let { slug -> name to slug }
+            }
+            .toMap()
+
+        return externalCast.map { person ->
+            val providerId = providerIdsByTmdbId[person.id]
+                ?: providerIdsByName[person.name.trim().lowercase(Locale.ROOT)]
+            providerId?.let { person.copy(id = it) } ?: person
+        }.distinctBy { it.id }
+    }
 
     private fun cacheMovie(content: Content) {
         val slug = contentSlug(content) ?: return
@@ -334,14 +375,14 @@ object DoramasflixProvider : Provider {
         return value
     }
 
-    private fun tmdbKey(id: Int): String = "$id|$language"
+    private fun tmdbKey(id: Int): String = "$id|${DoramasflixTmdbMetadata.language}"
 
     private suspend fun tmdbMovie(content: Content): Movie? {
         if (!UserPreferences.enableTmdb) return null
         val tmdbId = numericTmdbId(content) ?: return null
         val key = tmdbKey(tmdbId)
         cachedValue(tmdbMovieCache, key)?.let { return it }
-        val external = TmdbUtils.getMovieById(tmdbId, language) ?: return null
+        val external = DoramasflixTmdbMetadata.movie(tmdbId) ?: return null
         return cacheValue(tmdbMovieCache, key, external)
     }
 
@@ -350,8 +391,16 @@ object DoramasflixProvider : Provider {
         val tmdbId = numericTmdbId(content) ?: return null
         val key = tmdbKey(tmdbId)
         cachedValue(tmdbDoramaCache, key)?.let { return it }
-        val external = TmdbUtils.getTvShowById(tmdbId, language) ?: return null
+        val external = DoramasflixTmdbMetadata.tvShow(tmdbId) ?: return null
         return cacheValue(tmdbDoramaCache, key, external)
+    }
+
+    private suspend fun tmdbPeople(id: Int): People? {
+        if (!UserPreferences.enableTmdb) return null
+        val key = tmdbKey(id)
+        cachedValue(tmdbPeopleCache, key)?.let { return it }
+        val external = DoramasflixTmdbMetadata.person(id) ?: return null
+        return cacheValue(tmdbPeopleCache, key, external)
     }
 
     private fun doramasflixMovie(
@@ -394,7 +443,9 @@ object DoramasflixProvider : Provider {
     ): Movie {
         val provider = doramasflixMovie(content, slug)
         val external = tmdbMovie(content) ?: return provider
+        val externalCast = rebindTmdbCast(content, external.cast)
         return provider.copy(
+            title = external.title.trim().takeIf { it.isNotEmpty() } ?: provider.title,
             overview = DoramasflixLogic.firstNonBlank(external.overview, provider.overview),
             released = external.released?.format("yyyy-MM-dd") ?: provider.released?.format("yyyy-MM-dd"),
             runtime = DoramasflixLogic.meaningfulRuntime(external.runtime) ?: provider.runtime,
@@ -403,6 +454,8 @@ object DoramasflixProvider : Provider {
             poster = DoramasflixLogic.meaningfulImage(external.poster) ?: provider.poster,
             banner = DoramasflixLogic.meaningfulImage(external.banner) ?: provider.banner,
             imdbId = external.imdbId,
+            genres = external.genres.takeIf { it.isNotEmpty() } ?: provider.genres,
+            cast = externalCast.takeIf { it.isNotEmpty() } ?: provider.cast,
         )
     }
 
@@ -412,16 +465,20 @@ object DoramasflixProvider : Provider {
     ): TvShow {
         val provider = doramasflixDorama(content, slug)
         val external = tmdbDorama(content) ?: return provider
+        val externalCast = rebindTmdbCast(content, external.cast)
         return provider.copy(
+            title = external.title.trim().takeIf { it.isNotEmpty() } ?: provider.title,
             overview = DoramasflixLogic.firstNonBlank(external.overview, provider.overview),
             released = external.released?.format("yyyy-MM-dd") ?: provider.released?.format("yyyy-MM-dd"),
             runtime = DoramasflixLogic.meaningfulRuntime(external.runtime) ?: provider.runtime,
             trailer = DoramasflixLogic.normalizeTrailer(external.trailer) ?: provider.trailer,
             rating = external.rating?.takeIf { it > 0.0 }?.div(2.0) ?: provider.rating,
             poster = DoramasflixLogic.meaningfulImage(external.poster) ?: provider.poster,
-            banner = DoramasflixLogic.meaningfulImage(external.banner) ?: provider.banner,
+            banner = DoramasflixLogic.meaningImage(external.banner) ?: provider.banner,
             imdbId = external.imdbId,
             seasons = external.seasons,
+            genres = external.genres.takeIf { it.isNotEmpty() } ?: provider.genres,
+            cast = externalCast.takeIf { it.isNotEmpty() } ?: provider.cast,
         )
     }
 
@@ -981,12 +1038,12 @@ object DoramasflixProvider : Provider {
         seasonNumber: Int,
     ): Map<Int, Episode> {
         if (!UserPreferences.enableTmdb) return emptyMap()
-        val tmdbId = resolveDoramaTmdbId(slug) ?: return emptyMap()
-        val key = "$tmdbId|$seasonNumber|$language"
+        val tmdbId = resolveDoramaTmdbId(slug)?.toIntOrNull() ?: return emptyMap()
+        val key = "$tmdbId|$seasonNumber|${DoramasflixTmdbMetadata.language}"
         cachedValue(tmdbSeasonCache, key)?.let { cached ->
             return cached.associateBy { it.number }
         }
-        val episodes = TmdbUtils.getEpisodesBySeason(tmdbId, seasonNumber, language)
+        val episodes = DoramasflixTmdbMetadata.episodes(tmdbId, seasonNumber)
         if (episodes.isNotEmpty()) {
             cacheValue(tmdbSeasonCache, key, episodes)
         }
@@ -1309,12 +1366,16 @@ object DoramasflixProvider : Provider {
         resolved.copy(
             seasons = seasonsData.mapNotNull { season ->
                 val seasonNumber = season.seasonNumber ?: return@mapNotNull null
+                val tmdbSeason = tmdbSeasons[seasonNumber]
                 Season(
                     id = "$slug/$seasonNumber",
                     number = seasonNumber,
-                    title = DoramasflixLogic.firstNonBlank(season.nameEs, season.name)
-                        ?: "Temporada $seasonNumber",
-                    poster = DoramasflixLogic.meaningfulImage(tmdbSeasons[seasonNumber]?.poster)
+                    title = DoramasflixLogic.firstNonBlank(
+                        tmdbSeason?.title,
+                        season.nameEs,
+                        season.name,
+                    ) ?: "Temporada $seasonNumber",
+                    poster = DoramasflixLogic.meaningfulImage(tmdbSeason?.poster)
                         ?: sequenceOf(season.posterPath, season.poster)
                             .mapNotNull(::posterUrl)
                             .mapNotNull(DoramasflixLogic::meaningfulImage)
@@ -1330,8 +1391,8 @@ object DoramasflixProvider : Provider {
         val seasonNumber = seasonId.substringAfterLast('/').toIntOrNull()
             ?: throw Exception("Invalid Doramasflix season ID: $seasonId")
 
-        val episodes = getEpisodes(slug, seasonNumber)
         val external = getTmdbEpisodeMetadata(slug, seasonNumber)
+        val episodes = getEpisodes(slug, seasonNumber)
 
         return episodes.mapNotNull { episode ->
             val episodeSlug = episode.slug?.trim()?.takeIf { it.isNotEmpty() }
@@ -1647,8 +1708,39 @@ object DoramasflixProvider : Provider {
         )
     }
 
-    override suspend fun getPeople(id: String, page: Int): People = when {
-        page > 1 -> People(id = id, name = "")
-        else -> pageMetadata.getPeople(id)
+    private suspend fun optionalPeople(id: String): People? = try {
+        pageMetadata.getPeople(id)
+    } catch (error: Exception) {
+        if (error is CancellationException) throw error
+        null
+    }
+
+    override suspend fun getPeople(id: String, page: Int): People = coroutineScope {
+        if (page > 1) return@coroutineScope People(id = id, name = "")
+
+        val personId = tmdbPersonId(id)
+        if (!UserPreferences.enableTmdb || personId == null) {
+            return@coroutineScope pageMetadata.getPeople(id)
+        }
+
+        val tmdbDeferred = async { tmdbPeople(personId) }
+        val providerDeferred = async { optionalPeople(id) }
+        val external = tmdbDeferred.await()
+        val provider = providerDeferred.await()
+
+        if (external == null) {
+            return@coroutineScope provider ?: People(id = id, name = "")
+        }
+
+        external.copy(
+            id = id,
+            name = external.name.trim().takeIf { it.isNotEmpty() } ?: provider?.name.orEmpty(),
+            image = DoramasflixLogic.meaningfulImage(external.image) ?: provider?.image,
+            biography = DoramasflixLogic.firstNonBlank(external.biography, provider?.biography),
+            placeOfBirth = DoramasflixLogic.firstNonBlank(external.placeOfBirth, provider?.placeOfBirth),
+            birthday = external.birthday?.format("yyyy-MM-dd") ?: provider?.birthday?.format("yyyy-MM-dd"),
+            deathday = external.deathday?.format("yyyy-MM-dd") ?: provider?.deathday?.format("yyyy-MM-dd"),
+            filmography = provider?.filmography.orEmpty(),
+        )
     }
 }
