@@ -35,7 +35,7 @@ class DoramasflixPageMetadataTest {
     }
 
     @Test
-    fun `content page preserves structured description and image`() {
+    fun `content page preserves structured portable metadata`() {
         val document = Jsoup.parse(
             """
                 <html><head>
@@ -44,7 +44,14 @@ class DoramasflixPageMetadataTest {
                       "@type": "TVSeries",
                       "name": "Meeting You",
                       "description": "Una descripción real del título.",
-                      "image": {"url": "https://image.tmdb.org/t/p/original/meeting.jpg"}
+                      "image": {"url": "https://image.tmdb.org/t/p/original/meeting.jpg"},
+                      "datePublished": "2025-03-08",
+                      "duration": "PT1H10M",
+                      "trailer": {
+                        "@type": "VideoObject",
+                        "embedUrl": "https://www.youtube.com/embed/3OAJckfWgiY"
+                      },
+                      "sameAs": ["https://www.imdb.com/title/tt1234567/"]
                     }
                   </script>
                 </head><body></body></html>
@@ -52,8 +59,13 @@ class DoramasflixPageMetadataTest {
         )
 
         val metadata = DoramasflixPageMetadata.parseContent(document)
+        assertEquals("Meeting You", metadata.title)
         assertEquals("Una descripción real del título.", metadata.overview)
         assertEquals("https://image.tmdb.org/t/p/original/meeting.jpg", metadata.image)
+        assertEquals("2025-03-08", metadata.released)
+        assertEquals(70, metadata.runtime)
+        assertEquals("https://www.youtube.com/embed/3OAJckfWgiY", metadata.trailer)
+        assertEquals("tt1234567", metadata.imdbId)
     }
 
     @Test
@@ -73,25 +85,28 @@ class DoramasflixPageMetadataTest {
     }
 
     @Test
-    fun `content page falls back to current visible Doramasflix rating and overview`() {
+    fun `content page falls back to current visible Doramasflix metadata`() {
         val document = Jsoup.parse(
             """
                 <html><body>
-                  <h1>Dream to You</h1>
-                  <h2>Dreaming of You</h2>
+                  <h1>Spooky in Love</h1>
+                  <h2>Muertos de Amor</h2>
                   <div>4.5</div>
-                  <div>2026 Dorama</div>
-                  <p>Ver Dream to You online: Un apasionado estudiante conoce a alguien que cambia su vida.</p>
+                  <div>2026 · COREA · 1h 10min/ep · 12 Episodios</div>
+                  <div><span>Estreno</span><span>18 de julio de 2026</span></div>
+                  <p>Ver Spooky in Love online: Una heredera con la capacidad de ver fantasmas ayuda a resolver asesinatos.</p>
                 </body></html>
             """.trimIndent(),
         )
 
         val metadata = DoramasflixPageMetadata.parseContent(document)
+        assertEquals("Spooky in Love", metadata.title)
         assertEquals(4.5, metadata.rating)
         assertEquals(
-            "Un apasionado estudiante conoce a alguien que cambia su vida.",
+            "Una heredera con la capacidad de ver fantasmas ayuda a resolver asesinatos.",
             metadata.overview,
         )
+        assertEquals(70, metadata.runtime)
     }
 
     @Test
