@@ -6,6 +6,11 @@ import java.time.Instant
 import java.time.ZoneOffset
 import java.util.Locale
 
+internal class DoramasflixContentNotFoundException(message: String) : Exception(message)
+
+internal class DoramasflixUnavailableException(cause: Throwable? = null) :
+    Exception("Doramasflix is currently unavailable. Please try again later.", cause)
+
 internal data class DoramasflixRatingDecision(
     val rating: Double?,
     val useHtmlFallback: Boolean,
@@ -33,6 +38,11 @@ internal object DoramasflixLogic {
         "noviembre" to 11,
         "diciembre" to 12,
     )
+
+    fun isUnavailableHttpStatus(statusCode: Int): Boolean = statusCode in 500..599
+
+    fun shouldSuppressOptionalDetailFailure(error: Throwable): Boolean =
+        error is DoramasflixContentNotFoundException
 
     fun resolveApiRating(
         rating: Double?,
