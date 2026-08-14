@@ -70,6 +70,7 @@ object DoramasflixProvider : Provider {
     private val movieBackendIds = ConcurrentHashMap<String, String>()
     private val doramaBackendIds = ConcurrentHashMap<String, String>()
     private val doramaTmdbIds = ConcurrentHashMap<String, String>()
+    private val doramaDetails = ConcurrentHashMap<String, Content>()
     private val episodeBackendIds = ConcurrentHashMap<String, String>()
 
     @Volatile
@@ -648,6 +649,8 @@ object DoramasflixProvider : Provider {
     }
 
     private suspend fun detailDorama(slug: String): Content {
+        doramaDetails[slug]?.let { return it }
+
         val content = apiRequest(
             operationName = "DetailDoramaSlug",
             variables = JSONObject().put("slug", slug),
@@ -680,6 +683,7 @@ object DoramasflixProvider : Provider {
             "Doramasflix could not find dorama '$slug'."
         )
         cacheDorama(content)
+        doramaDetails[slug] = content
         return content
     }
 
@@ -1088,16 +1092,55 @@ object DoramasflixProvider : Provider {
         val slug = seasonId.substringBeforeLast('/')
         val seasonNumber = seasonId.substringAfterLast('/').toIntOrNull()
             ?: throw Exception("Invalid Doramasflix season ID: $seasonId")
+        val detail = detailDorama(slug)
+        val showTitles = listOf(detail.name, detail.nameEs, detail.originalName)
+        val showArtwork = buildList {
+            add(detail.posterPath)
+            add(detail.poster)
+            add(detail.backdropPath)
+            add(detail.backdrop)
+            addAll(detail.images?.backdrops.orEmpty())
+        }
         val episodes = getEpisodes(slug, seasonNumber)
 
+        fun providerTitle(episode: DoramasflixEpisode, number: Int): String? =
+            DoramasflixLogic.firstNonBlank(
+                DoramasflixLogic.meaningfulEpisodeTitle(
+                    episode.nameEs,
+                    showTitles,
+                    seasonNumber,
+                    number,
+                ),
+                DoramasflixLogic.meaningfulEpisodeTitle(
+                    episode.name,
+                    showTitles,
+                    seasonNumber,
+                    number,
+                ),
+            )
+
+        fun providerArtwork(episode: DoramasflixEpisode): String? =
+            DoramasflixLogic.episodeArtwork(
+                stillPath = episode.stillPath,
+                backdrop = episode.backdrop,
+                stillImage = episode.stillImage,
+                genericArtwork = showArtwork,
+            )
+
+        fun providerOverview(episode: DoramasflixEpisode, number: Int): String? =
+            DoramasflixLogic.meaningfulEpisodeOverview(
+                value = episode.overview,
+                showOverview = detail.overview,
+                showTitles = showTitles,
+                seasonNumber = seasonNumber,
+                episodeNumber = number,
+            )
+
         val needsExternal = episodes.any { episode ->
-            DoramasflixLogic.firstNonBlank(episode.nameEs, episode.name) == null ||
-                DoramasflixLogic.episodeArtwork(
-                    episode.stillPath,
-                    episode.backdrop,
-                    episode.stillImage,
-                ) == null ||
-                DoramasflixLogic.nonBlank(episode.overview) == null ||
+            val number = episode.episodeNumber ?: return@any false
+            providerTitle(episode, number) == null ||
+                providerArtwork(episode) == null ||
+                providerOverview(episode, number) == null ||
                 (DoramasflixLogic.normalizeDate(episode.airDate)
                     ?: DoramasflixLogic.normalizeDate(episode.dateString)) == null
         }
@@ -1127,25 +1170,22 @@ object DoramasflixProvider : Provider {
                 stillPath = episode.stillPath,
                 backdrop = episode.backdrop,
                 stillImage = episode.stillImage,
+                genericArtwork = showArtwork,
                 tmdbArtwork = externalPoster,
             )
 
             Episode(
                 id = episodeSlug,
                 number = number,
-                title = DoramasflixLogic.firstNonBlank(
-                    episode.nameEs,
-                    episode.name,
-                    externalTitle,
-                ) ?: "Episodio $number",
+                title = providerTitle(episode, number)
+                    ?: externalTitle
+                    ?: "Episodio $number",
                 released = DoramasflixLogic.normalizeDate(episode.airDate)
                     ?: DoramasflixLogic.normalizeDate(episode.dateString)
                     ?: externalDate,
                 poster = posterUrl(artwork),
-                overview = DoramasflixLogic.firstNonBlank(
-                    episode.overview,
-                    externalOverview,
-                ),
+                overview = providerOverview(episode, number)
+                    ?: externalOverview,
             )
         }
     }

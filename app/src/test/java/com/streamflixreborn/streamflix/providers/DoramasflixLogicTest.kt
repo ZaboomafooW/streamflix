@@ -103,22 +103,141 @@ class DoramasflixLogicTest {
     }
 
     @Test
-    fun `episode artwork follows provider fields before TMDb`() {
+    fun `generic provider episode titles are eligible for TMDb fallback`() {
+        val showTitles = listOf("Our Sticky Love", "Acaramelados", "우리 영화")
+
+        assertNull(
+            DoramasflixLogic.meaningfulEpisodeTitle(
+                value = "Acaramelados 1x1",
+                showTitles = showTitles,
+                seasonNumber = 1,
+                episodeNumber = 1,
+            )
+        )
+        assertNull(
+            DoramasflixLogic.meaningfulEpisodeTitle(
+                value = "Episodio 1",
+                showTitles = showTitles,
+                seasonNumber = 1,
+                episodeNumber = 1,
+            )
+        )
+        assertNull(
+            DoramasflixLogic.meaningfulEpisodeTitle(
+                value = "Capítulo 1",
+                showTitles = showTitles,
+                seasonNumber = 1,
+                episodeNumber = 1,
+            )
+        )
+        assertEquals(
+            "Una visita inesperada",
+            DoramasflixLogic.meaningfulEpisodeTitle(
+                value = "Una visita inesperada",
+                showTitles = showTitles,
+                seasonNumber = 1,
+                episodeNumber = 1,
+            )
+        )
+    }
+
+    @Test
+    fun `specific provider episode overview remains authoritative`() {
+        val overview = "Go Eun-sae despierta en el hospital sin recordar quién es. Pero su desconcierto aumenta cuando Jang Tae-ha asegura ser su novio."
+        assertEquals(
+            overview,
+            DoramasflixLogic.meaningfulEpisodeOverview(
+                value = overview,
+                showOverview = "Una fiscal ambiciosa pierde la memoria.",
+                showTitles = listOf("Our Sticky Love", "Acaramelados"),
+                seasonNumber = 1,
+                episodeNumber = 1,
+            )
+        )
+    }
+
+    @Test
+    fun `generic provider episode overview is eligible for TMDb fallback`() {
+        assertNull(
+            DoramasflixLogic.meaningfulEpisodeOverview(
+                value = "Una fiscal ambiciosa pierde la memoria.",
+                showOverview = "Una fiscal ambiciosa pierde la memoria.",
+                showTitles = listOf("Our Sticky Love", "Acaramelados"),
+                seasonNumber = 1,
+                episodeNumber = 1,
+            )
+        )
+        assertNull(
+            DoramasflixLogic.meaningfulEpisodeOverview(
+                value = "Disfruta del capítulo 1 online. Selecciona tu servidor favorito.",
+                showOverview = null,
+                showTitles = listOf("Our Sticky Love", "Acaramelados"),
+                seasonNumber = 1,
+                episodeNumber = 1,
+            )
+        )
+        assertNull(
+            DoramasflixLogic.meaningfulEpisodeOverview(
+                value = "Acaramelados 1x1",
+                showOverview = null,
+                showTitles = listOf("Our Sticky Love", "Acaramelados"),
+                seasonNumber = 1,
+                episodeNumber = 1,
+            )
+        )
+    }
+
+    @Test
+    fun `episode artwork rejects show level art before falling back to TMDb`() {
+        assertEquals(
+            "/tmdb-episode.jpg",
+            DoramasflixLogic.episodeArtwork(
+                stillPath = "/show-backdrop.jpg",
+                backdrop = "https://image.tmdb.org/t/p/w1280/show-backdrop.jpg",
+                stillImage = null,
+                genericArtwork = listOf("/show-backdrop.jpg", "/show-poster.jpg"),
+                tmdbArtwork = "/tmdb-episode.jpg",
+            )
+        )
+    }
+
+    @Test
+    fun `episode artwork keeps a distinct provider still before TMDb`() {
         assertEquals(
             "/api-still.jpg",
             DoramasflixLogic.episodeArtwork(
                 stillPath = "/api-still.jpg",
-                backdrop = "/api-backdrop.jpg",
+                backdrop = "/show-backdrop.jpg",
                 stillImage = "/api-image.jpg",
+                genericArtwork = listOf("/show-backdrop.jpg"),
                 tmdbArtwork = "/tmdb.jpg",
             )
         )
+    }
+
+    @Test
+    fun `episode still image beats a generic backdrop and TMDb`() {
         assertEquals(
-            "/tmdb.jpg",
+            "/api-image.jpg",
             DoramasflixLogic.episodeArtwork(
                 stillPath = null,
+                backdrop = "/show-backdrop.jpg",
+                stillImage = "/api-image.jpg",
+                genericArtwork = listOf("/show-backdrop.jpg"),
+                tmdbArtwork = "/tmdb.jpg",
+            )
+        )
+    }
+
+    @Test
+    fun `repeated episode art is not rejected merely for repeating`() {
+        assertEquals(
+            "/shared-legitimate-still.jpg",
+            DoramasflixLogic.episodeArtwork(
+                stillPath = "/shared-legitimate-still.jpg",
                 backdrop = null,
                 stillImage = null,
+                genericArtwork = listOf("/show-backdrop.jpg", "/season-poster.jpg"),
                 tmdbArtwork = "/tmdb.jpg",
             )
         )
