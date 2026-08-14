@@ -12,6 +12,7 @@ import com.streamflixreborn.streamflix.models.Movie
 import com.streamflixreborn.streamflix.models.TvShow
 import com.streamflixreborn.streamflix.providers.AnimeOnlineNinjaProvider
 import com.streamflixreborn.streamflix.providers.Provider
+import com.streamflixreborn.streamflix.providers.ProviderUnavailableException
 import com.streamflixreborn.streamflix.ui.UserDataNotifier
 import com.streamflixreborn.streamflix.utils.HomeCacheStore
 import com.streamflixreborn.streamflix.utils.ParentalControlUtils
@@ -426,7 +427,9 @@ class HomeViewModel(database: AppDatabase) : ViewModel() {
             _state.emit(State.SuccessLoading(categories))
         } catch (e: Exception) {
             Log.e("HomeViewModel", "getHome: ", e)
-            if (cachedCategories.isNullOrEmpty()) {
+            if (e is ProviderUnavailableException) {
+                _state.emit(State.FailedLoading(e))
+            } else if (cachedCategories.isNullOrEmpty()) {
                 _state.emit(State.FailedLoading(e))
             } else if (deferCachedHomeForClearance) {
                 _state.emit(State.SuccessLoading(cachedCategories))
