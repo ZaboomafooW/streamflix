@@ -426,8 +426,7 @@ object DoramasflixProvider : Provider {
             (apiBanner ?: websiteImage) == null ||
             (apiReleased ?: websiteReleased) == null ||
             (apiRuntime ?: websiteRuntime) == null ||
-            (apiTrailer ?: websiteTrailer) == null ||
-            (website.imdbId == null)
+            (apiTrailer ?: websiteTrailer) == null
         val external = if (externalNeeded) {
             resolveExternalMovieMetadata(content, slug, website)
         } else {
@@ -514,8 +513,7 @@ object DoramasflixProvider : Provider {
             (apiBanner ?: websiteImage) == null ||
             (apiReleased ?: websiteReleased) == null ||
             (apiRuntime ?: websiteRuntime) == null ||
-            (apiTrailer ?: websiteTrailer) == null ||
-            (website.imdbId == null)
+            (apiTrailer ?: websiteTrailer) == null
         val external = if (externalNeeded) {
             resolveExternalDoramaMetadata(content, slug, website)
         } else {
@@ -1484,14 +1482,13 @@ object DoramasflixProvider : Provider {
             add(seriesContent?.name)
             add(seriesContent?.nameEs)
             add(seriesContent?.originalName)
-            add(seriesContent?.slug?.replace('-', ' '))
+            add(slug.replace('-', ' '))
         }
         val seriesArtwork = buildList<String?> {
             add(seriesContent?.posterPath)
             add(seriesContent?.poster)
             add(seriesContent?.backdropPath)
             add(seriesContent?.backdrop)
-            addAll(seriesContent?.images?.backdrops.orEmpty())
         }
         val genericArtworkByEpisode = episodes.map { episode ->
             seriesArtwork + episode.serieBackdropPath
