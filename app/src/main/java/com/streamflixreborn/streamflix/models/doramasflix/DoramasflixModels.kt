@@ -32,7 +32,6 @@ data class Data(
 
 data class ContentPage(
     val items: List<Content> = emptyList(),
-    val pageInfo: PageInfo? = null,
 )
 
 data class EpisodePage(
@@ -103,12 +102,9 @@ data class LanguageMetadata(
 )
 
 data class Season(
-    @SerializedName("_id")
-    val id: String? = null,
     val name: String? = null,
     @SerializedName("name_es")
     val nameEs: String? = null,
-    val slug: String? = null,
     val poster: String? = null,
     @SerializedName("poster_path")
     val posterPath: String? = null,
@@ -127,8 +123,6 @@ data class Episode(
     val slug: String? = null,
     @SerializedName("episode_number")
     val episodeNumber: Int? = null,
-    @SerializedName("season_number")
-    val seasonNumber: Int? = null,
     @SerializedName("date_string")
     val dateString: String? = null,
     @SerializedName("still_path")
