@@ -21,11 +21,14 @@ import com.streamflixreborn.streamflix.models.doramasflix.LanguageMetadata
 import com.streamflixreborn.streamflix.models.doramasflix.OnlineLink
 import com.streamflixreborn.streamflix.models.doramasflix.Season as DoramasflixSeason
 import com.streamflixreborn.streamflix.utils.DnsResolver
-import com.streamflixreborn.streamflix.utils.UserPreferences
+import com.streamflixreborn.streamflix.utils.TmdbUtils
 import com.streamflixreborn.streamflix.utils.format
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.async
+import kotlinx.coroutines.awaitAll
 import kotlinx.coroutines.coroutineScope
+import kotlinx.coroutines.sync.Semaphore
+import kotlinx.coroutines.sync.withPermit
 import okhttp3.Cache
 import okhttp3.MediaType.Companion.toMediaType
 import okhttp3.OkHttpClient
@@ -60,7 +63,7 @@ object DoramasflixProvider : Provider {
     private const val catalogPageSize = 20
     private const val searchPageSize = 20
     private const val episodePageSize = 50
-    private const val tmdbCacheTtlMillis = 10L * 60L * 1000L
+    private const val episodeWebsiteConcurrency = 4
     private const val userAgent =
         "Mozilla/5.0 (Linux; Android 10; Android TV) AppleWebKit/537.36 Chrome/140.0.0.0 Safari/537.36"
 
@@ -68,17 +71,6 @@ object DoramasflixProvider : Provider {
     private val doramaBackendIds = ConcurrentHashMap<String, String>()
     private val doramaTmdbIds = ConcurrentHashMap<String, String>()
     private val episodeBackendIds = ConcurrentHashMap<String, String>()
-    private val doramasflixPeopleTmdbIds = ConcurrentHashMap<String, Int>()
-
-    private data class TimedCache<T>(
-        val value: T,
-        val loadedAt: Long,
-    )
-
-    private val tmdbMovieCache = ConcurrentHashMap<String, TimedCache<Movie>>()
-    private val tmdbDoramaCache = ConcurrentHashMap<String, TimedCache<TvShow>>()
-    private val tmdbSeasonCache = ConcurrentHashMap<String, TimedCache<List<Episode>>>()
-    private val tmdbPeopleCache = ConcurrentHashMap<String, TimedCache<People>>()
 
     @Volatile
     private var serverNamesByCode: Map<String, String>? = null
@@ -208,6 +200,16 @@ object DoramasflixProvider : Provider {
         }
     }
 
+    private fun websiteImageUrl(path: String?): String? {
+        val value = DoramasflixLogic.meaningfulImage(path) ?: return null
+        return when {
+            value.startsWith("//") -> "https:$value"
+            value.startsWith("https://") || value.startsWith("http://") -> value
+            value.startsWith("/") -> "$baseUrl$value"
+            else -> "$baseUrl/$value"
+        }
+    }
+
     private fun posterUrl(path: String?) = imageUrl(path, "w500")
     private fun backdropUrl(path: String?) = imageUrl(path, "w1280")
 
@@ -264,10 +266,11 @@ object DoramasflixProvider : Provider {
     private fun numericTmdbId(content: Content): Int? =
         content.tmdbId?.trim()?.toIntOrNull()?.takeIf { it > 0 }
 
-    private fun tmdbPersonId(value: String?): Int? = value
-        ?.trim()
-        ?.toIntOrNull()
-        ?.takeIf { it > 0 }
+    private fun yearFrom(value: String?): Int? =
+        DoramasflixLogic.normalizeDate(value)
+            ?.take(4)
+            ?.toIntOrNull()
+            ?.takeIf { it > 1800 }
 
     private fun genresFor(content: Content): List<Genre> =
         content.genres.orEmpty().mapNotNull { tag ->
@@ -286,35 +289,6 @@ object DoramasflixProvider : Provider {
                 image = DoramasflixLogic.meaningfulImage(imageUrl(member.profilePath, "w185")),
             )
         }.distinctBy { it.id }
-
-    private fun rebindTmdbCast(
-        content: Content,
-        externalCast: List<People>,
-    ): List<People> {
-        if (externalCast.isEmpty()) return emptyList()
-        val providerIdsByName = content.cast.orEmpty()
-            .mapNotNull { member ->
-                val slug = member.slug?.trim()?.takeIf { it.isNotEmpty() } ?: return@mapNotNull null
-                val name = member.name?.trim()?.takeIf { it.isNotEmpty() } ?: return@mapNotNull null
-                name.lowercase(Locale.ROOT) to slug
-            }
-            .groupBy({ it.first }, { it.second })
-            .mapNotNull { (name, slugs) ->
-                slugs.distinct().singleOrNull()?.let { slug -> name to slug }
-            }
-            .toMap()
-
-        return externalCast.map { person ->
-            val providerId = providerIdsByName[person.name.trim().lowercase(Locale.ROOT)]
-            val tmdbId = person.id.toIntOrNull()?.takeIf { it > 0 }
-            if (providerId != null && tmdbId != null) {
-                doramasflixPeopleTmdbIds[providerId] = tmdbId
-                person.copy(id = providerId)
-            } else {
-                person
-            }
-        }.distinctBy { it.id }
-    }
 
     private fun cacheMovie(content: Content) {
         val slug = contentSlug(content) ?: return
@@ -348,157 +322,17 @@ object DoramasflixProvider : Provider {
     private fun listRating(content: Content): Double? =
         DoramasflixLogic.resolveApiRating(content.rating, content.ratingCount).rating
 
-    private fun <T> cachedValue(
-        cache: ConcurrentHashMap<String, TimedCache<T>>,
-        key: String,
-    ): T? {
-        val entry = cache[key] ?: return null
-        if (System.currentTimeMillis() - entry.loadedAt <= tmdbCacheTtlMillis) {
-            return entry.value
-        }
-        cache.remove(key, entry)
-        return null
-    }
+    private fun needsMovieListEnrichment(content: Content): Boolean =
+        apiTitleFor(content) == null ||
+            contentPoster(content) == null ||
+            DoramasflixLogic.normalizeDate(content.releaseDate) == null ||
+            DoramasflixLogic.resolveApiRating(content.rating, content.ratingCount).useHtmlFallback
 
-    private fun <T> cacheValue(
-        cache: ConcurrentHashMap<String, TimedCache<T>>,
-        key: String,
-        value: T,
-    ): T {
-        cache[key] = TimedCache(value, System.currentTimeMillis())
-        return value
-    }
-
-    private fun tmdbKey(id: Int): String = "$id|${DoramasflixTmdbMetadata.language}"
-
-    private suspend fun tmdbMovie(content: Content): Movie? {
-        if (!UserPreferences.enableTmdb) return null
-        val tmdbId = numericTmdbId(content) ?: return null
-        val key = tmdbKey(tmdbId)
-        cachedValue(tmdbMovieCache, key)?.let { return it }
-        val external = DoramasflixTmdbMetadata.movie(tmdbId) ?: return null
-        return cacheValue(tmdbMovieCache, key, external)
-    }
-
-    private suspend fun tmdbDorama(content: Content): TvShow? {
-        if (!UserPreferences.enableTmdb) return null
-        val tmdbId = numericTmdbId(content) ?: return null
-        val key = tmdbKey(tmdbId)
-        cachedValue(tmdbDoramaCache, key)?.let { return it }
-        val external = DoramasflixTmdbMetadata.tvShow(tmdbId) ?: return null
-        return cacheValue(tmdbDoramaCache, key, external)
-    }
-
-    private suspend fun tmdbPeople(id: Int): People? {
-        if (!UserPreferences.enableTmdb) return null
-        val key = tmdbKey(id)
-        cachedValue(tmdbPeopleCache, key)?.let { return it }
-        val external = DoramasflixTmdbMetadata.person(id) ?: return null
-        return cacheValue(tmdbPeopleCache, key, external)
-    }
-
-    private fun doramasflixMovie(
-        content: Content,
-        slug: String,
-    ): Movie = Movie(
-        id = movieId(slug),
-        title = titleFor(content),
-        overview = DoramasflixLogic.firstNonBlank(content.overview),
-        released = DoramasflixLogic.normalizeDate(content.releaseDate),
-        runtime = DoramasflixLogic.meaningfulRuntime(content.runtime),
-        trailer = DoramasflixLogic.normalizeTrailer(content.trailer),
-        rating = listRating(content),
-        poster = contentPoster(content),
-        banner = contentBackdrop(content),
-        genres = genresFor(content),
-        cast = castFor(content),
-    )
-
-    private fun doramasflixDorama(
-        content: Content,
-        slug: String,
-    ): TvShow = TvShow(
-        id = doramaId(slug),
-        title = titleFor(content),
-        overview = DoramasflixLogic.firstNonBlank(content.overview),
-        released = DoramasflixLogic.normalizeDate(content.firstAirDate),
-        runtime = DoramasflixLogic.meaningfulRuntime(content.episodeTime),
-        trailer = DoramasflixLogic.normalizeTrailer(content.trailer),
-        rating = listRating(content),
-        poster = contentPoster(content),
-        banner = contentBackdrop(content),
-        genres = genresFor(content),
-        cast = castFor(content),
-    )
-
-    private suspend fun resolveMovieMetadata(
-        content: Content,
-        slug: String,
-    ): Movie {
-        val provider = doramasflixMovie(content, slug)
-        val external = tmdbMovie(content) ?: return provider
-        val externalCast = rebindTmdbCast(content, external.cast)
-        return provider.copy(
-            title = external.title.trim().takeIf { it.isNotEmpty() } ?: provider.title,
-            overview = DoramasflixLogic.firstNonBlank(external.overview, provider.overview),
-            released = external.released?.format("yyyy-MM-dd") ?: provider.released?.format("yyyy-MM-dd"),
-            runtime = DoramasflixLogic.meaningfulRuntime(external.runtime) ?: provider.runtime,
-            trailer = DoramasflixLogic.normalizeTrailer(external.trailer) ?: provider.trailer,
-            rating = external.rating?.takeIf { it > 0.0 }?.div(2.0) ?: provider.rating,
-            poster = DoramasflixLogic.meaningfulImage(external.poster) ?: provider.poster,
-            banner = DoramasflixLogic.meaningfulImage(external.banner) ?: provider.banner,
-            imdbId = external.imdbId,
-            genres = external.genres.takeIf { it.isNotEmpty() } ?: provider.genres,
-            cast = externalCast.takeIf { it.isNotEmpty() } ?: provider.cast,
-        )
-    }
-
-    private suspend fun resolveDoramaMetadata(
-        content: Content,
-        slug: String,
-    ): TvShow {
-        val provider = doramasflixDorama(content, slug)
-        val external = tmdbDorama(content) ?: return provider
-        val externalCast = rebindTmdbCast(content, external.cast)
-        return provider.copy(
-            title = external.title.trim().takeIf { it.isNotEmpty() } ?: provider.title,
-            overview = DoramasflixLogic.firstNonBlank(external.overview, provider.overview),
-            released = external.released?.format("yyyy-MM-dd") ?: provider.released?.format("yyyy-MM-dd"),
-            runtime = DoramasflixLogic.meaningfulRuntime(external.runtime) ?: provider.runtime,
-            trailer = DoramasflixLogic.normalizeTrailer(external.trailer) ?: provider.trailer,
-            rating = external.rating?.takeIf { it > 0.0 }?.div(2.0) ?: provider.rating,
-            poster = DoramasflixLogic.meaningfulImage(external.poster) ?: provider.poster,
-            banner = DoramasflixLogic.meaningfulImage(external.banner) ?: provider.banner,
-            imdbId = external.imdbId,
-            seasons = external.seasons,
-            genres = external.genres.takeIf { it.isNotEmpty() } ?: provider.genres,
-            cast = externalCast.takeIf { it.isNotEmpty() } ?: provider.cast,
-        )
-    }
-
-    private fun movieListItem(content: Content): Movie? {
-        val slug = contentSlug(content) ?: return null
-        return Movie(
-            id = movieId(slug),
-            title = titleFor(content),
-            released = DoramasflixLogic.normalizeDate(content.releaseDate),
-            rating = listRating(content),
-            poster = contentPoster(content),
-            banner = contentBackdrop(content),
-        )
-    }
-
-    private fun doramaListItem(content: Content): TvShow? {
-        val slug = contentSlug(content) ?: return null
-        return TvShow(
-            id = doramaId(slug),
-            title = titleFor(content),
-            released = DoramasflixLogic.normalizeDate(content.firstAirDate),
-            rating = listRating(content),
-            poster = contentPoster(content),
-            banner = contentBackdrop(content),
-        )
-    }
+    private fun needsDoramaListEnrichment(content: Content): Boolean =
+        apiTitleFor(content) == null ||
+            contentPoster(content) == null ||
+            DoramasflixLogic.normalizeDate(content.firstAirDate) == null ||
+            DoramasflixLogic.resolveApiRating(content.rating, content.ratingCount).useHtmlFallback
 
     private suspend fun optionalMovieDetail(slug: String): Content? = try {
         detailMovie(slug)
@@ -512,6 +346,250 @@ object DoramasflixProvider : Provider {
     } catch (error: Exception) {
         if (error is CancellationException) throw error
         null
+    }
+
+    private suspend fun resolveExternalMovieMetadata(
+        content: Content,
+        slug: String,
+        website: DoramasflixContentMetadata,
+    ): Movie? {
+        numericTmdbId(content)?.let { tmdbId ->
+            return TmdbUtils.getMovieById(tmdbId, language)
+        }
+
+        val title = apiTitleFor(content)
+            ?: DoramasflixLogic.meaningfulTitle(website.title, slug)
+            ?: return null
+        val year = yearFrom(content.releaseDate) ?: yearFrom(website.released)
+        return TmdbUtils.getMovie(title, year, language)
+    }
+
+    private suspend fun resolveExternalDoramaMetadata(
+        content: Content,
+        slug: String,
+        website: DoramasflixContentMetadata,
+    ): TvShow? {
+        val external = numericTmdbId(content)?.let { tmdbId ->
+            TmdbUtils.getTvShowById(tmdbId, language)
+        } ?: run {
+            val title = apiTitleFor(content)
+                ?: DoramasflixLogic.meaningfulTitle(website.title, slug)
+                ?: return null
+            val year = yearFrom(content.firstAirDate) ?: yearFrom(website.released)
+            TmdbUtils.getTvShow(title, year, language)
+        }
+
+        external?.id
+            ?.toIntOrNull()
+            ?.takeIf { it > 0 }
+            ?.let { tmdbId -> doramaTmdbIds[slug] = tmdbId.toString() }
+        return external
+    }
+
+    private suspend fun resolveMovieMetadata(
+        content: Content,
+        slug: String,
+    ): Movie {
+        val apiTitle = apiTitleFor(content)
+        val apiOverview = DoramasflixLogic.meaningfulOverview(content.overview)
+        val apiPoster = contentPoster(content)
+        val apiBanner = contentBackdrop(content)
+        val apiReleased = DoramasflixLogic.normalizeDate(content.releaseDate)
+        val apiRuntime = DoramasflixLogic.meaningfulRuntime(content.runtime)
+        val apiTrailer = DoramasflixLogic.normalizeTrailer(content.trailer)
+        val apiRating = DoramasflixLogic.resolveApiRating(content.rating, content.ratingCount)
+        val websiteNeeded = apiRating.useHtmlFallback ||
+            apiTitle == null ||
+            apiOverview == null ||
+            apiPoster == null ||
+            apiBanner == null ||
+            apiReleased == null ||
+            apiRuntime == null ||
+            apiTrailer == null
+        val website = if (websiteNeeded) {
+            pageMetadata.getOptionalContent(movieId(slug))
+        } else {
+            DoramasflixContentMetadata()
+        }
+
+        val websiteTitle = DoramasflixLogic.meaningfulTitle(website.title, slug)
+        val websiteOverview = DoramasflixLogic.meaningfulOverview(website.overview)
+        val websiteImage = websiteImageUrl(website.image)
+        val websiteReleased = DoramasflixLogic.normalizeDate(website.released)
+        val websiteRuntime = DoramasflixLogic.meaningfulRuntime(website.runtime)
+        val websiteTrailer = DoramasflixLogic.normalizeTrailer(website.trailer)
+        val websiteRating = website.rating?.takeIf { it > 0.0 }
+        val externalNeeded = (apiRating.useHtmlFallback && websiteRating == null) ||
+            (apiTitle ?: websiteTitle) == null ||
+            (apiOverview ?: websiteOverview) == null ||
+            (apiPoster ?: websiteImage) == null ||
+            (apiBanner ?: websiteImage) == null ||
+            (apiReleased ?: websiteReleased) == null ||
+            (apiRuntime ?: websiteRuntime) == null ||
+            (apiTrailer ?: websiteTrailer) == null
+        val external = if (externalNeeded) {
+            resolveExternalMovieMetadata(content, slug, website)
+        } else {
+            null
+        }
+
+        val apiGenres = genresFor(content)
+        val apiCast = castFor(content)
+        return Movie(
+            id = movieId(slug),
+            title = apiTitle
+                ?: websiteTitle
+                ?: DoramasflixLogic.meaningfulTitle(external?.title)
+                ?: titleFor(content),
+            overview = apiOverview
+                ?: websiteOverview
+                ?: DoramasflixLogic.meaningfulOverview(external?.overview),
+            released = apiReleased
+                ?: websiteReleased
+                ?: external?.released?.format("yyyy-MM-dd"),
+            runtime = apiRuntime
+                ?: websiteRuntime
+                ?: DoramasflixLogic.meaningfulRuntime(external?.runtime),
+            trailer = apiTrailer
+                ?: websiteTrailer
+                ?: DoramasflixLogic.normalizeTrailer(external?.trailer),
+            rating = DoramasflixLogic.resolveRating(
+                apiRating = content.rating,
+                apiRatingCount = content.ratingCount,
+                websiteRating = website.rating,
+                tmdbRating = external?.rating,
+            ),
+            poster = apiPoster
+                ?: websiteImage
+                ?: DoramasflixLogic.meaningfulImage(external?.poster),
+            banner = apiBanner
+                ?: websiteImage
+                ?: DoramasflixLogic.meaningfulImage(external?.banner),
+            imdbId = website.imdbId ?: external?.imdbId,
+            genres = apiGenres,
+            cast = apiCast,
+        )
+    }
+
+    private suspend fun resolveDoramaMetadata(
+        content: Content,
+        slug: String,
+    ): TvShow {
+        val apiTitle = apiTitleFor(content)
+        val apiOverview = DoramasflixLogic.meaningfulOverview(content.overview)
+        val apiPoster = contentPoster(content)
+        val apiBanner = contentBackdrop(content)
+        val apiReleased = DoramasflixLogic.normalizeDate(content.firstAirDate)
+        val apiRuntime = DoramasflixLogic.meaningfulRuntime(content.episodeTime)
+        val apiTrailer = DoramasflixLogic.normalizeTrailer(content.trailer)
+        val apiRating = DoramasflixLogic.resolveApiRating(content.rating, content.ratingCount)
+        val websiteNeeded = apiRating.useHtmlFallback ||
+            apiTitle == null ||
+            apiOverview == null ||
+            apiPoster == null ||
+            apiBanner == null ||
+            apiReleased == null ||
+            apiRuntime == null ||
+            apiTrailer == null
+        val website = if (websiteNeeded) {
+            pageMetadata.getOptionalContent(
+                DoramasflixLogic.doramaWebsitePath(slug, content.isTvShow)
+            )
+        } else {
+            DoramasflixContentMetadata()
+        }
+
+        val websiteTitle = DoramasflixLogic.meaningfulTitle(website.title, slug)
+        val websiteOverview = DoramasflixLogic.meaningfulOverview(website.overview)
+        val websiteImage = websiteImageUrl(website.image)
+        val websiteReleased = DoramasflixLogic.normalizeDate(website.released)
+        val websiteRuntime = DoramasflixLogic.meaningfulRuntime(website.runtime)
+        val websiteTrailer = DoramasflixLogic.normalizeTrailer(website.trailer)
+        val websiteRating = website.rating?.takeIf { it > 0.0 }
+        val externalNeeded = (apiRating.useHtmlFallback && websiteRating == null) ||
+            (apiTitle ?: websiteTitle) == null ||
+            (apiOverview ?: websiteOverview) == null ||
+            (apiPoster ?: websiteImage) == null ||
+            (apiBanner ?: websiteImage) == null ||
+            (apiReleased ?: websiteReleased) == null ||
+            (apiRuntime ?: websiteRuntime) == null ||
+            (apiTrailer ?: websiteTrailer) == null
+        val external = if (externalNeeded) {
+            resolveExternalDoramaMetadata(content, slug, website)
+        } else {
+            null
+        }
+
+        val apiGenres = genresFor(content)
+        val apiCast = castFor(content)
+        return TvShow(
+            id = doramaId(slug),
+            title = apiTitle
+                ?: websiteTitle
+                ?: DoramasflixLogic.meaningfulTitle(external?.title)
+                ?: titleFor(content),
+            overview = apiOverview
+                ?: websiteOverview
+                ?: DoramasflixLogic.meaningfulOverview(external?.overview),
+            released = apiReleased
+                ?: websiteReleased
+                ?: external?.released?.format("yyyy-MM-dd"),
+            runtime = apiRuntime
+                ?: websiteRuntime
+                ?: DoramasflixLogic.meaningfulRuntime(external?.runtime),
+            trailer = apiTrailer
+                ?: websiteTrailer
+                ?: DoramasflixLogic.normalizeTrailer(external?.trailer),
+            rating = DoramasflixLogic.resolveRating(
+                apiRating = content.rating,
+                apiRatingCount = content.ratingCount,
+                websiteRating = website.rating,
+                tmdbRating = external?.rating,
+            ),
+            poster = apiPoster
+                ?: websiteImage
+                ?: DoramasflixLogic.meaningfulImage(external?.poster),
+            banner = apiBanner
+                ?: websiteImage
+                ?: DoramasflixLogic.meaningfulImage(external?.banner),
+            imdbId = website.imdbId ?: external?.imdbId,
+            genres = apiGenres,
+            cast = apiCast,
+        )
+    }
+
+    private suspend fun movieListItem(content: Content): Movie? {
+        val slug = contentSlug(content) ?: return null
+        if (needsMovieListEnrichment(content)) {
+            val detailed = optionalMovieDetail(slug) ?: content
+            return resolveMovieMetadata(detailed, slug)
+        }
+
+        return Movie(
+            id = movieId(slug),
+            title = titleFor(content),
+            released = DoramasflixLogic.normalizeDate(content.releaseDate),
+            rating = listRating(content),
+            poster = contentPoster(content),
+            banner = contentBackdrop(content),
+        )
+    }
+
+    private suspend fun doramaListItem(content: Content): TvShow? {
+        val slug = contentSlug(content) ?: return null
+        if (needsDoramaListEnrichment(content)) {
+            val detailed = optionalDoramaDetail(slug) ?: content
+            return resolveDoramaMetadata(detailed, slug)
+        }
+
+        return TvShow(
+            id = doramaId(slug),
+            title = titleFor(content),
+            released = DoramasflixLogic.normalizeDate(content.firstAirDate),
+            rating = listRating(content),
+            poster = contentPoster(content),
+            banner = contentBackdrop(content),
+        )
     }
 
     private suspend fun searchDoramas(input: String, page: Int): List<Content> {
@@ -701,7 +779,7 @@ object DoramasflixProvider : Provider {
     private suspend fun featuredDorama(content: Content): Show? {
         val slug = contentSlug(content) ?: return null
         val detailed = optionalDoramaDetail(slug) ?: content
-        val resolved = doramasflixDorama(detailed, slug)
+        val resolved = resolveDoramaMetadata(detailed, slug)
         val banner = contentBackdrop(content) ?: resolved.banner ?: return null
         return resolved.copy(
             id = doramaId(slug),
@@ -714,7 +792,7 @@ object DoramasflixProvider : Provider {
     private suspend fun featuredMovie(content: Content): Show? {
         val slug = contentSlug(content) ?: return null
         val detailed = optionalMovieDetail(slug) ?: content
-        val resolved = doramasflixMovie(detailed, slug)
+        val resolved = resolveMovieMetadata(detailed, slug)
         val banner = contentBackdrop(content) ?: resolved.banner ?: return null
         return resolved.copy(
             id = movieId(slug),
@@ -927,11 +1005,15 @@ object DoramasflixProvider : Provider {
         items.forEach(::cacheMovie)
         items.mapNotNull { content ->
             val slug = contentSlug(content) ?: return@mapNotNull null
-            Movie(
-                id = movieId(slug),
-                title = titleFor(content),
-                poster = contentPoster(content),
-            )
+            if (apiTitleFor(content) != null && contentPoster(content) != null) {
+                Movie(
+                    id = movieId(slug),
+                    title = titleFor(content),
+                    poster = contentPoster(content),
+                )
+            } else {
+                optionalMovieDetail(slug)?.let { detailed -> resolveMovieMetadata(detailed, slug) }
+            }
         }
     } catch (error: Exception) {
         if (error is CancellationException) throw error
@@ -962,11 +1044,15 @@ object DoramasflixProvider : Provider {
         items.forEach(::cacheDorama)
         items.mapNotNull { content ->
             val slug = contentSlug(content) ?: return@mapNotNull null
-            TvShow(
-                id = doramaId(slug),
-                title = titleFor(content),
-                poster = contentPoster(content),
-            )
+            if (apiTitleFor(content) != null && contentPoster(content) != null) {
+                TvShow(
+                    id = doramaId(slug),
+                    title = titleFor(content),
+                    poster = contentPoster(content),
+                )
+            } else {
+                optionalDoramaDetail(slug)?.let { detailed -> resolveDoramaMetadata(detailed, slug) }
+            }
         }
     } catch (error: Exception) {
         if (error is CancellationException) throw error
@@ -1023,25 +1109,35 @@ object DoramasflixProvider : Provider {
 
     private suspend fun resolveDoramaTmdbId(slug: String): String? {
         doramaTmdbIds[slug]?.let { return it }
+
         val content = detailDorama(slug)
-        return numericTmdbId(content)?.toString()
+        doramaTmdbIds[slug]?.let { return it }
+        val website = pageMetadata.getOptionalContent(
+            DoramasflixLogic.doramaWebsitePath(slug, content.isTvShow)
+        )
+        val external = resolveExternalDoramaMetadata(content, slug, website) ?: return null
+        return external.id
+            .toIntOrNull()
+            ?.takeIf { it > 0 }
+            ?.toString()
     }
+
+    private data class ExternalEpisodeMetadata(
+        val localized: Map<Int, Episode>,
+        val defaultLanguage: Map<Int, Episode>,
+    )
 
     private suspend fun getTmdbEpisodeMetadata(
         slug: String,
         seasonNumber: Int,
-    ): Map<Int, Episode> {
-        if (!UserPreferences.enableTmdb) return emptyMap()
-        val tmdbId = resolveDoramaTmdbId(slug)?.toIntOrNull() ?: return emptyMap()
-        val key = "$tmdbId|$seasonNumber|${DoramasflixTmdbMetadata.language}"
-        cachedValue(tmdbSeasonCache, key)?.let { cached ->
-            return cached.associateBy { it.number }
-        }
-        val episodes = DoramasflixTmdbMetadata.episodes(tmdbId, seasonNumber)
-        if (episodes.isNotEmpty()) {
-            cacheValue(tmdbSeasonCache, key, episodes)
-        }
-        return episodes.associateBy { it.number }
+    ): ExternalEpisodeMetadata {
+        val tmdbId = resolveDoramaTmdbId(slug)
+            ?: return ExternalEpisodeMetadata(emptyMap(), emptyMap())
+        val localized = TmdbUtils.getEpisodesBySeason(tmdbId, seasonNumber, language)
+            .associateBy { it.number }
+        val defaultLanguage = TmdbUtils.getEpisodesBySeason(tmdbId, seasonNumber, null)
+            .associateBy { it.number }
+        return ExternalEpisodeMetadata(localized, defaultLanguage)
     }
 
     private suspend fun getEpisodes(
@@ -1355,25 +1451,20 @@ object DoramasflixProvider : Provider {
         val recommendationsDeferred = async { getSimilarDoramas(backendId) }
         val resolved = resolveDoramaMetadata(content, slug)
         val seasonsData = seasonsDeferred.await()
-        val tmdbSeasons = resolved.seasons.associateBy { it.number }
 
         resolved.copy(
             seasons = seasonsData.mapNotNull { season ->
                 val seasonNumber = season.seasonNumber ?: return@mapNotNull null
-                val tmdbSeason = tmdbSeasons[seasonNumber]
                 Season(
                     id = "$slug/$seasonNumber",
                     number = seasonNumber,
-                    title = DoramasflixLogic.firstNonBlank(
-                        tmdbSeason?.title,
-                        season.nameEs,
-                        season.name,
-                    ) ?: "Temporada $seasonNumber",
-                    poster = DoramasflixLogic.meaningfulImage(tmdbSeason?.poster)
-                        ?: sequenceOf(season.posterPath, season.poster)
-                            .mapNotNull(::posterUrl)
-                            .mapNotNull(DoramasflixLogic::meaningfulImage)
-                            .firstOrNull(),
+                    title = DoramasflixLogic.meaningfulTitle(season.nameEs)
+                        ?: DoramasflixLogic.meaningfulTitle(season.name)
+                        ?: "Temporada $seasonNumber",
+                    poster = sequenceOf(season.posterPath, season.poster)
+                        .mapNotNull(::posterUrl)
+                        .mapNotNull(DoramasflixLogic::meaningfulImage)
+                        .firstOrNull(),
                 )
             },
             recommendations = recommendationsDeferred.await(),
@@ -1385,38 +1476,150 @@ object DoramasflixProvider : Provider {
         val seasonNumber = seasonId.substringAfterLast('/').toIntOrNull()
             ?: throw Exception("Invalid Doramasflix season ID: $seasonId")
 
-        val external = getTmdbEpisodeMetadata(slug, seasonNumber)
         val episodes = getEpisodes(slug, seasonNumber)
-
-        return episodes.mapNotNull { episode ->
-            val episodeSlug = episode.slug?.trim()?.takeIf { it.isNotEmpty() }
-                ?: return@mapNotNull null
+        val seriesContent = optionalDoramaDetail(slug)
+        val seriesTitles = buildList<String?> {
+            add(seriesContent?.name)
+            add(seriesContent?.nameEs)
+            add(seriesContent?.originalName)
+            add(slug.replace('-', ' '))
+        }
+        val seriesArtwork = buildList<String?> {
+            add(seriesContent?.posterPath)
+            add(seriesContent?.poster)
+            add(seriesContent?.backdropPath)
+            add(seriesContent?.backdrop)
+        }
+        val genericArtworkByEpisode = episodes.map { episode ->
+            seriesArtwork + episode.serieBackdropPath
+        }
+        val apiTitles = episodes.map { episode ->
             val number = episode.episodeNumber ?: 0
-            val tmdbEpisode = external[number]
-            val providerArtwork = DoramasflixLogic.episodeArtwork(
+            sequenceOf(episode.nameEs, episode.name)
+                .mapNotNull { candidate ->
+                    DoramasflixLogic.meaningfulEpisodeTitle(
+                        value = candidate,
+                        seasonNumber = seasonNumber,
+                        episodeNumber = number,
+                        seriesTitles = seriesTitles,
+                    )
+                }
+                .firstOrNull()
+        }
+        val apiArtwork = episodes.mapIndexed { index, episode ->
+            DoramasflixLogic.episodeArtwork(
                 stillPath = episode.stillPath,
                 backdrop = episode.backdrop,
                 stillImage = episode.stillImage,
+                genericArtwork = genericArtworkByEpisode[index],
             )
+        }
+        val apiOverviews = episodes.map { episode ->
+            DoramasflixLogic.meaningfulOverview(episode.overview)
+        }
+        val apiDates = episodes.map { episode ->
+            DoramasflixLogic.normalizeDate(episode.airDate)
+                ?: DoramasflixLogic.normalizeDate(episode.dateString)
+        }
+        val websiteNeeded = episodes.indices.map { index ->
+            apiArtwork[index] == null ||
+                apiOverviews[index] == null ||
+                apiDates[index] == null
+        }
+        val websiteMetadata = coroutineScope {
+            val semaphore = Semaphore(episodeWebsiteConcurrency)
+            episodes.mapIndexed { index, episode ->
+                async {
+                    if (!websiteNeeded[index]) return@async DoramasflixContentMetadata()
+                    val episodeSlug = episode.slug?.trim()?.takeIf { it.isNotEmpty() }
+                        ?: return@async DoramasflixContentMetadata()
+                    semaphore.withPermit {
+                        pageMetadata.getOptionalContent("episodios/$episodeSlug")
+                    }
+                }
+            }.awaitAll()
+        }
+        val websiteTitles = websiteMetadata.mapIndexed { index, metadata ->
+            val number = episodes[index].episodeNumber ?: 0
+            DoramasflixLogic.meaningfulEpisodeTitle(
+                value = metadata.title,
+                seasonNumber = seasonNumber,
+                episodeNumber = number,
+                seriesTitles = seriesTitles,
+            )
+        }
+        val websiteArtwork = websiteMetadata.mapIndexed { index, metadata ->
+            DoramasflixLogic.meaningfulImage(
+                value = websiteImageUrl(metadata.image),
+                genericArtwork = genericArtworkByEpisode[index],
+            )
+        }
+        val websiteOverviews = websiteMetadata.map { metadata ->
+            DoramasflixLogic.meaningfulOverview(metadata.overview)
+        }
+        val websiteDates = websiteMetadata.map { metadata ->
+            DoramasflixLogic.normalizeDate(metadata.released)
+        }
+        val needsExternalMetadata = episodes.indices.any { index ->
+            (apiTitles[index] ?: websiteTitles[index]) == null ||
+                (apiArtwork[index] ?: websiteArtwork[index]) == null ||
+                (apiOverviews[index] ?: websiteOverviews[index]) == null ||
+                (apiDates[index] ?: websiteDates[index]) == null
+        }
+        val externalMetadata = if (needsExternalMetadata) {
+            getTmdbEpisodeMetadata(slug, seasonNumber)
+        } else {
+            ExternalEpisodeMetadata(emptyMap(), emptyMap())
+        }
+
+        return episodes.mapIndexedNotNull { index, episode ->
+            val episodeSlug = episode.slug?.trim()?.takeIf { it.isNotEmpty() }
+                ?: return@mapIndexedNotNull null
+            val number = episode.episodeNumber ?: 0
+            val localized = externalMetadata.localized[number]
+            val defaultLanguage = externalMetadata.defaultLanguage[number]
+            val externalTitle = sequenceOf(localized?.title, defaultLanguage?.title)
+                .mapNotNull { candidate ->
+                    DoramasflixLogic.meaningfulEpisodeTitle(
+                        value = candidate,
+                        seasonNumber = seasonNumber,
+                        episodeNumber = number,
+                        seriesTitles = seriesTitles,
+                    )
+                }
+                .firstOrNull()
+            val externalImage = sequenceOf(localized?.poster, defaultLanguage?.poster)
+                .mapNotNull { candidate ->
+                    DoramasflixLogic.meaningfulImage(
+                        value = candidate,
+                        genericArtwork = genericArtworkByEpisode[index],
+                    )
+                }
+                .firstOrNull()
+            val externalOverview = sequenceOf(localized?.overview, defaultLanguage?.overview)
+                .mapNotNull(DoramasflixLogic::meaningfulOverview)
+                .firstOrNull()
+            val externalDate = sequenceOf(localized, defaultLanguage)
+                .mapNotNull { candidate -> candidate?.released?.format("yyyy-MM-dd") }
+                .mapNotNull(DoramasflixLogic::normalizeDate)
+                .firstOrNull()
 
             Episode(
                 id = episodeSlug,
                 number = number,
-                title = DoramasflixLogic.firstNonBlank(
-                    tmdbEpisode?.title,
-                    episode.nameEs,
-                    episode.name,
-                ),
-                released = tmdbEpisode?.released?.format("yyyy-MM-dd")
-                    ?.let(DoramasflixLogic::normalizeDate)
-                    ?: DoramasflixLogic.normalizeDate(episode.airDate)
-                    ?: DoramasflixLogic.normalizeDate(episode.dateString),
-                poster = DoramasflixLogic.meaningfulImage(tmdbEpisode?.poster)
-                    ?: posterUrl(providerArtwork),
-                overview = DoramasflixLogic.firstNonBlank(
-                    tmdbEpisode?.overview,
-                    episode.overview,
-                ),
+                title = apiTitles[index]
+                    ?: websiteTitles[index]
+                    ?: externalTitle
+                    ?: "Episodio $number",
+                released = apiDates[index]
+                    ?: websiteDates[index]
+                    ?: externalDate,
+                poster = posterUrl(apiArtwork[index])
+                    ?: websiteArtwork[index]
+                    ?: externalImage,
+                overview = apiOverviews[index]
+                    ?: websiteOverviews[index]
+                    ?: externalOverview,
             )
         }
     }
@@ -1702,45 +1905,8 @@ object DoramasflixProvider : Provider {
         )
     }
 
-    private suspend fun optionalPeople(id: String): People? = try {
-        pageMetadata.getPeople(id)
-    } catch (error: Exception) {
-        if (error is CancellationException) throw error
-        null
-    }
-
-    override suspend fun getPeople(id: String, page: Int): People = coroutineScope {
-        if (page > 1) return@coroutineScope People(id = id, name = "")
-
-        val mappedTmdbId = doramasflixPeopleTmdbIds[id]
-        val directTmdbId = tmdbPersonId(id)
-        val personId = mappedTmdbId ?: directTmdbId
-        if (!UserPreferences.enableTmdb || personId == null) {
-            return@coroutineScope pageMetadata.getPeople(id)
-        }
-
-        val tmdbDeferred = async { tmdbPeople(personId) }
-        val providerDeferred = if (mappedTmdbId != null || directTmdbId == null) {
-            async { optionalPeople(id) }
-        } else {
-            null
-        }
-        val external = tmdbDeferred.await()
-        val provider = providerDeferred?.await()
-
-        if (external == null) {
-            return@coroutineScope provider ?: People(id = id, name = "")
-        }
-
-        external.copy(
-            id = id,
-            name = external.name.trim().takeIf { it.isNotEmpty() } ?: provider?.name.orEmpty(),
-            image = DoramasflixLogic.meaningfulImage(external.image) ?: provider?.image,
-            biography = DoramasflixLogic.firstNonBlank(external.biography, provider?.biography),
-            placeOfBirth = DoramasflixLogic.firstNonBlank(external.placeOfBirth, provider?.placeOfBirth),
-            birthday = external.birthday?.format("yyyy-MM-dd") ?: provider?.birthday?.format("yyyy-MM-dd"),
-            deathday = external.deathday?.format("yyyy-MM-dd") ?: provider?.deathday?.format("yyyy-MM-dd"),
-            filmography = provider?.filmography.orEmpty(),
-        )
+    override suspend fun getPeople(id: String, page: Int): People = when {
+        page > 1 -> People(id = id, name = "")
+        else -> pageMetadata.getPeople(id)
     }
 }

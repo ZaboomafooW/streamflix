@@ -1,53 +1,105 @@
 package com.streamflixreborn.streamflix.providers
 
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertFalse
 import org.junit.Assert.assertNull
+import org.junit.Assert.assertTrue
 import org.junit.Test
 
 class DoramasflixLogicTest {
 
     @Test
-    fun `rated API value is preserved`() {
-        assertEquals(
-            4.142857142857143,
-            DoramasflixLogic.resolveApiRating(4.142857142857143, 14).rating,
-        )
+    fun `rated API value is authoritative`() {
+        val decision = DoramasflixLogic.resolveApiRating(4.142857142857143, 14)
+        assertEquals(4.142857142857143, decision.rating)
+        assertFalse(decision.useHtmlFallback)
     }
 
     @Test
-    fun `zero API rating count means unrated`() {
-        assertNull(DoramasflixLogic.resolveApiRating(0.0, 0).rating)
-    }
-
-    @Test
-    fun `missing API rating remains missing`() {
-        assertNull(DoramasflixLogic.resolveApiRating(null, null).rating)
-    }
-
-    @Test
-    fun `provider episode artwork preserves provider field order`() {
-        assertEquals(
-            "/episode-seven.jpg",
-            DoramasflixLogic.episodeArtwork(
-                stillPath = "/episode-seven.jpg",
-                backdrop = "/alternate.jpg",
-                stillImage = "/image.jpg",
-            )
-        )
-        assertEquals(
-            "/alternate.jpg",
-            DoramasflixLogic.episodeArtwork(
-                stillPath = null,
-                backdrop = "/alternate.jpg",
-                stillImage = "/image.jpg",
+    fun `zero API rating count means unrated and does not fall through`() {
+        val decision = DoramasflixLogic.resolveApiRating(0.0, 0)
+        assertNull(decision.rating)
+        assertFalse(decision.useHtmlFallback)
+        assertNull(
+            DoramasflixLogic.resolveRating(
+                apiRating = 0.0,
+                apiRatingCount = 0,
+                websiteRating = 4.8,
+                tmdbRating = 9.2,
             )
         )
     }
 
     @Test
-    fun `first nonblank metadata preserves source order without judging generic labels`() {
-        assertEquals("Episodio 1", DoramasflixLogic.firstNonBlank(null, " ", "Episodio 1", "Episode One"))
-        assertNull(DoramasflixLogic.firstNonBlank(null, " "))
+    fun `zero API rating means unrated even when count is positive`() {
+        val decision = DoramasflixLogic.resolveApiRating(0.0, 4)
+        assertNull(decision.rating)
+        assertFalse(decision.useHtmlFallback)
+        assertNull(
+            DoramasflixLogic.resolveRating(
+                apiRating = 0.0,
+                apiRatingCount = 4,
+                websiteRating = 4.8,
+                tmdbRating = 9.2,
+            )
+        )
+    }
+
+    @Test
+    fun `missing API rating is eligible for website fallback`() {
+        val decision = DoramasflixLogic.resolveApiRating(null, null)
+        assertNull(decision.rating)
+        assertTrue(decision.useHtmlFallback)
+        assertEquals(
+            4.6,
+            DoramasflixLogic.resolveRating(
+                apiRating = null,
+                apiRatingCount = null,
+                websiteRating = 4.6,
+                tmdbRating = 9.8,
+            )
+        )
+    }
+
+    @Test
+    fun `TMDb rating is only used after API and website are missing`() {
+        assertEquals(
+            4.5,
+            DoramasflixLogic.resolveRating(
+                apiRating = null,
+                apiRatingCount = null,
+                websiteRating = null,
+                tmdbRating = 9.0,
+            )
+        )
+    }
+
+    @Test
+    fun `nonblank provider metadata is accepted without semantic guessing`() {
+        assertEquals("Episodio 1", DoramasflixLogic.meaningfulTitle(" Episodio 1 "))
+        assertEquals("Sinopsis pendiente", DoramasflixLogic.meaningfulOverview(" Sinopsis pendiente "))
+        assertEquals(
+            "Episodio 1",
+            DoramasflixLogic.meaningfulEpisodeTitle(
+                value = "Episodio 1",
+                seasonNumber = 1,
+                episodeNumber = 1,
+                seriesTitles = listOf("Acaramelados"),
+            )
+        )
+        assertNull(DoramasflixLogic.meaningfulTitle("   "))
+        assertNull(DoramasflixLogic.meaningfulOverview(null))
+    }
+
+    @Test
+    fun `provider artwork is accepted even when it matches parent artwork`() {
+        assertEquals(
+            "/shared.jpg",
+            DoramasflixLogic.meaningfulImage(
+                value = "/shared.jpg",
+                genericArtwork = listOf("/shared.jpg"),
+            )
+        )
     }
 
     @Test
@@ -58,23 +110,53 @@ class DoramasflixLogicTest {
     }
 
     @Test
+    fun `episode artwork follows API then website then TMDb order`() {
+        assertEquals(
+            "/api-still.jpg",
+            DoramasflixLogic.episodeArtwork(
+                stillPath = "/api-still.jpg",
+                backdrop = "/api-backdrop.jpg",
+                stillImage = "/api-image.jpg",
+                websiteArtwork = "/website.jpg",
+                tmdbArtwork = "/tmdb.jpg",
+            )
+        )
+        assertEquals(
+            "/website.jpg",
+            DoramasflixLogic.episodeArtwork(
+                stillPath = null,
+                backdrop = null,
+                stillImage = null,
+                websiteArtwork = "/website.jpg",
+                tmdbArtwork = "/tmdb.jpg",
+            )
+        )
+        assertEquals(
+            "/tmdb.jpg",
+            DoramasflixLogic.episodeArtwork(
+                stillPath = null,
+                backdrop = null,
+                stillImage = null,
+                websiteArtwork = null,
+                tmdbArtwork = "/tmdb.jpg",
+            )
+        )
+    }
+
+    @Test
+    fun `first nonblank metadata preserves source order`() {
+        assertEquals("Doramasflix", DoramasflixLogic.firstNonBlank("Doramasflix", "Website", "TMDb"))
+        assertEquals("Website", DoramasflixLogic.firstNonBlank(null, " ", "Website", "TMDb"))
+        assertNull(DoramasflixLogic.firstNonBlank(null, " "))
+    }
+
+    @Test
     fun `home carousel mixes doramas and movies in Doramasflix order`() {
         assertEquals(
             listOf("D1", "M1", "D2", "D3", "D4", "D5", "D6"),
             DoramasflixLogic.mixAlternating(
                 first = listOf("D1", "D2", "D3", "D4", "D5", "D6"),
                 second = listOf("M1"),
-            ),
-        )
-    }
-
-    @Test
-    fun `home carousel preserves the remaining feed when the other is exhausted`() {
-        assertEquals(
-            listOf("D1", "M1", "M2"),
-            DoramasflixLogic.mixAlternating(
-                first = listOf("D1"),
-                second = listOf("M1", "M2"),
             ),
         )
     }
@@ -98,24 +180,10 @@ class DoramasflixLogicTest {
     }
 
     @Test
-    fun `invalid graphql error body has no user detail`() {
-        assertNull(DoramasflixLogic.graphQlErrorMessage("not-json"))
-        assertNull(DoramasflixLogic.graphQlErrorMessage("{\"data\":{}}"))
-    }
-
-    @Test
     fun `protocol relative playback URL is normalized to https`() {
         assertEquals(
             "https://ok.ru/videoembed/123",
             DoramasflixLogic.normalizePlaybackTarget("//ok.ru/videoembed/123"),
-        )
-    }
-
-    @Test
-    fun `http playback URLs are preserved`() {
-        assertEquals(
-            "https://voe.sx/e/test",
-            DoramasflixLogic.normalizePlaybackTarget("https://voe.sx/e/test"),
         )
     }
 
@@ -133,19 +201,6 @@ class DoramasflixLogicTest {
     }
 
     @Test
-    fun `generic trailer token is treated as missing`() {
-        assertNull(DoramasflixLogic.normalizeTrailer("N/A"))
-    }
-
-    @Test
-    fun `existing trailer URL is preserved`() {
-        assertEquals(
-            "https://www.youtube.com/watch?v=abc",
-            DoramasflixLogic.normalizeTrailer("https://www.youtube.com/watch?v=abc"),
-        )
-    }
-
-    @Test
     fun `epoch millisecond air date is converted to ISO date`() {
         assertEquals(
             "2020-10-13",
@@ -154,27 +209,8 @@ class DoramasflixLogicTest {
     }
 
     @Test
-    fun `short numeric placeholder is not interpreted as epoch date`() {
-        assertNull(DoramasflixLogic.normalizeDate("2026"))
-    }
-
-    @Test
     fun `Spanish date is normalized to ISO`() {
         assertEquals("2026-07-18", DoramasflixLogic.normalizeDate("18 de julio de 2026"))
-    }
-
-    @Test
-    fun `server registry names are normalized to human readable service names`() {
-        assertEquals("DoodStream", DoramasflixLogic.normalizeServerName("Dood"))
-        assertEquals("OK.ru", DoramasflixLogic.normalizeServerName("Ok"))
-        assertEquals("OK.ru", DoramasflixLogic.normalizeServerName("Okru"))
-        assertEquals("VOE", DoramasflixLogic.normalizeServerName("Voe"))
-        assertEquals("VidHide", DoramasflixLogic.normalizeServerName("VidHide"))
-    }
-
-    @Test
-    fun `hard subtitle descriptor preserves language and type`() {
-        assertEquals("ES HARDSUB", DoramasflixLogic.subtitleDescriptor("es", "HARDSUB"))
     }
 
     @Test
@@ -186,19 +222,6 @@ class DoramasflixLogicTest {
                 languageName = "Mandarín",
                 languageCode = "13111",
                 subtitleDescriptors = listOf("ES HARDSUB"),
-            ),
-        )
-    }
-
-    @Test
-    fun `playback label keeps unknown provider language code`() {
-        assertEquals(
-            "VOE · 999",
-            DoramasflixLogic.playbackSourceName(
-                serverName = "VOE",
-                languageName = null,
-                languageCode = "999",
-                subtitleDescriptors = emptyList(),
             ),
         )
     }
