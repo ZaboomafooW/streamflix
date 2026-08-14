@@ -13,6 +13,13 @@ internal data class DoramasflixRatingDecision(
 
 internal object DoramasflixLogic {
 
+    private val genericTitleNormalizedValues = setOf(
+        "n a",
+        "na",
+        "no title available",
+        "sin titulo disponible",
+    )
+
     private val genericOverviewValues = setOf(
         "n/a",
         "na",
@@ -98,6 +105,8 @@ internal object DoramasflixLogic {
         providerSlug: String? = null,
     ): String? {
         val title = value?.trim()?.takeIf { it.isNotEmpty() } ?: return null
+        val normalizedTitle = normalizeWords(title)
+        if (normalizedTitle in genericTitleNormalizedValues) return null
         if (title.equals("Doramasflix", ignoreCase = true)) return null
 
         val slug = providerSlug
@@ -106,7 +115,6 @@ internal object DoramasflixLogic {
             ?.substringAfterLast('/')
             ?.takeIf { it.isNotEmpty() }
         if (slug != null && slug.contains('-')) {
-            val normalizedTitle = normalizeWords(title)
             val normalizedSlug = normalizeWords(slug.replace('-', ' '))
             if (normalizedTitle == normalizedSlug && title.contains('-')) return null
         }
@@ -121,8 +129,10 @@ internal object DoramasflixLogic {
 
         val lower = overview.lowercase(Locale.ROOT)
         if (
-            lower.contains("episodio") &&
-            (lower.contains("online gratis") || lower.contains("sub español") || lower.contains("subtitulado"))
+            lower.contains("online gratis") ||
+            lower.contains("online completa") ||
+            lower.contains("sub español") ||
+            (lower.contains("episodio") && lower.contains("subtitulado"))
         ) {
             return null
         }
@@ -140,10 +150,18 @@ internal object DoramasflixLogic {
         val normalized = normalizeWords(title)
         val season = seasonNumber.coerceAtLeast(0).toString()
         val episode = episodeNumber.coerceAtLeast(0).toString()
-        val genericEpisode = Regex("^(?:episode|episodio|capitulo|chapter|ep)\\s*0*$episode$")
-        val genericCode = Regex("^(?:s\\s*0*$season\\s*e\\s*0*$episode|0*$season\\s*x\\s*0*$episode)$")
+        val genericEpisodeBody = "(?:episode|episodio|capitulo|chapter|ep)\\s*0*$episode"
+        val genericCodeBody = "(?:s\\s*0*$season\\s*e\\s*0*$episode|0*$season\\s*x\\s*0*$episode)"
+        val genericEpisode = Regex("^$genericEpisodeBody$")
+        val genericCode = Regex("^$genericCodeBody$")
+        val genericTail = Regex("^.+\\s+(?:$genericEpisodeBody|$genericCodeBody)$")
 
-        if (normalized == episode || genericEpisode.matches(normalized) || genericCode.matches(normalized)) {
+        if (
+            normalized == episode ||
+            genericEpisode.matches(normalized) ||
+            genericCode.matches(normalized) ||
+            genericTail.matches(normalized)
+        ) {
             return null
         }
 
