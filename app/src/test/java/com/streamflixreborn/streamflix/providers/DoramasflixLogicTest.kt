@@ -17,26 +17,7 @@ class DoramasflixLogicTest {
     }
 
     @Test
-    fun `optional detail only suppresses a successful not found result`() {
-        assertTrue(
-            DoramasflixLogic.shouldSuppressOptionalDetailFailure(
-                DoramasflixContentNotFoundException("missing")
-            )
-        )
-        assertFalse(
-            DoramasflixLogic.shouldSuppressOptionalDetailFailure(
-                DoramasflixUnavailableException()
-            )
-        )
-        assertFalse(
-            DoramasflixLogic.shouldSuppressOptionalDetailFailure(
-                Exception("GraphQL request failed")
-            )
-        )
-    }
-
-    @Test
-    fun `provider unavailable error has user facing retry message`() {
+    fun `provider unavailable error has stable user facing message`() {
         assertEquals(
             "Doramasflix is currently unavailable. Please try again later.",
             DoramasflixUnavailableException().message,
@@ -45,96 +26,73 @@ class DoramasflixLogicTest {
 
     @Test
     fun `rated API value is authoritative`() {
-        val decision = DoramasflixLogic.resolveApiRating(4.142857142857143, 14)
-        assertEquals(4.142857142857143, decision.rating)
-        assertFalse(decision.useHtmlFallback)
+        val decision = DoramasflixLogic.resolveApiRating(4.25, 12)
+        assertEquals(4.25, decision.rating)
+        assertFalse(decision.allowExternalFallback)
     }
 
     @Test
-    fun `zero API rating count means unrated and does not fall through`() {
-        val decision = DoramasflixLogic.resolveApiRating(0.0, 0)
+    fun `zero API rating count is terminal unrated`() {
+        val decision = DoramasflixLogic.resolveApiRating(null, 0)
         assertNull(decision.rating)
-        assertFalse(decision.useHtmlFallback)
+        assertFalse(decision.allowExternalFallback)
         assertNull(
             DoramasflixLogic.resolveRating(
-                apiRating = 0.0,
+                apiRating = null,
                 apiRatingCount = 0,
-                websiteRating = 4.8,
                 tmdbRating = 9.2,
             )
         )
     }
 
     @Test
-    fun `zero API rating means unrated even when count is positive`() {
+    fun `zero API rating is terminal unrated`() {
         val decision = DoramasflixLogic.resolveApiRating(0.0, 4)
         assertNull(decision.rating)
-        assertFalse(decision.useHtmlFallback)
+        assertFalse(decision.allowExternalFallback)
         assertNull(
             DoramasflixLogic.resolveRating(
                 apiRating = 0.0,
                 apiRatingCount = 4,
-                websiteRating = 4.8,
                 tmdbRating = 9.2,
             )
         )
     }
 
     @Test
-    fun `missing API rating is eligible for website fallback`() {
+    fun `missing API rating can fall back to TMDb`() {
         val decision = DoramasflixLogic.resolveApiRating(null, null)
         assertNull(decision.rating)
-        assertTrue(decision.useHtmlFallback)
-        assertEquals(
-            4.6,
-            DoramasflixLogic.resolveRating(
-                apiRating = null,
-                apiRatingCount = null,
-                websiteRating = 4.6,
-                tmdbRating = 9.8,
-            )
-        )
-    }
-
-    @Test
-    fun `TMDb rating is only used after API and website are missing`() {
+        assertTrue(decision.allowExternalFallback)
         assertEquals(
             4.5,
             DoramasflixLogic.resolveRating(
                 apiRating = null,
                 apiRatingCount = null,
-                websiteRating = null,
                 tmdbRating = 9.0,
             )
         )
     }
 
     @Test
-    fun `nonblank provider metadata is accepted without semantic guessing`() {
-        assertEquals("Episodio 1", DoramasflixLogic.meaningfulTitle(" Episodio 1 "))
-        assertEquals("Sinopsis pendiente", DoramasflixLogic.meaningfulOverview(" Sinopsis pendiente "))
-        assertEquals(
-            "Episodio 1",
-            DoramasflixLogic.meaningfulEpisodeTitle(
-                value = "Episodio 1",
-                seasonNumber = 1,
-                episodeNumber = 1,
-                seriesTitles = listOf("Acaramelados"),
-            )
-        )
-        assertNull(DoramasflixLogic.meaningfulTitle("   "))
-        assertNull(DoramasflixLogic.meaningfulOverview(null))
+    fun `invalid API ratings are eligible for external fallback`() {
+        assertTrue(DoramasflixLogic.resolveApiRating(-1.0, 3).allowExternalFallback)
+        assertTrue(DoramasflixLogic.resolveApiRating(5.1, 3).allowExternalFallback)
+        assertTrue(DoramasflixLogic.resolveApiRating(Double.NaN, 3).allowExternalFallback)
+        assertTrue(DoramasflixLogic.resolveApiRating(4.0, -1).allowExternalFallback)
     }
 
     @Test
-    fun `provider artwork is accepted even when it matches parent artwork`() {
-        assertEquals(
-            "/shared.jpg",
-            DoramasflixLogic.meaningfulImage(
-                value = "/shared.jpg",
-                genericArtwork = listOf("/shared.jpg"),
-            )
-        )
+    fun `invalid TMDb rating is not used`() {
+        assertNull(DoramasflixLogic.resolveRating(null, null, 11.0))
+        assertNull(DoramasflixLogic.resolveRating(null, null, Double.NaN))
+    }
+
+    @Test
+    fun `nonblank provider metadata is preserved`() {
+        assertEquals("Episodio 1", DoramasflixLogic.nonBlank(" Episodio 1 "))
+        assertEquals("Sinopsis pendiente", DoramasflixLogic.nonBlank(" Sinopsis pendiente "))
+        assertNull(DoramasflixLogic.nonBlank("   "))
     }
 
     @Test
@@ -145,24 +103,13 @@ class DoramasflixLogicTest {
     }
 
     @Test
-    fun `episode artwork follows API then website then TMDb order`() {
+    fun `episode artwork follows provider fields before TMDb`() {
         assertEquals(
             "/api-still.jpg",
             DoramasflixLogic.episodeArtwork(
                 stillPath = "/api-still.jpg",
                 backdrop = "/api-backdrop.jpg",
                 stillImage = "/api-image.jpg",
-                websiteArtwork = "/website.jpg",
-                tmdbArtwork = "/tmdb.jpg",
-            )
-        )
-        assertEquals(
-            "/website.jpg",
-            DoramasflixLogic.episodeArtwork(
-                stillPath = null,
-                backdrop = null,
-                stillImage = null,
-                websiteArtwork = "/website.jpg",
                 tmdbArtwork = "/tmdb.jpg",
             )
         )
@@ -172,7 +119,6 @@ class DoramasflixLogicTest {
                 stillPath = null,
                 backdrop = null,
                 stillImage = null,
-                websiteArtwork = null,
                 tmdbArtwork = "/tmdb.jpg",
             )
         )
@@ -180,17 +126,17 @@ class DoramasflixLogicTest {
 
     @Test
     fun `first nonblank metadata preserves source order`() {
-        assertEquals("Doramasflix", DoramasflixLogic.firstNonBlank("Doramasflix", "Website", "TMDb"))
-        assertEquals("Website", DoramasflixLogic.firstNonBlank(null, " ", "Website", "TMDb"))
+        assertEquals("Doramasflix", DoramasflixLogic.firstNonBlank("Doramasflix", "TMDb"))
+        assertEquals("TMDb", DoramasflixLogic.firstNonBlank(null, " ", "TMDb"))
         assertNull(DoramasflixLogic.firstNonBlank(null, " "))
     }
 
     @Test
-    fun `home carousel mixes doramas and movies in Doramasflix order`() {
+    fun `home carousel mixes doramas and movies in provider order`() {
         assertEquals(
-            listOf("D1", "M1", "D2", "D3", "D4", "D5", "D6"),
+            listOf("D1", "M1", "D2", "D3"),
             DoramasflixLogic.mixAlternating(
-                first = listOf("D1", "D2", "D3", "D4", "D5", "D6"),
+                first = listOf("D1", "D2", "D3"),
                 second = listOf("M1"),
             ),
         )
@@ -237,15 +183,18 @@ class DoramasflixLogicTest {
 
     @Test
     fun `epoch millisecond air date is converted to ISO date`() {
-        assertEquals(
-            "2020-10-13",
-            DoramasflixLogic.normalizeAirDate("1602565200000"),
-        )
+        assertEquals("2020-10-13", DoramasflixLogic.normalizeAirDate("1602565200000"))
     }
 
     @Test
     fun `Spanish date is normalized to ISO`() {
         assertEquals("2026-07-18", DoramasflixLogic.normalizeDate("18 de julio de 2026"))
+    }
+
+    @Test
+    fun `invalid calendar dates are rejected`() {
+        assertNull(DoramasflixLogic.normalizeDate("2026-02-31"))
+        assertNull(DoramasflixLogic.normalizeDate("31 de febrero de 2026"))
     }
 
     @Test

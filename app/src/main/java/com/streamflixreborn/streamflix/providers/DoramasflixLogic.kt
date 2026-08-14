@@ -3,17 +3,19 @@ package com.streamflixreborn.streamflix.providers
 import com.google.gson.JsonParser
 import java.text.Normalizer
 import java.time.Instant
+import java.time.LocalDate
 import java.time.ZoneOffset
+import java.time.format.DateTimeParseException
 import java.util.Locale
 
 internal class DoramasflixContentNotFoundException(message: String) : Exception(message)
 
 internal class DoramasflixUnavailableException(cause: Throwable? = null) :
-    Exception("Doramasflix is currently unavailable. Please try again later.", cause)
+    ProviderUnavailableException("Doramasflix", cause)
 
 internal data class DoramasflixRatingDecision(
     val rating: Double?,
-    val useHtmlFallback: Boolean,
+    val allowExternalFallback: Boolean,
 )
 
 internal object DoramasflixLogic {
@@ -41,69 +43,46 @@ internal object DoramasflixLogic {
 
     fun isUnavailableHttpStatus(statusCode: Int): Boolean = statusCode in 500..599
 
-    fun shouldSuppressOptionalDetailFailure(error: Throwable): Boolean =
-        error is DoramasflixContentNotFoundException
-
     fun resolveApiRating(
         rating: Double?,
         ratingCount: Int?,
     ): DoramasflixRatingDecision {
-        if (ratingCount != null && ratingCount <= 0) {
-            return DoramasflixRatingDecision(rating = null, useHtmlFallback = false)
+        if (ratingCount == 0) {
+            return DoramasflixRatingDecision(rating = null, allowExternalFallback = false)
         }
-        if (rating != null) {
-            return if (rating > 0.0) {
-                DoramasflixRatingDecision(rating = rating, useHtmlFallback = false)
-            } else {
-                DoramasflixRatingDecision(rating = null, useHtmlFallback = false)
-            }
+        if (rating == 0.0) {
+            return DoramasflixRatingDecision(rating = null, allowExternalFallback = false)
         }
-        return DoramasflixRatingDecision(rating = null, useHtmlFallback = true)
+        if (rating == null) {
+            return DoramasflixRatingDecision(rating = null, allowExternalFallback = true)
+        }
+        if (!rating.isFinite() || rating < 0.0 || rating > 5.0 || (ratingCount != null && ratingCount < 0)) {
+            return DoramasflixRatingDecision(rating = null, allowExternalFallback = true)
+        }
+        return DoramasflixRatingDecision(rating = rating, allowExternalFallback = false)
     }
 
     fun resolveRating(
         apiRating: Double?,
         apiRatingCount: Int?,
-        websiteRating: Double?,
         tmdbRating: Double?,
     ): Double? {
         val api = resolveApiRating(apiRating, apiRatingCount)
-        if (!api.useHtmlFallback) return api.rating
+        if (!api.allowExternalFallback) return api.rating
 
-        return websiteRating?.takeIf { it > 0.0 }
-            ?: tmdbRating
-                ?.takeIf { it > 0.0 }
-                ?.div(2.0)
+        return tmdbRating
+            ?.takeIf { it.isFinite() && it > 0.0 && it <= 10.0 }
+            ?.div(2.0)
     }
 
-    fun firstNonBlank(vararg values: String?): String? =
-        values.asSequence()
-            .mapNotNull { value -> value?.trim()?.takeIf { it.isNotEmpty() } }
-            .firstOrNull()
-
-    fun meaningfulTitle(
-        value: String?,
-        providerSlug: String? = null,
-    ): String? = value?.trim()?.takeIf { it.isNotEmpty() }
-
-    fun meaningfulOverview(value: String?): String? =
+    fun nonBlank(value: String?): String? =
         value?.trim()?.takeIf { it.isNotEmpty() }
 
-    fun meaningfulEpisodeTitle(
-        value: String?,
-        seasonNumber: Int,
-        episodeNumber: Int,
-        seriesTitles: Collection<String?> = emptyList(),
-    ): String? = value?.trim()?.takeIf { it.isNotEmpty() }
+    fun firstNonBlank(vararg values: String?): String? =
+        values.asSequence().mapNotNull(::nonBlank).firstOrNull()
 
-    fun meaningfulImage(value: String?): String? =
-        meaningfulImage(value, emptyList())
-
-    fun meaningfulImage(
-        value: String?,
-        genericArtwork: Collection<String?>,
-    ): String? {
-        val image = value?.trim()?.takeIf { it.isNotEmpty() } ?: return null
+    fun meaningfulImage(value: String?): String? {
+        val image = nonBlank(value) ?: return null
         if (obviousImagePlaceholder.containsMatchIn(image)) return null
         return image
     }
@@ -111,96 +90,21 @@ internal object DoramasflixLogic {
     fun meaningfulRuntime(value: Int?): Int? = value?.takeIf { it > 0 }
 
     fun normalizeDate(value: String?): String? {
-        val raw = value?.trim()?.takeIf { it.isNotEmpty() } ?: return null
-        normalizeAirDate(raw)?.let { normalized ->
-            if (!normalized.startsWith("0000-") && !normalized.startsWith("0001-")) {
-                return normalized
-            }
-        }
+        val raw = nonBlank(value) ?: return null
+        normalizeAirDate(raw)?.let { return it }
 
         val spanish = Regex(
             "^(\\d{1,2})\\s+de\\s+([\\p{L}]+)\\s+de\\s+(\\d{4})$",
             RegexOption.IGNORE_CASE,
         ).matchEntire(raw) ?: return null
         val day = spanish.groupValues[1].toIntOrNull() ?: return null
-        val monthName = normalizeWords(spanish.groupValues[2])
-        val month = spanishMonths[monthName] ?: return null
+        val month = spanishMonths[normalizeWords(spanish.groupValues[2])] ?: return null
         val year = spanish.groupValues[3].toIntOrNull()?.takeIf { it > 1 } ?: return null
-        if (day !in 1..31) return null
-        return "%04d-%02d-%02d".format(Locale.ROOT, year, month, day)
-    }
-
-    fun doramaWebsitePath(
-        slug: String,
-        isTvShow: Boolean?,
-    ): String = if (isTvShow == true) {
-        "variedades-online/$slug"
-    } else {
-        "doramas-online/$slug"
-    }
-
-    fun episodeArtwork(
-        stillPath: String?,
-        backdrop: String?,
-        stillImage: String?,
-        websiteArtwork: String? = null,
-        tmdbArtwork: String? = null,
-        genericArtwork: Collection<String?> = emptyList(),
-    ): String? = sequenceOf(
-        stillPath,
-        backdrop,
-        stillImage,
-        websiteArtwork,
-        tmdbArtwork,
-    ).mapNotNull { candidate -> meaningfulImage(candidate, genericArtwork) }
-        .firstOrNull()
-
-    fun <T> mixAlternating(
-        first: List<T>,
-        second: List<T>,
-        limit: Int = first.size + second.size,
-    ): List<T> {
-        if (limit <= 0) return emptyList()
-
-        val result = ArrayList<T>(minOf(limit, first.size + second.size))
-        var firstIndex = 0
-        var secondIndex = 0
-
-        while (
-            result.size < limit &&
-            (firstIndex < first.size || secondIndex < second.size)
-        ) {
-            if (firstIndex < first.size && result.size < limit) {
-                result += first[firstIndex++]
-            }
-            if (secondIndex < second.size && result.size < limit) {
-                result += second[secondIndex++]
-            }
-        }
-
-        return result
-    }
-
-    fun normalizePlaybackTarget(link: String): String? {
-        val normalized = link.trim()
-        return when {
-            normalized.startsWith("//") -> "https:$normalized"
-            normalized.startsWith("https://") || normalized.startsWith("http://") -> normalized
-            else -> null
-        }
-    }
-
-    fun normalizeTrailer(trailer: String?): String? {
-        val value = trailer?.trim()?.takeIf { it.isNotEmpty() } ?: return null
-        return when {
-            value.startsWith("https://") || value.startsWith("http://") -> value
-            value.matches(Regex("^[A-Za-z0-9_-]{11}$")) -> "https://www.youtube.com/watch?v=$value"
-            else -> null
-        }
+        return runCatching { LocalDate.of(year, month, day).toString() }.getOrNull()
     }
 
     fun normalizeAirDate(airDate: String?): String? {
-        val value = airDate?.trim()?.takeIf { it.isNotEmpty() } ?: return null
+        val value = nonBlank(airDate) ?: return null
         val numeric = value.toLongOrNull()
         if (numeric != null && value.all(Char::isDigit)) {
             return when (value.length) {
@@ -220,14 +124,62 @@ internal object DoramasflixLogic {
             }
         }
 
-        return value
-            .takeIf { it.matches(Regex("""\d{4}-\d{2}-\d{2}.*""")) }
-            ?.take(10)
+        val isoDate = value.takeIf { it.length >= 10 }?.take(10) ?: return null
+        return try {
+            LocalDate.parse(isoDate).toString()
+        } catch (_: DateTimeParseException) {
+            null
+        }
+    }
+
+    fun episodeArtwork(
+        stillPath: String?,
+        backdrop: String?,
+        stillImage: String?,
+        tmdbArtwork: String? = null,
+    ): String? = sequenceOf(stillPath, backdrop, stillImage, tmdbArtwork)
+        .mapNotNull(::meaningfulImage)
+        .firstOrNull()
+
+    fun <T> mixAlternating(
+        first: List<T>,
+        second: List<T>,
+        limit: Int = first.size + second.size,
+    ): List<T> {
+        if (limit <= 0) return emptyList()
+
+        val result = ArrayList<T>(minOf(limit, first.size + second.size))
+        var firstIndex = 0
+        var secondIndex = 0
+
+        while (result.size < limit && (firstIndex < first.size || secondIndex < second.size)) {
+            if (firstIndex < first.size && result.size < limit) result += first[firstIndex++]
+            if (secondIndex < second.size && result.size < limit) result += second[secondIndex++]
+        }
+        return result
+    }
+
+    fun normalizePlaybackTarget(link: String): String? {
+        val normalized = link.trim()
+        return when {
+            normalized.startsWith("//") -> "https:$normalized"
+            normalized.startsWith("https://") || normalized.startsWith("http://") -> normalized
+            else -> null
+        }
+    }
+
+    fun normalizeTrailer(trailer: String?): String? {
+        val value = nonBlank(trailer) ?: return null
+        return when {
+            value.startsWith("https://") || value.startsWith("http://") -> value
+            value.matches(Regex("^[A-Za-z0-9_-]{11}$")) -> "https://www.youtube.com/watch?v=$value"
+            else -> null
+        }
     }
 
     fun normalizeServerName(name: String?): String? {
-        val value = name?.trim()?.takeIf { it.isNotEmpty() } ?: return null
-        return when (value.lowercase()) {
+        val value = nonBlank(name) ?: return null
+        return when (value.lowercase(Locale.ROOT)) {
             "dood" -> "DoodStream"
             "ok", "okru", "ok.ru" -> "OK.ru"
             "voe" -> "VOE"
@@ -241,15 +193,8 @@ internal object DoramasflixLogic {
         languageCode: String?,
         type: String?,
     ): String? {
-        val language = languageCode
-            ?.trim()
-            ?.takeIf { it.isNotEmpty() }
-            ?.uppercase(Locale.ROOT)
-        val subtitleType = type
-            ?.trim()
-            ?.takeIf { it.isNotEmpty() }
-            ?.uppercase(Locale.ROOT)
-
+        val language = nonBlank(languageCode)?.uppercase(Locale.ROOT)
+        val subtitleType = nonBlank(type)?.uppercase(Locale.ROOT)
         return listOfNotNull(language, subtitleType)
             .joinToString(" ")
             .takeIf { it.isNotEmpty() }
@@ -261,11 +206,7 @@ internal object DoramasflixLogic {
         languageCode: String?,
         subtitleDescriptors: List<String>,
     ): String {
-        val language = languageName
-            ?.trim()
-            ?.takeIf { it.isNotEmpty() }
-            ?: languageCode?.trim()?.takeIf { it.isNotEmpty() }
-
+        val language = nonBlank(languageName) ?: nonBlank(languageCode)
         val subtitles = subtitleDescriptors
             .map(String::trim)
             .filter(String::isNotEmpty)
@@ -273,11 +214,7 @@ internal object DoramasflixLogic {
             .joinToString(", ")
             .takeIf { it.isNotEmpty() }
 
-        return listOfNotNull(
-            serverName.trim().takeIf { it.isNotEmpty() },
-            language,
-            subtitles,
-        ).joinToString(" · ")
+        return listOfNotNull(nonBlank(serverName), language, subtitles).joinToString(" · ")
     }
 
     fun graphQlErrorMessage(body: String?): String? {
