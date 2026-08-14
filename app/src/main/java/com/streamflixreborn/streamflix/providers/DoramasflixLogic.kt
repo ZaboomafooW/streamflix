@@ -100,6 +100,12 @@ internal object DoramasflixLogic {
     fun firstNonBlank(vararg values: String?): String? =
         values.asSequence().mapNotNull(::nonBlank).firstOrNull()
 
+    fun displayTitle(
+        nameEs: String?,
+        name: String?,
+        originalName: String?,
+    ): String? = firstNonBlank(nameEs, name, originalName)
+
     fun meaningfulImage(value: String?): String? {
         val image = nonBlank(value) ?: return null
         if (obviousImagePlaceholder.containsMatchIn(image)) return null
