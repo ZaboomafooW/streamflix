@@ -474,7 +474,7 @@ object DoramasflixProvider : Provider {
             trailer = DoramasflixLogic.normalizeTrailer(external.trailer) ?: provider.trailer,
             rating = external.rating?.takeIf { it > 0.0 }?.div(2.0) ?: provider.rating,
             poster = DoramasflixLogic.meaningfulImage(external.poster) ?: provider.poster,
-            banner = DoramasflixLogic.meaningImage(external.banner) ?: provider.banner,
+            banner = DoramasflixLogic.meaningfulImage(external.banner) ?: provider.banner,
             imdbId = external.imdbId,
             seasons = external.seasons,
             genres = external.genres.takeIf { it.isNotEmpty() } ?: provider.genres,
