@@ -42,6 +42,7 @@ import retrofit2.http.Header
 import retrofit2.http.Headers
 import retrofit2.http.POST
 import java.io.File
+import java.io.IOException
 import java.net.URL
 import java.util.Locale
 import java.util.concurrent.ConcurrentHashMap
@@ -150,13 +151,23 @@ object DoramasflixProvider : Provider {
             throw Exception("$context failed: $message")
         }
 
-        return data ?: throw Exception("$context returned no data.")
+        return data ?: throw DoramasflixUnavailableException()
     }
 
     private fun httpFailure(
         context: String,
         error: HttpException,
     ): Exception {
+        if (error.code() == 429) {
+            return Exception(
+                "$context is temporarily rate limiting requests. Please try again shortly.",
+                error,
+            )
+        }
+        if (DoramasflixLogic.isUnavailableHttpStatus(error.code())) {
+            return DoramasflixUnavailableException(error)
+        }
+
         val detail = runCatching {
             DoramasflixLogic.graphQlErrorMessage(error.response()?.errorBody()?.string())
         }.getOrNull()
@@ -188,6 +199,8 @@ object DoramasflixProvider : Provider {
             ).requireData(context)
         } catch (error: HttpException) {
             throw httpFailure(context, error)
+        } catch (error: IOException) {
+            throw DoramasflixUnavailableException(error)
         }
     }
 
@@ -337,15 +350,13 @@ object DoramasflixProvider : Provider {
     private suspend fun optionalMovieDetail(slug: String): Content? = try {
         detailMovie(slug)
     } catch (error: Exception) {
-        if (error is CancellationException) throw error
-        null
+        if (DoramasflixLogic.shouldSuppressOptionalDetailFailure(error)) null else throw error
     }
 
     private suspend fun optionalDoramaDetail(slug: String): Content? = try {
         detailDorama(slug)
     } catch (error: Exception) {
-        if (error is CancellationException) throw error
-        null
+        if (DoramasflixLogic.shouldSuppressOptionalDetailFailure(error)) null else throw error
     }
 
     private suspend fun resolveExternalMovieMetadata(
@@ -878,7 +889,9 @@ object DoramasflixProvider : Provider {
                   }
                 }
             """.trimIndent(),
-        ).detailMovie ?: throw Exception("Doramasflix could not find movie '$slug'.")
+        ).detailMovie ?: throw DoramasflixContentNotFoundException(
+            "Doramasflix could not find movie '$slug'."
+        )
 
         cacheMovie(content)
         return content
@@ -975,7 +988,9 @@ object DoramasflixProvider : Provider {
                   }
                 }
             """.trimIndent(),
-        ).detailDorama ?: throw Exception("Doramasflix could not find dorama '$slug'.")
+        ).detailDorama ?: throw DoramasflixContentNotFoundException(
+            "Doramasflix could not find dorama '$slug'."
+        )
 
         cacheDorama(content)
         return content
