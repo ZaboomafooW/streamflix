@@ -3,11 +3,11 @@ package com.streamflixreborn.streamflix.providers
 import com.google.gson.JsonElement
 import com.google.gson.JsonObject
 import com.google.gson.JsonParser
-import com.tanasi.retrofit_jsoup.converter.JsoupConverterFactory
 import com.streamflixreborn.streamflix.models.Movie
 import com.streamflixreborn.streamflix.models.People
 import com.streamflixreborn.streamflix.models.Show
 import com.streamflixreborn.streamflix.models.TvShow
+import com.tanasi.retrofit_jsoup.converter.JsoupConverterFactory
 import kotlinx.coroutines.CancellationException
 import okhttp3.OkHttpClient
 import org.jsoup.nodes.Document
@@ -19,9 +19,14 @@ import retrofit2.http.Headers
 import retrofit2.http.Url
 
 internal data class DoramasflixContentMetadata(
+    val title: String? = null,
     val rating: Double? = null,
     val overview: String? = null,
     val image: String? = null,
+    val released: String? = null,
+    val runtime: Int? = null,
+    val trailer: String? = null,
+    val imdbId: String? = null,
 )
 
 internal class DoramasflixPageMetadata(
@@ -62,10 +67,18 @@ internal class DoramasflixPageMetadata(
     }
 
     companion object {
+        private val imdbIdPattern = Regex("(?:imdb\\.com/title/)?(tt\\d{5,12})", RegexOption.IGNORE_CASE)
+
         internal fun parseContent(document: Document): DoramasflixContentMetadata {
             val structuredContent = jsonLd(document)
                 .mapNotNull(::findStructuredContent)
                 .firstOrNull()
+            val title = stringValue(structuredContent?.get("name"))
+                ?: document.selectFirst("h1")
+                    ?.text()
+                    ?.trim()
+                    ?.takeIf { it.isNotEmpty() }
+                ?: metaContent(document, "meta[property=og:title]")
             val rating = jsonLd(document)
                 .mapNotNull(::findAggregateRating)
                 .firstOrNull()
@@ -77,11 +90,35 @@ internal class DoramasflixPageMetadata(
             val image = imageValue(structuredContent?.get("image"))
                 ?: metaContent(document, "meta[property=og:image]")
                 ?: metaContent(document, "meta[name=twitter:image]")
+            val released = sequenceOf(
+                stringValue(structuredContent?.get("datePublished")),
+                stringValue(structuredContent?.get("startDate")),
+                stringValue(structuredContent?.get("dateCreated")),
+                document.selectFirst("time[datetime]")?.attr("datetime"),
+                labeledValue(document, "Estreno"),
+            ).mapNotNull(DoramasflixLogic::normalizeDate)
+                .firstOrNull()
+            val runtime = durationMinutes(structuredContent?.get("duration"))
+                ?: visibleRuntime(document)
+            val trailer = videoValue(structuredContent?.get("trailer"))
+                ?: videoValue(structuredContent?.get("video"))
+                ?: metaContent(document, "meta[property=og:video]")
+                ?: metaContent(document, "meta[property=og:video:url]")
+            val imdbId = findImdbId(structuredContent)
+                ?: document.select("a[href*=imdb.com/title/]")
+                    .asSequence()
+                    .mapNotNull { link -> imdbIdFrom(link.attr("href")) }
+                    .firstOrNull()
 
             return DoramasflixContentMetadata(
+                title = title,
                 rating = rating,
                 overview = overview,
                 image = image,
+                released = released,
+                runtime = runtime,
+                trailer = trailer,
+                imdbId = imdbId,
             )
         }
 
@@ -233,6 +270,48 @@ internal class DoramasflixPageMetadata(
                 .firstOrNull()
         }
 
+        private fun visibleRuntime(document: Document): Int? {
+            val hourMinute = Regex(
+                "(?:(\\d{1,2})\\s*h\\s*)?(\\d{1,3})\\s*min(?:/ep)?",
+                RegexOption.IGNORE_CASE,
+            )
+
+            return document.getAllElements()
+                .asSequence()
+                .map { element -> element.ownText().trim() }
+                .filter(String::isNotEmpty)
+                .mapNotNull { text ->
+                    val match = hourMinute.find(text) ?: return@mapNotNull null
+                    val hours = match.groupValues[1].toIntOrNull() ?: 0
+                    val minutes = match.groupValues[2].toIntOrNull() ?: return@mapNotNull null
+                    (hours * 60 + minutes).takeIf { it > 0 }
+                }
+                .firstOrNull()
+        }
+
+        private fun durationMinutes(element: JsonElement?): Int? {
+            val value = stringValue(element) ?: return null
+            val iso = Regex(
+                "^P(?:\\d+D)?T(?:(\\d+)H)?(?:(\\d+)M)?(?:(?:\\d+(?:\\.\\d+)?)S)?$",
+                RegexOption.IGNORE_CASE,
+            ).matchEntire(value) ?: return null
+            val hours = iso.groupValues[1].toIntOrNull() ?: 0
+            val minutes = iso.groupValues[2].toIntOrNull() ?: 0
+            return (hours * 60 + minutes).takeIf { it > 0 }
+        }
+
+        private fun videoValue(element: JsonElement?): String? = when {
+            element == null || element.isJsonNull -> null
+            element.isJsonObject -> {
+                val video = element.asJsonObject
+                stringValue(video.get("embedUrl"))
+                    ?: stringValue(video.get("contentUrl"))
+                    ?: stringValue(video.get("url"))
+            }
+            element.isJsonArray -> element.asJsonArray.asSequence().mapNotNull(::videoValue).firstOrNull()
+            else -> stringValue(element)
+        }
+
         private fun elementImage(image: Element): String? {
             val absolute = image.absUrl("src").trim()
             val raw = image.attr("src").trim()
@@ -364,6 +443,25 @@ internal class DoramasflixPageMetadata(
             else -> stringValue(element)
         }
 
+        private fun findImdbId(element: JsonElement?): String? {
+            if (element == null || element.isJsonNull) return null
+            if (!element.isJsonObject && !element.isJsonArray) {
+                return stringValue(element)?.let(::imdbIdFrom)
+            }
+            if (element.isJsonArray) {
+                return element.asJsonArray.asSequence().mapNotNull(::findImdbId).firstOrNull()
+            }
+
+            return element.asJsonObject.entrySet()
+                .asSequence()
+                .filter { (key, _) -> key.equals("sameAs", ignoreCase = true) || key.equals("url", ignoreCase = true) }
+                .mapNotNull { (_, value) -> findImdbId(value) }
+                .firstOrNull()
+        }
+
+        private fun imdbIdFrom(value: String): String? =
+            imdbIdPattern.find(value)?.groupValues?.getOrNull(1)?.lowercase()
+
         private fun placeValue(element: JsonElement?): String? = when {
             element == null || element.isJsonNull -> null
             element.isJsonObject -> stringValue(element.asJsonObject.get("name"))
@@ -403,6 +501,10 @@ internal class DoramasflixPageMetadata(
                         ?.getOrNull(1)
                         ?.trim()
                         ?.takeIf { it.isNotEmpty() }
+                        ?: element.nextElementSibling()
+                            ?.text()
+                            ?.trim()
+                            ?.takeIf { it.isNotEmpty() && !it.equals(label, ignoreCase = true) }
                 }
                 .firstOrNull()
         }
