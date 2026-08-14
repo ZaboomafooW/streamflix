@@ -77,15 +77,46 @@ class DoramasflixLogicTest {
     }
 
     @Test
-    fun `API episode artwork is authoritative before website and TMDb`() {
+    fun `meaningful API episode artwork remains authoritative`() {
         assertEquals(
-            "/series.jpg",
+            "/episode-seven.jpg",
             DoramasflixLogic.episodeArtwork(
-                stillPath = "/series.jpg",
+                stillPath = "/episode-seven.jpg",
                 backdrop = "/alternate.jpg",
                 stillImage = "/image.jpg",
                 websiteArtwork = "/website.jpg",
                 tmdbArtwork = "/tmdb.jpg",
+                genericArtwork = listOf("/series.jpg"),
+            )
+        )
+    }
+
+    @Test
+    fun `series key art is treated as missing episode artwork`() {
+        assertEquals(
+            "/website.jpg",
+            DoramasflixLogic.episodeArtwork(
+                stillPath = "/series.jpg",
+                backdrop = "https://image.tmdb.org/t/p/w1280/series.jpg",
+                stillImage = null,
+                websiteArtwork = "/website.jpg",
+                tmdbArtwork = "/tmdb.jpg",
+                genericArtwork = listOf("https://image.tmdb.org/t/p/original/series.jpg"),
+            )
+        )
+    }
+
+    @Test
+    fun `repeated episode artwork is not generic merely because it repeats`() {
+        assertEquals(
+            "/legitimate-shared-still.jpg",
+            DoramasflixLogic.episodeArtwork(
+                stillPath = "/legitimate-shared-still.jpg",
+                backdrop = null,
+                stillImage = null,
+                websiteArtwork = "/website.jpg",
+                tmdbArtwork = "/tmdb.jpg",
+                genericArtwork = listOf("/series-backdrop.jpg"),
             )
         )
     }
@@ -134,6 +165,89 @@ class DoramasflixLogicTest {
                 stillImage = null,
                 websiteArtwork = null,
                 tmdbArtwork = "/tmdb.jpg",
+            )
+        )
+    }
+
+    @Test
+    fun `generic Spooky episode labels are treated as missing`() {
+        val seriesTitles = listOf("Spooky in Love", "Muertos de Amor")
+
+        assertNull(
+            DoramasflixLogic.meaningfulEpisodeTitle(
+                value = "Muertos de Amor 1x7",
+                seasonNumber = 1,
+                episodeNumber = 7,
+                seriesTitles = seriesTitles,
+            )
+        )
+        assertNull(
+            DoramasflixLogic.meaningfulEpisodeTitle(
+                value = "Spooky in Love episodio 7",
+                seasonNumber = 1,
+                episodeNumber = 7,
+                seriesTitles = seriesTitles,
+            )
+        )
+        assertNull(
+            DoramasflixLogic.meaningfulEpisodeTitle(
+                value = "Episode 7",
+                seasonNumber = 1,
+                episodeNumber = 7,
+                seriesTitles = seriesTitles,
+            )
+        )
+        assertNull(
+            DoramasflixLogic.meaningfulEpisodeTitle(
+                value = "S1.E7",
+                seasonNumber = 1,
+                episodeNumber = 7,
+                seriesTitles = seriesTitles,
+            )
+        )
+    }
+
+    @Test
+    fun `meaningful episode title is preserved`() {
+        assertEquals(
+            "The Visitor at Midnight",
+            DoramasflixLogic.meaningfulEpisodeTitle(
+                value = "The Visitor at Midnight",
+                seasonNumber = 1,
+                episodeNumber = 7,
+                seriesTitles = listOf("Spooky in Love"),
+            )
+        )
+    }
+
+    @Test
+    fun `generic descriptions are treated as missing`() {
+        assertNull(DoramasflixLogic.meaningfulOverview("Sin sinopsis"))
+        assertNull(
+            DoramasflixLogic.meaningfulOverview(
+                "Ver Spooky in Love Episodio 7 Online Gratis en HD con audio Latino y Subtitulado."
+            )
+        )
+        assertEquals(
+            "Una heredera ve fantasmas y ayuda a resolver un asesinato.",
+            DoramasflixLogic.meaningfulOverview(
+                "Una heredera ve fantasmas y ayuda a resolver un asesinato."
+            )
+        )
+    }
+
+    @Test
+    fun `generic image markers are treated as missing`() {
+        assertNull(DoramasflixLogic.meaningfulImage("https://cdn.example/no-image.jpg"))
+        assertNull(DoramasflixLogic.meaningfulImage("/assets/placeholder-poster.png"))
+    }
+
+    @Test
+    fun `TMDb image sizes refer to the same underlying asset`() {
+        assertTrue(
+            DoramasflixLogic.sameImageAsset(
+                "/abc123.jpg",
+                "https://image.tmdb.org/t/p/w1280/abc123.jpg?cache=1",
             )
         )
     }
@@ -220,6 +334,11 @@ class DoramasflixLogicTest {
     }
 
     @Test
+    fun `generic trailer token is treated as missing`() {
+        assertNull(DoramasflixLogic.normalizeTrailer("N/A"))
+    }
+
+    @Test
     fun `existing trailer URL is preserved`() {
         assertEquals(
             "https://www.youtube.com/watch?v=abc",
@@ -233,6 +352,16 @@ class DoramasflixLogicTest {
             "2020-10-13",
             DoramasflixLogic.normalizeAirDate("1602565200000"),
         )
+    }
+
+    @Test
+    fun `short numeric placeholder is not interpreted as epoch date`() {
+        assertNull(DoramasflixLogic.normalizeDate("2026"))
+    }
+
+    @Test
+    fun `Spanish website date is normalized to ISO`() {
+        assertEquals("2026-07-18", DoramasflixLogic.normalizeDate("18 de julio de 2026"))
     }
 
     @Test
