@@ -68,6 +68,7 @@ object DoramasflixProvider : Provider {
     private val doramaBackendIds = ConcurrentHashMap<String, String>()
     private val doramaTmdbIds = ConcurrentHashMap<String, String>()
     private val episodeBackendIds = ConcurrentHashMap<String, String>()
+    private val doramasflixPeopleTmdbIds = ConcurrentHashMap<String, Int>()
 
     private data class TimedCache<T>(
         val value: T,
@@ -265,8 +266,6 @@ object DoramasflixProvider : Provider {
 
     private fun tmdbPersonId(value: String?): Int? = value
         ?.trim()
-        ?.substringAfterLast('/')
-        ?.substringBefore('-')
         ?.toIntOrNull()
         ?.takeIf { it > 0 }
 
@@ -293,17 +292,7 @@ object DoramasflixProvider : Provider {
         externalCast: List<People>,
     ): List<People> {
         if (externalCast.isEmpty()) return emptyList()
-        val providerCast = content.cast.orEmpty()
-
-        val providerIdsByTmdbId = providerCast.mapNotNull { member ->
-            val slug = member.slug?.trim()?.takeIf { it.isNotEmpty() } ?: return@mapNotNull null
-            val personId = member.ref?.trim()?.toIntOrNull()?.takeIf { it > 0 }
-                ?: tmdbPersonId(slug)
-                ?: return@mapNotNull null
-            personId.toString() to slug
-        }.toMap()
-
-        val providerIdsByName = providerCast
+        val providerIdsByName = content.cast.orEmpty()
             .mapNotNull { member ->
                 val slug = member.slug?.trim()?.takeIf { it.isNotEmpty() } ?: return@mapNotNull null
                 val name = member.name?.trim()?.takeIf { it.isNotEmpty() } ?: return@mapNotNull null
@@ -316,9 +305,14 @@ object DoramasflixProvider : Provider {
             .toMap()
 
         return externalCast.map { person ->
-            val providerId = providerIdsByTmdbId[person.id]
-                ?: providerIdsByName[person.name.trim().lowercase(Locale.ROOT)]
-            providerId?.let { person.copy(id = it) } ?: person
+            val providerId = providerIdsByName[person.name.trim().lowercase(Locale.ROOT)]
+            val tmdbId = person.id.toIntOrNull()?.takeIf { it > 0 }
+            if (providerId != null && tmdbId != null) {
+                doramasflixPeopleTmdbIds[providerId] = tmdbId
+                person.copy(id = providerId)
+            } else {
+                person
+            }
         }.distinctBy { it.id }
     }
 
@@ -1718,15 +1712,21 @@ object DoramasflixProvider : Provider {
     override suspend fun getPeople(id: String, page: Int): People = coroutineScope {
         if (page > 1) return@coroutineScope People(id = id, name = "")
 
-        val personId = tmdbPersonId(id)
+        val mappedTmdbId = doramasflixPeopleTmdbIds[id]
+        val directTmdbId = tmdbPersonId(id)
+        val personId = mappedTmdbId ?: directTmdbId
         if (!UserPreferences.enableTmdb || personId == null) {
             return@coroutineScope pageMetadata.getPeople(id)
         }
 
         val tmdbDeferred = async { tmdbPeople(personId) }
-        val providerDeferred = async { optionalPeople(id) }
+        val providerDeferred = if (mappedTmdbId != null || directTmdbId == null) {
+            async { optionalPeople(id) }
+        } else {
+            null
+        }
         val external = tmdbDeferred.await()
-        val provider = providerDeferred.await()
+        val provider = providerDeferred?.await()
 
         if (external == null) {
             return@coroutineScope provider ?: People(id = id, name = "")
