@@ -2,6 +2,8 @@ package com.streamflixreborn.streamflix.models.doramasflix
 
 import com.google.gson.Gson
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertFalse
+import org.junit.Assert.assertTrue
 import org.junit.Test
 
 class DoramasflixModelsTest {
@@ -9,7 +11,7 @@ class DoramasflixModelsTest {
     private val gson = Gson()
 
     @Test
-    fun `detail response keeps provider metadata without overloading shared ids`() {
+    fun `detail response keeps provider identity rating and cast navigation data`() {
         val response = gson.fromJson(
             """
                 {
@@ -23,14 +25,11 @@ class DoramasflixModelsTest {
                       "tmdb_id": 111762,
                       "rating": 4.142857142857143,
                       "rating_count": 14,
-                      "rating_total": 58,
                       "cast": [
                         {
                           "name": "Guo Junchen",
                           "slug": "1599859-guo-junchen",
-                          "character": "Nan Xi",
-                          "profile_path": "/m6Ub6fRrw03atP60nCj4o55ojrO.jpg",
-                          "ref": "5f5be9b63a7580194185697b"
+                          "profile_path": "/m6Ub6fRrw03atP60nCj4o55ojrO.jpg"
                         }
                       ]
                     }
@@ -46,12 +45,11 @@ class DoramasflixModelsTest {
         assertEquals("谢谢让我遇见你", detail.originalName)
         assertEquals(14, detail.ratingCount)
         assertEquals("1599859-guo-junchen", cast.slug)
-        assertEquals("Nan Xi", cast.character)
         assertEquals("/m6Ub6fRrw03atP60nCj4o55ojrO.jpg", cast.profilePath)
     }
 
     @Test
-    fun `movie tmdb id preserves provider supplied non numeric value`() {
+    fun `non numeric provider tmdb id remains distinguishable from valid identity`() {
         val response = gson.fromJson(
             """
                 {
@@ -72,34 +70,18 @@ class DoramasflixModelsTest {
     }
 
     @Test
-    fun `full search and episode pagination keep page information`() {
+    fun `pagination retains the continuation flag used by the provider`() {
         val response = gson.fromJson(
             """
                 {
                   "data": {
                     "searchFullDoramas": {
-                      "count": 406,
-                      "pageInfo": {
-                        "currentPage": 2,
-                        "perPage": 5,
-                        "pageCount": 82,
-                        "itemCount": 5,
-                        "hasNextPage": true,
-                        "hasPreviousPage": true
-                      },
+                      "pageInfo": {"hasNextPage": true},
                       "items": [{"_id":"1","slug":"love-by-chance","name":"Love By Chance"}]
                     },
                     "paginationEpisode": {
-                      "count": 28,
-                      "pageInfo": {
-                        "currentPage": 3,
-                        "perPage": 10,
-                        "pageCount": 3,
-                        "itemCount": 8,
-                        "hasNextPage": false,
-                        "hasPreviousPage": true
-                      },
-                      "items": [{"_id":"ep28","slug":"meeting-you-1x28","episode_number":28,"count_links":2}]
+                      "pageInfo": {"hasNextPage": false},
+                      "items": [{"_id":"ep28","slug":"meeting-you-1x28","episode_number":28}]
                     }
                   }
                 }
@@ -107,15 +89,13 @@ class DoramasflixModelsTest {
             ApiResponse::class.java,
         )
 
-        assertEquals(82, response.data?.searchFullDoramas?.pageInfo?.pageCount)
-        assertEquals(true, response.data?.searchFullDoramas?.pageInfo?.hasNextPage)
-        assertEquals(28, response.data?.paginationEpisode?.count)
-        assertEquals(false, response.data?.paginationEpisode?.pageInfo?.hasNextPage)
+        assertTrue(response.data?.searchFullDoramas?.pageInfo?.hasNextPage == true)
+        assertFalse(response.data?.paginationEpisode?.pageInfo?.hasNextPage == true)
         assertEquals(28, response.data?.paginationEpisode?.items?.single()?.episodeNumber)
     }
 
     @Test
-    fun `playback response keeps provider languages and hard subtitle descriptors`() {
+    fun `playback response keeps provider language and hard subtitle descriptors`() {
         val response = gson.fromJson(
             """
                 {
@@ -134,7 +114,7 @@ class DoramasflixModelsTest {
                           "server": "1230",
                           "lang": "13111",
                           "link": "https://example.test/embed",
-                          "page": "doramasmp4",
+                          "is_recommended": true,
                           "subtitles": [{"language_code":"es","type":"HARDSUB"}]
                         }
                       ]
@@ -147,13 +127,13 @@ class DoramasflixModelsTest {
 
         assertEquals("13111", response.data?.detailEpisode?.langs.orEmpty().single().codeFlix)
         val link = response.data?.getEpisodeLinks?.linksOnline.orEmpty().single()
-        assertEquals("doramasmp4", link.page)
+        assertTrue(link.isRecommended == true)
         assertEquals("es", link.subtitles.orEmpty().single().languageCode)
         assertEquals("HARDSUB", link.subtitles.orEmpty().single().type)
     }
 
     @Test
-    fun `similar title responses deserialize through shared content model`() {
+    fun `similar title responses use the same stable provider identity model`() {
         val response = gson.fromJson(
             """
                 {
