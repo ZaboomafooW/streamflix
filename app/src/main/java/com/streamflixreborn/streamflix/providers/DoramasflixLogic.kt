@@ -47,6 +47,9 @@ internal object DoramasflixLogic {
         rating: Double?,
         ratingCount: Int?,
     ): DoramasflixRatingDecision {
+        if (ratingCount != null && ratingCount < 0) {
+            return DoramasflixRatingDecision(rating = null, allowExternalFallback = true)
+        }
         if (ratingCount == 0) {
             return DoramasflixRatingDecision(rating = null, allowExternalFallback = false)
         }
@@ -56,7 +59,7 @@ internal object DoramasflixLogic {
         if (rating == null) {
             return DoramasflixRatingDecision(rating = null, allowExternalFallback = true)
         }
-        if (!rating.isFinite() || rating < 0.0 || rating > 5.0 || (ratingCount != null && ratingCount < 0)) {
+        if (!rating.isFinite() || rating < 0.0 || rating > 5.0) {
             return DoramasflixRatingDecision(rating = null, allowExternalFallback = true)
         }
         return DoramasflixRatingDecision(rating = rating, allowExternalFallback = false)
