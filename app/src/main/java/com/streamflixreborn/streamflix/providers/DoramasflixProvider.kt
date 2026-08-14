@@ -244,13 +244,11 @@ object DoramasflixProvider : Provider {
     private fun numericTmdbId(content: Content): Int? =
         DoramasflixLogic.nonBlank(content.tmdbId)?.toIntOrNull()?.takeIf { it > 0 }
 
-    private fun apiTitleFor(content: Content): String? {
-        val primary = DoramasflixLogic.firstNonBlank(content.name, content.originalName, content.nameEs)
-            ?: return null
-        val alternate = DoramasflixLogic.nonBlank(content.nameEs)
-            ?.takeIf { !it.equals(primary, ignoreCase = true) }
-        return alternate?.let { "$primary ($it)" } ?: primary
-    }
+    private fun apiTitleFor(content: Content): String? = DoramasflixLogic.displayTitle(
+        nameEs = content.nameEs,
+        name = content.name,
+        originalName = content.originalName,
+    )
 
     private fun titleFor(content: Content): String = apiTitleFor(content)
         ?: contentSlug(content)?.replace('-', ' ')
