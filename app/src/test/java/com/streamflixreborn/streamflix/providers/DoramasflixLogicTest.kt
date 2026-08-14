@@ -9,6 +9,41 @@ import org.junit.Test
 class DoramasflixLogicTest {
 
     @Test
+    fun `server errors mark the provider unavailable`() {
+        assertTrue(DoramasflixLogic.isUnavailableHttpStatus(500))
+        assertTrue(DoramasflixLogic.isUnavailableHttpStatus(503))
+        assertFalse(DoramasflixLogic.isUnavailableHttpStatus(429))
+        assertFalse(DoramasflixLogic.isUnavailableHttpStatus(404))
+    }
+
+    @Test
+    fun `optional detail only suppresses a successful not found result`() {
+        assertTrue(
+            DoramasflixLogic.shouldSuppressOptionalDetailFailure(
+                DoramasflixContentNotFoundException("missing")
+            )
+        )
+        assertFalse(
+            DoramasflixLogic.shouldSuppressOptionalDetailFailure(
+                DoramasflixUnavailableException()
+            )
+        )
+        assertFalse(
+            DoramasflixLogic.shouldSuppressOptionalDetailFailure(
+                Exception("GraphQL request failed")
+            )
+        )
+    }
+
+    @Test
+    fun `provider unavailable error has user facing retry message`() {
+        assertEquals(
+            "Doramasflix is currently unavailable. Please try again later.",
+            DoramasflixUnavailableException().message,
+        )
+    }
+
+    @Test
     fun `rated API value is authoritative`() {
         val decision = DoramasflixLogic.resolveApiRating(4.142857142857143, 14)
         assertEquals(4.142857142857143, decision.rating)
