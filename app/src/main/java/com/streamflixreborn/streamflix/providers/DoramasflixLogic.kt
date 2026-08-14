@@ -121,12 +121,9 @@ internal object DoramasflixLogic {
             .map(::normalizeWords)
             .filter(String::isNotEmpty)
             .any { showTitle ->
-                normalized
-                    .removePrefix(showTitle)
-                    .trim()
-                    .takeIf { it != normalized }
-                    ?.let { isGenericEpisodeMarker(it, seasonNumber, episodeNumber) }
-                    == true
+                val suffix = normalized.removePrefix(showTitle).trim()
+                suffix != normalized &&
+                    isGenericEpisodeMarker(suffix, seasonNumber, episodeNumber)
             }
         return title.takeUnless { isShowPrefixedMarker }
     }
