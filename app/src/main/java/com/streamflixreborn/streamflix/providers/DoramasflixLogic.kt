@@ -1,7 +1,6 @@
 package com.streamflixreborn.streamflix.providers
 
 import com.google.gson.JsonParser
-import java.text.Normalizer
 import java.time.Instant
 import java.time.ZoneOffset
 import java.util.Locale
@@ -19,22 +18,6 @@ internal object DoramasflixLogic {
         "no title available",
         "sin titulo disponible",
     )
-
-    private val genericOverviewValues = setOf(
-        "n/a",
-        "na",
-        "sin sinopsis",
-        "sin descripcion",
-        "sin descripción",
-        "sinopsis no disponible",
-        "descripcion no disponible",
-        "descripción no disponible",
-        "no description",
-        "no description available",
-        "no overview",
-        "no overview available",
-    )
-    private val genericOverviewNormalizedValues = genericOverviewValues.map(::normalizeWords).toSet()
 
     private val genericImagePattern = Regex(
         "(?:^|[/_.-])(placeholder|no[-_ ]?image|image[-_ ]?not[-_ ]?found|sin[-_ ]?imagen|missing[-_ ]?image)(?:[/_.-]|$)",
@@ -80,21 +63,6 @@ internal object DoramasflixLogic {
         )
     }
 
-    fun resolveRating(
-        apiRating: Double?,
-        apiRatingCount: Int?,
-        websiteRating: Double?,
-        tmdbRating: Double?,
-    ): Double? {
-        val api = resolveApiRating(apiRating, apiRatingCount)
-        if (!api.useHtmlFallback) return api.rating
-
-        return websiteRating?.takeIf { it > 0.0 }
-            ?: tmdbRating
-                ?.takeIf { it > 0.0 }
-                ?.div(2.0)
-    }
-
     fun firstNonBlank(vararg values: String?): String? =
         values.asSequence()
             .mapNotNull { value -> value?.trim()?.takeIf { it.isNotEmpty() } }
@@ -122,112 +90,10 @@ internal object DoramasflixLogic {
         return title
     }
 
-    fun meaningfulOverview(value: String?): String? {
-        val overview = value?.trim()?.takeIf { it.isNotEmpty() } ?: return null
-        val normalized = normalizeWords(overview)
-        if (normalized in genericOverviewNormalizedValues) return null
-
-        val lower = overview.lowercase(Locale.ROOT)
-        if (
-            lower.contains("online gratis") ||
-            lower.contains("online completa") ||
-            lower.contains("sub español") ||
-            (lower.contains("episodio") && lower.contains("subtitulado"))
-        ) {
-            return null
-        }
-
-        return overview
-    }
-
-    fun meaningfulEpisodeTitle(
-        value: String?,
-        seasonNumber: Int,
-        episodeNumber: Int,
-        seriesTitles: Collection<String?> = emptyList(),
-    ): String? {
-        val title = meaningfulTitle(value) ?: return null
-        val normalized = normalizeWords(title)
-        val season = seasonNumber.coerceAtLeast(0).toString()
-        val episode = episodeNumber.coerceAtLeast(0).toString()
-        val genericEpisodeBody = "(?:episode|episodio|capitulo|chapter|ep)\\s*0*$episode"
-        val genericCodeBody = "(?:s\\s*0*$season\\s*e\\s*0*$episode|0*$season\\s*x\\s*0*$episode)"
-        val genericEpisode = Regex("^$genericEpisodeBody$")
-        val genericCode = Regex("^$genericCodeBody$")
-        val genericTail = Regex("^.+\\s+(?:$genericEpisodeBody|$genericCodeBody)$")
-
-        if (
-            normalized == episode ||
-            genericEpisode.matches(normalized) ||
-            genericCode.matches(normalized) ||
-            genericTail.matches(normalized)
-        ) {
-            return null
-        }
-
-        val normalizedSeriesTitles = seriesTitles
-            .mapNotNull { meaningfulTitle(it) }
-            .map(::normalizeWords)
-            .filter(String::isNotEmpty)
-            .distinct()
-
-        for (seriesTitle in normalizedSeriesTitles) {
-            if (normalized == seriesTitle) return null
-            if (!normalized.startsWith("$seriesTitle ")) continue
-
-            val suffix = normalized.removePrefix("$seriesTitle ").trim()
-            if (
-                suffix == episode ||
-                genericEpisode.matches(suffix) ||
-                genericCode.matches(suffix)
-            ) {
-                return null
-            }
-        }
-
-        return title
-    }
-
-    fun meaningfulImage(
-        value: String?,
-        genericArtwork: Collection<String?> = emptyList(),
-    ): String? {
+    fun meaningfulImage(value: String?): String? {
         val image = value?.trim()?.takeIf { it.isNotEmpty() } ?: return null
         if (genericImagePattern.containsMatchIn(image.lowercase(Locale.ROOT))) return null
-
-        if (genericArtwork.any { generic -> sameImageAsset(image, generic) }) return null
         return image
-    }
-
-    fun sameImageAsset(
-        first: String?,
-        second: String?,
-    ): Boolean {
-        val firstKey = imageAssetKey(first) ?: return false
-        val secondKey = imageAssetKey(second) ?: return false
-        return firstKey == secondKey
-    }
-
-    private fun imageAssetKey(value: String?): String? {
-        var normalized = value
-            ?.trim()
-            ?.substringBefore('?')
-            ?.substringBefore('#')
-            ?.takeIf { it.isNotEmpty() }
-            ?: return null
-
-        val tmdbMarker = "/t/p/"
-        if (normalized.contains(tmdbMarker, ignoreCase = true)) {
-            normalized = normalized.substringAfter(tmdbMarker)
-            normalized = normalized.substringAfter('/', normalized)
-        } else if (normalized.startsWith("http://") || normalized.startsWith("https://")) {
-            normalized = normalized.substringAfter("://").substringAfter('/', "")
-        }
-
-        return normalized
-            .trimStart('/')
-            .lowercase(Locale.ROOT)
-            .takeIf { it.isNotEmpty() }
     }
 
     fun meaningfulRuntime(value: Int?): Int? = value?.takeIf { it > 0 }
@@ -252,29 +118,15 @@ internal object DoramasflixLogic {
         return "%04d-%02d-%02d".format(Locale.ROOT, year, month, day)
     }
 
-    fun doramaWebsitePath(
-        slug: String,
-        isTvShow: Boolean?,
-    ): String = if (isTvShow == true) {
-        "variedades-online/$slug"
-    } else {
-        "doramas-online/$slug"
-    }
-
     fun episodeArtwork(
         stillPath: String?,
         backdrop: String?,
         stillImage: String?,
-        websiteArtwork: String? = null,
-        tmdbArtwork: String? = null,
-        genericArtwork: Collection<String?> = emptyList(),
     ): String? = sequenceOf(
         stillPath,
         backdrop,
         stillImage,
-        websiteArtwork,
-        tmdbArtwork,
-    ).mapNotNull { candidate -> meaningfulImage(candidate, genericArtwork) }
+    ).mapNotNull(::meaningfulImage)
         .firstOrNull()
 
     fun <T> mixAlternating(
@@ -428,7 +280,7 @@ internal object DoramasflixLogic {
     }
 
     private fun normalizeWords(value: String): String =
-        Normalizer.normalize(value, Normalizer.Form.NFD)
+        java.text.Normalizer.normalize(value, java.text.Normalizer.Form.NFD)
             .replace(Regex("\\p{M}+"), "")
             .lowercase(Locale.ROOT)
             .replace(Regex("[^a-z0-9]+"), " ")

@@ -9,253 +9,57 @@ import org.junit.Test
 class DoramasflixLogicTest {
 
     @Test
-    fun `rated API value is authoritative without html fallback`() {
+    fun `rated API value is preserved`() {
         val decision = DoramasflixLogic.resolveApiRating(4.142857142857143, 14)
         assertEquals(4.142857142857143, decision.rating)
         assertFalse(decision.useHtmlFallback)
     }
 
     @Test
-    fun `zero API rating count means unrated without html fallback`() {
+    fun `zero API rating count means unrated`() {
         val decision = DoramasflixLogic.resolveApiRating(0.0, 0)
         assertNull(decision.rating)
         assertFalse(decision.useHtmlFallback)
     }
 
     @Test
-    fun `missing API rating metadata requests html fallback`() {
+    fun `missing API rating remains missing`() {
         val decision = DoramasflixLogic.resolveApiRating(null, null)
         assertNull(decision.rating)
         assertTrue(decision.useHtmlFallback)
     }
 
     @Test
-    fun `rating fallback follows API website then TMDb on Doramasflix scale`() {
-        assertEquals(
-            4.7,
-            DoramasflixLogic.resolveRating(
-                apiRating = null,
-                apiRatingCount = null,
-                websiteRating = 4.7,
-                tmdbRating = 8.2,
-            )
-        )
-        assertEquals(
-            4.1,
-            DoramasflixLogic.resolveRating(
-                apiRating = null,
-                apiRatingCount = null,
-                websiteRating = null,
-                tmdbRating = 8.2,
-            )
-        )
-    }
-
-    @Test
-    fun `API rating remains ahead of website and TMDb`() {
-        assertEquals(
-            4.142857142857143,
-            DoramasflixLogic.resolveRating(
-                apiRating = 4.142857142857143,
-                apiRatingCount = 14,
-                websiteRating = 4.9,
-                tmdbRating = 8.0,
-            )
-        )
-    }
-
-    @Test
-    fun `explicit unrated API value does not inherit website or TMDb rating`() {
-        assertNull(
-            DoramasflixLogic.resolveRating(
-                apiRating = 0.0,
-                apiRatingCount = 0,
-                websiteRating = 4.5,
-                tmdbRating = 7.4,
-            )
-        )
-    }
-
-    @Test
-    fun `meaningful API episode artwork remains authoritative`() {
+    fun `provider episode artwork preserves provider field order`() {
         assertEquals(
             "/episode-seven.jpg",
             DoramasflixLogic.episodeArtwork(
                 stillPath = "/episode-seven.jpg",
                 backdrop = "/alternate.jpg",
                 stillImage = "/image.jpg",
-                websiteArtwork = "/website.jpg",
-                tmdbArtwork = "/tmdb.jpg",
-                genericArtwork = listOf("/series.jpg"),
             )
         )
-    }
-
-    @Test
-    fun `series key art is treated as missing episode artwork`() {
         assertEquals(
-            "/website.jpg",
-            DoramasflixLogic.episodeArtwork(
-                stillPath = "/series.jpg",
-                backdrop = "https://image.tmdb.org/t/p/w1280/series.jpg",
-                stillImage = null,
-                websiteArtwork = "/website.jpg",
-                tmdbArtwork = "/tmdb.jpg",
-                genericArtwork = listOf("https://image.tmdb.org/t/p/original/series.jpg"),
-            )
-        )
-    }
-
-    @Test
-    fun `repeated episode artwork is not generic merely because it repeats`() {
-        assertEquals(
-            "/legitimate-shared-still.jpg",
-            DoramasflixLogic.episodeArtwork(
-                stillPath = "/legitimate-shared-still.jpg",
-                backdrop = null,
-                stillImage = null,
-                websiteArtwork = "/website.jpg",
-                tmdbArtwork = "/tmdb.jpg",
-                genericArtwork = listOf("/series-backdrop.jpg"),
-            )
-        )
-    }
-
-    @Test
-    fun `episode artwork follows API fields before website and TMDb`() {
-        assertEquals(
-            "/backdrop.jpg",
+            "/alternate.jpg",
             DoramasflixLogic.episodeArtwork(
                 stillPath = null,
-                backdrop = "/backdrop.jpg",
-                stillImage = "/still-image.jpg",
-                websiteArtwork = "/website.jpg",
-                tmdbArtwork = "/tmdb.jpg",
-            )
-        )
-        assertEquals(
-            "/still-image.jpg",
-            DoramasflixLogic.episodeArtwork(
-                stillPath = null,
-                backdrop = null,
-                stillImage = "/still-image.jpg",
-                websiteArtwork = "/website.jpg",
-                tmdbArtwork = "/tmdb.jpg",
+                backdrop = "/alternate.jpg",
+                stillImage = "/image.jpg",
             )
         )
     }
 
     @Test
-    fun `episode artwork uses website before TMDb when API has none`() {
-        assertEquals(
-            "/website.jpg",
-            DoramasflixLogic.episodeArtwork(
-                stillPath = null,
-                backdrop = null,
-                stillImage = null,
-                websiteArtwork = "/website.jpg",
-                tmdbArtwork = "/tmdb.jpg",
-            )
-        )
-        assertEquals(
-            "/tmdb.jpg",
-            DoramasflixLogic.episodeArtwork(
-                stillPath = null,
-                backdrop = null,
-                stillImage = null,
-                websiteArtwork = null,
-                tmdbArtwork = "/tmdb.jpg",
-            )
-        )
+    fun `first nonblank metadata preserves source order without judging generic labels`() {
+        assertEquals("Episodio 1", DoramasflixLogic.firstNonBlank(null, " ", "Episodio 1", "Episode One"))
+        assertNull(DoramasflixLogic.firstNonBlank(null, " "))
     }
 
     @Test
-    fun `generic Spooky episode labels are treated as missing`() {
-        val seriesTitles = listOf("Spooky in Love", "Muertos de Amor")
-
-        assertNull(
-            DoramasflixLogic.meaningfulEpisodeTitle(
-                value = "Muertos de Amor 1x7",
-                seasonNumber = 1,
-                episodeNumber = 7,
-                seriesTitles = seriesTitles,
-            )
-        )
-        assertNull(
-            DoramasflixLogic.meaningfulEpisodeTitle(
-                value = "Spooky in Love episodio 7",
-                seasonNumber = 1,
-                episodeNumber = 7,
-                seriesTitles = seriesTitles,
-            )
-        )
-        assertNull(
-            DoramasflixLogic.meaningfulEpisodeTitle(
-                value = "Episode 7",
-                seasonNumber = 1,
-                episodeNumber = 7,
-                seriesTitles = seriesTitles,
-            )
-        )
-        assertNull(
-            DoramasflixLogic.meaningfulEpisodeTitle(
-                value = "S1.E7",
-                seasonNumber = 1,
-                episodeNumber = 7,
-                seriesTitles = seriesTitles,
-            )
-        )
-    }
-
-    @Test
-    fun `meaningful episode title is preserved`() {
-        assertEquals(
-            "The Visitor at Midnight",
-            DoramasflixLogic.meaningfulEpisodeTitle(
-                value = "The Visitor at Midnight",
-                seasonNumber = 1,
-                episodeNumber = 7,
-                seriesTitles = listOf("Spooky in Love"),
-            )
-        )
-    }
-
-    @Test
-    fun `generic descriptions are treated as missing`() {
-        assertNull(DoramasflixLogic.meaningfulOverview("Sin sinopsis"))
-        assertNull(
-            DoramasflixLogic.meaningfulOverview(
-                "Ver Spooky in Love Episodio 7 Online Gratis en HD con audio Latino y Subtitulado."
-            )
-        )
-        assertEquals(
-            "Una heredera ve fantasmas y ayuda a resolver un asesinato.",
-            DoramasflixLogic.meaningfulOverview(
-                "Una heredera ve fantasmas y ayuda a resolver un asesinato."
-            )
-        )
-    }
-
-    @Test
-    fun `generic image markers are treated as missing`() {
+    fun `obvious image placeholders are unusable`() {
         assertNull(DoramasflixLogic.meaningfulImage("https://cdn.example/no-image.jpg"))
         assertNull(DoramasflixLogic.meaningfulImage("/assets/placeholder-poster.png"))
-    }
-
-    @Test
-    fun `TMDb image sizes refer to the same underlying asset`() {
-        assertTrue(
-            DoramasflixLogic.sameImageAsset(
-                "/abc123.jpg",
-                "https://image.tmdb.org/t/p/w1280/abc123.jpg?cache=1",
-            )
-        )
-    }
-
-    @Test
-    fun `first nonblank metadata preserves fallback order`() {
-        assertEquals("website", DoramasflixLogic.firstNonBlank(null, " ", "website", "tmdb"))
-        assertNull(DoramasflixLogic.firstNonBlank(null, " "))
+        assertEquals("/episode.jpg", DoramasflixLogic.meaningfulImage("/episode.jpg"))
     }
 
     @Test
@@ -360,7 +164,7 @@ class DoramasflixLogicTest {
     }
 
     @Test
-    fun `Spanish website date is normalized to ISO`() {
+    fun `Spanish date is normalized to ISO`() {
         assertEquals("2026-07-18", DoramasflixLogic.normalizeDate("18 de julio de 2026"))
     }
 
