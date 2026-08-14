@@ -7,7 +7,6 @@ import java.util.Locale
 
 internal data class DoramasflixRatingDecision(
     val rating: Double?,
-    val useHtmlFallback: Boolean,
 )
 
 internal object DoramasflixLogic {
@@ -44,23 +43,10 @@ internal object DoramasflixLogic {
         rating: Double?,
         ratingCount: Int?,
     ): DoramasflixRatingDecision {
-        if (ratingCount != null) {
-            if (ratingCount <= 0) {
-                return DoramasflixRatingDecision(rating = null, useHtmlFallback = false)
-            }
-
-            val validRating = rating?.takeIf { it > 0.0 }
-            return DoramasflixRatingDecision(
-                rating = validRating,
-                useHtmlFallback = validRating == null,
-            )
+        if (ratingCount != null && ratingCount <= 0) {
+            return DoramasflixRatingDecision(rating = null)
         }
-
-        val validRating = rating?.takeIf { it > 0.0 }
-        return DoramasflixRatingDecision(
-            rating = validRating,
-            useHtmlFallback = validRating == null,
-        )
+        return DoramasflixRatingDecision(rating = rating?.takeIf { it > 0.0 })
     }
 
     fun firstNonBlank(vararg values: String?): String? =

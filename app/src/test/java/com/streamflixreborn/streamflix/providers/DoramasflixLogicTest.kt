@@ -1,32 +1,27 @@
 package com.streamflixreborn.streamflix.providers
 
 import org.junit.Assert.assertEquals
-import org.junit.Assert.assertFalse
 import org.junit.Assert.assertNull
-import org.junit.Assert.assertTrue
 import org.junit.Test
 
 class DoramasflixLogicTest {
 
     @Test
     fun `rated API value is preserved`() {
-        val decision = DoramasflixLogic.resolveApiRating(4.142857142857143, 14)
-        assertEquals(4.142857142857143, decision.rating)
-        assertFalse(decision.useHtmlFallback)
+        assertEquals(
+            4.142857142857143,
+            DoramasflixLogic.resolveApiRating(4.142857142857143, 14).rating,
+        )
     }
 
     @Test
     fun `zero API rating count means unrated`() {
-        val decision = DoramasflixLogic.resolveApiRating(0.0, 0)
-        assertNull(decision.rating)
-        assertFalse(decision.useHtmlFallback)
+        assertNull(DoramasflixLogic.resolveApiRating(0.0, 0).rating)
     }
 
     @Test
     fun `missing API rating remains missing`() {
-        val decision = DoramasflixLogic.resolveApiRating(null, null)
-        assertNull(decision.rating)
-        assertTrue(decision.useHtmlFallback)
+        assertNull(DoramasflixLogic.resolveApiRating(null, null).rating)
     }
 
     @Test
