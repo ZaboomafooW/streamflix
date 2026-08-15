@@ -4,8 +4,8 @@ import android.util.Log
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.streamflixreborn.streamflix.models.Provider as ModelProvider
-import com.streamflixreborn.streamflix.providers.DoramasflixProvider
 import com.streamflixreborn.streamflix.providers.Provider
+import com.streamflixreborn.streamflix.providers.ProviderBranding
 import com.streamflixreborn.streamflix.providers.TmdbProvider
 import com.streamflixreborn.streamflix.utils.UserPreferences
 import kotlinx.coroutines.Dispatchers
@@ -15,7 +15,6 @@ import kotlinx.coroutines.launch
 import java.util.Locale
 
 class ProvidersViewModel : ViewModel() {
-
     private val _state = MutableStateFlow<State>(State.Loading)
     val state: Flow<State> = _state
 
@@ -31,18 +30,13 @@ class ProvidersViewModel : ViewModel() {
 
     fun getProviders(language: String? = null) = viewModelScope.launch(Dispatchers.IO) {
         _state.emit(State.Loading)
-
         try {
             val isFavoritesFilter = language == "favorites"
             val favorites = UserPreferences.favoriteProviders
-
             val providers = Provider.providers.keys
-                .filter { 
-                    if (isFavoritesFilter) {
-                        favorites.contains(it.name)
-                    } else {
-                        language == null || it.language == language 
-                    }
+                .filter {
+                    if (isFavoritesFilter) favorites.contains(it.name)
+                    else language == null || it.language == language
                 }
                 .sortedBy { it.name }
                 .toMutableList()
@@ -57,10 +51,8 @@ class ProvidersViewModel : ViewModel() {
                         }
                     }
                 }
-            } else {
-                if (language != "pl") {
-                    providers.add(TmdbProvider(language))
-                }
+            } else if (language != "pl") {
+                providers.add(TmdbProvider(language))
             }
 
             val modelProviders = providers.map {
@@ -71,20 +63,15 @@ class ProvidersViewModel : ViewModel() {
                 }
                 ModelProvider(
                     name = name,
-                    logo = if (it === DoramasflixProvider) {
-                        "https://www.google.com/s2/favicons?domain=doramasflix.in&sz=256"
-                    } else {
-                        it.logo
-                    },
+                    logo = ProviderBranding.logo(it).orEmpty(),
                     language = it.language,
                     provider = it,
-                    isFavorite = favorites.contains(name)
+                    isFavorite = favorites.contains(name),
                 )
             }.sortedWith(
                 compareBy<ModelProvider> { it.provider is TmdbProvider }
                     .thenBy { it.name.lowercase(Locale.ROOT) }
             )
-
             _state.emit(State.SuccessLoading(modelProviders))
         } catch (e: Exception) {
             Log.e("ProvidersViewModel", "getProviders: ", e)
