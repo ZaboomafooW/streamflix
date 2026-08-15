@@ -16,10 +16,8 @@ object TmdbUtils {
     private const val MIN_ACCEPTABLE_SCORE = 60
     private const val MAX_LOCALIZED_DETAIL_CANDIDATES = 5
     private const val UNKNOWN_AGE_RATING = Int.MIN_VALUE
-    private const val UNKNOWN_TV_OVERVIEW = "\u0000"
     private val movieAgeCache = ConcurrentHashMap<String, Int>()
     private val tvAgeCache = ConcurrentHashMap<String, Int>()
-    private val tvOverviewCache = ConcurrentHashMap<String, String>()
 
     suspend fun getMovie(title: String, year: Int? = null, language: String? = null): Movie? {
         if (!UserPreferences.enableTmdb) return null
@@ -105,24 +103,18 @@ object TmdbUtils {
     suspend fun getEpisodesBySeason(tvShowId: String, seasonNumber: Int, language: String? = null): List<Episode> {
         if (!UserPreferences.enableTmdb) return listOf()
         return try {
-            val seriesId = tvShowId.toInt()
-            val season = TMDb3.TvSeasons.details(
-                seriesId = seriesId,
+            TMDb3.TvSeasons.details(
+                seriesId = tvShowId.toInt(),
                 seasonNumber = seasonNumber,
                 language = language
-            )
-            val seriesOverview = getTvOverview(seriesId, language)
-
-            season.episodes?.map {
+            ).episodes?.map {
                 Episode(
                     id = it.id.toString(),
                     number = it.episodeNumber,
                     title = it.name ?: "",
                     released = it.airDate,
                     poster = it.stillPath?.w500,
-                    overview = it.overview?.takeUnless { episodeOverview ->
-                        sameNormalizedOverview(episodeOverview, seriesOverview)
-                    },
+                    overview = it.overview,
                 )
             } ?: listOf()
         } catch (_: Exception) { listOf() }
@@ -275,32 +267,6 @@ object TmdbUtils {
 
         tvAgeCache[cacheKey] = encodeAgeRatingCacheValue(ageRating)
         return ageRating
-    }
-
-    private suspend fun getTvOverview(id: Int, language: String?): String? {
-        val cacheKey = "$id|${language.orEmpty()}"
-        tvOverviewCache[cacheKey]?.let { cached ->
-            return cached.takeUnless { it == UNKNOWN_TV_OVERVIEW }
-        }
-
-        val overview = runCatching {
-            TMDb3.TvSeries.details(seriesId = id, language = language).overview
-                ?.trim()
-                ?.takeIf(String::isNotEmpty)
-        }.getOrNull()
-        tvOverviewCache[cacheKey] = overview ?: UNKNOWN_TV_OVERVIEW
-        return overview
-    }
-
-    private fun sameNormalizedOverview(first: String?, second: String?): Boolean {
-        if (first.isNullOrBlank() || second.isNullOrBlank()) return false
-        val firstNormalized = normalizeTitle(first)
-        val secondNormalized = normalizeTitle(second)
-        return when {
-            firstNormalized.isNotEmpty() && secondNormalized.isNotEmpty() ->
-                firstNormalized == secondNormalized
-            else -> first.trim() == second.trim()
-        }
     }
 
     private suspend fun findBestMovieMatch(
