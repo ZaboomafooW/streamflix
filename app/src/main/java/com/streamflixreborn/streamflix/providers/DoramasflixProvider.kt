@@ -272,6 +272,27 @@ object DoramasflixProvider : Provider {
             )
         }.distinctBy { it.id }
 
+    private fun hasNonLatinCast(content: Content): Boolean =
+        content.cast.orEmpty().any { member ->
+            val castName = DoramasflixLogic.nonBlank(member.name) ?: return@any false
+            !DoramasflixLogic.containsLatinLetter(castName)
+        }
+
+    private fun resolveCast(content: Content, external: List<People>): List<People> {
+        val externalById = external.associateBy { it.id }
+        return castFor(content).map { member ->
+            val externalMember = externalById[member.id] ?: return@map member
+            val localizedName = DoramasflixLogic.nonBlank(externalMember.name)
+                ?.takeIf(DoramasflixLogic::containsLatinLetter)
+                ?: return@map member
+            People(
+                id = member.id,
+                name = localizedName,
+                image = member.image ?: externalMember.image,
+            )
+        }
+    }
+
     private fun cacheMovie(content: Content) {
         val slug = contentSlug(content) ?: return
         contentBackendId(content)?.let { movieBackendIds[slug] = it }
@@ -327,7 +348,8 @@ object DoramasflixProvider : Provider {
             DoramasflixLogic.meaningfulRuntime(content.runtime) == null ||
             DoramasflixLogic.normalizeTrailer(content.trailer) == null ||
             rating.allowExternalFallback ||
-            genresFor(content).isEmpty()
+            genresFor(content).isEmpty() ||
+            hasNonLatinCast(content)
     }
 
     private fun doramaNeedsExternal(
@@ -347,7 +369,8 @@ object DoramasflixProvider : Provider {
             DoramasflixLogic.normalizeTrailer(content.trailer) == null ||
             rating.allowExternalFallback ||
             genresFor(content).isEmpty() ||
-            seasonMetadataMissing
+            seasonMetadataMissing ||
+            hasNonLatinCast(content)
     }
 
     private suspend fun optionalMovieDetailForEnrichment(slug: String): Content? = try {
@@ -403,7 +426,7 @@ object DoramasflixProvider : Provider {
             banner = contentBackdrop(content) ?: DoramasflixLogic.meaningfulImage(external?.banner),
             imdbId = external?.imdbId,
             genres = apiGenres.ifEmpty { external?.genres.orEmpty() },
-            cast = castFor(content),
+            cast = resolveCast(content, external?.cast.orEmpty()),
         )
     }
 
@@ -430,7 +453,7 @@ object DoramasflixProvider : Provider {
             banner = contentBackdrop(content) ?: DoramasflixLogic.meaningfulImage(external?.banner),
             imdbId = external?.imdbId,
             genres = apiGenres.ifEmpty { external?.genres.orEmpty() },
-            cast = castFor(content),
+            cast = resolveCast(content, external?.cast.orEmpty()),
         )
     }
 
@@ -797,6 +820,7 @@ object DoramasflixProvider : Provider {
     private data class ExternalEpisodeMetadata(
         val localized: Map<Int, Episode>,
         val defaultLanguage: Map<Int, Episode>,
+        val defaultShowOverview: String?,
     )
 
     private suspend fun getTmdbEpisodeMetadata(
@@ -804,12 +828,14 @@ object DoramasflixProvider : Provider {
         seasonNumber: Int,
     ): ExternalEpisodeMetadata {
         val tmdbId = resolveDoramaTmdbIdForEnrichment(slug)
-            ?: return ExternalEpisodeMetadata(emptyMap(), emptyMap())
+            ?: return ExternalEpisodeMetadata(emptyMap(), emptyMap(), null)
         val localized = TmdbUtils.getEpisodesBySeason(tmdbId, seasonNumber, language)
             .associateBy { it.number }
         val defaultLanguage = TmdbUtils.getEpisodesBySeason(tmdbId, seasonNumber, null)
             .associateBy { it.number }
-        return ExternalEpisodeMetadata(localized, defaultLanguage)
+        val defaultShowOverview = tmdbId.toIntOrNull()
+            ?.let { TmdbUtils.getTvShowById(it, null)?.overview }
+        return ExternalEpisodeMetadata(localized, defaultLanguage, defaultShowOverview)
     }
 
     private suspend fun getEpisodes(slug: String, seasonNumber: Int): List<DoramasflixEpisode> {
@@ -1150,7 +1176,7 @@ object DoramasflixProvider : Provider {
         val external = if (needsExternal) {
             getTmdbEpisodeMetadata(slug, seasonNumber)
         } else {
-            ExternalEpisodeMetadata(emptyMap(), emptyMap())
+            ExternalEpisodeMetadata(emptyMap(), emptyMap(), null)
         }
 
         return episodes.mapNotNull { episode ->
@@ -1164,7 +1190,10 @@ object DoramasflixProvider : Provider {
             val externalOverview = DoramasflixLogic.firstNonBlank(
                 localized?.overview,
                 defaultLanguage?.overview,
-            )
+            )?.takeUnless { overview ->
+                DoramasflixLogic.sameNormalizedText(overview, detail.overview) ||
+                    DoramasflixLogic.sameNormalizedText(overview, external.defaultShowOverview)
+            }
             val externalDate = sequenceOf(localized, defaultLanguage)
                 .mapNotNull { it?.released?.format("yyyy-MM-dd") }
                 .mapNotNull(DoramasflixLogic::normalizeDate)
