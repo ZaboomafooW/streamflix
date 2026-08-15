@@ -100,6 +100,17 @@ internal object DoramasflixLogic {
     fun firstNonBlank(vararg values: String?): String? =
         values.asSequence().mapNotNull(::nonBlank).firstOrNull()
 
+    fun containsLatinLetter(value: String?): Boolean =
+        nonBlank(value)?.any { char -> char.isLetter() && char.code <= 0x024F } == true
+
+    fun sameNormalizedText(first: String?, second: String?): Boolean {
+        val firstNormalized = nonBlank(first)?.let(::normalizeWords)?.takeIf(String::isNotEmpty)
+            ?: return false
+        val secondNormalized = nonBlank(second)?.let(::normalizeWords)?.takeIf(String::isNotEmpty)
+            ?: return false
+        return firstNormalized == secondNormalized
+    }
+
     fun displayTitle(
         nameEs: String?,
         name: String?,
@@ -143,8 +154,7 @@ internal object DoramasflixLogic {
     ): String? {
         val overview = nonBlank(value) ?: return null
         val normalized = normalizeWords(overview)
-        val normalizedShowOverview = nonBlank(showOverview)?.let(::normalizeWords)
-        if (normalizedShowOverview != null && normalized == normalizedShowOverview) return null
+        if (sameNormalizedText(overview, showOverview)) return null
         if (normalized in genericEpisodeOverviewValues) return null
         if (genericEpisodeOverviewFragments.any(normalized::contains)) return null
         if (meaningfulEpisodeTitle(overview, showTitles, seasonNumber, episodeNumber) == null) {
