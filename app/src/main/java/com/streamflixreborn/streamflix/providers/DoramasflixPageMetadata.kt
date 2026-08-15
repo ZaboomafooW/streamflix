@@ -8,6 +8,10 @@ import com.streamflixreborn.streamflix.models.Movie
 import com.streamflixreborn.streamflix.models.People
 import com.streamflixreborn.streamflix.models.Show
 import com.streamflixreborn.streamflix.models.TvShow
+import com.streamflixreborn.streamflix.utils.TMDb3
+import com.streamflixreborn.streamflix.utils.TMDb3.w500
+import com.streamflixreborn.streamflix.utils.UserPreferences
+import com.streamflixreborn.streamflix.utils.format
 import com.tanasi.retrofit_jsoup.converter.JsoupConverterFactory
 import kotlinx.coroutines.CancellationException
 import okhttp3.OkHttpClient
@@ -46,12 +50,64 @@ internal class DoramasflixPageMetadata(
     }
 
     suspend fun getPeople(id: String): People = try {
-        parsePeople(
+        val people = parsePeople(
             document = service.getPage("$baseUrl/reparto/${id.removePrefix("/")}"),
             id = id,
         )
+        enrichPeople(people)
     } catch (error: HttpException) {
         throw Exception("Doramasflix actor details failed: HTTP ${error.code()}", error)
+    }
+
+    private suspend fun enrichPeople(people: People): People {
+        if (!UserPreferences.enableTmdb) return people
+        val tmdbId = people.id.toIntOrNull() ?: return people
+
+        suspend fun details(language: String): TMDb3.Person.Detail? = try {
+            TMDb3.People.details(personId = tmdbId, language = language)
+        } catch (error: Exception) {
+            if (error is CancellationException) throw error
+            Log.w(
+                "DoramasflixPageMetadata",
+                "TMDb person enrichment failed for '${people.id}' in '$language'",
+                error,
+            )
+            null
+        }
+
+        val localized = details("es")
+        val english = if (localized == null || localized.biography.isNullOrBlank()) {
+            details("en")
+        } else {
+            null
+        }
+        if (localized == null && english == null) return people
+
+        val localizedName = localized?.name?.trim()?.takeIf(::containsLatinLetter)
+        val englishName = english?.name?.trim()?.takeIf(::containsLatinLetter)
+
+        return People(
+            id = people.id,
+            name = localizedName ?: englishName ?: people.name,
+            image = people.image
+                ?: localized?.profilePath?.w500
+                ?: english?.profilePath?.w500,
+            biography = firstNonBlank(
+                people.biography,
+                localized?.biography,
+                english?.biography,
+            ),
+            placeOfBirth = firstNonBlank(
+                people.placeOfBirth,
+                localized?.placeOfBirth,
+                english?.placeOfBirth,
+            ),
+            birthday = people.birthday?.format("yyyy-MM-dd")
+                ?: firstNonBlank(localized?.birthday, english?.birthday),
+            deathday = people.deathday?.format("yyyy-MM-dd")
+                ?: firstNonBlank(localized?.deathday, english?.deathday),
+            filmography = people.filmography,
+        )
     }
 
     private interface PageService {
@@ -260,6 +316,16 @@ internal class DoramasflixPageMetadata(
                 }
                 .firstOrNull()
         }
+
+        private fun firstNonBlank(vararg values: String?): String? =
+            values.asSequence()
+                .mapNotNull { it?.trim()?.takeIf(String::isNotEmpty) }
+                .firstOrNull()
+
+        private fun containsLatinLetter(value: String): Boolean =
+            value.any { char ->
+                char.isLetter() && Character.UnicodeScript.of(char.code) == Character.UnicodeScript.LATIN
+            }
 
         private fun elementImage(image: Element): String? {
             val absolute = image.absUrl("src").trim()
