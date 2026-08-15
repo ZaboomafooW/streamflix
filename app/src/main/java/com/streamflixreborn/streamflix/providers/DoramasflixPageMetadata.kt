@@ -76,15 +76,23 @@ internal class DoramasflixPageMetadata(
         }
 
         val localized = details("es")
-        val english = if (localized == null || localized.biography.isNullOrBlank()) {
+        val localizedName = localized?.name
+            ?.trim()
+            ?.takeIf(DoramasflixLogic::containsLatinLetter)
+        val english = if (
+            localized == null ||
+            localizedName == null ||
+            localized.biography.isNullOrBlank()
+        ) {
             details("en")
         } else {
             null
         }
         if (localized == null && english == null) return people
 
-        val localizedName = localized?.name?.trim()?.takeIf(::containsLatinLetter)
-        val englishName = english?.name?.trim()?.takeIf(::containsLatinLetter)
+        val englishName = english?.name
+            ?.trim()
+            ?.takeIf(DoramasflixLogic::containsLatinLetter)
 
         return People(
             id = people.id,
@@ -321,11 +329,6 @@ internal class DoramasflixPageMetadata(
             values.asSequence()
                 .mapNotNull { it?.trim()?.takeIf(String::isNotEmpty) }
                 .firstOrNull()
-
-        private fun containsLatinLetter(value: String): Boolean =
-            value.any { char ->
-                char.isLetter() && Character.UnicodeScript.of(char.code) == Character.UnicodeScript.LATIN
-            }
 
         private fun elementImage(image: Element): String? {
             val absolute = image.absUrl("src").trim()
