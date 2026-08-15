@@ -26,6 +26,7 @@ import com.streamflixreborn.streamflix.ui.UpdateAppTvDialog
 import com.streamflixreborn.streamflix.providers.IptvProvider
 import com.streamflixreborn.streamflix.providers.Provider
 import com.streamflixreborn.streamflix.providers.Cine24hProvider
+import com.streamflixreborn.streamflix.providers.DoramasflixProvider
 import com.streamflixreborn.streamflix.providers.FilmyOnlineCcProvider
 import com.streamflixreborn.streamflix.providers.ZaluknijProvider
 import com.streamflixreborn.streamflix.providers.GuardaSerieProvider
@@ -102,12 +103,18 @@ class MainTvActivity : FragmentActivity() {
         navController.addOnDestinationChangedListener { _, destination, _ ->
             binding.navMain.headerView?.apply {
                 val header = ContentHeaderMenuMainTvBinding.bind(this)
+                val currentProvider = UserPreferences.currentProvider
+                val providerLogo = if (currentProvider === DoramasflixProvider) {
+                    "https://www.google.com/s2/favicons?domain=doramasflix.in&sz=256"
+                } else {
+                    currentProvider?.logo
+                }
 
                 Glide.with(context)
-                    .load(UserPreferences.currentProvider?.logo?.takeIf { it.isNotEmpty() } ?: R.drawable.ic_provider_default_logo)
+                    .load(providerLogo?.takeIf { it.isNotEmpty() } ?: R.drawable.ic_provider_default_logo)
                     .error(R.drawable.ic_provider_default_logo)
                     .into(header.ivNavigationHeaderIcon)
-                header.tvNavigationHeaderTitle.text = UserPreferences.currentProvider?.name
+                header.tvNavigationHeaderTitle.text = currentProvider?.name
                 header.tvNavigationHeaderSubtitle.text = getString(R.string.main_menu_change_provider)
                 val palette = ThemeManager.palette(UserPreferences.selectedTheme)
                 header.tvNavigationHeaderTitle.setTextColor(palette.tvHeaderPrimary)
