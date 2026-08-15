@@ -294,7 +294,13 @@ object TmdbUtils {
 
     private fun sameNormalizedOverview(first: String?, second: String?): Boolean {
         if (first.isNullOrBlank() || second.isNullOrBlank()) return false
-        return normalizeTitle(first) == normalizeTitle(second)
+        val firstNormalized = normalizeTitle(first)
+        val secondNormalized = normalizeTitle(second)
+        return when {
+            firstNormalized.isNotEmpty() && secondNormalized.isNotEmpty() ->
+                firstNormalized == secondNormalized
+            else -> first.trim() == second.trim()
+        }
     }
 
     private suspend fun findBestMovieMatch(
