@@ -58,7 +58,8 @@ class TvShowMobileFragment : Fragment() {
 
         initializeTvShow()
 
-        (viewModel.state.value as? TvShowViewModel.State.SuccessLoading)?.let { state ->
+        val restoredState = viewModel.state.value as? TvShowViewModel.State.SuccessLoading
+        restoredState?.let { state ->
             displayTvShow(state.tvShow)
             binding.isLoading.root.visibility = View.GONE
         }
@@ -72,7 +73,9 @@ class TvShowMobileFragment : Fragment() {
                         gIsLoadingRetry.visibility = View.GONE
                     }
                     is TvShowViewModel.State.SuccessLoading -> {
-                        displayTvShow(state.tvShow)
+                        if (state !== restoredState) {
+                            displayTvShow(state.tvShow)
+                        }
                         binding.isLoading.root.visibility = View.GONE
                     }
                     is TvShowViewModel.State.FailedLoading -> {
