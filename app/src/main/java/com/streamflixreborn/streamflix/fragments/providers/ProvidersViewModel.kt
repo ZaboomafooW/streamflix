@@ -4,6 +4,7 @@ import android.util.Log
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.streamflixreborn.streamflix.models.Provider as ModelProvider
+import com.streamflixreborn.streamflix.providers.DoramasflixProvider
 import com.streamflixreborn.streamflix.providers.Provider
 import com.streamflixreborn.streamflix.providers.TmdbProvider
 import com.streamflixreborn.streamflix.utils.UserPreferences
@@ -70,7 +71,11 @@ class ProvidersViewModel : ViewModel() {
                 }
                 ModelProvider(
                     name = name,
-                    logo = it.logo,
+                    logo = if (it === DoramasflixProvider) {
+                        "https://www.google.com/s2/favicons?domain=doramasflix.in&sz=256"
+                    } else {
+                        it.logo
+                    },
                     language = it.language,
                     provider = it,
                     isFavorite = favorites.contains(name)
