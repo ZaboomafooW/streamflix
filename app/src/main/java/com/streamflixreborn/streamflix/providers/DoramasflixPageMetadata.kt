@@ -1,5 +1,6 @@
 package com.streamflixreborn.streamflix.providers
 
+import android.net.Uri
 import android.util.Log
 import com.google.gson.JsonElement
 import com.google.gson.JsonObject
@@ -62,9 +63,18 @@ internal class DoramasflixPageMetadata(
     private suspend fun enrichPeople(people: People): People {
         if (!UserPreferences.enableTmdb) return people
         val tmdbId = people.id.toIntOrNull() ?: return people
+        val includeCredits = people.filmography.isNotEmpty()
 
-        suspend fun details(language: String): TMDb3.Person.Detail? = try {
-            TMDb3.People.details(personId = tmdbId, language = language)
+        suspend fun details(language: String, withCredits: Boolean): TMDb3.Person.Detail? = try {
+            TMDb3.People.details(
+                personId = tmdbId,
+                appendToResponse = if (withCredits) {
+                    listOf(TMDb3.Params.AppendToResponse.Person.COMBINED_CREDITS)
+                } else {
+                    null
+                },
+                language = language,
+            )
         } catch (error: Exception) {
             if (error is CancellationException) throw error
             Log.w(
@@ -75,16 +85,17 @@ internal class DoramasflixPageMetadata(
             null
         }
 
-        val localized = details("es")
+        val localized = details("es", includeCredits)
         val localizedName = localized?.name
             ?.trim()
             ?.takeIf(DoramasflixLogic::containsLatinLetter)
         val english = if (
+            includeCredits ||
             localized == null ||
             localizedName == null ||
             localized.biography.isNullOrBlank()
         ) {
-            details("en")
+            details("en", includeCredits)
         } else {
             null
         }
@@ -114,9 +125,132 @@ internal class DoramasflixPageMetadata(
                 ?: firstNonBlank(localized?.birthday, english?.birthday),
             deathday = people.deathday?.format("yyyy-MM-dd")
                 ?: firstNonBlank(localized?.deathday, english?.deathday),
-            filmography = people.filmography,
+            filmography = localizeFilmography(
+                filmography = people.filmography,
+                localized = localized,
+                english = english,
+            ),
         )
     }
+
+    private fun localizeFilmography(
+        filmography: List<Show>,
+        localized: TMDb3.Person.Detail?,
+        english: TMDb3.Person.Detail?,
+    ): List<Show> {
+        if (filmography.isEmpty()) return filmography
+
+        val localizedCredits = localized?.combinedCredits?.cast.orEmpty()
+        if (localizedCredits.isEmpty()) return filmography
+
+        val englishCredits = english?.combinedCredits?.cast.orEmpty()
+        val localizedByIdentity = localizedCredits
+            .mapNotNull { credit -> creditIdentity(credit)?.let { it to credit } }
+            .toMap()
+
+        return filmography.map { show ->
+            val matchedCredit = findFilmographyCredit(show, englishCredits)
+                ?: findFilmographyCredit(show, localizedCredits)
+                ?: return@map show
+            val localizedCredit = creditIdentity(matchedCredit)
+                ?.let(localizedByIdentity::get)
+                ?: return@map show
+            val localizedTitle = creditTitle(localizedCredit)
+                ?.trim()
+                ?.takeIf { it.isNotEmpty() }
+                ?: return@map show
+
+            when (show) {
+                is Movie -> show.apply { title = localizedTitle }
+                is TvShow -> show.apply { title = localizedTitle }
+            }
+        }
+    }
+
+    private fun findFilmographyCredit(
+        show: Show,
+        credits: List<TMDb3.MultiItem>,
+    ): TMDb3.MultiItem? {
+        if (credits.isEmpty()) return null
+        val sameType = credits.filter { credit -> sameMediaType(show, credit) }
+        if (sameType.isEmpty()) return null
+
+        val showPosterFileName = posterFileName(
+            when (show) {
+                is Movie -> show.poster
+                is TvShow -> show.poster
+            }
+        )
+        if (showPosterFileName != null) {
+            sameType.singleOrNull { credit ->
+                posterFileName(creditPosterPath(credit)) == showPosterFileName
+            }?.let { return it }
+        }
+
+        val showTitle = normalizeFilmographyTitle(
+            when (show) {
+                is Movie -> show.title
+                is TvShow -> show.title
+            }
+        )
+        if (showTitle.isEmpty()) return null
+
+        return sameType.singleOrNull { credit ->
+            creditTitles(credit).any { title ->
+                normalizeFilmographyTitle(title) == showTitle
+            }
+        }
+    }
+
+    private fun sameMediaType(show: Show, credit: TMDb3.MultiItem): Boolean = when (show) {
+        is Movie -> credit is TMDb3.Movie
+        is TvShow -> credit is TMDb3.Tv
+    }
+
+    private fun creditIdentity(credit: TMDb3.MultiItem): String? = when (credit) {
+        is TMDb3.Movie -> "movie:${credit.id}"
+        is TMDb3.Tv -> "tv:${credit.id}"
+        else -> null
+    }
+
+    private fun creditTitle(credit: TMDb3.MultiItem): String? = when (credit) {
+        is TMDb3.Movie -> credit.title
+        is TMDb3.Tv -> credit.name
+        else -> null
+    }
+
+    private fun creditTitles(credit: TMDb3.MultiItem): Sequence<String> = when (credit) {
+        is TMDb3.Movie -> sequenceOf(credit.title, credit.originalTitle)
+        is TMDb3.Tv -> sequenceOf(credit.name, credit.originalName)
+        else -> emptySequence()
+    }
+
+    private fun creditPosterPath(credit: TMDb3.MultiItem): String? = when (credit) {
+        is TMDb3.Movie -> credit.posterPath
+        is TMDb3.Tv -> credit.posterPath
+        else -> null
+    }
+
+    private fun posterFileName(value: String?): String? {
+        val decoded = value
+            ?.trim()
+            ?.takeIf { it.isNotEmpty() }
+            ?.let { Uri.decode(it) }
+            ?: return null
+        return decoded
+            .substringAfterLast('/')
+            .substringBefore('?')
+            .substringBefore('#')
+            .substringBefore('&')
+            .trim()
+            .takeIf { it.contains('.') }
+            ?.lowercase()
+    }
+
+    private fun normalizeFilmographyTitle(value: String): String = value
+        .trim()
+        .replace(Regex("\\s+"), " ")
+        .lowercase()
 
     private interface PageService {
         @GET
