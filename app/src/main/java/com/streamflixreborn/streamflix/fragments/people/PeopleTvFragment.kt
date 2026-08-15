@@ -73,7 +73,11 @@ class PeopleTvFragment : Fragment() {
                         if (code == 409 && !hasAutoCleared409) {
                             hasAutoCleared409 = true
                             CacheUtils.clearAppCache(requireContext())
-                            android.widget.Toast.makeText(requireContext(), getString(com.streamflixreborn.streamflix.R.string.clear_cache_done_409), android.widget.Toast.LENGTH_SHORT).show()
+                            Toast.makeText(
+                                requireContext(),
+                                getString(R.string.clear_cache_done_409),
+                                Toast.LENGTH_SHORT,
+                            ).show()
                             if (appAdapter.isLoading) appAdapter.isLoading = false
                             viewModel.getPeople(args.id)
                             return@collect
@@ -92,7 +96,11 @@ class PeopleTvFragment : Fragment() {
                                 btnIsLoadingRetry.setOnClickListener { viewModel.getPeople(args.id) }
                                 btnIsLoadingClearCache.setOnClickListener {
                                     CacheUtils.clearAppCache(requireContext())
-                                    android.widget.Toast.makeText(requireContext(), getString(com.streamflixreborn.streamflix.R.string.clear_cache_done), android.widget.Toast.LENGTH_SHORT).show()
+                                    Toast.makeText(
+                                        requireContext(),
+                                        getString(R.string.clear_cache_done),
+                                        Toast.LENGTH_SHORT,
+                                    ).show()
                                     viewModel.getPeople(args.id)
                                 }
                                 btnIsLoadingErrorDetails.setOnClickListener {
@@ -111,7 +119,6 @@ class PeopleTvFragment : Fragment() {
         super.onDestroyView()
         _binding = null
     }
-
 
     private fun initializePeople() {
         binding.vgvPeopleFilmography.apply {
@@ -136,27 +143,18 @@ class PeopleTvFragment : Fragment() {
         }
 
         binding.tvPeopleBirthday.text = people.birthday?.format("MMMM dd, yyyy")
-
         binding.gPeopleBirthday.visibility = when {
             binding.tvPeopleBirthday.text.isNullOrEmpty() -> View.GONE
             else -> View.VISIBLE
         }
 
-        binding.tvPeopleDeathday.text = people.deathday?.format("MMMM dd, yyyy")
-
-        binding.gPeopleDeathday.visibility = when {
-            binding.tvPeopleDeathday.text.isNullOrEmpty() -> View.GONE
-            else -> View.VISIBLE
-        }
-
         binding.tvPeopleBirthplace.text = people.placeOfBirth
-
         binding.gPeopleBirthplace.visibility = when {
             binding.tvPeopleBirthplace.text.isNullOrEmpty() -> View.GONE
             else -> View.VISIBLE
         }
 
-        displayBiography(people)
+        displayShowMore(people)
 
         appAdapter.submitList(people.filmography.onEach {
             when (it) {
@@ -172,39 +170,38 @@ class PeopleTvFragment : Fragment() {
         }
     }
 
-    private fun displayBiography(people: People) {
-        val biography = people.biography
-            ?.trim()
-            ?.takeIf { it.isNotEmpty() }
+    private fun displayShowMore(people: People) {
+        val biography = people.biography?.trim()?.takeIf { it.isNotEmpty() }
+        val deathday = people.deathday?.format("MMMM dd, yyyy")
+        val hasExtendedDetails = biography != null || deathday != null
 
-        if (biography == null) {
-            binding.llPeopleBiography.visibility = View.GONE
-            binding.btnPeopleBiographyReadMore.setOnClickListener(null)
-            return
-        }
+        binding.btnPeopleShowMore.visibility = if (hasExtendedDetails) View.VISIBLE else View.GONE
+        binding.btnPeopleShowMore.setOnClickListener(null)
+        if (!hasExtendedDetails) return
 
-        binding.llPeopleBiography.visibility = View.VISIBLE
-        binding.tvPeopleBiography.text = biography
-        binding.btnPeopleBiographyReadMore.visibility = View.GONE
-        binding.btnPeopleBiographyReadMore.setOnClickListener {
+        binding.btnPeopleShowMore.setOnClickListener {
+            val details = buildList {
+                people.birthday?.format("MMMM dd, yyyy")?.let { birthday ->
+                    add("${getString(R.string.people_birthday)}: $birthday")
+                }
+                people.placeOfBirth?.trim()?.takeIf { it.isNotEmpty() }?.let { place ->
+                    add("${getString(R.string.people_birthplace)}: $place")
+                }
+                deathday?.let { date ->
+                    add("${getString(R.string.people_deathday)}: $date")
+                }
+                biography?.let { text ->
+                    if (isNotEmpty()) add("")
+                    add(getString(R.string.people_biography))
+                    add(text)
+                }
+            }.joinToString("\n")
+
             AlertDialog.Builder(requireContext())
-                .setTitle(people.name.takeIf { it.isNotBlank() } ?: getString(R.string.people_biography))
-                .setMessage(biography)
+                .setTitle(people.name.takeIf { it.isNotBlank() } ?: args.name)
+                .setMessage(details)
                 .setPositiveButton(android.R.string.ok, null)
                 .show()
-        }
-
-        binding.tvPeopleBiography.post {
-            val currentBinding = _binding ?: return@post
-            val textLayout = currentBinding.tvPeopleBiography.layout
-            val lastLine = textLayout?.lineCount?.minus(1) ?: -1
-            val isTruncated = textLayout != null &&
-                lastLine >= 0 &&
-                textLayout.getEllipsisCount(lastLine) > 0
-            currentBinding.btnPeopleBiographyReadMore.visibility = when {
-                isTruncated -> View.VISIBLE
-                else -> View.GONE
-            }
         }
     }
 }
