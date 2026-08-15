@@ -69,6 +69,8 @@ object DoramasflixProvider : Provider {
     private val movieBackendIds = ConcurrentHashMap<String, String>()
     private val doramaBackendIds = ConcurrentHashMap<String, String>()
     private val doramaTmdbIds = ConcurrentHashMap<String, String>()
+    private val movieLocalizedTitles = ConcurrentHashMap<String, String>()
+    private val doramaLocalizedTitles = ConcurrentHashMap<String, String>()
     private val doramaDetails = ConcurrentHashMap<String, Content>()
     private val episodeBackendIds = ConcurrentHashMap<String, String>()
 
@@ -295,12 +297,14 @@ object DoramasflixProvider : Provider {
     private fun cacheMovie(content: Content) {
         val slug = contentSlug(content) ?: return
         contentBackendId(content)?.let { movieBackendIds[slug] = it }
+        DoramasflixLogic.nonBlank(content.nameEs)?.let { movieLocalizedTitles[slug] = it }
     }
 
     private fun cacheDorama(content: Content) {
         val slug = contentSlug(content) ?: return
         contentBackendId(content)?.let { doramaBackendIds[slug] = it }
         numericTmdbId(content)?.let { doramaTmdbIds[slug] = it.toString() }
+        DoramasflixLogic.nonBlank(content.nameEs)?.let { doramaLocalizedTitles[slug] = it }
     }
 
     private fun episodeCacheKey(showSlug: String, episodeSlug: String) = "$showSlug|$episodeSlug"
@@ -384,6 +388,41 @@ object DoramasflixProvider : Provider {
     } catch (error: Exception) {
         if (error is CancellationException) throw error
         null
+    }
+
+    private suspend fun localizedFilmographyItem(show: Show): Show {
+        val slug = slugFromId(show.id)
+        val localizedTitle = when (show) {
+            is Movie -> movieLocalizedTitles[slug]
+                ?: optionalMovieDetailForEnrichment(slug)
+                    ?.nameEs
+                    ?.let(DoramasflixLogic::nonBlank)
+            is TvShow -> doramaLocalizedTitles[slug]
+                ?: optionalDoramaDetailForEnrichment(slug)
+                    ?.nameEs
+                    ?.let(DoramasflixLogic::nonBlank)
+        } ?: return show
+
+        when (show) {
+            is Movie -> show.title = localizedTitle
+            is TvShow -> show.title = localizedTitle
+        }
+        return show
+    }
+
+    private suspend fun localizePeopleFilmography(people: People): People = coroutineScope {
+        if (people.filmography.isEmpty()) return@coroutineScope people
+
+        val localized = mutableListOf<Show>()
+        for (chunk in people.filmography.chunked(4)) {
+            val pending = chunk.map { show ->
+                async { localizedFilmographyItem(show) }
+            }
+            for (item in pending) {
+                localized += item.await()
+            }
+        }
+        people.copy(filmography = localized)
     }
 
     private suspend fun externalMovie(content: Content): Movie? {
@@ -1439,6 +1478,6 @@ object DoramasflixProvider : Provider {
 
     override suspend fun getPeople(id: String, page: Int): People = when {
         page > 1 -> People(id = id, name = "")
-        else -> pageMetadata.getPeople(id)
+        else -> localizePeopleFilmography(pageMetadata.getPeople(id))
     }
 }
