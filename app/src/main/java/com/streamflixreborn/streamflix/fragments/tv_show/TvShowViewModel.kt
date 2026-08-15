@@ -12,12 +12,14 @@ import com.streamflixreborn.streamflix.utils.ArtworkRepair
 import com.streamflixreborn.streamflix.utils.UserPreferences
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.ExperimentalCoroutinesApi
-import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.SharingStarted
+import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.emitAll
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.flowOn
+import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.flow.transformLatest
 import kotlinx.coroutines.launch
 
@@ -54,7 +56,7 @@ class TvShowViewModel(
 
     private val _state = MutableStateFlow<State>(State.Loading)
     @OptIn(ExperimentalCoroutinesApi::class)
-    val state: Flow<State> = combine(
+    val state: StateFlow<State> = combine(
         _state.transformLatest { state ->
             when (state) {
                 is State.SuccessLoading -> {
@@ -72,7 +74,7 @@ class TvShowViewModel(
                             seasons
                                 .lastOrNull { season ->
                                     season.episodes.lastOrNull()?.isWatched == true ||
-                                            season.episodes.any { it.isWatched }
+                                        season.episodes.any { it.isWatched }
                                 }?.let { season ->
                                     if (season.episodes.lastOrNull()?.isWatched == true) {
                                         val next = seasons.getOrNull(seasons.indexOf(season) + 1)
@@ -81,7 +83,7 @@ class TvShowViewModel(
                                 }
                                 ?: seasons.firstOrNull { season ->
                                     season.episodes.isEmpty() ||
-                                            season.episodes.lastOrNull()?.isWatched == false
+                                        season.episodes.lastOrNull()?.isWatched == false
                                 }
                         }
 
@@ -172,6 +174,11 @@ class TvShowViewModel(
             else -> state
         }
     }.flowOn(Dispatchers.IO)
+        .stateIn(
+            scope = viewModelScope,
+            started = SharingStarted.Eagerly,
+            initialValue = State.Loading,
+        )
 
     sealed class State {
         data object Loading : State()

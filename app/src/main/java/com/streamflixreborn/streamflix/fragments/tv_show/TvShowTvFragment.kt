@@ -56,6 +56,11 @@ class TvShowTvFragment : Fragment() {
 
         initializeTvShow()
 
+        (viewModel.state.value as? TvShowViewModel.State.SuccessLoading)?.let { state ->
+            displayTvShow(state.tvShow)
+            binding.isLoading.root.visibility = View.GONE
+        }
+
         viewLifecycleOwner.lifecycleScope.launch {
             viewModel.state.flowWithLifecycle(lifecycle, Lifecycle.State.STARTED).collect { state ->
                 when (state) {
