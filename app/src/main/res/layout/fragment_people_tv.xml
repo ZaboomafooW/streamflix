@@ -127,14 +127,6 @@
         app:layout_constraintTop_toBottomOf="@id/b_people_summary"
         tools:visibility="visible" />
 
-    <androidx.constraintlayout.widget.Barrier
-        android:id="@+id/b_people_header"
-        android:layout_width="wrap_content"
-        android:layout_height="wrap_content"
-        app:barrierAllowsGoneWidgets="true"
-        app:barrierDirection="bottom"
-        app:constraint_referenced_ids="b_people_summary,btn_people_show_more" />
-
     <androidx.leanback.widget.VerticalGridView
         android:id="@+id/vgv_people_filmography"
         android:layout_width="0dp"
@@ -148,7 +140,7 @@
         app:layout_constraintBottom_toBottomOf="parent"
         app:layout_constraintEnd_toEndOf="parent"
         app:layout_constraintStart_toStartOf="parent"
-        app:layout_constraintTop_toBottomOf="@id/b_people_header"
+        app:layout_constraintTop_toBottomOf="@id/btn_people_show_more"
         app:numberOfColumns="6"
         tools:listitem="@layout/item_movie_grid_tv" />
 
