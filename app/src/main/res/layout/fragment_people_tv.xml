@@ -61,45 +61,6 @@
         app:constraint_referenced_ids="tv_people_birthday_label,tv_people_birthday" />
 
     <TextView
-        android:id="@+id/tv_people_deathday_label"
-        android:layout_width="wrap_content"
-        android:layout_height="wrap_content"
-        android:layout_marginStart="32dp"
-        android:layout_marginTop="4dp"
-        android:text="@string/people_deathday"
-        android:textColor="#FFFFFF"
-        android:textStyle="bold"
-        app:layout_constraintStart_toStartOf="parent"
-        app:layout_constraintTop_toBottomOf="@id/tv_people_birthday" />
-
-    <TextView
-        android:id="@+id/tv_people_deathday"
-        android:layout_width="0dp"
-        android:layout_height="wrap_content"
-        android:layout_marginStart="16dp"
-        android:layout_marginTop="4dp"
-        android:layout_marginEnd="40dp"
-        android:textColor="#FFFFFF"
-        app:layout_constraintEnd_toStartOf="@id/iv_people_image"
-        app:layout_constraintStart_toEndOf="@id/tv_people_deathday_label"
-        app:layout_constraintTop_toBottomOf="@id/b_people_birthday"
-        tools:text="Day of death" />
-
-    <androidx.constraintlayout.widget.Group
-        android:id="@+id/g_people_deathday"
-        android:layout_width="wrap_content"
-        android:layout_height="wrap_content"
-        app:constraint_referenced_ids="tv_people_deathday_label,tv_people_deathday"
-        tools:visibility="visible" />
-
-    <androidx.constraintlayout.widget.Barrier
-        android:id="@+id/b_people_deathday"
-        android:layout_width="wrap_content"
-        android:layout_height="wrap_content"
-        app:barrierDirection="bottom"
-        app:constraint_referenced_ids="tv_people_deathday_label,tv_people_deathday" />
-
-    <TextView
         android:id="@+id/tv_people_birthplace_label"
         android:layout_width="wrap_content"
         android:layout_height="wrap_content"
@@ -109,7 +70,7 @@
         android:textColor="#FFFFFF"
         android:textStyle="bold"
         app:layout_constraintStart_toStartOf="parent"
-        app:layout_constraintTop_toBottomOf="@id/b_people_deathday" />
+        app:layout_constraintTop_toBottomOf="@id/b_people_birthday" />
 
     <TextView
         android:id="@+id/tv_people_birthplace"
@@ -121,7 +82,7 @@
         android:textColor="#FFFFFF"
         app:layout_constraintEnd_toStartOf="@id/iv_people_image"
         app:layout_constraintStart_toEndOf="@id/tv_people_birthplace_label"
-        app:layout_constraintTop_toBottomOf="@id/b_people_deathday"
+        app:layout_constraintTop_toBottomOf="@id/b_people_birthday"
         tools:text="Place of birth" />
 
     <androidx.constraintlayout.widget.Group
@@ -147,62 +108,38 @@
         tools:src="@drawable/ic_person_placeholder" />
 
     <androidx.constraintlayout.widget.Barrier
-        android:id="@+id/barrier1"
+        android:id="@+id/b_people_summary"
         android:layout_width="wrap_content"
         android:layout_height="wrap_content"
         app:barrierDirection="bottom"
         app:constraint_referenced_ids="tv_people_birthplace_label,tv_people_birthplace,iv_people_image" />
 
-    <LinearLayout
-        android:id="@+id/ll_people_biography"
-        android:layout_width="0dp"
+    <TextView
+        android:id="@+id/btn_people_show_more"
+        style="@style/AppTheme.Widget.Tv.Button"
+        android:layout_width="wrap_content"
         android:layout_height="wrap_content"
         android:layout_marginStart="32dp"
-        android:layout_marginTop="16dp"
-        android:layout_marginEnd="32dp"
-        android:orientation="vertical"
+        android:layout_marginTop="8dp"
+        android:text="@string/people_read_more"
         android:visibility="gone"
-        app:layout_constraintEnd_toEndOf="parent"
         app:layout_constraintStart_toStartOf="parent"
-        app:layout_constraintTop_toBottomOf="@id/barrier1"
-        tools:visibility="visible">
+        app:layout_constraintTop_toBottomOf="@id/b_people_summary"
+        tools:visibility="visible" />
 
-        <TextView
-            android:id="@+id/tv_people_biography_label"
-            android:layout_width="match_parent"
-            android:layout_height="wrap_content"
-            android:text="@string/people_biography"
-            android:textColor="#FFFFFF"
-            android:textSize="18sp"
-            android:textStyle="bold" />
-
-        <TextView
-            android:id="@+id/tv_people_biography"
-            android:layout_width="match_parent"
-            android:layout_height="wrap_content"
-            android:layout_marginTop="4dp"
-            android:ellipsize="end"
-            android:maxLines="4"
-            android:textColor="#FFFFFF"
-            tools:text="Biography text that can span multiple lines before showing a read more action." />
-
-        <TextView
-            android:id="@+id/btn_people_biography_read_more"
-            style="@style/AppTheme.Widget.Tv.Button"
-            android:layout_width="wrap_content"
-            android:layout_height="wrap_content"
-            android:layout_gravity="end"
-            android:layout_marginTop="4dp"
-            android:text="@string/people_read_more"
-            android:visibility="gone"
-            tools:visibility="visible" />
-    </LinearLayout>
+    <androidx.constraintlayout.widget.Barrier
+        android:id="@+id/b_people_header"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        app:barrierAllowsGoneWidgets="true"
+        app:barrierDirection="bottom"
+        app:constraint_referenced_ids="b_people_summary,btn_people_show_more" />
 
     <androidx.leanback.widget.VerticalGridView
         android:id="@+id/vgv_people_filmography"
         android:layout_width="0dp"
         android:layout_height="0dp"
-        android:layout_marginTop="16dp"
+        android:layout_marginTop="12dp"
         android:clipChildren="false"
         android:clipToPadding="false"
         android:padding="16dp"
@@ -211,7 +148,7 @@
         app:layout_constraintBottom_toBottomOf="parent"
         app:layout_constraintEnd_toEndOf="parent"
         app:layout_constraintStart_toStartOf="parent"
-        app:layout_constraintTop_toBottomOf="@id/ll_people_biography"
+        app:layout_constraintTop_toBottomOf="@id/b_people_header"
         app:numberOfColumns="6"
         tools:listitem="@layout/item_movie_grid_tv" />
 
