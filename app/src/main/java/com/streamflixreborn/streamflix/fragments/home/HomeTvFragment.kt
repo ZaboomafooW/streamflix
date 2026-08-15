@@ -149,19 +149,22 @@ class HomeTvFragment : Fragment() {
     }
 
 
-    private var swiperHasLastFocus: Boolean = false
     fun updateBackground(uri: String?, swiperHasFocus: Boolean? = false) {
-        if (swiperHasFocus == null && isBackgroundPinned) return
-        if (swiperHasFocus == null && !swiperHasLastFocus) return
+        if (swiperHasFocus == true) {
+            isBackgroundPinned = false
+        } else if (isBackgroundPinned) {
+            return
+        }
+        if (uri.isNullOrBlank()) return
 
         Glide.with(requireContext())
             .load(uri)
             .transition(DrawableTransitionOptions.withCrossFade())
             .into(binding.ivHomeBackground)
-        swiperHasLastFocus = swiperHasFocus ?: swiperHasLastFocus
     }
 
     fun pinBackground(uri: String?) {
+        if (uri.isNullOrBlank()) return
         isBackgroundPinned = true
         Glide.with(requireContext())
             .load(uri)
@@ -170,9 +173,7 @@ class HomeTvFragment : Fragment() {
     }
 
     fun releasePinnedBackground() {
-        if (!isBackgroundPinned) return
         isBackgroundPinned = false
-        syncFeaturedBackground()
     }
 
     private fun initializeHome() {
@@ -197,14 +198,12 @@ class HomeTvFragment : Fragment() {
                     ?: 0
                 it.selectedIndex = index
                 
-                // Initialize background with first item from featured category immediately
                 val firstItem = it.list.getOrNull(index)
                 val poster = when (firstItem) {
                     is Movie -> firstItem.banner
                     is TvShow -> firstItem.banner
                     else -> null
                 }
-                // Force background update without waiting for focus
                 if (poster != null) {
                     updateBackground(poster, null)
                 }
@@ -275,14 +274,12 @@ class HomeTvFragment : Fragment() {
                     ?.let { category ->
                         category.selectedIndex = (category.selectedIndex + 1) % category.list.size
                         
-                        // Update background when swiper rotates automatically
                         val currentItem = category.list.getOrNull(category.selectedIndex)
                         val poster = when (currentItem) {
                             is Movie -> currentItem.banner
                             is TvShow -> currentItem.banner
                             else -> null
                         }
-                        // Update background if it's not null
                         if (poster != null) {
                             updateBackground(poster, null)
                         }
@@ -300,23 +297,5 @@ class HomeTvFragment : Fragment() {
                 swiperHandler.postDelayed(this, 8_000)
             }
         }, 8_000)
-    }
-
-    private fun syncFeaturedBackground() {
-        val featured = appAdapter.items
-            .filterIsInstance<Category>()
-            .find { it.name == Category.FEATURED }
-            ?: return
-
-        val currentItem = featured.list.getOrNull(featured.selectedIndex)
-        val poster = when (currentItem) {
-            is Movie -> currentItem.banner
-            is TvShow -> currentItem.banner
-            else -> null
-        }
-
-        if (poster != null) {
-            updateBackground(poster, null)
-        }
     }
 }

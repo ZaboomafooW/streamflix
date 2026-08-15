@@ -53,8 +53,7 @@ object DoramasflixProvider : Provider {
     override val name = "Doramasflix"
     override val baseUrl = "https://doramasflix.in"
     override val language = "es"
-    override val logo =
-        "https://assets.seriesapi.co/brands/doramasflix/websites/6a651fa138cbd16df74343be/logo/logo-1785013866419.png"
+    override val logo = "$baseUrl/img/logo.png"
 
     private const val apiUrl = "https://userapi.cloudfleir.xyz/"
     private const val playbackApp = "com.asiapp.doramasgo"

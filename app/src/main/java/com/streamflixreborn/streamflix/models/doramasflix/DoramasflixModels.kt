@@ -30,9 +30,39 @@ data class Data(
     val getEpisodeLinks: LinkContainer? = null,
 )
 
-data class ContentPage(
-    val items: List<Content> = emptyList(),
-)
+class ContentPage(
+    @SerializedName("items")
+    private val rawItems: List<Content> = emptyList(),
+) {
+    val items: List<Content>
+        get() {
+            val seen = mutableSetOf<String>()
+            return rawItems.filter { content ->
+                val identities = buildList {
+                    content.tmdbId
+                        ?.trim()
+                        ?.takeIf { it.isNotEmpty() }
+                        ?.let { add("tmdb:$it") }
+                    content.slug
+                        ?.trim()
+                        ?.takeIf { it.isNotEmpty() }
+                        ?.let { add("slug:$it") }
+                    content.id
+                        ?.trim()
+                        ?.takeIf { it.isNotEmpty() }
+                        ?.let { add("id:$it") }
+                }
+                if (identities.isEmpty()) {
+                    true
+                } else if (identities.any(seen::contains)) {
+                    false
+                } else {
+                    seen.addAll(identities)
+                    true
+                }
+            }
+        }
+}
 
 data class EpisodePage(
     val items: List<Episode> = emptyList(),

@@ -209,12 +209,12 @@ internal class DoramasflixPageMetadata(
                     val isMovie = path.startsWith("peliculas-online/")
                     if (!isDorama && !isVariety && !isMovie) return@mapNotNull null
 
-                    val title = link.selectFirst("img[alt]")
-                        ?.attr("alt")
+                    val title = link.selectFirst("h3")
+                        ?.text()
                         ?.trim()
                         ?.takeIf { it.isNotEmpty() }
-                        ?: link.selectFirst("h3")
-                            ?.text()
+                        ?: link.selectFirst("img[alt]")
+                            ?.attr("alt")
                             ?.trim()
                             ?.takeIf { it.isNotEmpty() }
                         ?: return@mapNotNull null
