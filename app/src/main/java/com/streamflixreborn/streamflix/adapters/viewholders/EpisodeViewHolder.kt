@@ -3,6 +3,7 @@ package com.streamflixreborn.streamflix.adapters.viewholders
 import android.view.View
 import android.view.animation.AnimationUtils
 import android.widget.ImageView
+import androidx.appcompat.app.AlertDialog
 import androidx.navigation.findNavController
 import androidx.recyclerview.widget.RecyclerView
 import androidx.viewbinding.ViewBinding
@@ -258,7 +259,44 @@ class EpisodeViewHolder(
                 else -> View.VISIBLE
             }
         }
-        binding.tvEpisodeOverview.text = episode.overview ?: ""
+
+        val overview = episode.overview?.trim().orEmpty()
+        val boundEpisodeId = episode.id
+        binding.tvEpisodeOverview.text = overview
+        binding.btnEpisodeOverviewMore.apply {
+            visibility = View.INVISIBLE
+            isFocusable = false
+            setOnClickListener(null)
+        }
+        binding.tvEpisodeOverview.post {
+            if (!this::episode.isInitialized || episode.id != boundEpisodeId) return@post
+            val layout = binding.tvEpisodeOverview.layout ?: return@post
+            val lastLine = layout.lineCount - 1
+            val isTruncated = overview.isNotEmpty() &&
+                lastLine >= 0 &&
+                layout.getEllipsisCount(lastLine) > 0
+
+            binding.btnEpisodeOverviewMore.apply {
+                visibility = if (isTruncated) View.VISIBLE else View.INVISIBLE
+                isFocusable = isTruncated
+                setOnClickListener(
+                    if (isTruncated) {
+                        View.OnClickListener {
+                            AlertDialog.Builder(context)
+                                .setTitle(
+                                    episode.title
+                                        ?: context.getString(R.string.episode_number, episode.number)
+                                )
+                                .setMessage(overview)
+                                .setPositiveButton(android.R.string.ok, null)
+                                .show()
+                        }
+                    } else {
+                        null
+                    }
+                )
+            }
+        }
     }
 
     private fun displayContinueWatchingMobileItem(binding: ItemEpisodeContinueWatchingMobileBinding) {
