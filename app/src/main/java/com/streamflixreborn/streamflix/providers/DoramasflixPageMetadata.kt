@@ -1,5 +1,6 @@
 package com.streamflixreborn.streamflix.providers
 
+import android.util.Log
 import com.google.gson.JsonElement
 import com.google.gson.JsonObject
 import com.google.gson.JsonParser
@@ -8,6 +9,7 @@ import com.streamflixreborn.streamflix.models.People
 import com.streamflixreborn.streamflix.models.Show
 import com.streamflixreborn.streamflix.models.TvShow
 import com.tanasi.retrofit_jsoup.converter.JsoupConverterFactory
+import kotlinx.coroutines.CancellationException
 import okhttp3.OkHttpClient
 import org.jsoup.nodes.Document
 import org.jsoup.nodes.Element
@@ -29,6 +31,20 @@ internal class DoramasflixPageMetadata(
         .build()
         .create(PageService::class.java)
 
+    suspend fun getDoramaSeasonNumbers(slug: String): List<Int> = try {
+        parseDoramaSeasonNumbers(
+            service.getPage("$baseUrl/doramas-online/${slug.removePrefix("/")}")
+        )
+    } catch (error: Exception) {
+        if (error is CancellationException) throw error
+        Log.w(
+            "DoramasflixPageMetadata",
+            "Dorama season fallback failed for '$slug'",
+            error,
+        )
+        emptyList()
+    }
+
     suspend fun getPeople(id: String): People = try {
         parsePeople(
             document = service.getPage("$baseUrl/reparto/${id.removePrefix("/")}"),
@@ -48,6 +64,26 @@ internal class DoramasflixPageMetadata(
     }
 
     companion object {
+        private val episodeRoutePattern = Regex("""-(\d+)x\d+$""")
+
+        internal fun parseDoramaSeasonNumbers(document: Document): List<Int> =
+            document.select("a[href]")
+                .asSequence()
+                .mapNotNull { link ->
+                    val href = link.attr("href")
+                        .substringBefore('?')
+                        .substringBefore('#')
+                        .trimEnd('/')
+                    if (!href.contains("episodios/")) return@mapNotNull null
+                    episodeRoutePattern.find(href)
+                        ?.groupValues
+                        ?.getOrNull(1)
+                        ?.toIntOrNull()
+                }
+                .distinct()
+                .sorted()
+                .toList()
+
         internal fun parsePeople(
             document: Document,
             id: String,

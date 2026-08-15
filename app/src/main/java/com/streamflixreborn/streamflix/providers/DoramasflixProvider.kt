@@ -765,11 +765,16 @@ object DoramasflixProvider : Provider {
         val seasons = requireOperationPayload("Doramasflix seasons", data.listSeasons)
             .filter { it.seasonNumber != null }
             .distinctBy { it.seasonNumber }
-        seasons.asSequence()
-            .mapNotNull { DoramasflixLogic.nonBlank(it.serieId) }
-            .firstOrNull()
-            ?.let { doramaBackendIds[slug] = it }
-        return seasons
+        if (seasons.isNotEmpty()) {
+            seasons.asSequence()
+                .mapNotNull { DoramasflixLogic.nonBlank(it.serieId) }
+                .firstOrNull()
+                ?.let { doramaBackendIds[slug] = it }
+            return seasons
+        }
+
+        return pageMetadata.getDoramaSeasonNumbers(slug)
+            .map { seasonNumber -> DoramasflixSeason(seasonNumber = seasonNumber) }
     }
 
     private suspend fun resolveDoramaBackendId(slug: String): String {
