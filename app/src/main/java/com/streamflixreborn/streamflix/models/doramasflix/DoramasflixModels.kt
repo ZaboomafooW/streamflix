@@ -39,11 +39,7 @@ class ContentPage(
         get() {
             val seen = mutableSetOf<String>()
             return rawItems.filter { content ->
-                val identities = buildList {
-                    content.tmdbId
-                        ?.trim()
-                        ?.takeIf { it.isNotEmpty() }
-                        ?.let { add("tmdb:$it") }
+                val providerIdentities = buildList {
                     content.slug
                         ?.trim()
                         ?.takeIf { it.isNotEmpty() }
@@ -53,12 +49,12 @@ class ContentPage(
                         ?.takeIf { it.isNotEmpty() }
                         ?.let { add("id:$it") }
                 }
-                if (identities.isEmpty()) {
+                if (providerIdentities.isEmpty()) {
                     true
-                } else if (identities.any(seen::contains)) {
+                } else if (providerIdentities.any(seen::contains)) {
                     false
                 } else {
-                    seen.addAll(identities)
+                    seen.addAll(providerIdentities)
                     true
                 }
             }
@@ -108,7 +104,10 @@ data class Content(
     val labels: List<Tag>? = null,
     val cast: List<CastMember>? = null,
     val langs: List<LanguageMetadata>? = null,
-)
+) {
+    internal fun sourceSignature(): String = listOf(id, slug, nameEs, name)
+        .joinToString("|") { it.orEmpty() }
+}
 
 data class Images(
     val backdrops: List<String>? = null,

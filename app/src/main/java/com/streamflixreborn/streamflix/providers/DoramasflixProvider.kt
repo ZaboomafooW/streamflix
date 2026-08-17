@@ -75,6 +75,9 @@ object DoramasflixProvider : Provider {
     private val doramaLocalizedTitles = ConcurrentHashMap<String, String>()
     private val doramaDetails = ConcurrentHashMap<String, Content>()
     private val episodeBackendIds = ConcurrentHashMap<String, String>()
+    private val movieCatalogPages = ConcurrentHashMap<Int, ContentPage>()
+    private val doramaCatalogPages = ConcurrentHashMap<String, ContentPage>()
+    private val searchPages = ConcurrentHashMap<String, SearchContentPage>()
 
     @Volatile
     private var serverNamesByCode: Map<String, String>? = null
@@ -87,7 +90,6 @@ object DoramasflixProvider : Provider {
         .build()
 
     private val pageMetadata = DoramasflixPageMetadata(baseUrl, client)
-    private val genreBrowser = DoramasflixGenreBrowser(baseUrl, client, userAgent)
 
     private val service = Retrofit.Builder()
         .baseUrl(apiUrl)
@@ -95,6 +97,15 @@ object DoramasflixProvider : Provider {
         .client(client)
         .build()
         .create(DoramasflixService::class.java)
+
+    private val genreBrowser by lazy {
+        DoramasflixGenreBrowser(
+            loadMoviePage = ::loadMovieCatalogPage,
+            loadDoramaPage = ::loadDoramaCatalogPage,
+            mapMovie = ::movieListItem,
+            mapDorama = ::doramaListItem,
+        )
+    }
 
     private interface DoramasflixService {
         @POST("graphql")
@@ -273,10 +284,6 @@ object DoramasflixProvider : Provider {
         originalName = content.originalName,
     )
 
-    private fun titleFor(content: Content): String = apiTitleFor(content)
-        ?: contentSlug(content)?.replace('-', ' ')
-        ?: "Doramasflix"
-
     private fun genresFor(content: Content): List<Genre> =
         content.genres.orEmpty().mapNotNull { tag ->
             val genreName = DoramasflixLogic.nonBlank(tag.name) ?: return@mapNotNull null
@@ -302,9 +309,12 @@ object DoramasflixProvider : Provider {
         }
 
     private fun resolveCast(content: Content, external: List<People>): List<People> {
-        val externalById = external.associateBy { it.id }
+        val externalByTmdbId = external.mapNotNull { person ->
+            person.id.toIntOrNull()?.let { id -> id to person }
+        }.toMap()
         return castFor(content).map { member ->
-            val externalMember = externalById[member.id] ?: return@map member
+            val tmdbId = DoramasflixPersonIdentity.tmdbId(member.id) ?: return@map member
+            val externalMember = externalByTmdbId[tmdbId] ?: return@map member
             val localizedName = DoramasflixLogic.nonBlank(externalMember.name)
                 ?.takeIf(DoramasflixLogic::containsLatinLetter)
                 ?: return@map member
@@ -317,12 +327,14 @@ object DoramasflixProvider : Provider {
     }
 
     private fun cacheMovie(content: Content) {
+        genreBrowser.registerGenres(listOf(content))
         val slug = contentSlug(content) ?: return
         contentBackendId(content)?.let { movieBackendIds[slug] = it }
         DoramasflixLogic.nonBlank(content.nameEs)?.let { movieLocalizedTitles[slug] = it }
     }
 
     private fun cacheDorama(content: Content) {
+        genreBrowser.registerGenres(listOf(content))
         val slug = contentSlug(content) ?: return
         contentBackendId(content)?.let { doramaBackendIds[slug] = it }
         numericTmdbId(content)?.let { doramaTmdbIds[slug] = it.toString() }
@@ -342,9 +354,10 @@ object DoramasflixProvider : Provider {
     private fun movieListItem(content: Content): Movie? {
         if (!contentAllowed(content)) return null
         val slug = contentSlug(content) ?: return null
+        val title = apiTitleFor(content) ?: return null
         return Movie(
             id = movieId(slug),
-            title = titleFor(content),
+            title = title,
             released = DoramasflixLogic.normalizeDate(content.releaseDate),
             rating = DoramasflixLogic.resolveApiRating(content.rating, content.ratingCount).rating,
             poster = contentPoster(content),
@@ -355,9 +368,10 @@ object DoramasflixProvider : Provider {
     private fun doramaListItem(content: Content): TvShow? {
         if (!contentAllowed(content)) return null
         val slug = contentSlug(content) ?: return null
+        val title = apiTitleFor(content) ?: return null
         return TvShow(
             id = doramaId(slug),
-            title = titleFor(content),
+            title = title,
             released = DoramasflixLogic.normalizeDate(content.firstAirDate),
             rating = DoramasflixLogic.resolveApiRating(content.rating, content.ratingCount).rating,
             poster = contentPoster(content),
@@ -466,13 +480,12 @@ object DoramasflixProvider : Provider {
         return TmdbUtils.getTvShowById(tmdbId, language)
     }
 
-    private fun resolveMovieMetadata(content: Content, slug: String, external: Movie?): Movie {
+    private fun resolveMovieMetadata(content: Content, slug: String, external: Movie?): Movie? {
+        val title = apiTitleFor(content) ?: DoramasflixLogic.nonBlank(external?.title) ?: return null
         val apiGenres = genresFor(content)
         return Movie(
             id = movieId(slug),
-            title = apiTitleFor(content)
-                ?: DoramasflixLogic.nonBlank(external?.title)
-                ?: titleFor(content),
+            title = title,
             overview = resolvedOverview(content, external?.overview),
             released = DoramasflixLogic.normalizeDate(content.releaseDate)
                 ?: external?.released?.format("yyyy-MM-dd"),
@@ -493,13 +506,12 @@ object DoramasflixProvider : Provider {
         )
     }
 
-    private fun resolveDoramaMetadata(content: Content, slug: String, external: TvShow?): TvShow {
+    private fun resolveDoramaMetadata(content: Content, slug: String, external: TvShow?): TvShow? {
+        val title = apiTitleFor(content) ?: DoramasflixLogic.nonBlank(external?.title) ?: return null
         val apiGenres = genresFor(content)
         return TvShow(
             id = doramaId(slug),
-            title = apiTitleFor(content)
-                ?: DoramasflixLogic.nonBlank(external?.title)
-                ?: titleFor(content),
+            title = title,
             overview = resolvedOverview(content, external?.overview),
             released = DoramasflixLogic.normalizeDate(content.firstAirDate)
                 ?: external?.released?.format("yyyy-MM-dd"),
@@ -615,6 +627,32 @@ object DoramasflixProvider : Provider {
         return items
     }
 
+    private data class SearchContentPage(
+        val doramas: List<Content>,
+        val movies: List<Content>,
+    )
+
+    private suspend fun loadSearchPage(input: String, page: Int): SearchContentPage {
+        val key = "$page|$input"
+        searchPages[key]?.let { return it }
+
+        val loaded = coroutineScope {
+            val doramas = async { searchDoramas(input, page) }
+            val movies = async { searchMovies(input, page) }
+            SearchContentPage(
+                doramas = doramas.await(),
+                movies = movies.await(),
+            )
+        }
+        searchPages.putIfAbsent(key, loaded)
+        return searchPages[key] ?: loaded
+    }
+
+    private fun SearchContentPage.sourceSignature(): List<String> = buildList {
+        doramas.mapTo(this) { "dorama:${it.sourceSignature()}" }
+        movies.mapTo(this) { "movie:${it.sourceSignature()}" }
+    }
+
     private suspend fun getFeaturedDoramas(): List<Content> = try {
         val data = apiRequest(
             operationName = "DoramasCarrousel",
@@ -682,7 +720,7 @@ object DoramasflixProvider : Provider {
         val detailed = optionalDoramaDetailForEnrichment(slug) ?: content
         if (!contentAllowed(detailed)) return null
         val external = externalDorama(detailed)
-        val resolved = resolveDoramaMetadata(detailed, slug, external)
+        val resolved = resolveDoramaMetadata(detailed, slug, external) ?: return null
         val banner = contentBackdrop(content) ?: resolved.banner ?: return null
         return resolved.copy(
             poster = contentPoster(content) ?: resolved.poster,
@@ -695,7 +733,7 @@ object DoramasflixProvider : Provider {
         val detailed = optionalMovieDetailForEnrichment(slug) ?: content
         if (!contentAllowed(detailed)) return null
         val external = externalMovie(detailed)
-        val resolved = resolveMovieMetadata(detailed, slug, external)
+        val resolved = resolveMovieMetadata(detailed, slug, external) ?: return null
         val banner = contentBackdrop(content) ?: resolved.banner ?: return null
         return resolved.copy(
             poster = contentPoster(content) ?: resolved.poster,
@@ -1004,6 +1042,122 @@ object DoramasflixProvider : Provider {
         return discovered
     }
 
+    private suspend fun loadMovieCatalogPage(sourcePage: Int): ContentPage {
+        val requestedPage = sourcePage.coerceAtLeast(1)
+        movieCatalogPages[requestedPage]?.let { return it }
+
+        val data = apiRequest(
+            operationName = "PaginationMovie",
+            variables = JSONObject()
+                .put("page", requestedPage)
+                .put("limit", catalogPageSize)
+                .put("sort", "POPULARITY_DESC")
+                .put("filter", JSONObject()),
+            query = """
+                query PaginationMovie(
+                  ${'$'}page: Int
+                  ${'$'}limit: Int
+                  ${'$'}sort: SortMovie
+                  ${'$'}filter: FilterMoviesInput
+                ) {
+                  paginationMovie(
+                    page: ${'$'}page
+                    limit: ${'$'}limit
+                    sort: ${'$'}sort
+                    filter: ${'$'}filter
+                  ) {
+                    pageInfo { hasNextPage }
+                    items {
+                      _id
+                      slug
+                      name
+                      name_es
+                      original_name
+                      overview
+                      genres { name slug }
+                      labels { name slug }
+                      poster_path
+                      poster
+                      backdrop_path
+                      backdrop
+                      release_date
+                      rating
+                      rating_count
+                      tmdb_id
+                    }
+                  }
+                }
+            """.trimIndent(),
+        )
+        val loaded = requireOperationPayload(
+            "Doramasflix movies catalog",
+            data.paginationMovie,
+        )
+        loaded.items.forEach(::cacheMovie)
+        movieCatalogPages.putIfAbsent(requestedPage, loaded)
+        return movieCatalogPages[requestedPage] ?: loaded
+    }
+
+    private suspend fun loadDoramaCatalogPage(
+        sourcePage: Int,
+        isTvShow: Boolean,
+    ): ContentPage {
+        val requestedPage = sourcePage.coerceAtLeast(1)
+        val cacheKey = "$isTvShow:$requestedPage"
+        doramaCatalogPages[cacheKey]?.let { return it }
+
+        val data = apiRequest(
+            operationName = "PaginationDorama",
+            variables = JSONObject()
+                .put("page", requestedPage)
+                .put("limit", catalogPageSize)
+                .put("sort", "POPULARITY_DESC")
+                .put("filter", JSONObject().put("isTVShow", isTvShow)),
+            query = """
+                query PaginationDorama(
+                  ${'$'}page: Int
+                  ${'$'}limit: Int
+                  ${'$'}sort: SortDorama
+                  ${'$'}filter: FilterDoramasInput
+                ) {
+                  paginationDorama(
+                    page: ${'$'}page
+                    limit: ${'$'}limit
+                    sort: ${'$'}sort
+                    filter: ${'$'}filter
+                  ) {
+                    pageInfo { hasNextPage }
+                    items {
+                      _id
+                      slug
+                      name
+                      name_es
+                      original_name
+                      overview
+                      genres { name slug }
+                      labels { name slug }
+                      poster_path
+                      poster
+                      backdrop_path
+                      backdrop
+                      first_air_date
+                      rating
+                      rating_count
+                      tmdb_id
+                    }
+                  }
+                }
+            """.trimIndent(),
+        )
+        val loaded = requireOperationPayload(
+            "Doramasflix Doramas catalog",
+            data.paginationDorama,
+        )
+        loaded.items.forEach(::cacheDorama)
+        doramaCatalogPages.putIfAbsent(cacheKey, loaded)
+        return doramaCatalogPages[cacheKey] ?: loaded
+    }
+
     override suspend fun getHome(): List<Category> = coroutineScope {
         val featuredDoramasDeferred = async { getFeaturedDoramas() }
         val featuredMoviesDeferred = async { getFeaturedMovies() }
@@ -1036,129 +1190,51 @@ object DoramasflixProvider : Provider {
         }
     }
 
-    override suspend fun search(query: String, page: Int): List<AppAdapter.Item> = coroutineScope {
+    override suspend fun search(query: String, page: Int): List<AppAdapter.Item> {
         if (query.isBlank()) {
-            return@coroutineScope buildList {
+            return buildList {
                 add(Genre("doramas", "Doramas"))
                 add(Genre("peliculas", "Películas"))
                 add(Genre("variedades", "Variedades"))
-                addAll(DoramasflixGenreBrowser.genres)
+                addAll(genreBrowser.genres)
             }
         }
 
-        val requestedPage = page.coerceAtLeast(1)
-        val doramas = async { searchDoramas(query, requestedPage) }
-        val movies = async { searchMovies(query, requestedPage) }
-        buildList {
-            doramas.await().mapNotNullTo(this, ::doramaListItem)
-            movies.await().mapNotNullTo(this, ::movieListItem)
+        return DoramasflixPaging.visiblePage(page) { sourcePage ->
+            val raw = loadSearchPage(query, sourcePage)
+            DoramasflixPageBatch(
+                items = buildList {
+                    raw.doramas.mapNotNullTo(this, ::doramaListItem)
+                    raw.movies.mapNotNullTo(this, ::movieListItem)
+                },
+                hasNextPage = raw.doramas.isNotEmpty() || raw.movies.isNotEmpty(),
+                sourceSignature = raw.sourceSignature(),
+            )
         }
     }
 
-    override suspend fun getMovies(page: Int): List<Movie> {
-        val data = apiRequest(
-            operationName = "PaginationMovie",
-            variables = JSONObject()
-                .put("page", page.coerceAtLeast(1))
-                .put("limit", catalogPageSize)
-                .put("sort", "POPULARITY_DESC")
-                .put("filter", JSONObject()),
-            query = """
-                query PaginationMovie(
-                  ${'$'}page: Int
-                  ${'$'}limit: Int
-                  ${'$'}sort: SortMovie
-                  ${'$'}filter: FilterMoviesInput
-                ) {
-                  paginationMovie(
-                    page: ${'$'}page
-                    limit: ${'$'}limit
-                    sort: ${'$'}sort
-                    filter: ${'$'}filter
-                  ) {
-                    items {
-                      _id
-                      slug
-                      name
-                      name_es
-                      original_name
-                      overview
-                      genres { name slug }
-                      labels { name slug }
-                      poster_path
-                      poster
-                      backdrop_path
-                      backdrop
-                      release_date
-                      rating
-                      rating_count
-                      tmdb_id
-                    }
-                  }
-                }
-            """.trimIndent(),
-        )
-        val pageData: ContentPage = requireOperationPayload(
-            "Doramasflix movies catalog",
-            data.paginationMovie,
-        )
-        pageData.items.forEach(::cacheMovie)
-        return pageData.items.mapNotNull(::movieListItem)
-    }
+    override suspend fun getMovies(page: Int): List<Movie> =
+        DoramasflixPaging.visiblePage(page) { sourcePage ->
+            val raw = loadMovieCatalogPage(sourcePage)
+            DoramasflixPageBatch(
+                items = raw.items.mapNotNull(::movieListItem),
+                hasNextPage = raw.pageInfo?.hasNextPage == true,
+                sourceSignature = raw.items.map { it.sourceSignature() },
+            )
+        }
 
     override suspend fun getTvShows(page: Int): List<TvShow> =
         getDoramaPage(page, isTvShow = false)
 
-    private suspend fun getDoramaPage(page: Int, isTvShow: Boolean): List<TvShow> {
-        val data = apiRequest(
-            operationName = "PaginationDorama",
-            variables = JSONObject()
-                .put("page", page.coerceAtLeast(1))
-                .put("limit", catalogPageSize)
-                .put("sort", "POPULARITY_DESC")
-                .put("filter", JSONObject().put("isTVShow", isTvShow)),
-            query = """
-                query PaginationDorama(
-                  ${'$'}page: Int
-                  ${'$'}limit: Int
-                  ${'$'}sort: SortDorama
-                  ${'$'}filter: FilterDoramasInput
-                ) {
-                  paginationDorama(
-                    page: ${'$'}page
-                    limit: ${'$'}limit
-                    sort: ${'$'}sort
-                    filter: ${'$'}filter
-                  ) {
-                    items {
-                      _id
-                      slug
-                      name
-                      name_es
-                      original_name
-                      overview
-                      genres { name slug }
-                      labels { name slug }
-                      poster_path
-                      poster
-                      backdrop_path
-                      backdrop
-                      first_air_date
-                      rating
-                      rating_count
-                      tmdb_id
-                    }
-                  }
-                }
-            """.trimIndent(),
-        )
-        val pageData: ContentPage = requireOperationPayload(
-            "Doramasflix Doramas catalog",
-            data.paginationDorama,
-        )
-        pageData.items.forEach(::cacheDorama)
-        return pageData.items.mapNotNull(::doramaListItem)
-    }
+    private suspend fun getDoramaPage(page: Int, isTvShow: Boolean): List<TvShow> =
+        DoramasflixPaging.visiblePage(page) { sourcePage ->
+            val raw = loadDoramaCatalogPage(sourcePage, isTvShow)
+            DoramasflixPageBatch(
+                items = raw.items.mapNotNull(::doramaListItem),
+                hasNextPage = raw.pageInfo?.hasNextPage == true,
+                sourceSignature = raw.items.map { it.sourceSignature() },
+            )
+        }
 
     override suspend fun getMovie(id: String): Movie = coroutineScope {
         val slug = slugFromId(id)
@@ -1167,8 +1243,9 @@ object DoramasflixProvider : Provider {
             ?: throw Exception("Doramasflix could not resolve movie '$slug'.")
         val recommendations = async { getSimilarMovies(backendId) }
         val external = externalMovie(content)
-        resolveMovieMetadata(content, slug, external)
-            .copy(recommendations = recommendations.await())
+        val resolved = resolveMovieMetadata(content, slug, external)
+            ?: throw Exception("Doramasflix movie '$slug' returned no usable title.")
+        resolved.copy(recommendations = recommendations.await())
     }
 
     override suspend fun getTvShow(id: String): TvShow = coroutineScope {
@@ -1188,15 +1265,20 @@ object DoramasflixProvider : Provider {
             Season(
                 id = "$slug/$seasonNumber",
                 number = seasonNumber,
-                title = DoramasflixLogic.firstNonBlank(season.nameEs, season.name, externalSeason?.title)
-                    ?: "Temporada $seasonNumber",
+                title = DoramasflixLogic.firstNonBlank(
+                    season.nameEs,
+                    season.name,
+                    externalSeason?.title,
+                ),
                 poster = sequenceOf(season.posterPath, season.poster)
                     .mapNotNull(::posterUrl)
                     .firstOrNull()
                     ?: DoramasflixLogic.meaningfulImage(externalSeason?.poster),
             )
         }
-        resolveDoramaMetadata(content, slug, external).copy(
+        val resolved = resolveDoramaMetadata(content, slug, external)
+            ?: throw Exception("Doramasflix series '$slug' returned no usable title.")
+        resolved.copy(
             seasons = seasons,
             recommendations = recommendations.await(),
         )
@@ -1294,15 +1376,12 @@ object DoramasflixProvider : Provider {
             Episode(
                 id = episodeSlug,
                 number = number,
-                title = providerTitle(episode, number)
-                    ?: externalTitle
-                    ?: "Episodio $number",
+                title = providerTitle(episode, number) ?: externalTitle,
                 released = DoramasflixLogic.normalizeDate(episode.airDate)
                     ?: DoramasflixLogic.normalizeDate(episode.dateString)
                     ?: externalDate,
                 poster = posterUrl(artwork),
-                overview = providerOverview(episode, number)
-                    ?: externalOverview,
+                overview = providerOverview(episode, number) ?: externalOverview,
             )
         }
     }
@@ -1522,13 +1601,13 @@ object DoramasflixProvider : Provider {
         }
         if (shortcut != null) return shortcut
 
-        val definition = DoramasflixGenreBrowser.genres.firstOrNull { it.id == id }
+        val name = genreBrowser.genreName(id)
             ?: throw Exception("Unknown Doramasflix category: $id")
-        val settings = DoramasflixContentPreferences.settings()
-        val shows = genreBrowser.getEntries(id, page)
-            .filter { entry -> DoramasflixContentPolicy.allows(entry.markers, settings) }
-            .map { it.show }
-        return Genre(id = id, name = definition.name, shows = shows)
+        return Genre(
+            id = id,
+            name = name,
+            shows = genreBrowser.getShows(id, page),
+        )
     }
 
     override suspend fun getPeople(id: String, page: Int): People = when {

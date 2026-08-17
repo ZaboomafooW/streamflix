@@ -9,7 +9,7 @@ import org.junit.Test
 class DoramasflixContentPolicyTest {
 
     @Test
-    fun `recognized overview prefixes map to semantic markers and are removed`() {
+    fun `verified Doramasflix overview markers map to semantic classes and are removed`() {
         val cases = mapOf(
             "(BL) Historia" to DoramasflixContentPolicy.Marker.BL,
             "[BL] Historia" to DoramasflixContentPolicy.Marker.BL,
@@ -17,38 +17,44 @@ class DoramasflixContentPolicyTest {
             "[SERIE BL] Historia" to DoramasflixContentPolicy.Marker.BL,
             "BL Historia" to DoramasflixContentPolicy.Marker.BL,
             "[🌈BL] Historia" to DoramasflixContentPolicy.Marker.BL,
+            "(🌈BL) Historia" to DoramasflixContentPolicy.Marker.BL,
             "(BL🌈) Historia" to DoramasflixContentPolicy.Marker.BL,
             "🌈 (BL) Historia" to DoramasflixContentPolicy.Marker.BL,
             "[BL] 🌈 Historia" to DoramasflixContentPolicy.Marker.BL,
+            "🏳️‍🌈(BL) Historia" to DoramasflixContentPolicy.Marker.BL,
+            "🏳️‍🌈SERIE BL🏳️‍🌈 Historia" to DoramasflixContentPolicy.Marker.BL,
             "/BL) Historia" to DoramasflixContentPolicy.Marker.BL,
             "[🌈GL] Historia" to DoramasflixContentPolicy.Marker.GL,
             "(GL) Historia" to DoramasflixContentPolicy.Marker.GL,
+            "(LGBTQ+) Historia" to DoramasflixContentPolicy.Marker.LGBT,
             "(+18) Historia" to DoramasflixContentPolicy.Marker.ADULT,
             "🔞 Historia" to DoramasflixContentPolicy.Marker.ADULT,
         )
 
         cases.forEach { (overview, marker) ->
             val result = DoramasflixContentPolicy.analyzeOverview(overview)
-            assertEquals(setOf(marker), result.markers)
-            assertEquals("Historia", result.cleanedOverview)
+            assertEquals(overview, setOf(marker), result.markers)
+            assertEquals(overview, "Historia", result.cleanedOverview)
         }
     }
 
     @Test
-    fun `compound prefixes require every semantic filter`() {
-        val result = DoramasflixContentPolicy.analyzeOverview("(+18) (BL) Historia")
-        assertEquals(
-            setOf(
-                DoramasflixContentPolicy.Marker.ADULT,
-                DoramasflixContentPolicy.Marker.BL,
-            ),
-            result.markers,
+    fun `compound verified prefixes require every semantic filter`() {
+        val spaced = DoramasflixContentPolicy.analyzeOverview("(+18) (BL) Historia")
+        val adjacent = DoramasflixContentPolicy.analyzeOverview("(BL)(+18) Historia")
+        val expected = setOf(
+            DoramasflixContentPolicy.Marker.ADULT,
+            DoramasflixContentPolicy.Marker.BL,
         )
-        assertEquals("Historia", result.cleanedOverview)
+
+        assertEquals(expected, spaced.markers)
+        assertEquals(expected, adjacent.markers)
+        assertEquals("Historia", spaced.cleanedOverview)
+        assertEquals("Historia", adjacent.cleanedOverview)
 
         assertFalse(
             DoramasflixContentPolicy.allows(
-                result.markers,
+                spaced.markers,
                 DoramasflixContentPolicy.Settings(
                     showBl = true,
                     showGl = false,
@@ -59,7 +65,7 @@ class DoramasflixContentPolicyTest {
         )
         assertTrue(
             DoramasflixContentPolicy.allows(
-                result.markers,
+                spaced.markers,
                 DoramasflixContentPolicy.Settings(
                     showBl = true,
                     showGl = false,
@@ -71,7 +77,7 @@ class DoramasflixContentPolicyTest {
     }
 
     @Test
-    fun `adult emoji is classified even when provider leaves it after synopsis text`() {
+    fun `trailing adult emoji is classified and removed from synopsis`() {
         val result = DoramasflixContentPolicy.analyzeOverview("🌈 (BL) Historia 🔞")
         assertEquals(
             setOf(
@@ -80,7 +86,7 @@ class DoramasflixContentPolicyTest {
             ),
             result.markers,
         )
-        assertEquals("Historia 🔞", result.cleanedOverview)
+        assertEquals("Historia", result.cleanedOverview)
     }
 
     @Test
@@ -98,7 +104,7 @@ class DoramasflixContentPolicyTest {
     }
 
     @Test
-    fun `exact semantic labels classify without inferring related markers`() {
+    fun `trusted semantic labels classify without inferring related markers`() {
         assertEquals(
             setOf(
                 DoramasflixContentPolicy.Marker.BL,
@@ -106,7 +112,7 @@ class DoramasflixContentPolicyTest {
                 DoramasflixContentPolicy.Marker.ADULT,
             ),
             DoramasflixContentPolicy.markersFromLabels(
-                listOf("BL", "LGBT", "+18", "🔞", "+16")
+                listOf("BL", "LGBTQ+", "+18", "18+", "🔞", "+16")
             ),
         )
         assertEquals(
@@ -116,10 +122,16 @@ class DoramasflixContentPolicyTest {
     }
 
     @Test
-    fun `ordinary bracketed synopsis text is not stripped`() {
-        val result = DoramasflixContentPolicy.analyzeOverview("[Melting Me Softly] Una historia")
-        assertTrue(result.markers.isEmpty())
-        assertEquals("[Melting Me Softly] Una historia", result.cleanedOverview)
+    fun `ordinary synopsis text is not interpreted as provider classification`() {
+        val bracketed = DoramasflixContentPolicy.analyzeOverview("[Melting Me Softly] Una historia")
+        assertTrue(bracketed.markers.isEmpty())
+        assertEquals("[Melting Me Softly] Una historia", bracketed.cleanedOverview)
+
+        val incidentalAge = DoramasflixContentPolicy.analyzeOverview(
+            "Los personajes vuelven a encontrarse 18+ años después."
+        )
+        assertTrue(incidentalAge.markers.isEmpty())
+        assertEquals("Los personajes vuelven a encontrarse 18+ años después.", incidentalAge.cleanedOverview)
         assertNull(DoramasflixContentPolicy.analyzeOverview(null).cleanedOverview)
     }
 }

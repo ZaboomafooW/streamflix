@@ -61,7 +61,7 @@ internal class DoramasflixPageMetadata(
 
     private suspend fun enrichPeople(people: People): People {
         if (!UserPreferences.enableTmdb) return people
-        val tmdbId = people.id.toIntOrNull() ?: return people
+        val tmdbId = DoramasflixPersonIdentity.tmdbId(people.id) ?: return people
 
         suspend fun details(language: String): TMDb3.Person.Detail? = try {
             TMDb3.People.details(personId = tmdbId, language = language)
