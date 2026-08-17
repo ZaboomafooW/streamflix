@@ -12,6 +12,7 @@ class DoramasflixContentPolicyTest {
     fun `verified Doramasflix overview markers map to semantic classes and are removed`() {
         val cases = mapOf(
             "(BL) Historia" to DoramasflixContentPolicy.Marker.BL,
+            "(Anime BL) Historia" to DoramasflixContentPolicy.Marker.BL,
             "[BL] Historia" to DoramasflixContentPolicy.Marker.BL,
             "|BL| Historia" to DoramasflixContentPolicy.Marker.BL,
             "[SERIE BL] Historia" to DoramasflixContentPolicy.Marker.BL,
