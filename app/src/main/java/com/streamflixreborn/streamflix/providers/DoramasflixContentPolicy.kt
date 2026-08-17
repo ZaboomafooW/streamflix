@@ -24,7 +24,7 @@ internal object DoramasflixContentPolicy {
     )
 
     private val prefixPattern = Regex(
-        pattern = """^\s*(?:(🔞)|(?:(?:🌈|🏳️‍🌈)\s*)?(?:\(\s*(?:(?:🌈|🏳️‍🌈)\s*)?(BL|GL|LGBTQ\+|LGBTQ|LGBT|\+18)\s*(?:(?:🌈|🏳️‍🌈)\s*)?\)|\[\s*(?:(?:🌈|🏳️‍🌈)\s*)?(BL|GL|LGBTQ\+|LGBTQ|LGBT|\+18)\s*(?:(?:🌈|🏳️‍🌈)\s*)?\]|\[\s*SERIE\s+(BL|GL)\s*\]|SERIE\s+(BL|GL)|\|(BL|GL|LGBTQ\+|LGBTQ|LGBT|\+18)\||/(BL|GL)\)|(BL|GL|LGBTQ\+|LGBTQ|LGBT)(?=\s|[:\-–—]))\s*(?:(?:🌈|🏳️‍🌈)\s*)?)\s*""",
+        pattern = """^\s*(?:(🔞)|(?:(?:🌈|🏳️‍🌈)\s*)?(?:\(\s*(?:(?:🌈|🏳️‍🌈)\s*)?(ANIME\s+BL|BL|GL|LGBTQ\+|LGBTQ|LGBT|\+18)\s*(?:(?:🌈|🏳️‍🌈)\s*)?\)|\[\s*(?:(?:🌈|🏳️‍🌈)\s*)?(BL|GL|LGBTQ\+|LGBTQ|LGBT|\+18)\s*(?:(?:🌈|🏳️‍🌈)\s*)?\]|\[\s*SERIE\s+(BL|GL)\s*\]|SERIE\s+(BL|GL)|\|(BL|GL|LGBTQ\+|LGBTQ|LGBT|\+18)\||/(BL|GL)\)|(BL|GL|LGBTQ\+|LGBTQ|LGBT)(?=\s|[:\-–—]))\s*(?:(?:🌈|🏳️‍🌈)\s*)?)\s*""",
         option = RegexOption.IGNORE_CASE,
     )
     private val trailingAdultPattern = Regex("""\s*🔞\s*$""")
@@ -84,7 +84,7 @@ internal object DoramasflixContentPolicy {
     }
 
     private fun markerForToken(token: String): Marker? = when (token.trim().uppercase(Locale.ROOT)) {
-        "BL" -> Marker.BL
+        "BL", "ANIME BL" -> Marker.BL
         "GL" -> Marker.GL
         "LGBT", "LGBTQ", "LGBTQ+" -> Marker.LGBT
         "+18", "🔞" -> Marker.ADULT
