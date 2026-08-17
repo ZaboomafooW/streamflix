@@ -35,6 +35,7 @@ import com.streamflixreborn.streamflix.backup.BackupRestoreManager
 import com.streamflixreborn.streamflix.backup.ProviderBackupContext
 import com.streamflixreborn.streamflix.database.AppDatabase
 import com.streamflixreborn.streamflix.providers.AnimeOnlineNinjaProvider
+import com.streamflixreborn.streamflix.providers.DoramasflixProvider
 import com.streamflixreborn.streamflix.providers.FrenchStreamProvider
 import com.streamflixreborn.streamflix.providers.Provider
 import com.streamflixreborn.streamflix.providers.ProviderConfigUrl
@@ -854,6 +855,7 @@ class SettingsMobileFragment : PreferenceFragmentCompat() {
     }
 
     private fun updateProviderVisibilityState() {
+        val isDoramasflix = UserPreferences.currentProvider === DoramasflixProvider
         val isStreamingCommunity = UserPreferences.currentProvider is StreamingCommunityProvider
         val isSerienStream = UserPreferences.currentProvider is SerienStreamProvider
         val isMoflix = UserPreferences.currentProvider is MStreamProvider
@@ -861,8 +863,9 @@ class SettingsMobileFragment : PreferenceFragmentCompat() {
         val isPoseidon = UserPreferences.currentProvider?.name == "Poseidonhd2"
         val isAnimeOnlineNinja = UserPreferences.currentProvider is AnimeOnlineNinjaProvider
         val hasConfigProvider = UserPreferences.currentProvider is ProviderConfigUrl
-        val hasSpecificOptions = isStreamingCommunity || isCuevana || isPoseidon || isAnimeOnlineNinja
+        val hasSpecificOptions = isDoramasflix || isStreamingCommunity || isCuevana || isPoseidon || isAnimeOnlineNinja
 
+        findPreference<PreferenceCategory>("pc_doramasflix_content_filters")?.isVisible = isDoramasflix
         findPreference<PreferenceCategory>("pc_streamingcommunity_settings")?.isVisible = isStreamingCommunity
         findPreference<PreferenceCategory>("pc_serienstream_settings")?.isVisible = isSerienStream
         findPreference<PreferenceCategory>("pc_moflix_settings")?.isVisible = isMoflix

@@ -1,0 +1,9 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="settings_category_doramasflix_filters">Doramasflix content filters</string>
+    <string name="settings_doramasflix_show_bl">Show BL</string>
+    <string name="settings_doramasflix_show_gl">Show GL</string>
+    <string name="settings_doramasflix_show_lgbt">Show LGBT</string>
+    <string name="settings_doramasflix_show_adult">Show +18</string>
+    <string name="settings_doramasflix_filter_summary">Allow this classified content in Doramasflix discovery. Off by default.</string>
+</resources>

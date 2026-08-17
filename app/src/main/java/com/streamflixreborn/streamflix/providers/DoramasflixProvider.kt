@@ -1,438 +1,1538 @@
 package com.streamflixreborn.streamflix.providers
 
 import android.util.Base64
-import com.google.gson.Gson
-import com.google.gson.JsonParser
-import com.tanasi.retrofit_jsoup.converter.JsoupConverterFactory
+import android.util.Log
+import com.google.gson.JsonParseException
+import com.streamflixreborn.streamflix.BuildConfig
+import com.streamflixreborn.streamflix.R
 import com.streamflixreborn.streamflix.adapters.AppAdapter
 import com.streamflixreborn.streamflix.extractors.Extractor
-import com.streamflixreborn.streamflix.models.*
+import com.streamflixreborn.streamflix.models.Category
+import com.streamflixreborn.streamflix.models.Episode
+import com.streamflixreborn.streamflix.models.Genre
+import com.streamflixreborn.streamflix.models.Movie
+import com.streamflixreborn.streamflix.models.People
+import com.streamflixreborn.streamflix.models.Season
+import com.streamflixreborn.streamflix.models.Show
+import com.streamflixreborn.streamflix.models.TvShow
+import com.streamflixreborn.streamflix.models.Video
 import com.streamflixreborn.streamflix.models.doramasflix.ApiResponse
-import com.streamflixreborn.streamflix.models.doramasflix.TokenModel
-import com.streamflixreborn.streamflix.models.doramasflix.VideoToken
+import com.streamflixreborn.streamflix.models.doramasflix.Content
+import com.streamflixreborn.streamflix.models.doramasflix.ContentPage
+import com.streamflixreborn.streamflix.models.doramasflix.Data
+import com.streamflixreborn.streamflix.models.doramasflix.Episode as DoramasflixEpisode
+import com.streamflixreborn.streamflix.models.doramasflix.EpisodePage
+import com.streamflixreborn.streamflix.models.doramasflix.LanguageMetadata
+import com.streamflixreborn.streamflix.models.doramasflix.OnlineLink
+import com.streamflixreborn.streamflix.models.doramasflix.Season as DoramasflixSeason
 import com.streamflixreborn.streamflix.utils.DnsResolver
+import com.streamflixreborn.streamflix.utils.TmdbUtils
+import com.streamflixreborn.streamflix.utils.format
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.async
 import kotlinx.coroutines.coroutineScope
 import okhttp3.Cache
-import okhttp3.HttpUrl.Companion.toHttpUrl
 import okhttp3.MediaType.Companion.toMediaType
 import okhttp3.OkHttpClient
 import okhttp3.RequestBody.Companion.toRequestBody
-import okhttp3.dnsoverhttps.DnsOverHttps
-import org.jsoup.nodes.Document
+import org.json.JSONObject
+import retrofit2.HttpException
 import retrofit2.Retrofit
 import retrofit2.converter.gson.GsonConverterFactory
 import retrofit2.http.Body
-import retrofit2.http.GET
+import retrofit2.http.Header
 import retrofit2.http.Headers
 import retrofit2.http.POST
-import retrofit2.http.Url
 import java.io.File
+import java.io.IOException
 import java.net.URL
 import java.util.Locale
+import java.util.concurrent.ConcurrentHashMap
 import java.util.concurrent.TimeUnit
 
 object DoramasflixProvider : Provider {
 
     override val name = "Doramasflix"
     override val baseUrl = "https://doramasflix.in"
-    private const val apiUrl = "https://sv1.fluxcedene.net/api/"
     override val language = "es"
+    override val logo = "android.resource://${BuildConfig.APPLICATION_ID}/${R.drawable.ic_doramasflix}"
 
-    private val client = getOkHttpClient()
+    private const val apiUrl = "https://userapi.cloudfleir.xyz/"
+    private const val playbackApp = "com.asiapp.doramasgo"
+    private const val featuredDoramaLimit = 6
+    private const val featuredMovieLimit = 1
+    private const val recommendationLimit = 12
+    private const val catalogPageSize = 20
+    private const val searchPageSize = 20
+    private const val episodePageSize = 50
+    private const val userAgent =
+        "Mozilla/5.0 (Linux; Android 10; Android TV) AppleWebKit/537.36 Chrome/140.0.0.0 Safari/537.36"
+
+    private val movieBackendIds = ConcurrentHashMap<String, String>()
+    private val doramaBackendIds = ConcurrentHashMap<String, String>()
+    private val doramaTmdbIds = ConcurrentHashMap<String, String>()
+    private val movieLocalizedTitles = ConcurrentHashMap<String, String>()
+    private val doramaLocalizedTitles = ConcurrentHashMap<String, String>()
+    private val doramaDetails = ConcurrentHashMap<String, Content>()
+    private val episodeBackendIds = ConcurrentHashMap<String, String>()
+
+    @Volatile
+    private var serverNamesByCode: Map<String, String>? = null
+
+    private val client = OkHttpClient.Builder()
+        .cache(Cache(File("cacheDir", "okhttpcache"), 10L * 1024 * 1024))
+        .readTimeout(30, TimeUnit.SECONDS)
+        .connectTimeout(30, TimeUnit.SECONDS)
+        .dns(DnsResolver.doh)
+        .build()
+
+    private val pageMetadata = DoramasflixPageMetadata(baseUrl, client)
+    private val genreBrowser = DoramasflixGenreBrowser(baseUrl, client, userAgent)
 
     private val service = Retrofit.Builder()
         .baseUrl(apiUrl)
-        .addConverterFactory(GsonConverterFactory.create(Gson()))
+        .addConverterFactory(GsonConverterFactory.create())
         .client(client)
         .build()
         .create(DoramasflixService::class.java)
-
-    private val serviceHtml = Retrofit.Builder()
-        .baseUrl(baseUrl)
-        .addConverterFactory(JsoupConverterFactory.create())
-        .client(client)
-        .build()
-        .create(DoramasflixService::class.java)
-
-    private fun getOkHttpClient(): OkHttpClient {
-        val appCache = Cache(File("cacheDir", "okhttpcache"), 10 * 1024 * 1024)
-
-        val clientBuilder = OkHttpClient.Builder()
-            .cache(appCache)
-            .readTimeout(30, TimeUnit.SECONDS)
-            .connectTimeout(30, TimeUnit.SECONDS)
-
-        return clientBuilder.dns(DnsResolver.doh).build()
-    }
-
-    private const val accessPlatform = "RxARncfg1S_MdpSrCvreoLu_SikCGMzE1NzQzODc3NjE2MQ=="
-
-    private val languages = arrayOf(
-        Pair("36", "[ENG]"),
-        Pair("37", "[CAST]"),
-        Pair("38", "[LAT]"),
-        Pair("192", "[SUB]"),
-        Pair("1327", "[POR]"),
-        Pair("13109", "[COR]"),
-        Pair("13110", "[JAP]"),
-        Pair("13111", "[MAN]"),
-        Pair("13112", "[TAI]"),
-        Pair("13113", "[FIL]"),
-        Pair("13114", "[IND]"),
-        Pair("343422", "[VIET]"),
-    )
-
-    private fun String.getLang(): String {
-        return languages.firstOrNull { it.first == this }?.second ?: ""
-    }
 
     private interface DoramasflixService {
-        @POST("gql")
+        @POST("graphql")
         @Headers(
-            "accept: application/json, text/plain, */*",
-            "platform: doramasflix",
-            "authorization: Bear",
-            "x-access-jwt-token: ",
-            "x-access-platform: $accessPlatform"
+            "Accept: application/json, text/plain, */*",
+            "Content-Type: application/json",
         )
-        suspend fun getApiResponse(@Body body: okhttp3.RequestBody): ApiResponse
-
-        @GET
-        suspend fun getPage(@Url url: String): Document
-
-        @POST
-        @Headers("Content-Type: application/json")
-        suspend fun postApi(@Url url: String, @Body body: okhttp3.RequestBody): VideoToken
+        suspend fun getApiResponse(
+            @Header("Origin") origin: String,
+            @Header("Referer") referer: String,
+            @Header("User-Agent") userAgent: String,
+            @Body body: okhttp3.RequestBody,
+        ): ApiResponse
     }
 
-    private fun getPosterUrl(path: String?): String {
-        return if (path?.startsWith("http") == true) {
-            path
-        } else {
-            "https://image.tmdb.org/t/p/w500$path"
-        }
+    private fun requestBody(
+        operationName: String,
+        variables: JSONObject,
+        query: String,
+    ) = JSONObject()
+        .put("operationName", operationName)
+        .put("variables", variables)
+        .put("query", query)
+        .toString()
+        .toRequestBody("application/json".toMediaType())
+
+    private fun requestContext(operationName: String): String = when (operationName) {
+        "SearchFullDoramas" -> "Doramasflix Dorama search"
+        "SearchFullMovies" -> "Doramasflix movie search"
+        "DoramasCarrousel" -> "Doramasflix Home featured Doramas"
+        "MoviesCarrousel" -> "Doramasflix Home featured movies"
+        "DetailMovieSlug" -> "Doramasflix movie details"
+        "DetailDoramaSlug" -> "Doramasflix series details"
+        "similarsMovies" -> "Doramasflix movie recommendations"
+        "SimilarsDoramas" -> "Doramasflix series recommendations"
+        "ListSeasons" -> "Doramasflix seasons"
+        "EpisodesPagination" -> "Doramasflix episodes"
+        "ListServers" -> "Doramasflix server list"
+        "PaginationMovie" -> "Doramasflix movies catalog"
+        "PaginationDorama" -> "Doramasflix Doramas catalog"
+        "MoviePlaybackContext" -> "Doramasflix movie playback sources"
+        "EpisodePlaybackContext" -> "Doramasflix episode playback sources"
+        else -> "Doramasflix $operationName"
     }
 
-    override suspend fun getHome(): List<Category> {
-        return try {
-            coroutineScope {
-                val homeDeferred = async { serviceHtml.getPage(baseUrl) }
-                val popularDoramasDeferred = async { getTvShows(1) }
-                val popularMoviesDeferred = async { getMovies(1) }
+    private fun ApiResponse.requireData(context: String): Data {
+        if (errors.isNotEmpty()) {
+            val message = errors
+                .mapNotNull { DoramasflixLogic.nonBlank(it.message) }
+                .distinct()
+                .joinToString("; ")
+                .ifBlank { "Unknown GraphQL error" }
 
-                val homeDocument = homeDeferred.await()
-                val bannerShows = homeDocument.select("article.styles__Article-nxyw6x-3").mapNotNull { element ->
-                    val href = element.selectFirst("div.styles__Buttons-sc-78uayx-17 a")?.attr("href") ?: return@mapNotNull null
-                    val bannerUrl = element.selectFirst("noscript img")?.attr("src")
-                    val title = element.selectFirst("h2.styles__Title-sc-78uayx-1")?.text() ?: return@mapNotNull null
-
-                    val id = href.removePrefix("/")
-
-                    if (href.contains("/peliculas-online/")) {
-                        Movie(
-                            id = id,
-                            title = title,
-                            banner = getPosterUrl(bannerUrl)
-                        )
-                    } else {
-                        TvShow(
-                            id = id,
-                            title = title,
-                            banner = getPosterUrl(bannerUrl)
-                        )
-                    }
-                }
-
-                val categories = mutableListOf(
-                    Category(name = Category.FEATURED, list = bannerShows),
-                    Category(name = "Doramas Populares", list = popularDoramasDeferred.await()),
-                    Category(name = "Películas Populares", list = popularMoviesDeferred.await())
-                )
-                categories
+            if (message.contains("Too Many Requests", ignoreCase = true)) {
+                throw Exception("$context is temporarily rate limiting requests. Please try again shortly.")
             }
-        } catch (e: Exception) {
-            emptyList()
+            throw Exception("$context failed: $message")
         }
+        return data ?: throw DoramasflixUnavailableException(
+            IllegalStateException("$context returned no GraphQL data")
+        )
     }
 
-    override suspend fun search(query: String, page: Int): List<AppAdapter.Item> {
-        if (query.isBlank()) {
-            return listOf(
-                Genre("doramas", "Doramas"),
-                Genre("peliculas", "Películas"),
-                Genre("variedades", "Variedades")
+    private fun httpFailure(context: String, error: HttpException): Exception {
+        if (error.code() == 429) {
+            return Exception(
+                "$context is temporarily rate limiting requests. Please try again shortly.",
+                error,
             )
         }
+        if (DoramasflixLogic.isUnavailableHttpStatus(error.code())) {
+            return DoramasflixUnavailableException(error)
+        }
 
-        val searchQuery = """
-            {"operationName":"searchAll","variables":{"input":"$query"},"query":"query searchAll(${'$'}input: String!) {\n  searchDorama(input: ${'$'}input, limit: 32) {\n    _id\n    slug\n    name\n    name_es\n    poster_path\n    poster\n    __typename\n  }\n  searchMovie(input: ${'$'}input, limit: 32) {\n    _id\n    name\n    name_es\n    slug\n    poster_path\n    poster\n    __typename\n  }\n}\n"}
-        """.trimIndent()
-        val body = searchQuery.toRequestBody("application/json".toMediaType())
+        val detail = runCatching {
+            DoramasflixLogic.graphQlErrorMessage(error.response()?.errorBody()?.string())
+        }.getOrNull()
+        val message = buildString {
+            append(context)
+            append(" failed: HTTP ")
+            append(error.code())
+            detail?.let {
+                append(" — ")
+                append(it)
+            }
+        }
+        return Exception(message, error)
+    }
 
+    private suspend fun apiRequest(
+        operationName: String,
+        variables: JSONObject,
+        query: String,
+    ): Data {
+        val context = requestContext(operationName)
         return try {
-            val response = service.getApiResponse(body)
-            val results = mutableListOf<AppAdapter.Item>()
+            service.getApiResponse(
+                origin = baseUrl,
+                referer = "$baseUrl/",
+                userAgent = userAgent,
+                body = requestBody(operationName, variables, query),
+            ).requireData(context)
+        } catch (error: HttpException) {
+            throw httpFailure(context, error)
+        } catch (error: IOException) {
+            throw DoramasflixUnavailableException(error)
+        } catch (error: JsonParseException) {
+            throw DoramasflixUnavailableException(error)
+        }
+    }
 
-            response.data?.searchDorama?.forEach { show ->
-                results.add(
-                    TvShow(
-                        id = "doramas-online/${show.slug}",
-                        title = "${show.name} (${show.nameEs ?: ""})".trim(),
-                        poster = getPosterUrl(show.posterPath ?: show.poster)
-                    )
-                )
+    private fun <T> requireOperationPayload(context: String, payload: T?): T =
+        payload ?: throw DoramasflixUnavailableException(
+            IllegalStateException("$context returned no operation payload")
+        )
+
+    private fun imageUrl(path: String?, size: String): String? {
+        val value = DoramasflixLogic.meaningfulImage(path) ?: return null
+        return when {
+            value.startsWith("//") -> "https:$value"
+            value.startsWith("https://") || value.startsWith("http://") -> value
+            else -> "https://image.tmdb.org/t/p/$size/${value.removePrefix("/")}"
+        }
+    }
+
+    private fun posterUrl(path: String?) = imageUrl(path, "w500")
+    private fun backdropUrl(path: String?) = imageUrl(path, "w1280")
+
+    private fun contentPoster(content: Content): String? =
+        sequenceOf(content.posterPath, content.poster)
+            .mapNotNull(::posterUrl)
+            .firstOrNull()
+
+    private fun contentBackdrop(content: Content): String? = sequence {
+        yield(content.backdropPath)
+        yield(content.backdrop)
+        yieldAll(content.images?.backdrops.orEmpty())
+    }.mapNotNull(::backdropUrl).firstOrNull()
+
+    private fun contentMarkers(content: Content): Set<DoramasflixContentPolicy.Marker> = buildSet {
+        addAll(DoramasflixContentPolicy.analyzeOverview(content.overview).markers)
+        addAll(
+            DoramasflixContentPolicy.markersFromLabels(
+                content.labels.orEmpty().map { it.name }
+            )
+        )
+    }
+
+    private fun contentAllowed(content: Content): Boolean = DoramasflixContentPolicy.allows(
+        contentMarkers(content),
+        DoramasflixContentPreferences.settings(),
+    )
+
+    private fun resolvedOverview(content: Content, externalOverview: String?): String? =
+        DoramasflixContentPolicy.analyzeOverview(
+            DoramasflixLogic.nonBlank(content.overview)
+        ).cleanedOverview ?: DoramasflixLogic.nonBlank(externalOverview)
+
+    private fun normalizePath(id: String): String = id
+        .removePrefix("$baseUrl/")
+        .removePrefix("/")
+        .substringBefore('?')
+
+    private fun slugFromId(id: String): String = normalizePath(id).substringAfterLast('/')
+    private fun movieId(slug: String) = "peliculas-online/$slug"
+    private fun doramaId(slug: String) = "doramas-online/$slug"
+
+    private fun contentSlug(content: Content): String? = DoramasflixLogic.nonBlank(content.slug)
+    private fun contentBackendId(content: Content): String? = DoramasflixLogic.nonBlank(content.id)
+    private fun numericTmdbId(content: Content): Int? =
+        DoramasflixLogic.nonBlank(content.tmdbId)?.toIntOrNull()?.takeIf { it > 0 }
+
+    private fun apiTitleFor(content: Content): String? = DoramasflixLogic.displayTitle(
+        nameEs = content.nameEs,
+        name = content.name,
+        originalName = content.originalName,
+    )
+
+    private fun titleFor(content: Content): String = apiTitleFor(content)
+        ?: contentSlug(content)?.replace('-', ' ')
+        ?: "Doramasflix"
+
+    private fun genresFor(content: Content): List<Genre> =
+        content.genres.orEmpty().mapNotNull { tag ->
+            val genreName = DoramasflixLogic.nonBlank(tag.name) ?: return@mapNotNull null
+            val genreId = DoramasflixLogic.nonBlank(tag.slug) ?: genreName
+            Genre(id = genreId, name = genreName)
+        }.distinctBy { it.id }
+
+    private fun castFor(content: Content): List<People> =
+        content.cast.orEmpty().mapNotNull { member ->
+            val id = DoramasflixLogic.nonBlank(member.slug) ?: return@mapNotNull null
+            val castName = DoramasflixLogic.nonBlank(member.name) ?: return@mapNotNull null
+            People(
+                id = id,
+                name = castName,
+                image = imageUrl(member.profilePath, "w185"),
+            )
+        }.distinctBy { it.id }
+
+    private fun hasNonLatinCast(content: Content): Boolean =
+        content.cast.orEmpty().any { member ->
+            val castName = DoramasflixLogic.nonBlank(member.name) ?: return@any false
+            !DoramasflixLogic.containsLatinLetter(castName)
+        }
+
+    private fun resolveCast(content: Content, external: List<People>): List<People> {
+        val externalById = external.associateBy { it.id }
+        return castFor(content).map { member ->
+            val externalMember = externalById[member.id] ?: return@map member
+            val localizedName = DoramasflixLogic.nonBlank(externalMember.name)
+                ?.takeIf(DoramasflixLogic::containsLatinLetter)
+                ?: return@map member
+            People(
+                id = member.id,
+                name = localizedName,
+                image = member.image ?: externalMember.image,
+            )
+        }
+    }
+
+    private fun cacheMovie(content: Content) {
+        val slug = contentSlug(content) ?: return
+        contentBackendId(content)?.let { movieBackendIds[slug] = it }
+        DoramasflixLogic.nonBlank(content.nameEs)?.let { movieLocalizedTitles[slug] = it }
+    }
+
+    private fun cacheDorama(content: Content) {
+        val slug = contentSlug(content) ?: return
+        contentBackendId(content)?.let { doramaBackendIds[slug] = it }
+        numericTmdbId(content)?.let { doramaTmdbIds[slug] = it.toString() }
+        DoramasflixLogic.nonBlank(content.nameEs)?.let { doramaLocalizedTitles[slug] = it }
+    }
+
+    private fun episodeCacheKey(showSlug: String, episodeSlug: String) = "$showSlug|$episodeSlug"
+
+    private fun cacheEpisodes(showSlug: String, episodes: List<DoramasflixEpisode>) {
+        episodes.forEach { episode ->
+            val slug = DoramasflixLogic.nonBlank(episode.slug) ?: return@forEach
+            val backendId = DoramasflixLogic.nonBlank(episode.id) ?: return@forEach
+            episodeBackendIds[episodeCacheKey(showSlug, slug)] = backendId
+        }
+    }
+
+    private fun movieListItem(content: Content): Movie? {
+        if (!contentAllowed(content)) return null
+        val slug = contentSlug(content) ?: return null
+        return Movie(
+            id = movieId(slug),
+            title = titleFor(content),
+            released = DoramasflixLogic.normalizeDate(content.releaseDate),
+            rating = DoramasflixLogic.resolveApiRating(content.rating, content.ratingCount).rating,
+            poster = contentPoster(content),
+            banner = contentBackdrop(content),
+        )
+    }
+
+    private fun doramaListItem(content: Content): TvShow? {
+        if (!contentAllowed(content)) return null
+        val slug = contentSlug(content) ?: return null
+        return TvShow(
+            id = doramaId(slug),
+            title = titleFor(content),
+            released = DoramasflixLogic.normalizeDate(content.firstAirDate),
+            rating = DoramasflixLogic.resolveApiRating(content.rating, content.ratingCount).rating,
+            poster = contentPoster(content),
+            banner = contentBackdrop(content),
+        )
+    }
+
+    private fun movieNeedsExternal(content: Content): Boolean {
+        val rating = DoramasflixLogic.resolveApiRating(content.rating, content.ratingCount)
+        return apiTitleFor(content) == null ||
+            DoramasflixLogic.nonBlank(content.overview) == null ||
+            contentPoster(content) == null ||
+            contentBackdrop(content) == null ||
+            DoramasflixLogic.normalizeDate(content.releaseDate) == null ||
+            DoramasflixLogic.meaningfulRuntime(content.runtime) == null ||
+            DoramasflixLogic.normalizeTrailer(content.trailer) == null ||
+            rating.allowExternalFallback ||
+            genresFor(content).isEmpty() ||
+            hasNonLatinCast(content)
+    }
+
+    private fun doramaNeedsExternal(
+        content: Content,
+        seasons: List<DoramasflixSeason> = emptyList(),
+    ): Boolean {
+        val rating = DoramasflixLogic.resolveApiRating(content.rating, content.ratingCount)
+        val seasonMetadataMissing = seasons.any { season ->
+            DoramasflixLogic.firstNonBlank(season.nameEs, season.name) == null ||
+                sequenceOf(season.posterPath, season.poster).mapNotNull(::posterUrl).firstOrNull() == null
+        }
+        return apiTitleFor(content) == null ||
+            DoramasflixLogic.nonBlank(content.overview) == null ||
+            contentPoster(content) == null ||
+            contentBackdrop(content) == null ||
+            DoramasflixLogic.normalizeDate(content.firstAirDate) == null ||
+            DoramasflixLogic.normalizeTrailer(content.trailer) == null ||
+            rating.allowExternalFallback ||
+            genresFor(content).isEmpty() ||
+            seasonMetadataMissing ||
+            hasNonLatinCast(content)
+    }
+
+    private suspend fun optionalMovieDetailForEnrichment(slug: String): Content? = try {
+        detailMovie(slug)
+    } catch (error: Exception) {
+        if (error is CancellationException) throw error
+        null
+    }
+
+    private suspend fun optionalDoramaDetailForEnrichment(slug: String): Content? = try {
+        detailDorama(slug)
+    } catch (error: Exception) {
+        if (error is CancellationException) throw error
+        null
+    }
+
+    private suspend fun localizedFilmographyItem(show: Show): Show? {
+        val slug = slugFromId(show.id)
+        val detail = when (show) {
+            is Movie -> optionalMovieDetailForEnrichment(slug)
+            is TvShow -> optionalDoramaDetailForEnrichment(slug)
+        }
+        if (detail != null && !contentAllowed(detail)) return null
+
+        val localizedTitle = when (show) {
+            is Movie -> movieLocalizedTitles[slug]
+                ?: detail?.nameEs?.let(DoramasflixLogic::nonBlank)
+            is TvShow -> doramaLocalizedTitles[slug]
+                ?: detail?.nameEs?.let(DoramasflixLogic::nonBlank)
+        } ?: return show
+
+        when (show) {
+            is Movie -> show.title = localizedTitle
+            is TvShow -> show.title = localizedTitle
+        }
+        return show
+    }
+
+    private suspend fun localizePeopleFilmography(people: People): People = coroutineScope {
+        if (people.filmography.isEmpty()) return@coroutineScope people
+
+        val localized = mutableListOf<Show>()
+        for (chunk in people.filmography.chunked(4)) {
+            val pending = chunk.map { show ->
+                async { localizedFilmographyItem(show) }
             }
-
-            response.data?.searchMovie?.forEach { show ->
-                results.add(
-                    Movie(
-                        id = "peliculas-online/${show.slug}",
-                        title = "${show.name} (${show.nameEs ?: ""})".trim(),
-                        poster = getPosterUrl(show.posterPath ?: show.poster)
-                    )
-                )
+            for (item in pending) {
+                item.await()?.let(localized::add)
             }
+        }
+        people.copy(filmography = localized)
+    }
 
-            results
-        } catch (e: Exception) {
-            emptyList()
+    private suspend fun externalMovie(content: Content): Movie? {
+        if (!movieNeedsExternal(content)) return null
+        val tmdbId = numericTmdbId(content) ?: return null
+        return TmdbUtils.getMovieById(tmdbId, language)
+    }
+
+    private suspend fun externalDorama(
+        content: Content,
+        seasons: List<DoramasflixSeason> = emptyList(),
+    ): TvShow? {
+        if (!doramaNeedsExternal(content, seasons)) return null
+        val tmdbId = numericTmdbId(content) ?: return null
+        return TmdbUtils.getTvShowById(tmdbId, language)
+    }
+
+    private fun resolveMovieMetadata(content: Content, slug: String, external: Movie?): Movie {
+        val apiGenres = genresFor(content)
+        return Movie(
+            id = movieId(slug),
+            title = apiTitleFor(content)
+                ?: DoramasflixLogic.nonBlank(external?.title)
+                ?: titleFor(content),
+            overview = resolvedOverview(content, external?.overview),
+            released = DoramasflixLogic.normalizeDate(content.releaseDate)
+                ?: external?.released?.format("yyyy-MM-dd"),
+            runtime = DoramasflixLogic.meaningfulRuntime(content.runtime)
+                ?: DoramasflixLogic.meaningfulRuntime(external?.runtime),
+            trailer = DoramasflixLogic.normalizeTrailer(content.trailer)
+                ?: DoramasflixLogic.normalizeTrailer(external?.trailer),
+            rating = DoramasflixLogic.resolveRating(
+                apiRating = content.rating,
+                apiRatingCount = content.ratingCount,
+                tmdbRating = external?.rating,
+            ),
+            poster = contentPoster(content) ?: DoramasflixLogic.meaningfulImage(external?.poster),
+            banner = contentBackdrop(content) ?: DoramasflixLogic.meaningfulImage(external?.banner),
+            imdbId = external?.imdbId,
+            genres = apiGenres.ifEmpty { external?.genres.orEmpty() },
+            cast = resolveCast(content, external?.cast.orEmpty()),
+        )
+    }
+
+    private fun resolveDoramaMetadata(content: Content, slug: String, external: TvShow?): TvShow {
+        val apiGenres = genresFor(content)
+        return TvShow(
+            id = doramaId(slug),
+            title = apiTitleFor(content)
+                ?: DoramasflixLogic.nonBlank(external?.title)
+                ?: titleFor(content),
+            overview = resolvedOverview(content, external?.overview),
+            released = DoramasflixLogic.normalizeDate(content.firstAirDate)
+                ?: external?.released?.format("yyyy-MM-dd"),
+            runtime = DoramasflixLogic.meaningfulRuntime(content.episodeTime),
+            trailer = DoramasflixLogic.normalizeTrailer(content.trailer)
+                ?: DoramasflixLogic.normalizeTrailer(external?.trailer),
+            rating = DoramasflixLogic.resolveRating(
+                apiRating = content.rating,
+                apiRatingCount = content.ratingCount,
+                tmdbRating = external?.rating,
+            ),
+            poster = contentPoster(content) ?: DoramasflixLogic.meaningfulImage(external?.poster),
+            banner = contentBackdrop(content) ?: DoramasflixLogic.meaningfulImage(external?.banner),
+            imdbId = external?.imdbId,
+            genres = apiGenres.ifEmpty { external?.genres.orEmpty() },
+            cast = resolveCast(content, external?.cast.orEmpty()),
+        )
+    }
+
+    private suspend fun searchDoramas(input: String, page: Int): List<Content> {
+        val payload = apiRequest(
+            operationName = "SearchFullDoramas",
+            variables = JSONObject()
+                .put("input", input)
+                .put("filter", JSONObject())
+                .put("page", page)
+                .put("perPage", searchPageSize)
+                .put("fuzzy", true),
+            query = """
+                query SearchFullDoramas(
+                  ${'$'}input: String!
+                  ${'$'}filter: FilterDoramasInput
+                  ${'$'}page: Int
+                  ${'$'}perPage: Int
+                  ${'$'}fuzzy: Boolean
+                ) {
+                  searchFullDoramas(
+                    input: ${'$'}input
+                    filter: ${'$'}filter
+                    page: ${'$'}page
+                    perPage: ${'$'}perPage
+                    fuzzy: ${'$'}fuzzy
+                  ) {
+                    items {
+                      _id
+                      slug
+                      name
+                      name_es
+                      original_name
+                      overview
+                      genres { name slug }
+                      labels { name slug }
+                      poster_path
+                      first_air_date
+                      rating
+                      rating_count
+                      tmdb_id
+                    }
+                  }
+                }
+            """.trimIndent(),
+        ).searchFullDoramas
+        val items = requireOperationPayload("Doramasflix Dorama search", payload).items
+        items.forEach(::cacheDorama)
+        return items
+    }
+
+    private suspend fun searchMovies(input: String, page: Int): List<Content> {
+        val payload = apiRequest(
+            operationName = "SearchFullMovies",
+            variables = JSONObject()
+                .put("input", input)
+                .put("filter", JSONObject())
+                .put("page", page)
+                .put("perPage", searchPageSize)
+                .put("fuzzy", true),
+            query = """
+                query SearchFullMovies(
+                  ${'$'}input: String!
+                  ${'$'}filter: FilterMoviesInput
+                  ${'$'}page: Int
+                  ${'$'}perPage: Int
+                  ${'$'}fuzzy: Boolean
+                ) {
+                  searchFullMovies(
+                    input: ${'$'}input
+                    filter: ${'$'}filter
+                    page: ${'$'}page
+                    perPage: ${'$'}perPage
+                    fuzzy: ${'$'}fuzzy
+                  ) {
+                    items {
+                      _id
+                      slug
+                      name
+                      name_es
+                      original_name
+                      overview
+                      genres { name slug }
+                      labels { name slug }
+                      poster_path
+                      release_date
+                      rating
+                      rating_count
+                      tmdb_id
+                    }
+                  }
+                }
+            """.trimIndent(),
+        ).searchFullMovies
+        val items = requireOperationPayload("Doramasflix movie search", payload).items
+        items.forEach(::cacheMovie)
+        return items
+    }
+
+    private suspend fun getFeaturedDoramas(): List<Content> = try {
+        val data = apiRequest(
+            operationName = "DoramasCarrousel",
+            variables = JSONObject().put("limit", featuredDoramaLimit),
+            query = """
+                query DoramasCarrousel(${'$'}limit: Int) {
+                  carrouselDoramas(limit: ${'$'}limit) {
+                    _id
+                    name
+                    name_es
+                    slug
+                    poster_path
+                    poster
+                    backdrop_path
+                    backdrop
+                  }
+                }
+            """.trimIndent(),
+        )
+        val items = requireOperationPayload(
+            "Doramasflix Home featured Doramas",
+            data.carrouselDoramas,
+        )
+        items.forEach(::cacheDorama)
+        items
+    } catch (error: Exception) {
+        if (error is CancellationException) throw error
+        Log.w("DoramasflixProvider", "Featured Doramas are unavailable", error)
+        emptyList()
+    }
+
+    private suspend fun getFeaturedMovies(): List<Content> = try {
+        val data = apiRequest(
+            operationName = "MoviesCarrousel",
+            variables = JSONObject().put("limit", featuredMovieLimit),
+            query = """
+                query MoviesCarrousel(${'$'}limit: Int) {
+                  carrouselMovies(limit: ${'$'}limit) {
+                    _id
+                    name
+                    name_es
+                    slug
+                    poster_path
+                    poster
+                    backdrop_path
+                    backdrop
+                  }
+                }
+            """.trimIndent(),
+        )
+        val items = requireOperationPayload(
+            "Doramasflix Home featured movies",
+            data.carrouselMovies,
+        )
+        items.forEach(::cacheMovie)
+        items
+    } catch (error: Exception) {
+        if (error is CancellationException) throw error
+        Log.w("DoramasflixProvider", "Featured movies are unavailable", error)
+        emptyList()
+    }
+
+    private suspend fun featuredDorama(content: Content): Show? {
+        val slug = contentSlug(content) ?: return null
+        val detailed = optionalDoramaDetailForEnrichment(slug) ?: content
+        if (!contentAllowed(detailed)) return null
+        val external = externalDorama(detailed)
+        val resolved = resolveDoramaMetadata(detailed, slug, external)
+        val banner = contentBackdrop(content) ?: resolved.banner ?: return null
+        return resolved.copy(
+            poster = contentPoster(content) ?: resolved.poster,
+            banner = banner,
+        )
+    }
+
+    private suspend fun featuredMovie(content: Content): Show? {
+        val slug = contentSlug(content) ?: return null
+        val detailed = optionalMovieDetailForEnrichment(slug) ?: content
+        if (!contentAllowed(detailed)) return null
+        val external = externalMovie(detailed)
+        val resolved = resolveMovieMetadata(detailed, slug, external)
+        val banner = contentBackdrop(content) ?: resolved.banner ?: return null
+        return resolved.copy(
+            poster = contentPoster(content) ?: resolved.poster,
+            banner = banner,
+        )
+    }
+
+    private suspend fun detailMovie(slug: String): Content {
+        val content = apiRequest(
+            operationName = "DetailMovieSlug",
+            variables = JSONObject().put("slug", slug),
+            query = """
+                query DetailMovieSlug(${'$'}slug: String!) {
+                  detailMovie(filter: {slug: ${'$'}slug}) {
+                    _id
+                    slug
+                    name
+                    name_es
+                    original_name
+                    tmdb_id
+                    overview
+                    trailer
+                    release_date
+                    poster_path
+                    poster
+                    backdrop_path
+                    backdrop
+                    runtime
+                    rating
+                    rating_count
+                    images { backdrops }
+                    genres { name slug }
+                    labels { name slug }
+                    cast { name profile_path slug }
+                  }
+                }
+            """.trimIndent(),
+        ).detailMovie ?: throw DoramasflixContentNotFoundException(
+            "Doramasflix could not find movie '$slug'."
+        )
+        cacheMovie(content)
+        return content
+    }
+
+    private suspend fun detailDorama(slug: String): Content {
+        doramaDetails[slug]?.let { return it }
+
+        val content = apiRequest(
+            operationName = "DetailDoramaSlug",
+            variables = JSONObject().put("slug", slug),
+            query = """
+                query DetailDoramaSlug(${'$'}slug: String!) {
+                  detailDorama(filter: {slug: ${'$'}slug}) {
+                    _id
+                    slug
+                    name
+                    name_es
+                    original_name
+                    tmdb_id
+                    overview
+                    trailer
+                    first_air_date
+                    poster_path
+                    poster
+                    backdrop_path
+                    backdrop
+                    episode_time
+                    rating
+                    rating_count
+                    images { backdrops }
+                    genres { name slug }
+                    labels { name slug }
+                    cast { name profile_path slug }
+                  }
+                }
+            """.trimIndent(),
+        ).detailDorama ?: throw DoramasflixContentNotFoundException(
+            "Doramasflix could not find dorama '$slug'."
+        )
+        cacheDorama(content)
+        doramaDetails[slug] = content
+        return content
+    }
+
+    private suspend fun getSimilarMovies(movieBackendId: String): List<Movie> = try {
+        val data = apiRequest(
+            operationName = "similarsMovies",
+            variables = JSONObject()
+                .put("limit", recommendationLimit)
+                .put("movie_id", movieBackendId),
+            query = """
+                query similarsMovies(${'$'}limit: Int, ${'$'}movie_id: String!) {
+                  similarsMovies(limit: ${'$'}limit, movie_id: ${'$'}movie_id) {
+                    _id
+                    slug
+                    name
+                    name_es
+                    original_name
+                    overview
+                    genres { name slug }
+                    labels { name slug }
+                    poster_path
+                    poster
+                  }
+                }
+            """.trimIndent(),
+        )
+        requireOperationPayload("Doramasflix movie recommendations", data.similarsMovies)
+            .mapNotNull { content ->
+                cacheMovie(content)
+                movieListItem(content)
+            }
+    } catch (error: Exception) {
+        if (error is CancellationException) throw error
+        emptyList()
+    }
+
+    private suspend fun getSimilarDoramas(doramaBackendId: String): List<TvShow> = try {
+        val data = apiRequest(
+            operationName = "SimilarsDoramas",
+            variables = JSONObject()
+                .put("limit", recommendationLimit)
+                .put("dorama_id", doramaBackendId),
+            query = """
+                query SimilarsDoramas(${'$'}limit: Int, ${'$'}dorama_id: String) {
+                  similarsDoramas(limit: ${'$'}limit, dorama_id: ${'$'}dorama_id) {
+                    _id
+                    slug
+                    name
+                    name_es
+                    original_name
+                    overview
+                    genres { name slug }
+                    labels { name slug }
+                    poster_path
+                    poster
+                  }
+                }
+            """.trimIndent(),
+        )
+        requireOperationPayload("Doramasflix series recommendations", data.similarsDoramas)
+            .mapNotNull { content ->
+                cacheDorama(content)
+                doramaListItem(content)
+            }
+    } catch (error: Exception) {
+        if (error is CancellationException) throw error
+        emptyList()
+    }
+
+    private suspend fun getSeasons(slug: String): List<DoramasflixSeason> {
+        val data = apiRequest(
+            operationName = "ListSeasons",
+            variables = JSONObject().put("slug", slug),
+            query = """
+                query ListSeasons(${'$'}slug: String!) {
+                  listSeasons(sort: NUMBER_ASC, filter: {serie_slug: ${'$'}slug}) {
+                    name
+                    name_es
+                    poster
+                    poster_path
+                    serie_id
+                    season_number
+                  }
+                }
+            """.trimIndent(),
+        )
+        val seasons = requireOperationPayload("Doramasflix seasons", data.listSeasons)
+            .filter { it.seasonNumber != null }
+            .distinctBy { it.seasonNumber }
+        if (seasons.isNotEmpty()) {
+            seasons.asSequence()
+                .mapNotNull { DoramasflixLogic.nonBlank(it.serieId) }
+                .firstOrNull()
+                ?.let { doramaBackendIds[slug] = it }
+            return seasons
+        }
+
+        return pageMetadata.getDoramaSeasonNumbers(slug)
+            .map { seasonNumber -> DoramasflixSeason(seasonNumber = seasonNumber) }
+    }
+
+    private suspend fun resolveDoramaBackendId(slug: String): String {
+        doramaBackendIds[slug]?.let { return it }
+        return contentBackendId(detailDorama(slug))
+            ?: throw Exception("Doramasflix could not resolve the series ID.")
+    }
+
+    private suspend fun resolveDoramaTmdbIdForEnrichment(slug: String): String? {
+        doramaTmdbIds[slug]?.let { return it }
+        val content = try {
+            detailDorama(slug)
+        } catch (error: Exception) {
+            if (error is CancellationException) throw error
+            return null
+        }
+        return numericTmdbId(content)?.toString()
+    }
+
+    private data class ExternalEpisodeMetadata(
+        val localized: Map<Int, Episode>,
+        val defaultLanguage: Map<Int, Episode>,
+        val defaultShowOverview: String?,
+    )
+
+    private suspend fun getTmdbEpisodeMetadata(
+        slug: String,
+        seasonNumber: Int,
+    ): ExternalEpisodeMetadata {
+        val tmdbId = resolveDoramaTmdbIdForEnrichment(slug)
+            ?: return ExternalEpisodeMetadata(emptyMap(), emptyMap(), null)
+        val localized = TmdbUtils.getEpisodesBySeason(tmdbId, seasonNumber, language)
+            .associateBy { it.number }
+        val defaultLanguage = TmdbUtils.getEpisodesBySeason(tmdbId, seasonNumber, null)
+            .associateBy { it.number }
+        val defaultShowOverview = tmdbId.toIntOrNull()
+            ?.let { TmdbUtils.getTvShowById(it, null)?.overview }
+        return ExternalEpisodeMetadata(localized, defaultLanguage, defaultShowOverview)
+    }
+
+    private suspend fun getEpisodes(slug: String, seasonNumber: Int): List<DoramasflixEpisode> {
+        val backendId = resolveDoramaBackendId(slug)
+        val episodes = mutableListOf<DoramasflixEpisode>()
+        var page = 1
+
+        while (true) {
+            val data = apiRequest(
+                operationName = "EpisodesPagination",
+                variables = JSONObject()
+                    .put("page", page)
+                    .put("serie_id", backendId)
+                    .put("season_number", seasonNumber)
+                    .put("limit", episodePageSize)
+                    .put("sort", "NUMBER_ASC"),
+                query = """
+                    query EpisodesPagination(
+                      ${'$'}page: Int!
+                      ${'$'}serie_id: ID!
+                      ${'$'}season_number: Int!
+                      ${'$'}limit: Int!
+                      ${'$'}sort: SortEpisode
+                    ) {
+                      paginationEpisode(
+                        page: ${'$'}page
+                        limit: ${'$'}limit
+                        sort: ${'$'}sort
+                        filter: {serie_id: ${'$'}serie_id, season_number: ${'$'}season_number}
+                      ) {
+                        items {
+                          _id
+                          slug
+                          name
+                          name_es
+                          backdrop
+                          still_path
+                          still_image
+                          episode_number
+                          date_string
+                          air_date
+                          overview
+                        }
+                        pageInfo { hasNextPage }
+                      }
+                    }
+                """.trimIndent(),
+            )
+            val response: EpisodePage = requireOperationPayload(
+                "Doramasflix episodes",
+                data.paginationEpisode,
+            )
+            episodes += response.items
+            if (response.pageInfo?.hasNextPage != true) break
+            page++
+        }
+
+        cacheEpisodes(slug, episodes)
+        return episodes
+    }
+
+    private suspend fun getServerNamesByCode(): Map<String, String> {
+        serverNamesByCode?.let { return it }
+
+        val discovered = try {
+            val data = apiRequest(
+                operationName = "ListServers",
+                variables = JSONObject(),
+                query = """
+                    query ListServers {
+                      listServers { name code_flix }
+                    }
+                """.trimIndent(),
+            )
+            data.listServers.orEmpty()
+                .mapNotNull { server ->
+                    val code = DoramasflixLogic.nonBlank(server.codeFlix) ?: return@mapNotNull null
+                    val serverName = DoramasflixLogic.nonBlank(server.name) ?: return@mapNotNull null
+                    code to serverName
+                }
+                .toMap()
+        } catch (error: Exception) {
+            if (error is CancellationException) throw error
+            emptyMap()
+        }
+
+        if (discovered.isNotEmpty()) serverNamesByCode = discovered
+        return discovered
+    }
+
+    override suspend fun getHome(): List<Category> = coroutineScope {
+        val featuredDoramasDeferred = async { getFeaturedDoramas() }
+        val featuredMoviesDeferred = async { getFeaturedMovies() }
+        val doramasDeferred = async { getTvShows(1) }
+        val moviesDeferred = async { getMovies(1) }
+
+        val featuredDoramas = mutableListOf<Show>()
+        for (content in featuredDoramasDeferred.await()) {
+            featuredDorama(content)?.let(featuredDoramas::add)
+        }
+        val featuredMovies = mutableListOf<Show>()
+        for (content in featuredMoviesDeferred.await()) {
+            featuredMovie(content)?.let(featuredMovies::add)
+        }
+        val featured = DoramasflixLogic.mixAlternating(
+            first = featuredDoramas,
+            second = featuredMovies,
+        )
+
+        buildList {
+            featured.takeIf { it.isNotEmpty() }?.let {
+                add(Category(name = Category.FEATURED, list = it))
+            }
+            doramasDeferred.await().takeIf { it.isNotEmpty() }?.let {
+                add(Category(name = "Doramas Populares", list = it))
+            }
+            moviesDeferred.await().takeIf { it.isNotEmpty() }?.let {
+                add(Category(name = "Películas Populares", list = it))
+            }
+        }
+    }
+
+    override suspend fun search(query: String, page: Int): List<AppAdapter.Item> = coroutineScope {
+        if (query.isBlank()) {
+            return@coroutineScope buildList {
+                add(Genre("doramas", "Doramas"))
+                add(Genre("peliculas", "Películas"))
+                add(Genre("variedades", "Variedades"))
+                addAll(DoramasflixGenreBrowser.genres)
+            }
+        }
+
+        val requestedPage = page.coerceAtLeast(1)
+        val doramas = async { searchDoramas(query, requestedPage) }
+        val movies = async { searchMovies(query, requestedPage) }
+        buildList {
+            doramas.await().mapNotNullTo(this, ::doramaListItem)
+            movies.await().mapNotNullTo(this, ::movieListItem)
         }
     }
 
     override suspend fun getMovies(page: Int): List<Movie> {
-        val query = """
-            {"operationName":"listMovies","variables":{"perPage":20,"sort":"POPULARITY_DESC","filter":{},"page":$page},"query":"query listMovies(${'$'}page: Int, ${'$'}perPage: Int, ${'$'}sort: SortFindManyMovieInput, ${'$'}filter: FilterFindManyMovieInput) {\n  paginationMovie(page: ${'$'}page, perPage: ${'$'}perPage, sort: ${'$'}sort, filter: ${'$'}filter) {\n    items {\n      _id\n      name\n      name_es\n      slug\n      poster_path\n      poster\n      __typename\n    }\n  }\n}\n"}
-        """.trimIndent()
-        val body = query.toRequestBody("application/json".toMediaType())
-
-        return try {
-            val response = service.getApiResponse(body)
-            response.data?.paginationMovie?.items?.map {
-                Movie(
-                    id = "peliculas-online/${it.slug}",
-                    title = "${it.name} (${it.nameEs ?: ""})".trim(),
-                    poster = getPosterUrl(it.posterPath ?: it.poster)
-                )
-            } ?: emptyList()
-        } catch (e: Exception) {
-            emptyList()
-        }
+        val data = apiRequest(
+            operationName = "PaginationMovie",
+            variables = JSONObject()
+                .put("page", page.coerceAtLeast(1))
+                .put("limit", catalogPageSize)
+                .put("sort", "POPULARITY_DESC")
+                .put("filter", JSONObject()),
+            query = """
+                query PaginationMovie(
+                  ${'$'}page: Int
+                  ${'$'}limit: Int
+                  ${'$'}sort: SortMovie
+                  ${'$'}filter: FilterMoviesInput
+                ) {
+                  paginationMovie(
+                    page: ${'$'}page
+                    limit: ${'$'}limit
+                    sort: ${'$'}sort
+                    filter: ${'$'}filter
+                  ) {
+                    items {
+                      _id
+                      slug
+                      name
+                      name_es
+                      original_name
+                      overview
+                      genres { name slug }
+                      labels { name slug }
+                      poster_path
+                      poster
+                      backdrop_path
+                      backdrop
+                      release_date
+                      rating
+                      rating_count
+                      tmdb_id
+                    }
+                  }
+                }
+            """.trimIndent(),
+        )
+        val pageData: ContentPage = requireOperationPayload(
+            "Doramasflix movies catalog",
+            data.paginationMovie,
+        )
+        pageData.items.forEach(::cacheMovie)
+        return pageData.items.mapNotNull(::movieListItem)
     }
 
-    override suspend fun getTvShows(page: Int): List<TvShow> {
-        val query = """
-            {"operationName":"listDoramas","variables":{"page":$page,"sort":"POPULARITY_DESC","perPage":20,"filter":{"isTVShow":false}},"query":"query listDoramas(${'$'}page: Int, ${'$'}perPage: Int, ${'$'}sort: SortFindManyDoramaInput, ${'$'}filter: FilterFindManyDoramaInput) {\n  paginationDorama(page: ${'$'}page, perPage: ${'$'}perPage, sort: ${'$'}sort, filter: ${'$'}filter) {\n    items {\n      _id\n      name\n      name_es\n      slug\n      poster_path\n      poster\n      __typename\n    }\n  }\n}\n"}
-        """.trimIndent()
-        val body = query.toRequestBody("application/json".toMediaType())
+    override suspend fun getTvShows(page: Int): List<TvShow> =
+        getDoramaPage(page, isTvShow = false)
 
-        return try {
-            val response = service.getApiResponse(body)
-            response.data?.paginationDorama?.items?.map {
-                TvShow(
-                    id = "doramas-online/${it.slug}",
-                    title = "${it.name} (${it.nameEs ?: ""})".trim(),
-                    poster = getPosterUrl(it.posterPath ?: it.poster)
-                )
-            } ?: emptyList()
-        } catch (e: Exception) {
-            emptyList()
-        }
+    private suspend fun getDoramaPage(page: Int, isTvShow: Boolean): List<TvShow> {
+        val data = apiRequest(
+            operationName = "PaginationDorama",
+            variables = JSONObject()
+                .put("page", page.coerceAtLeast(1))
+                .put("limit", catalogPageSize)
+                .put("sort", "POPULARITY_DESC")
+                .put("filter", JSONObject().put("isTVShow", isTvShow)),
+            query = """
+                query PaginationDorama(
+                  ${'$'}page: Int
+                  ${'$'}limit: Int
+                  ${'$'}sort: SortDorama
+                  ${'$'}filter: FilterDoramasInput
+                ) {
+                  paginationDorama(
+                    page: ${'$'}page
+                    limit: ${'$'}limit
+                    sort: ${'$'}sort
+                    filter: ${'$'}filter
+                  ) {
+                    items {
+                      _id
+                      slug
+                      name
+                      name_es
+                      original_name
+                      overview
+                      genres { name slug }
+                      labels { name slug }
+                      poster_path
+                      poster
+                      backdrop_path
+                      backdrop
+                      first_air_date
+                      rating
+                      rating_count
+                      tmdb_id
+                    }
+                  }
+                }
+            """.trimIndent(),
+        )
+        val pageData: ContentPage = requireOperationPayload(
+            "Doramasflix Doramas catalog",
+            data.paginationDorama,
+        )
+        pageData.items.forEach(::cacheDorama)
+        return pageData.items.mapNotNull(::doramaListItem)
     }
 
-    override suspend fun getMovie(id: String): Movie {
-        return try {
-            val url = if (id.startsWith("http")) id else "$baseUrl/$id"
-            val document = serviceHtml.getPage(url)
-            val script = document.selectFirst("script#__NEXT_DATA__")?.data()
-                ?: throw Exception("No se pudo encontrar el script de datos.")
+    override suspend fun getMovie(id: String): Movie = coroutineScope {
+        val slug = slugFromId(id)
+        val content = detailMovie(slug)
+        val backendId = contentBackendId(content)
+            ?: throw Exception("Doramasflix could not resolve movie '$slug'.")
+        val recommendations = async { getSimilarMovies(backendId) }
+        val external = externalMovie(content)
+        resolveMovieMetadata(content, slug, external)
+            .copy(recommendations = recommendations.await())
+    }
 
-            val jsonObject = JsonParser.parseString(script).asJsonObject
-            val apolloState = jsonObject.getAsJsonObject("props")
-                .getAsJsonObject("pageProps")
-                .getAsJsonObject("apolloState")
-
-            val movieData = apolloState.entrySet().firstOrNull { (key, _) -> key.startsWith("Movie:") }?.value?.asJsonObject
-                ?: throw Exception("No se encontraron datos de la película en el JSON.")
-
-            Movie(
-                id = movieData.get("_id").asString,
-                title = "${movieData.get("name").asString} (${movieData.get("name_es")?.asString ?: ""})".trim(),
-                overview = movieData.get("overview")?.asString,
-                poster = getPosterUrl(movieData.get("poster_path")?.asString ?: movieData.get("poster")?.asString),
+    override suspend fun getTvShow(id: String): TvShow = coroutineScope {
+        val slug = slugFromId(id)
+        val detailDeferred = async { detailDorama(slug) }
+        val seasonsDeferred = async { getSeasons(slug) }
+        val content = detailDeferred.await()
+        val seasonsData = seasonsDeferred.await()
+        val backendId = contentBackendId(content)
+            ?: throw Exception("Doramasflix could not resolve series '$slug'.")
+        val recommendations = async { getSimilarDoramas(backendId) }
+        val external = externalDorama(content, seasonsData)
+        val externalSeasons = external?.seasons.orEmpty().associateBy { it.number }
+        val seasons = seasonsData.mapNotNull { season ->
+            val seasonNumber = season.seasonNumber ?: return@mapNotNull null
+            val externalSeason = externalSeasons[seasonNumber]
+            Season(
+                id = "$slug/$seasonNumber",
+                number = seasonNumber,
+                title = DoramasflixLogic.firstNonBlank(season.nameEs, season.name, externalSeason?.title)
+                    ?: "Temporada $seasonNumber",
+                poster = sequenceOf(season.posterPath, season.poster)
+                    .mapNotNull(::posterUrl)
+                    .firstOrNull()
+                    ?: DoramasflixLogic.meaningfulImage(externalSeason?.poster),
             )
-        } catch (e: Exception) {
-            throw Exception("No se pudieron cargar los detalles de la película: ${e.message}")
         }
-    }
-
-    override suspend fun getTvShow(id: String): TvShow {
-        return try {
-            val url = if (id.startsWith("http")) id else "$baseUrl/$id"
-            val document = serviceHtml.getPage(url)
-            val script = document.selectFirst("script#__NEXT_DATA__")?.data()
-                ?: throw Exception("No se pudo encontrar el script de datos.")
-
-            val jsonObject = JsonParser.parseString(script).asJsonObject
-            val apolloState = jsonObject.getAsJsonObject("props")
-                .getAsJsonObject("pageProps")
-                .getAsJsonObject("apolloState")
-
-            val doramaData = apolloState.entrySet().firstOrNull { (key, _) -> key.startsWith("Dorama:") || key.startsWith("Movie:") }?.value?.asJsonObject
-                ?: throw Exception("No se encontraron datos del dorama en el JSON.")
-
-            val doramaId = doramaData.get("_id").asString
-
-            val seasonQuery = """
-                {"operationName":"listSeasons","variables":{"serie_id":"$doramaId"},"query":"query listSeasons(${'$'}serie_id: MongoID!) {\n  listSeasons(sort: NUMBER_ASC, filter: {serie_id: ${'$'}serie_id}) {\n    slug\n    season_number\n    poster_path\n    __typename\n  }\n}\n"}
-            """.trimIndent()
-            val seasonBody = seasonQuery.toRequestBody("application/json".toMediaType())
-            val seasonResponse = service.getApiResponse(seasonBody)
-
-            val seasons = seasonResponse.data?.listSeasons?.map {
-                Season(
-                    id = "$doramaId/${it.seasonNumber}",
-                    number = it.seasonNumber,
-                    title = "Temporada ${it.seasonNumber}",
-                    poster = getPosterUrl(it.posterPath)
-                )
-            } ?: emptyList()
-
-            TvShow(
-                id = doramaId,
-                title = "${doramaData.get("name").asString} (${doramaData.get("name_es")?.asString ?: ""})".trim(),
-                overview = doramaData.get("overview")?.asString,
-                poster = getPosterUrl(doramaData.get("poster_path")?.asString ?: doramaData.get("poster")?.asString),
-                seasons = seasons
-            )
-        } catch (e: Exception) {
-            throw Exception("No se pudieron cargar los detalles del dorama: ${e.message}")
-        }
+        resolveDoramaMetadata(content, slug, external).copy(
+            seasons = seasons,
+            recommendations = recommendations.await(),
+        )
     }
 
     override suspend fun getEpisodesBySeason(seasonId: String): List<Episode> {
-        val doramaId = seasonId.substringBefore("/")
-        val seasonNumber = seasonId.substringAfter("/").toInt()
-
-        val episodeQuery = """
-            {"operationName":"listEpisodes","variables":{"serie_id":"$doramaId","season_number":$seasonNumber},"query":"query listEpisodes(${'$'}season_number: Float!, ${'$'}serie_id: MongoID!) {\n  listEpisodes(sort: NUMBER_ASC, filter: {type_serie: \"dorama\", serie_id: ${'$'}serie_id, season_number: ${'$'}season_number}) {\n    _id\n    name\n    slug\n    episode_number\n    season_number\n    still_path\n    __typename\n  }\n}\n"}
-        """.trimIndent()
-        val body = episodeQuery.toRequestBody("application/json".toMediaType())
-
-        return try {
-            val response = service.getApiResponse(body)
-            response.data?.listEpisodes?.map {
-                Episode(
-                    id = it.slug,
-                    number = it.episodeNumber ?: 0,
-                    title = "Episodio ${it.episodeNumber ?: 0}: ${it.name ?: ""}".trim(),
-                    poster = getPosterUrl(it.stillPath)
-                )
-            } ?: emptyList()
-        } catch (e: Exception) {
-            emptyList()
+        val slug = seasonId.substringBeforeLast('/')
+        val seasonNumber = seasonId.substringAfterLast('/').toIntOrNull()
+            ?: throw Exception("Invalid Doramasflix season ID: $seasonId")
+        val detail = detailDorama(slug)
+        val showTitles = listOf(detail.name, detail.nameEs, detail.originalName)
+        val showArtwork = buildList {
+            add(detail.posterPath)
+            add(detail.poster)
+            add(detail.backdropPath)
+            add(detail.backdrop)
+            addAll(detail.images?.backdrops.orEmpty())
         }
+        val episodes = getEpisodes(slug, seasonNumber)
+
+        fun providerTitle(episode: DoramasflixEpisode, number: Int): String? =
+            DoramasflixLogic.firstNonBlank(
+                DoramasflixLogic.meaningfulEpisodeTitle(
+                    episode.nameEs,
+                    showTitles,
+                    seasonNumber,
+                    number,
+                ),
+                DoramasflixLogic.meaningfulEpisodeTitle(
+                    episode.name,
+                    showTitles,
+                    seasonNumber,
+                    number,
+                ),
+            )
+
+        fun providerArtwork(episode: DoramasflixEpisode): String? =
+            DoramasflixLogic.episodeArtwork(
+                stillPath = episode.stillPath,
+                backdrop = episode.backdrop,
+                stillImage = episode.stillImage,
+                genericArtwork = showArtwork,
+            )
+
+        fun providerOverview(episode: DoramasflixEpisode, number: Int): String? =
+            DoramasflixLogic.meaningfulEpisodeOverview(
+                value = episode.overview,
+                showOverview = detail.overview,
+                showTitles = showTitles,
+                seasonNumber = seasonNumber,
+                episodeNumber = number,
+            )
+
+        val needsExternal = episodes.any { episode ->
+            val number = episode.episodeNumber ?: return@any false
+            providerTitle(episode, number) == null ||
+                providerArtwork(episode) == null ||
+                providerOverview(episode, number) == null ||
+                (DoramasflixLogic.normalizeDate(episode.airDate)
+                    ?: DoramasflixLogic.normalizeDate(episode.dateString)) == null
+        }
+        val external = if (needsExternal) {
+            getTmdbEpisodeMetadata(slug, seasonNumber)
+        } else {
+            ExternalEpisodeMetadata(emptyMap(), emptyMap(), null)
+        }
+
+        return episodes.mapNotNull { episode ->
+            val episodeSlug = DoramasflixLogic.nonBlank(episode.slug) ?: return@mapNotNull null
+            val number = episode.episodeNumber ?: return@mapNotNull null
+            val localized = external.localized[number]
+            val defaultLanguage = external.defaultLanguage[number]
+            val externalTitle = DoramasflixLogic.firstNonBlank(localized?.title, defaultLanguage?.title)
+            val externalPoster = DoramasflixLogic.meaningfulImage(localized?.poster)
+                ?: DoramasflixLogic.meaningfulImage(defaultLanguage?.poster)
+            val externalOverview = DoramasflixLogic.firstNonBlank(
+                localized?.overview,
+                defaultLanguage?.overview,
+            )?.takeUnless { overview ->
+                DoramasflixLogic.sameNormalizedText(overview, detail.overview) ||
+                    DoramasflixLogic.sameNormalizedText(overview, external.defaultShowOverview)
+            }
+            val externalDate = sequenceOf(localized, defaultLanguage)
+                .mapNotNull { it?.released?.format("yyyy-MM-dd") }
+                .mapNotNull(DoramasflixLogic::normalizeDate)
+                .firstOrNull()
+            val artwork = DoramasflixLogic.episodeArtwork(
+                stillPath = episode.stillPath,
+                backdrop = episode.backdrop,
+                stillImage = episode.stillImage,
+                genericArtwork = showArtwork,
+                tmdbArtwork = externalPoster,
+            )
+
+            Episode(
+                id = episodeSlug,
+                number = number,
+                title = providerTitle(episode, number)
+                    ?: externalTitle
+                    ?: "Episodio $number",
+                released = DoramasflixLogic.normalizeDate(episode.airDate)
+                    ?: DoramasflixLogic.normalizeDate(episode.dateString)
+                    ?: externalDate,
+                poster = posterUrl(artwork),
+                overview = providerOverview(episode, number)
+                    ?: externalOverview,
+            )
+        }
+    }
+
+    private suspend fun resolveMovieBackendId(slug: String): String {
+        movieBackendIds[slug]?.let { return it }
+        return contentBackendId(detailMovie(slug))
+            ?: throw Exception("Doramasflix could not resolve the movie playback ID.")
+    }
+
+    private suspend fun resolveEpisodeBackendId(
+        episodeSlug: String,
+        showSlug: String,
+        seasonNumber: Int,
+    ): String {
+        episodeBackendIds[episodeCacheKey(showSlug, episodeSlug)]?.let { return it }
+        return getEpisodes(showSlug, seasonNumber)
+            .firstOrNull { it.slug == episodeSlug }
+            ?.id
+            ?.takeIf { it.isNotBlank() }
+            ?: throw Exception("Doramasflix could not resolve the episode playback ID.")
+    }
+
+    private data class PlaybackContext(
+        val links: List<OnlineLink>,
+        val languages: List<LanguageMetadata>,
+    )
+
+    private suspend fun getPlaybackContext(id: String, videoType: Video.Type): PlaybackContext =
+        when (videoType) {
+            is Video.Type.Movie -> {
+                val slug = slugFromId(id)
+                val backendId = resolveMovieBackendId(slug)
+                val data = apiRequest(
+                    operationName = "MoviePlaybackContext",
+                    variables = JSONObject().put("slug", slug).put("movie_id", backendId),
+                    query = """
+                        query MoviePlaybackContext(${'$'}slug: String!, ${'$'}movie_id: ID!) {
+                          detailMovie(filter: {slug: ${'$'}slug}) {
+                            langs { name code code_flix }
+                          }
+                          getMovieLinks(id: ${'$'}movie_id, app: "$playbackApp") {
+                            links_online {
+                              server
+                              lang
+                              link
+                              is_recommended
+                              subtitles { language_code type }
+                            }
+                          }
+                        }
+                    """.trimIndent(),
+                )
+                PlaybackContext(
+                    links = data.getMovieLinks?.linksOnline.orEmpty(),
+                    languages = data.detailMovie?.langs.orEmpty(),
+                )
+            }
+
+            is Video.Type.Episode -> {
+                val showSlug = slugFromId(videoType.tvShow.id)
+                val backendId = resolveEpisodeBackendId(
+                    episodeSlug = id,
+                    showSlug = showSlug,
+                    seasonNumber = videoType.season.number,
+                )
+                val data = apiRequest(
+                    operationName = "EpisodePlaybackContext",
+                    variables = JSONObject().put("slug", id).put("episode_id", backendId),
+                    query = """
+                        query EpisodePlaybackContext(${'$'}slug: String!, ${'$'}episode_id: ID!) {
+                          detailEpisode(filter: {slug: ${'$'}slug}) {
+                            langs { name code code_flix }
+                          }
+                          getEpisodeLinks(id: ${'$'}episode_id, app: "$playbackApp") {
+                            links_online {
+                              server
+                              lang
+                              link
+                              is_recommended
+                              subtitles { language_code type }
+                            }
+                          }
+                        }
+                    """.trimIndent(),
+                )
+                PlaybackContext(
+                    links = data.getEpisodeLinks?.linksOnline.orEmpty(),
+                    languages = data.detailEpisode?.langs.orEmpty(),
+                )
+            }
+        }
+
+    private fun decodePlaybackLink(link: String): String? {
+        if (!link.contains("embedshortener.co/e/")) {
+            return DoramasflixLogic.normalizePlaybackTarget(link)
+        }
+
+        return runCatching {
+            val token = link.substringAfter("/e/").substringBefore('?').substringBefore('#')
+            val payload = token.split('.').getOrNull(1) ?: return@runCatching null
+            val payloadJson = String(
+                Base64.decode(payload, Base64.URL_SAFE or Base64.NO_WRAP or Base64.NO_PADDING)
+            )
+            val encodedLink = JSONObject(payloadJson)
+                .optString("link")
+                .takeIf { it.isNotBlank() }
+                ?: return@runCatching null
+            DoramasflixLogic.normalizePlaybackTarget(
+                String(Base64.decode(encodedLink, Base64.DEFAULT))
+            )
+        }.getOrNull()
+    }
+
+    private fun hostFallbackServerName(link: String): String {
+        val host = runCatching {
+            URL(link).host.lowercase(Locale.ROOT).removePrefix("www.")
+        }.getOrNull() ?: return "Server"
+
+        return when (host) {
+            "do7go.com" -> "DoodStream"
+            "flaswish.com" -> "Streamwish"
+            "bysefujedu.com" -> "Filemoon"
+            "callistanise.com" -> "VidHide"
+            "jessicayeahcatch.com" -> "VOE"
+            "streamtape.com" -> "Streamtape"
+            "ok.ru" -> "OK.ru"
+            "m1xdrop.bz", "miixdrop.com" -> "MixDrop"
+            "primeload.co" -> "Primeload"
+            else -> host
+        }
+    }
+
+    private fun isPrimeload(link: String, serverName: String?): Boolean {
+        if (serverName.equals("Primeload", ignoreCase = true)) return true
+        val host = runCatching { URL(link).host.lowercase(Locale.ROOT) }.getOrNull() ?: return false
+        return host == "primeload.co" || host.endsWith(".primeload.co")
     }
 
     override suspend fun getServers(id: String, videoType: Video.Type): List<Video.Server> {
-        try {
-            val url = when (videoType) {
-                is Video.Type.Movie -> "$baseUrl/$id"
-                is Video.Type.Episode -> "$baseUrl/episodios/$id"
+        val playback = getPlaybackContext(id, videoType)
+        if (playback.links.isEmpty()) {
+            throw Exception("Doramasflix currently has no playback sources for this title.")
+        }
+
+        val registry = getServerNamesByCode()
+        val languagesByCode = mutableMapOf<String, String>()
+        playback.languages.forEach { metadata ->
+            val languageName = DoramasflixLogic.nonBlank(metadata.name) ?: return@forEach
+            listOf(metadata.codeFlix, metadata.code).forEach { rawCode ->
+                DoramasflixLogic.nonBlank(rawCode)?.let { languagesByCode[it] = languageName }
             }
+        }
 
-            val document = serviceHtml.getPage(url)
-            val script = document.selectFirst("script#__NEXT_DATA__")?.data()
-                ?: return emptyList()
-
-            val jsonObject = JsonParser.parseString(script).asJsonObject
-            val apolloState = jsonObject.getAsJsonObject("props")
-                .getAsJsonObject("pageProps")
-                .getAsJsonObject("apolloState")
-
-            val mediaData = apolloState.entrySet().firstOrNull { (key, _) ->
-                key.startsWith("Episode:") || key.startsWith("Movie:")
-            }?.value?.asJsonObject
-
-            val linksOnline = mediaData?.getAsJsonObject("links_online")?.getAsJsonArray("json")
-
-            if (linksOnline != null && linksOnline.size() > 0) {
-                return linksOnline.mapNotNull { serverElement ->
-                    val serverObject = serverElement.asJsonObject
-                    val serverUrl = serverObject.get("link")?.asString ?: return@mapNotNull null
-                    val lang = serverObject.get("lang")?.asString?.getLang() ?: ""
-                    val serverName = URL(serverUrl).host.split(".").first { it != "www" }.replaceFirstChar { it.titlecase(Locale.ROOT) }
-
-                    val finalUrl = getRealLink(serverUrl)
-                    Video.Server(id = finalUrl, name = "$serverName $lang".trim())
+        var primeloadCount = 0
+        var invalidCount = 0
+        val servers = playback.links
+            .sortedByDescending { it.isRecommended == true }
+            .mapNotNull { onlineLink ->
+                val rawLink = DoramasflixLogic.nonBlank(onlineLink.link)
+                if (rawLink == null) {
+                    invalidCount++
+                    return@mapNotNull null
                 }
+                val decodedLink = decodePlaybackLink(rawLink)
+                if (decodedLink == null) {
+                    invalidCount++
+                    return@mapNotNull null
+                }
+
+                val registryName = onlineLink.server?.let(registry::get)
+                val serverName = DoramasflixLogic.normalizeServerName(registryName)
+                    ?: hostFallbackServerName(decodedLink)
+                if (isPrimeload(decodedLink, serverName)) {
+                    primeloadCount++
+                    return@mapNotNull null
+                }
+
+                val rawLanguageCode = DoramasflixLogic.nonBlank(onlineLink.lang)
+                val languageName = rawLanguageCode?.let(languagesByCode::get)
+                val subtitles = onlineLink.subtitles.orEmpty().mapNotNull { subtitle ->
+                    DoramasflixLogic.subtitleDescriptor(subtitle.languageCode, subtitle.type)
+                }
+
+                Video.Server(
+                    id = decodedLink,
+                    name = DoramasflixLogic.playbackSourceName(
+                        serverName = serverName,
+                        languageName = languageName,
+                        languageCode = rawLanguageCode,
+                        subtitleDescriptors = subtitles,
+                    ),
+                )
             }
+            .distinctBy { it.id }
 
-            val problems = apolloState.entrySet()
-                .filter { (key, _) -> key.startsWith("ROOT_QUERY.listProblems") }
-                .map { it.value }
-
-            return problems.mapNotNull { problemElement ->
-                val serverData = problemElement.asJsonObject
-                    .getAsJsonObject("server")
-                    ?.getAsJsonObject("json")
-
-                val serverUrl = serverData?.get("link")?.asString ?: return@mapNotNull null
-                val lang = serverData.get("lang")?.asString?.getLang() ?: ""
-                val serverName = URL(serverUrl).host.split(".").first { it != "www" }.replaceFirstChar { it.titlecase(Locale.ROOT) }
-
-                val finalUrl = getRealLink(serverUrl)
-                Video.Server(id = finalUrl, name = "$serverName $lang".trim())
-            }.distinctBy { it.id }
-
-        } catch (e: Exception) {
-            return emptyList()
+        if (servers.isNotEmpty()) return servers
+        if (primeloadCount == playback.links.size) {
+            throw Exception(
+                "Doramasflix currently offers this title only on Primeload, which StreamFlix does not support yet."
+            )
         }
-    }
-
-    private suspend fun getRealLink(link: String): String {
-        if (!link.contains("fkplayer.xyz")) return link
-
-        return try {
-            val document = serviceHtml.getPage(link)
-            val script = document.selectFirst("script#__NEXT_DATA__")?.data() ?: return link
-
-            val tokenData = Gson().fromJson(script, TokenModel::class.java)
-            val token = tokenData.props?.pageProps?.token ?: return link
-
-            val requestBody = "{\"token\":\"$token\"}".toRequestBody("application/json".toMediaType())
-
-            val videoResponse = service.postApi("https://fkplayer.xyz/api/decoding", requestBody)
-            String(Base64.decode(videoResponse.link, Base64.DEFAULT))
-        } catch (e: Exception) {
-            link
+        if (invalidCount == playback.links.size) {
+            throw Exception("Doramasflix returned invalid playback source URLs for this title.")
         }
+        throw Exception("Doramasflix currently has no supported playback sources for this title.")
     }
 
     override suspend fun getVideo(server: Video.Server): Video = Extractor.extract(server.id, server)
-    override val logo: String = "https://doramasflix.in/img/logo.png"
 
     override suspend fun getGenre(id: String, page: Int): Genre {
-        val list: List<Show> = when (id) {
-            "peliculas" -> getMovies(page)
-            "variedades" -> {
-                val query = """
-                    {"operationName":"listDoramas","variables":{"page":$page,"sort":"CREATEDAT_DESC","perPage":32,"filter":{"isTVShow":true}},"query":"query listDoramas(${'$'}page: Int, ${'$'}perPage: Int, ${'$'}sort: SortFindManyDoramaInput, ${'$'}filter: FilterFindManyDoramaInput) {\n  paginationDorama(page: ${'$'}page, perPage: ${'$'}perPage, sort: ${'$'}sort, filter: ${'$'}filter) {\n    items {\n      _id\n      name\n      name_es\n      slug\n      poster_path\n      poster\n      __typename\n    }\n  }\n}\n"}
-                """.trimIndent()
-                val body = query.toRequestBody("application/json".toMediaType())
-                val response = service.getApiResponse(body)
-                response.data?.paginationDorama?.items?.map {
-                    TvShow(
-                        id = it.slug,
-                        title = "${it.name} (${it.nameEs ?: ""})".trim(),
-                        poster = getPosterUrl(it.posterPath ?: it.poster)
-                    )
-                } ?: emptyList()
-            }
-            else -> getTvShows(page)
+        val shortcut = when (id) {
+            "doramas" -> Genre(id = id, name = "Doramas", shows = getTvShows(page))
+            "peliculas" -> Genre(id = id, name = "Películas", shows = getMovies(page))
+            "variedades" -> Genre(id = id, name = "Variedades", shows = getDoramaPage(page, isTvShow = true))
+            else -> null
         }
-        return Genre(id = id, name = id.replaceFirstChar { it.uppercase() }, shows = list)
+        if (shortcut != null) return shortcut
+
+        val definition = DoramasflixGenreBrowser.genres.firstOrNull { it.id == id }
+            ?: throw Exception("Unknown Doramasflix category: $id")
+        val settings = DoramasflixContentPreferences.settings()
+        val shows = genreBrowser.getEntries(id, page)
+            .filter { entry -> DoramasflixContentPolicy.allows(entry.markers, settings) }
+            .map { it.show }
+        return Genre(id = id, name = definition.name, shows = shows)
     }
 
-    override suspend fun getPeople(id: String, page: Int): People = throw Exception("Not yet implemented")
+    override suspend fun getPeople(id: String, page: Int): People = when {
+        page > 1 -> People(id = id, name = "")
+        else -> localizePeopleFilmography(pageMetadata.getPeople(id))
+    }
 }
