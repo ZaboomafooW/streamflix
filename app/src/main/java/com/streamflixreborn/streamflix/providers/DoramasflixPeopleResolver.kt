@@ -11,6 +11,7 @@ import com.streamflixreborn.streamflix.utils.UserPreferences
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.async
 import kotlinx.coroutines.coroutineScope
+import kotlinx.coroutines.sync.Mutex
 import java.util.concurrent.ConcurrentHashMap
 
 internal class DoramasflixPeopleResolver(
@@ -31,7 +32,20 @@ internal class DoramasflixPeopleResolver(
         val titles: MutableList<String> = mutableListOf(),
     )
 
+    private class PersonContext(
+        val localized: TMDb3.Person.Detail?,
+        val english: TMDb3.Person.Detail?,
+        val candidates: List<CreditCandidate>,
+    ) {
+        val mutex = Mutex()
+        val pages = mutableListOf<List<Show>>()
+        val emittedShowIds = mutableSetOf<String>()
+        var nextCandidateIndex = 0
+        var exhausted = candidates.isEmpty()
+    }
+
     private val summaries = ConcurrentHashMap<String, People>()
+    private val contexts = ConcurrentHashMap<String, PersonContext>()
 
     fun remember(people: Iterable<People>) {
         people.forEach { person ->
@@ -42,25 +56,23 @@ internal class DoramasflixPeopleResolver(
     }
 
     suspend fun getPeople(id: String, page: Int): People {
-        if (page > 1) return People(id = id, name = "")
-
+        val requestedPage = page.coerceAtLeast(1)
         val providerSummary = summaries[id]
         val tmdbId = DoramasflixPersonIdentity.tmdbId(id)
-            ?: return providerSummary ?: People(id = id, name = "")
+            ?: return providerPage(providerSummary, id, requestedPage)
         if (!UserPreferences.enableTmdb) {
-            return providerSummary ?: People(id = id, name = "")
+            return providerPage(providerSummary, id, requestedPage)
         }
 
-        val localized = personDetails(tmdbId, "es")
-        val english = personDetails(tmdbId, "en")
-        if (localized == null && english == null) {
-            return providerSummary ?: People(id = id, name = "")
+        val context = getContext(id, tmdbId)
+        if (context.localized == null && context.english == null) {
+            return providerPage(providerSummary, id, requestedPage)
         }
 
-        val localizedName = localized?.name
+        val localizedName = context.localized?.name
             ?.trim()
             ?.takeIf { it.isNotEmpty() && DoramasflixLogic.containsLatinLetter(it) }
-        val englishName = english?.name
+        val englishName = context.english?.name
             ?.trim()
             ?.takeIf { it.isNotEmpty() && DoramasflixLogic.containsLatinLetter(it) }
         val providerName = providerSummary?.name?.trim()?.takeIf { it.isNotEmpty() }
@@ -69,20 +81,45 @@ internal class DoramasflixPeopleResolver(
             ?: englishName
             ?: providerName
             ?: ""
+        val filmography = resolveFilmographyPage(context, requestedPage)
 
-        val filmography = resolveFilmography(localized, english)
         return People(
             id = id,
             name = name,
             image = providerSummary?.image
-                ?: localized?.profilePath?.w500
-                ?: english?.profilePath?.w500,
-            biography = firstNonBlank(localized?.biography, english?.biography),
-            placeOfBirth = firstNonBlank(localized?.placeOfBirth, english?.placeOfBirth),
-            birthday = firstNonBlank(localized?.birthday, english?.birthday),
-            deathday = firstNonBlank(localized?.deathday, english?.deathday),
+                ?: context.localized?.profilePath?.w500
+                ?: context.english?.profilePath?.w500,
+            biography = firstNonBlank(context.localized?.biography, context.english?.biography),
+            placeOfBirth = firstNonBlank(
+                context.localized?.placeOfBirth,
+                context.english?.placeOfBirth,
+            ),
+            birthday = firstNonBlank(context.localized?.birthday, context.english?.birthday),
+            deathday = firstNonBlank(context.localized?.deathday, context.english?.deathday),
             filmography = filmography,
         )
+    }
+
+    private fun providerPage(providerSummary: People?, id: String, page: Int): People {
+        if (page == 1) return providerSummary ?: People(id = id, name = "")
+        return People(id = id, name = providerSummary?.name.orEmpty())
+    }
+
+    private suspend fun getContext(id: String, tmdbId: Int): PersonContext {
+        contexts[id]?.let { return it }
+
+        val localized = personDetails(tmdbId, "es")
+        val english = personDetails(tmdbId, "en")
+        val loaded = PersonContext(
+            localized = localized,
+            english = english,
+            candidates = creditCandidates(
+                localized?.combinedCredits?.cast.orEmpty(),
+                english?.combinedCredits?.cast.orEmpty(),
+            ),
+        )
+        contexts.putIfAbsent(id, loaded)
+        return contexts[id] ?: loaded
     }
 
     private suspend fun personDetails(id: Int, language: String): TMDb3.Person.Detail? = try {
@@ -96,17 +133,56 @@ internal class DoramasflixPeopleResolver(
         null
     }
 
-    private suspend fun resolveFilmography(
-        localized: TMDb3.Person.Detail?,
-        english: TMDb3.Person.Detail?,
-    ): List<Show> = coroutineScope {
-        val candidates = creditCandidates(
-            localized?.combinedCredits?.cast.orEmpty(),
-            english?.combinedCredits?.cast.orEmpty(),
-        )
-        val resolved = mutableListOf<Show>()
+    private suspend fun resolveFilmographyPage(
+        context: PersonContext,
+        requestedPage: Int,
+    ): List<Show> {
+        context.mutex.lock()
+        try {
+            while (context.pages.size < requestedPage && !context.exhausted) {
+                val nextPage = resolveNextFilmographyPage(context)
+                if (nextPage.isEmpty()) break
+                context.pages += nextPage
+            }
+            return context.pages.getOrNull(requestedPage - 1).orEmpty()
+        } finally {
+            context.mutex.unlock()
+        }
+    }
 
-        for (chunk in candidates.chunked(4)) {
+    private suspend fun resolveNextFilmographyPage(context: PersonContext): List<Show> {
+        val resolvedPage = linkedMapOf<String, Show>()
+
+        while (resolvedPage.isEmpty() && !context.exhausted) {
+            val range = candidateWindow(
+                startIndex = context.nextCandidateIndex,
+                totalCount = context.candidates.size,
+            ) ?: run {
+                context.exhausted = true
+                break
+            }
+            val candidates = context.candidates.subList(range.first, range.last + 1)
+            context.nextCandidateIndex = range.last + 1
+            if (context.nextCandidateIndex >= context.candidates.size) {
+                context.exhausted = true
+            }
+
+            resolveCandidateWindow(candidates).forEach { show ->
+                val identity = showIdentity(show)
+                if (context.emittedShowIds.add(identity)) {
+                    resolvedPage[identity] = show
+                }
+            }
+        }
+
+        return resolvedPage.values.toList()
+    }
+
+    private suspend fun resolveCandidateWindow(
+        candidates: List<CreditCandidate>,
+    ): List<Show> = coroutineScope {
+        val resolved = mutableListOf<Show>()
+        for (chunk in candidates.chunked(maxConcurrentCreditLookups)) {
             val pending = chunk.map { candidate ->
                 async { resolveCredit(candidate) }
             }
@@ -114,13 +190,7 @@ internal class DoramasflixPeopleResolver(
                 result.await()?.let(resolved::add)
             }
         }
-
-        resolved.distinctBy { show ->
-            when (show) {
-                is Movie -> "movie:${show.id}"
-                is TvShow -> "tv:${show.id}"
-            }
-        }
+        resolved
     }
 
     private fun creditCandidates(
@@ -206,12 +276,30 @@ internal class DoramasflixPeopleResolver(
         }
     }
 
+    private fun showIdentity(show: Show): String = when (show) {
+        is Movie -> "movie:${show.id}"
+        is TvShow -> "tv:${show.id}"
+    }
+
     private fun firstNonBlank(vararg values: String?): String? =
         values.asSequence()
             .mapNotNull { value -> value?.trim()?.takeIf(String::isNotEmpty) }
             .firstOrNull()
 
     companion object {
+        private const val filmographyCandidateWindowSize = 8
+        private const val maxConcurrentCreditLookups = 4
+
+        internal fun candidateWindow(
+            startIndex: Int,
+            totalCount: Int,
+            windowSize: Int = filmographyCandidateWindowSize,
+        ): IntRange? {
+            if (windowSize <= 0 || totalCount <= 0 || startIndex !in 0 until totalCount) return null
+            val endExclusive = minOf(startIndex + windowSize, totalCount)
+            return startIndex until endExclusive
+        }
+
         internal fun exactTmdbMatch(contents: Iterable<Content>, tmdbId: Int): Content? =
             contents.firstOrNull { content ->
                 content.tmdbId?.trim()?.toIntOrNull() == tmdbId
