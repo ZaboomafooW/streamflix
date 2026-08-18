@@ -45,4 +45,19 @@ class DoramasflixFilmographyTest {
             )
         )
     }
+
+    @Test
+    fun `filmography candidate windows advance without overlap and include the tail`() {
+        assertEquals(0..7, DoramasflixPeopleResolver.candidateWindow(0, 20))
+        assertEquals(8..15, DoramasflixPeopleResolver.candidateWindow(8, 20))
+        assertEquals(16..19, DoramasflixPeopleResolver.candidateWindow(16, 20))
+        assertNull(DoramasflixPeopleResolver.candidateWindow(20, 20))
+    }
+
+    @Test
+    fun `filmography candidate window rejects invalid bounds`() {
+        assertNull(DoramasflixPeopleResolver.candidateWindow(-1, 20))
+        assertNull(DoramasflixPeopleResolver.candidateWindow(0, 0))
+        assertNull(DoramasflixPeopleResolver.candidateWindow(0, 20, windowSize = 0))
+    }
 }
