@@ -157,10 +157,12 @@ internal class DoramasflixPeopleResolver(
             val range = candidateWindow(
                 startIndex = context.nextCandidateIndex,
                 totalCount = context.candidates.size,
-            ) ?: run {
+            )
+            if (range == null) {
                 context.exhausted = true
                 break
             }
+
             val candidates = context.candidates.subList(range.first, range.last + 1)
             context.nextCandidateIndex = range.last + 1
             if (context.nextCandidateIndex >= context.candidates.size) {
