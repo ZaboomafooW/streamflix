@@ -103,6 +103,7 @@ data class Content(
     val genres: List<Tag>? = null,
     val labels: List<Tag>? = null,
     val cast: List<CastMember>? = null,
+    val seasons: List<Season>? = null,
     val langs: List<LanguageMetadata>? = null,
 ) {
     internal fun sourceSignature(): String = listOf(id, slug, nameEs, name)

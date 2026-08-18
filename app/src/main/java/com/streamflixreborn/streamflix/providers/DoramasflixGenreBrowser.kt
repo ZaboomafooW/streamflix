@@ -8,7 +8,6 @@ import com.streamflixreborn.streamflix.models.doramasflix.Content
 import com.streamflixreborn.streamflix.models.doramasflix.ContentPage
 import kotlinx.coroutines.async
 import kotlinx.coroutines.coroutineScope
-import java.util.concurrent.ConcurrentHashMap
 
 internal class DoramasflixGenreBrowser(
     private val loadMoviePage: suspend (Int) -> ContentPage,
@@ -45,27 +44,8 @@ internal class DoramasflixGenreBrowser(
         private val verifiedById = verifiedGenres.associateBy { it.id }
     }
 
-    private val discoveredGenres = ConcurrentHashMap<String, String>()
-
     val genres: List<Genre>
-        get() = buildList {
-            addAll(verifiedGenres)
-            discoveredGenres.entries
-                .asSequence()
-                .filter { (id) -> id !in verifiedById }
-                .sortedBy { (_, name) -> name }
-                .mapTo(this) { (id, name) -> Genre(id, name) }
-        }
-
-    fun registerGenres(contents: Iterable<Content>) {
-        for (content in contents) {
-            for (tag in content.genres.orEmpty()) {
-                val id = DoramasflixLogic.nonBlank(tag.slug) ?: continue
-                val name = DoramasflixLogic.nonBlank(tag.name) ?: continue
-                discoveredGenres[id] = name
-            }
-        }
-    }
+        get() = verifiedGenres
 
     suspend fun getShows(id: String, page: Int): List<Show> {
         if (genreName(id) == null) throw Exception("Unknown Doramasflix category: $id")
@@ -83,9 +63,6 @@ internal class DoramasflixGenreBrowser(
                 val movies = moviesDeferred.await()
                 val doramas = doramasDeferred.await()
                 val variedades = variedadesDeferred.await()
-                registerGenres(movies.items)
-                registerGenres(doramas.items)
-                registerGenres(variedades.items)
 
                 val movieShows = movies.items
                     .asSequence()
@@ -113,8 +90,7 @@ internal class DoramasflixGenreBrowser(
         }
     }
 
-    fun genreName(id: String): String? =
-        verifiedById[id]?.name ?: discoveredGenres[id]
+    fun genreName(id: String): String? = verifiedById[id]?.name
 
     private fun hasGenre(content: Content, genreSlug: String): Boolean =
         content.genres.orEmpty().any { genre ->

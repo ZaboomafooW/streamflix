@@ -1,9 +1,9 @@
 package com.streamflixreborn.streamflix.providers
 
-import com.streamflixreborn.streamflix.models.doramasflix.Content
 import com.streamflixreborn.streamflix.models.doramasflix.ContentPage
-import com.streamflixreborn.streamflix.models.doramasflix.Tag
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertFalse
+import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
 import org.junit.Test
 
@@ -24,17 +24,10 @@ class DoramasflixGenreBrowserTest {
     }
 
     @Test
-    fun `actual GraphQL genre metadata extends provider registry`() {
+    fun `unverified content tags are not promoted to browse categories`() {
         val browser = browser()
-        browser.registerGenres(
-            listOf(
-                Content(
-                    genres = listOf(Tag(name = "Nuevo género", slug = "nuevo-genero")),
-                )
-            )
-        )
 
-        assertEquals("Nuevo género", browser.genreName("nuevo-genero"))
-        assertTrue(browser.genres.any { it.id == "nuevo-genero" && it.name == "Nuevo género" })
+        assertNull(browser.genreName("talk"))
+        assertFalse(browser.genres.any { it.id == "talk" })
     }
 }

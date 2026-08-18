@@ -89,8 +89,6 @@ object DoramasflixProvider : Provider {
         .dns(DnsResolver.doh)
         .build()
 
-    private val pageMetadata = DoramasflixPageMetadata(baseUrl, client)
-
     private val service = Retrofit.Builder()
         .baseUrl(apiUrl)
         .addConverterFactory(GsonConverterFactory.create())
@@ -102,6 +100,15 @@ object DoramasflixProvider : Provider {
         DoramasflixGenreBrowser(
             loadMoviePage = ::loadMovieCatalogPage,
             loadDoramaPage = ::loadDoramaCatalogPage,
+            mapMovie = ::movieListItem,
+            mapDorama = ::doramaListItem,
+        )
+    }
+
+    private val peopleResolver by lazy {
+        DoramasflixPeopleResolver(
+            searchDoramas = ::searchDoramas,
+            searchMovies = ::searchMovies,
             mapMovie = ::movieListItem,
             mapDorama = ::doramaListItem,
         )
@@ -312,7 +319,7 @@ object DoramasflixProvider : Provider {
         val externalByTmdbId = external.mapNotNull { person ->
             person.id.toIntOrNull()?.let { id -> id to person }
         }.toMap()
-        return castFor(content).map { member ->
+        val resolved = castFor(content).map { member ->
             val tmdbId = DoramasflixPersonIdentity.tmdbId(member.id) ?: return@map member
             val externalMember = externalByTmdbId[tmdbId] ?: return@map member
             val localizedName = DoramasflixLogic.nonBlank(externalMember.name)
@@ -324,17 +331,17 @@ object DoramasflixProvider : Provider {
                 image = member.image ?: externalMember.image,
             )
         }
+        peopleResolver.remember(resolved)
+        return resolved
     }
 
     private fun cacheMovie(content: Content) {
-        genreBrowser.registerGenres(listOf(content))
         val slug = contentSlug(content) ?: return
         contentBackendId(content)?.let { movieBackendIds[slug] = it }
         DoramasflixLogic.nonBlank(content.nameEs)?.let { movieLocalizedTitles[slug] = it }
     }
 
     private fun cacheDorama(content: Content) {
-        genreBrowser.registerGenres(listOf(content))
         val slug = contentSlug(content) ?: return
         contentBackendId(content)?.let { doramaBackendIds[slug] = it }
         numericTmdbId(content)?.let { doramaTmdbIds[slug] = it.toString() }
@@ -426,43 +433,6 @@ object DoramasflixProvider : Provider {
     } catch (error: Exception) {
         if (error is CancellationException) throw error
         null
-    }
-
-    private suspend fun localizedFilmographyItem(show: Show): Show? {
-        val slug = slugFromId(show.id)
-        val detail = when (show) {
-            is Movie -> optionalMovieDetailForEnrichment(slug)
-            is TvShow -> optionalDoramaDetailForEnrichment(slug)
-        }
-        if (detail != null && !contentAllowed(detail)) return null
-
-        val localizedTitle = when (show) {
-            is Movie -> movieLocalizedTitles[slug]
-                ?: detail?.nameEs?.let(DoramasflixLogic::nonBlank)
-            is TvShow -> doramaLocalizedTitles[slug]
-                ?: detail?.nameEs?.let(DoramasflixLogic::nonBlank)
-        } ?: return show
-
-        when (show) {
-            is Movie -> show.title = localizedTitle
-            is TvShow -> show.title = localizedTitle
-        }
-        return show
-    }
-
-    private suspend fun localizePeopleFilmography(people: People): People = coroutineScope {
-        if (people.filmography.isEmpty()) return@coroutineScope people
-
-        val localized = mutableListOf<Show>()
-        for (chunk in people.filmography.chunked(4)) {
-            val pending = chunk.map { show ->
-                async { localizedFilmographyItem(show) }
-            }
-            for (item in pending) {
-                item.await()?.let(localized::add)
-            }
-        }
-        people.copy(filmography = localized)
     }
 
     private suspend fun externalMovie(content: Content): Movie? {
@@ -807,6 +777,7 @@ object DoramasflixProvider : Provider {
                     genres { name slug }
                     labels { name slug }
                     cast { name profile_path slug }
+                    seasons { season_number }
                   }
                 }
             """.trimIndent(),
@@ -912,8 +883,9 @@ object DoramasflixProvider : Provider {
             return seasons
         }
 
-        return pageMetadata.getDoramaSeasonNumbers(slug)
-            .map { seasonNumber -> DoramasflixSeason(seasonNumber = seasonNumber) }
+        return detailDorama(slug).seasons.orEmpty()
+            .filter { it.seasonNumber != null }
+            .distinctBy { it.seasonNumber }
     }
 
     private suspend fun resolveDoramaBackendId(slug: String): String {
@@ -1610,8 +1582,5 @@ object DoramasflixProvider : Provider {
         )
     }
 
-    override suspend fun getPeople(id: String, page: Int): People = when {
-        page > 1 -> People(id = id, name = "")
-        else -> localizePeopleFilmography(pageMetadata.getPeople(id))
-    }
+    override suspend fun getPeople(id: String, page: Int): People = peopleResolver.getPeople(id, page)
 }

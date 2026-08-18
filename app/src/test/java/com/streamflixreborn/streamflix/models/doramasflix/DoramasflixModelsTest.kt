@@ -11,7 +11,7 @@ class DoramasflixModelsTest {
     private val gson = Gson()
 
     @Test
-    fun `detail response keeps provider identity rating and cast navigation data`() {
+    fun `detail response keeps provider identity rating cast and embedded season data`() {
         val response = gson.fromJson(
             """
                 {
@@ -31,6 +31,10 @@ class DoramasflixModelsTest {
                           "slug": "1599859-guo-junchen",
                           "profile_path": "/m6Ub6fRrw03atP60nCj4o55ojrO.jpg"
                         }
+                      ],
+                      "seasons": [
+                        {"season_number": 1},
+                        {"season_number": 2}
                       ]
                     }
                   }
@@ -46,6 +50,7 @@ class DoramasflixModelsTest {
         assertEquals(14, detail.ratingCount)
         assertEquals("1599859-guo-junchen", cast.slug)
         assertEquals("/m6Ub6fRrw03atP60nCj4o55ojrO.jpg", cast.profilePath)
+        assertEquals(listOf(1, 2), detail.seasons.orEmpty().mapNotNull { it.seasonNumber })
     }
 
     @Test
