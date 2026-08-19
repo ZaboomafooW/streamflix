@@ -46,11 +46,16 @@ class AfterDarkExtractor( var newUrl: String = "" ) : Extractor() {
     }
 
     suspend fun servers(videoType: Video.Type): List<Video.Server> {
+        val tmdbId = when (videoType) {
+            is Video.Type.Movie -> videoType.tmdbId
+            is Video.Type.Episode -> videoType.tvShow.tmdbId
+        } ?: return emptyList()
+
         val allServers = mutableListOf<Video.Server>()
 
         val encodedPayload = Uri.encode(when (videoType) {
-            is Video.Type.Movie -> buildPayload(videoType.title, "movie", videoType.id, videoType.imdbId ?: "0", videoType.releaseDate.split("-").firstOrNull() ?: "")
-            is Video.Type.Episode -> buildPayload(videoType.tvShow.title, "tv", videoType.tvShow.id, videoType.tvShow.imdbId ?: "0", videoType.tvShow.releaseDate?.split("-")?.firstOrNull() ?: "", videoType.season.number, videoType.number)
+            is Video.Type.Movie -> buildPayload(videoType.title, "movie", tmdbId.toString(), videoType.imdbId ?: "0", videoType.releaseDate.split("-").firstOrNull() ?: "")
+            is Video.Type.Episode -> buildPayload(videoType.tvShow.title, "tv", tmdbId.toString(), videoType.tvShow.imdbId ?: "0", videoType.tvShow.releaseDate?.split("-")?.firstOrNull() ?: "", videoType.season.number, videoType.number)
         })
 
         for ((pName, pHash) in PROVIDER_HASHES) {

@@ -234,6 +234,7 @@ object UserDataCache {
 
     fun addEpisodeToContinueWatching(context: Context, provider: Provider, episode: Episode) {
         val current = read(context, provider) ?: UserData()
+        hydrateEpisodeParent(context, provider, episode)
 
         write(context, provider, current.copy(
             continueWatchingEpisodes = (current.continueWatchingEpisodes + episode.toCached())
@@ -307,6 +308,7 @@ object UserDataCache {
 
     fun syncEpisodeToCache(context: Context, provider: Provider, episode: Episode) {
         val current = read(context, provider) ?: UserData()
+        hydrateEpisodeParent(context, provider, episode)
         
         val updatedContinueWatching = if (episode.watchHistory != null) {
             (current.continueWatchingEpisodes.filter { it.id != episode.id } + episode.toCached())
@@ -343,6 +345,30 @@ object UserDataCache {
         CloudSyncHooks.tvShow(context, provider, tvShow)
     }
 
+    private fun hydrateEpisodeParent(context: Context, provider: Provider, episode: Episode) {
+        val currentShow = episode.tvShow ?: return
+        runCatching {
+            val usesCurrentDatabase = UserPreferences.currentProvider?.name == provider.name
+            val db = if (usesCurrentDatabase) {
+                AppDatabase.getInstance(context)
+            } else {
+                AppDatabase.getInstanceForProvider(provider.name, context)
+            }
+            try {
+                val storedShow = db.tvShowDao().getById(currentShow.id) ?: return@runCatching
+                episode.tvShow = currentShow.copy(
+                    title = currentShow.title.ifBlank { storedShow.title },
+                    poster = currentShow.poster ?: storedShow.poster,
+                    banner = currentShow.banner ?: storedShow.banner,
+                    imdbId = currentShow.imdbId ?: storedShow.imdbId,
+                    tmdbId = currentShow.tmdbId ?: storedShow.tmdbId,
+                )
+            } finally {
+                if (!usesCurrentDatabase) db.close()
+            }
+        }
+    }
+
 
 
 
@@ -358,6 +384,8 @@ object UserDataCache {
         val rating: Double? = null,
         val poster: String? = null,
         val banner: String? = null,
+        val imdbId: String? = null,
+        val tmdbId: Int? = null,
         val isFavorite: Boolean = false,
         val isWatched: Boolean = false,
         val favoritedAtMillis: Long? = null,
@@ -377,6 +405,8 @@ object UserDataCache {
         val rating: Double? = null,
         val poster: String? = null,
         val banner: String? = null,
+        val imdbId: String? = null,
+        val tmdbId: Int? = null,
         val isFavorite: Boolean = false,
         val favoritedAtMillis: Long? = null,
     )
@@ -396,6 +426,8 @@ object UserDataCache {
         val tvShowTitle: String? = null,
         val tvShowPoster: String? = null,
         val tvShowBanner: String? = null,
+        val tvShowImdbId: String? = null,
+        val tvShowTmdbId: Int? = null,
         val seasonId: String? = null,
         val seasonNumber: Int? = null,
         val seasonTitle: String? = null,
@@ -414,6 +446,8 @@ object UserDataCache {
         rating = rating,
         poster = poster,
         banner = banner,
+        imdbId = imdbId,
+        tmdbId = tmdbId,
     ).apply {
         isFavorite = this@toMovie.isFavorite
         favoritedAtMillis = this@toMovie.favoritedAtMillis
@@ -438,6 +472,8 @@ object UserDataCache {
         rating = rating,
         poster = poster,
         banner = banner,
+        imdbId = imdbId,
+        tmdbId = tmdbId,
     ).apply {
         isFavorite = this@toTvShow.isFavorite
         favoritedAtMillis = this@toTvShow.favoritedAtMillis
@@ -465,6 +501,8 @@ object UserDataCache {
                 title = this@toEpisode.tvShowTitle.orEmpty(),
                 poster = this@toEpisode.tvShowPoster,
                 banner = this@toEpisode.tvShowBanner,
+                imdbId = this@toEpisode.tvShowImdbId,
+                tmdbId = this@toEpisode.tvShowTmdbId,
             )
         }
         season = this@toEpisode.seasonId?.let {
@@ -487,6 +525,8 @@ object UserDataCache {
         rating = rating,
         poster = poster,
         banner = banner,
+        imdbId = imdbId,
+        tmdbId = tmdbId,
         isFavorite = isFavorite,
         isWatched = isWatched,
         favoritedAtMillis = favoritedAtMillis,
@@ -505,6 +545,8 @@ object UserDataCache {
         rating = rating,
         poster = poster,
         banner = banner,
+        imdbId = imdbId,
+        tmdbId = tmdbId,
         isFavorite = isFavorite,
         favoritedAtMillis = favoritedAtMillis,
     )
@@ -524,6 +566,8 @@ object UserDataCache {
         tvShowTitle = tvShow?.title,
         tvShowPoster = tvShow?.poster,
         tvShowBanner = tvShow?.banner,
+        tvShowImdbId = tvShow?.imdbId,
+        tvShowTmdbId = tvShow?.tmdbId,
 
         seasonId = season?.id,
         seasonNumber = season?.number,

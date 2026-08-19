@@ -62,7 +62,8 @@ class PlayerViewModel(
                 poster = ep.tvShow.poster,
                 banner = ep.tvShow.banner,
                 releaseDate = ep.tvShow.releaseDate,
-                imdbId = ep.tvShow.imdbId
+                imdbId = ep.tvShow.imdbId,
+                tmdbId = ep.tvShow.tmdbId,
             ),
             season = Video.Type.Episode.Season(
                 number = ep.season.number,
@@ -241,6 +242,7 @@ class PlayerViewModel(
         data object Loading : SubtitleState()
         data class SuccessOpenSubtitles(val subtitles: List<OpenSubtitles.Subtitle>) : SubtitleState()
         data class FailedOpenSubtitles(val error: Exception) : SubtitleState()
+
         data object DownloadingOpenSubtitle : SubtitleState()
         data class SuccessDownloadingOpenSubtitle(val subtitle: OpenSubtitles.Subtitle, val uri: Uri) : SubtitleState()
         data class FailedDownloadingOpenSubtitle(val error: Exception, val subtitle: OpenSubtitles.Subtitle) : SubtitleState()

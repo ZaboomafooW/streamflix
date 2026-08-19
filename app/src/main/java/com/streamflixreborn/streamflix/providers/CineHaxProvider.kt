@@ -114,6 +114,7 @@ object CineHaxProvider : Provider {
                 overview = overview,
                 poster = poster,
                 banner = backdrop,
+                tmdbId = id,
             )
         } else {
             Movie(
@@ -122,6 +123,7 @@ object CineHaxProvider : Provider {
                 overview = overview,
                 poster = poster,
                 banner = backdrop,
+                tmdbId = id,
             )
         }
     }
@@ -168,9 +170,9 @@ object CineHaxProvider : Provider {
             val title = a.selectFirst("h3")?.text().orEmpty()
             val poster = a.selectFirst("img")?.attr("src")
             if (type == "tv") {
-                TvShow(id = id, title = title, poster = poster, banner = poster)
+                TvShow(id = id, title = title, poster = poster, banner = poster, tmdbId = id.toIntOrNull())
             } else {
-                Movie(id = id, title = title, poster = poster, banner = poster)
+                Movie(id = id, title = title, poster = poster, banner = poster, tmdbId = id.toIntOrNull())
             }
         }
     }
@@ -291,6 +293,7 @@ object CineHaxProvider : Provider {
             banner = meta.backdrop,
             trailer = meta.trailer,
             genres = meta.genres,
+            tmdbId = id.toIntOrNull(),
         )
     }
 
@@ -317,6 +320,7 @@ object CineHaxProvider : Provider {
             trailer = meta.trailer,
             genres = meta.genres,
             seasons = seasonNumbers.map { number -> Season(id = "$id-$number", number = number, title = "Temporada $number") },
+            tmdbId = id.toIntOrNull(),
         )
     }
 
