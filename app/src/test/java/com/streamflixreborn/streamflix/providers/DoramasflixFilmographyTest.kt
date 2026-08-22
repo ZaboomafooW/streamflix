@@ -8,6 +8,43 @@ import org.junit.Test
 class DoramasflixFilmographyTest {
 
     @Test
+    fun `provider filmography route wins by exact Doramasflix slug`() {
+        val wrongRoute = Content(
+            id = "provider-wrong",
+            slug = "different-route",
+            name = "In Your Radiant Season",
+        )
+        val exactRoute = Content(
+            id = "provider-exact",
+            slug = "in-your-radiant-season",
+            name = "En tu mejor momento",
+        )
+
+        val match = DoramasflixPeopleResolver.exactProviderRouteMatch(
+            contents = listOf(wrongRoute, exactRoute),
+            providerId = "doramas-online/in-your-radiant-season",
+        )
+
+        assertEquals("provider-exact", match?.id)
+    }
+
+    @Test
+    fun `provider filmography route ignores query and fragment`() {
+        val content = Content(
+            id = "provider-exact",
+            slug = "chef-of-antarctic",
+            name = "Chef of Antarctic",
+        )
+
+        val match = DoramasflixPeopleResolver.exactProviderRouteMatch(
+            contents = listOf(content),
+            providerId = "doramas-online/chef-of-antarctic?source=people#cast",
+        )
+
+        assertEquals("provider-exact", match?.id)
+    }
+
+    @Test
     fun `filmography reconciliation keeps only exact Doramasflix tmdb identity`() {
         val wrongIdentity = Content(
             id = "provider-wrong",
