@@ -108,4 +108,59 @@ class DoramasflixPagingTest {
 
         assertEquals(listOf("only"), result)
     }
+
+    @Test
+    fun `collection paging deduplicates overlap and preserves provider order`() = runBlocking {
+        val loadedPages = mutableListOf<Int>()
+        val result = DoramasflixPaging.collectAll(identity = { value: String -> value }) { sourcePage ->
+            loadedPages += sourcePage
+            when (sourcePage) {
+                1 -> DoramasflixPageBatch(
+                    items = listOf("ep1", "ep2"),
+                    hasNextPage = true,
+                    sourceSignature = listOf("ep1", "ep2"),
+                )
+                else -> DoramasflixPageBatch(
+                    items = listOf("ep2", "ep3"),
+                    hasNextPage = false,
+                    sourceSignature = listOf("ep2", "ep3"),
+                )
+            }
+        }
+
+        assertEquals(listOf("ep1", "ep2", "ep3"), result)
+        assertEquals(listOf(1, 2), loadedPages)
+    }
+
+    @Test
+    fun `collection paging stops on repeated source page`() = runBlocking {
+        var loadCount = 0
+        val result = DoramasflixPaging.collectAll(identity = { value: String -> value }) {
+            loadCount++
+            DoramasflixPageBatch(
+                items = listOf("ep1"),
+                hasNextPage = true,
+                sourceSignature = listOf("same-page"),
+            )
+        }
+
+        assertEquals(listOf("ep1"), result)
+        assertEquals(2, loadCount)
+    }
+
+    @Test
+    fun `collection paging stops on empty source page even if continuation is wrong`() = runBlocking {
+        var loadCount = 0
+        val result = DoramasflixPaging.collectAll(identity = { value: String -> value }) {
+            loadCount++
+            DoramasflixPageBatch(
+                items = emptyList<String>(),
+                hasNextPage = true,
+                sourceSignature = emptyList(),
+            )
+        }
+
+        assertEquals(emptyList<String>(), result)
+        assertEquals(1, loadCount)
+    }
 }
