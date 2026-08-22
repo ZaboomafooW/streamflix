@@ -2,6 +2,7 @@ package com.streamflixreborn.streamflix.providers
 
 import com.streamflixreborn.streamflix.models.doramasflix.Content
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertNotEquals
 import org.junit.Assert.assertNull
 import org.junit.Test
 
@@ -96,5 +97,45 @@ class DoramasflixFilmographyTest {
         assertNull(DoramasflixPeopleResolver.candidateWindow(-1, 20))
         assertNull(DoramasflixPeopleResolver.candidateWindow(0, 0))
         assertNull(DoramasflixPeopleResolver.candidateWindow(0, 20, windowSize = 0))
+    }
+
+    @Test
+    fun `filmography cache key changes for every independent content filter`() {
+        val hidden = DoramasflixContentPolicy.Settings(
+            showBl = false,
+            showGl = false,
+            showLgbt = false,
+            showAdult = false,
+        )
+        val baseline = DoramasflixPeopleResolver.filmographyFilterKey(hidden)
+
+        assertEquals(0, baseline)
+        assertNotEquals(
+            baseline,
+            DoramasflixPeopleResolver.filmographyFilterKey(hidden.copy(showBl = true)),
+        )
+        assertNotEquals(
+            baseline,
+            DoramasflixPeopleResolver.filmographyFilterKey(hidden.copy(showGl = true)),
+        )
+        assertNotEquals(
+            baseline,
+            DoramasflixPeopleResolver.filmographyFilterKey(hidden.copy(showLgbt = true)),
+        )
+        assertNotEquals(
+            baseline,
+            DoramasflixPeopleResolver.filmographyFilterKey(hidden.copy(showAdult = true)),
+        )
+        assertEquals(
+            15,
+            DoramasflixPeopleResolver.filmographyFilterKey(
+                DoramasflixContentPolicy.Settings(
+                    showBl = true,
+                    showGl = true,
+                    showLgbt = true,
+                    showAdult = true,
+                )
+            ),
+        )
     }
 }
