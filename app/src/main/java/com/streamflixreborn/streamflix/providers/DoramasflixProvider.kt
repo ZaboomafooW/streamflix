@@ -71,8 +71,6 @@ object DoramasflixProvider : Provider {
     private val movieBackendIds = ConcurrentHashMap<String, String>()
     private val doramaBackendIds = ConcurrentHashMap<String, String>()
     private val doramaTmdbIds = ConcurrentHashMap<String, String>()
-    private val movieLocalizedTitles = ConcurrentHashMap<String, String>()
-    private val doramaLocalizedTitles = ConcurrentHashMap<String, String>()
     private val doramaDetails = ConcurrentHashMap<String, Content>()
     private val episodeBackendIds = ConcurrentHashMap<String, String>()
     private val movieCatalogPages = ConcurrentHashMap<Int, ContentPage>()
@@ -338,17 +336,20 @@ object DoramasflixProvider : Provider {
     private fun cacheMovie(content: Content) {
         val slug = contentSlug(content) ?: return
         contentBackendId(content)?.let { movieBackendIds[slug] = it }
-        DoramasflixLogic.nonBlank(content.nameEs)?.let { movieLocalizedTitles[slug] = it }
     }
 
     private fun cacheDorama(content: Content) {
         val slug = contentSlug(content) ?: return
         contentBackendId(content)?.let { doramaBackendIds[slug] = it }
         numericTmdbId(content)?.let { doramaTmdbIds[slug] = it.toString() }
-        DoramasflixLogic.nonBlank(content.nameEs)?.let { doramaLocalizedTitles[slug] = it }
     }
 
     private fun episodeCacheKey(showSlug: String, episodeSlug: String) = "$showSlug|$episodeSlug"
+
+    private fun episodeIdentity(episode: DoramasflixEpisode): String =
+        DoramasflixLogic.nonBlank(episode.slug)?.let { "slug:$it" }
+            ?: DoramasflixLogic.nonBlank(episode.id)?.let { "id:$it" }
+            ?: "episode:${episode.episodeNumber ?: -1}:${episode.nameEs.orEmpty()}:${episode.name.orEmpty()}"
 
     private fun cacheEpisodes(showSlug: String, episodes: List<DoramasflixEpisode>) {
         episodes.forEach { episode ->
@@ -797,7 +798,7 @@ object DoramasflixProvider : Provider {
                 .put("movie_id", movieBackendId),
             query = """
                 query similarsMovies(${'$'}limit: Int, ${'$'}movie_id: String!) {
-                  similarsMovies(limit: ${'$'}limit, movie_id: ${'$'}movie_id) {
+                  similarsMovies(limit: ${'$'}limit, movie_id: ${'$'}movieBackendId) {
                     _id
                     slug
                     name
@@ -928,10 +929,7 @@ object DoramasflixProvider : Provider {
 
     private suspend fun getEpisodes(slug: String, seasonNumber: Int): List<DoramasflixEpisode> {
         val backendId = resolveDoramaBackendId(slug)
-        val episodes = mutableListOf<DoramasflixEpisode>()
-        var page = 1
-
-        while (true) {
+        val episodes = DoramasflixPaging.collectAll(identity = ::episodeIdentity) { page ->
             val data = apiRequest(
                 operationName = "EpisodesPagination",
                 variables = JSONObject()
@@ -976,9 +974,11 @@ object DoramasflixProvider : Provider {
                 "Doramasflix episodes",
                 data.paginationEpisode,
             )
-            episodes += response.items
-            if (response.pageInfo?.hasNextPage != true) break
-            page++
+            DoramasflixPageBatch(
+                items = response.items,
+                hasNextPage = response.pageInfo?.hasNextPage == true,
+                sourceSignature = response.items.map(::episodeIdentity),
+            )
         }
 
         cacheEpisodes(slug, episodes)
