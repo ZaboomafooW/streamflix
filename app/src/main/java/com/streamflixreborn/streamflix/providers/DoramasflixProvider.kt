@@ -1487,12 +1487,6 @@ object DoramasflixProvider : Provider {
         }
     }
 
-    private fun isPrimeload(link: String, serverName: String?): Boolean {
-        if (serverName.equals("Primeload", ignoreCase = true)) return true
-        val host = runCatching { URL(link).host.lowercase(Locale.ROOT) }.getOrNull() ?: return false
-        return host == "primeload.co" || host.endsWith(".primeload.co")
-    }
-
     override suspend fun getServers(id: String, videoType: Video.Type): List<Video.Server> {
         val playback = getPlaybackContext(id, videoType)
         if (playback.links.isEmpty()) {
@@ -1508,7 +1502,6 @@ object DoramasflixProvider : Provider {
             }
         }
 
-        var primeloadCount = 0
         var invalidCount = 0
         val servers = playback.links
             .sortedByDescending { it.isRecommended == true }
@@ -1527,11 +1520,6 @@ object DoramasflixProvider : Provider {
                 val registryName = onlineLink.server?.let(registry::get)
                 val serverName = DoramasflixLogic.normalizeServerName(registryName)
                     ?: hostFallbackServerName(decodedLink)
-                if (isPrimeload(decodedLink, serverName)) {
-                    primeloadCount++
-                    return@mapNotNull null
-                }
-
                 val rawLanguageCode = DoramasflixLogic.nonBlank(onlineLink.lang)
                 val languageName = rawLanguageCode?.let(languagesByCode::get)
                 val subtitles = onlineLink.subtitles.orEmpty().mapNotNull { subtitle ->
@@ -1551,11 +1539,6 @@ object DoramasflixProvider : Provider {
             .distinctBy { it.id }
 
         if (servers.isNotEmpty()) return servers
-        if (primeloadCount == playback.links.size) {
-            throw Exception(
-                "Doramasflix currently offers this title only on Primeload, which StreamFlix does not support yet."
-            )
-        }
         if (invalidCount == playback.links.size) {
             throw Exception("Doramasflix returned invalid playback source URLs for this title.")
         }
