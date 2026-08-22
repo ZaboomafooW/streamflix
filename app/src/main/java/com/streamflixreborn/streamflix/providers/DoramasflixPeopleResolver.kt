@@ -46,7 +46,7 @@ internal class DoramasflixPeopleResolver(
         var nextProviderIndex = 0
         var nextCandidateIndex = 0
         var exhausted = providerFilmography.isEmpty() && candidates.isEmpty()
-        var filterKey: String? = null
+        var filterKey: Int? = null
     }
 
     private val pageMetadata = DoramasflixPeoplePageMetadata()
