@@ -3,14 +3,23 @@ package com.streamflixreborn.streamflix.extractors
 import androidx.media3.common.MimeTypes
 import com.google.gson.JsonParser
 import com.streamflixreborn.streamflix.models.Video
+import com.streamflixreborn.streamflix.utils.DnsResolver
 import com.streamflixreborn.streamflix.utils.NetworkClient
+import okhttp3.OkHttpClient
 import okhttp3.Request
 import java.net.URI
+import java.util.concurrent.TimeUnit
 
 class PrimeloadExtractor : Extractor() {
 
     override val name = "Primeload"
     override val mainUrl = PLAYER_API_ORIGIN
+
+    private val client = OkHttpClient.Builder()
+        .dns(DnsResolver.doh)
+        .connectTimeout(30, TimeUnit.SECONDS)
+        .readTimeout(30, TimeUnit.SECONDS)
+        .build()
 
     override suspend fun extract(link: String): Video {
         val videoId = extractVideoId(link)
@@ -18,9 +27,10 @@ class PrimeloadExtractor : Extractor() {
         val request = Request.Builder()
             .url("$PLAYER_API_ORIGIN/api/v1/player/$videoId")
             .header("Referer", link)
+            .header("User-Agent", NetworkClient.USER_AGENT)
             .build()
 
-        val responseBody = NetworkClient.default.newCall(request).execute().use { response ->
+        val responseBody = client.newCall(request).execute().use { response ->
             if (!response.isSuccessful) {
                 throw Exception("Primeload player API failed: HTTP ${response.code}")
             }
