@@ -798,7 +798,7 @@ object DoramasflixProvider : Provider {
                 .put("movie_id", movieBackendId),
             query = """
                 query similarsMovies(${'$'}limit: Int, ${'$'}movie_id: String!) {
-                  similarsMovies(limit: ${'$'}limit, movie_id: ${'$'}movieBackendId) {
+                  similarsMovies(limit: ${'$'}limit, movie_id: ${'$'}movie_id) {
                     _id
                     slug
                     name
