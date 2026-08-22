@@ -277,7 +277,7 @@ internal class DoramasflixPeopleResolver(
                 providerId = show.id,
                 search = searchDoramas,
             )
-        } ?: return show
+        } ?: return null
 
         return when (show) {
             is Movie -> mapMovie(content)
