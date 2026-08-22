@@ -46,6 +46,7 @@ internal class DoramasflixPeopleResolver(
         var nextProviderIndex = 0
         var nextCandidateIndex = 0
         var exhausted = providerFilmography.isEmpty() && candidates.isEmpty()
+        var filterKey: String? = null
     }
 
     private val pageMetadata = DoramasflixPeoplePageMetadata()
@@ -174,8 +175,18 @@ internal class DoramasflixPeopleResolver(
         context: PersonContext,
         requestedPage: Int,
     ): List<Show> {
+        val currentFilterKey = filmographyFilterKey(DoramasflixContentPreferences.settings())
         context.mutex.lock()
         try {
+            if (context.filterKey != currentFilterKey) {
+                context.pages.clear()
+                context.emittedShowIds.clear()
+                context.nextProviderIndex = 0
+                context.nextCandidateIndex = 0
+                context.exhausted = context.providerFilmography.isEmpty() && context.candidates.isEmpty()
+                context.filterKey = currentFilterKey
+            }
+
             while (context.pages.size < requestedPage && !context.exhausted) {
                 val nextPage = resolveNextFilmographyPage(context)
                 if (nextPage.isEmpty()) break
@@ -405,6 +416,17 @@ internal class DoramasflixPeopleResolver(
     companion object {
         private const val filmographyCandidateWindowSize = 8
         private const val maxConcurrentCreditLookups = 4
+
+        internal fun filmographyFilterKey(
+            settings: DoramasflixContentPolicy.Settings,
+        ): Int {
+            var key = 0
+            if (settings.showBl) key = key or 1
+            if (settings.showGl) key = key or 2
+            if (settings.showLgbt) key = key or 4
+            if (settings.showAdult) key = key or 8
+            return key
+        }
 
         internal fun candidateWindow(
             startIndex: Int,
