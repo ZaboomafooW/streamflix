@@ -10,15 +10,13 @@ import java.net.URI
 class PrimeloadExtractor : Extractor() {
 
     override val name = "Primeload"
-    override val mainUrl = "https://primeload.co"
+    override val mainUrl = PLAYER_API_ORIGIN
 
     override suspend fun extract(link: String): Video {
         val videoId = extractVideoId(link)
             ?: throw Exception("Primeload: invalid embed URL")
-        val origin = origin(link)
-            ?: throw Exception("Primeload: invalid embed URL")
         val request = Request.Builder()
-            .url("$origin/api/v1/player/$videoId")
+            .url("$PLAYER_API_ORIGIN/api/v1/player/$videoId")
             .header("Referer", link)
             .build()
 
@@ -37,6 +35,8 @@ class PrimeloadExtractor : Extractor() {
     }
 
     companion object {
+        private const val PLAYER_API_ORIGIN = "https://primeload.co"
+
         internal fun extractVideoId(link: String): String? {
             val uri = runCatching { URI(link) }.getOrNull() ?: return null
             val host = uri.host?.lowercase() ?: return null
