@@ -70,4 +70,33 @@ internal object DoramasflixPaging {
 
         return visibleItems.values.drop(startIndex).take(pageSize)
     }
+
+    suspend fun <T> collectAll(
+        identity: (T) -> String,
+        loadBatch: suspend (sourcePage: Int) -> DoramasflixPageBatch<T>,
+    ): List<T> {
+        val items = linkedMapOf<String, T>()
+        val seenSourcePages = mutableSetOf<List<String>>()
+        var sourcePage = 1
+
+        while (true) {
+            val batch = loadBatch(sourcePage)
+            if (
+                batch.sourceSignature.isNotEmpty() &&
+                !seenSourcePages.add(batch.sourceSignature)
+            ) {
+                break
+            }
+            if (batch.items.isEmpty()) break
+
+            batch.items.forEach { item ->
+                items.putIfAbsent(identity(item), item)
+            }
+
+            if (!batch.hasNextPage) break
+            sourcePage++
+        }
+
+        return items.values.toList()
+    }
 }
