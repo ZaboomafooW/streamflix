@@ -104,6 +104,7 @@ abstract class Extractor {
             VidzeeExtractor(),
             VidnestExtractor(),
             PrimeSrcExtractor(),
+            PrimeloadExtractor(),
             VidoraExtractor(),
             GxPlayerExtractor(),
             UpZurExtractor(),
