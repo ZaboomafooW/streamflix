@@ -70,7 +70,7 @@ class DoramasflixPeoplePageMetadataTest {
         assertEquals("https://doramasflix.in/images/radiant.jpg", dorama.poster)
 
         val variety = people.filmography[1] as TvShow
-        assertEquals("doramas-online/chef-of-antarctic", variety.id)
+        assertEquals("variedades-online/chef-of-antarctic", variety.id)
 
         val movie = people.filmography[2] as Movie
         assertEquals("peliculas-online/sample-movie", movie.id)

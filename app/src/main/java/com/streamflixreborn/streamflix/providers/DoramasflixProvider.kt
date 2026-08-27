@@ -50,6 +50,18 @@ import java.util.Locale
 import java.util.concurrent.ConcurrentHashMap
 import java.util.concurrent.TimeUnit
 
+internal enum class DoramasflixSeriesRoute(val path: String) {
+    DORAMAS("doramas-online"),
+    VARIEDADES("variedades-online");
+
+    fun id(slug: String): String = "$path/$slug"
+
+    companion object {
+        fun fromId(id: String): DoramasflixSeriesRoute =
+            if (id.startsWith("${VARIEDADES.path}/")) VARIEDADES else DORAMAS
+    }
+}
+
 object DoramasflixProvider : Provider {
 
     override val name = "Doramasflix"
@@ -99,7 +111,7 @@ object DoramasflixProvider : Provider {
             loadMoviePage = ::loadMovieCatalogPage,
             loadDoramaPage = ::loadDoramaCatalogPage,
             mapMovie = ::movieListItem,
-            mapDorama = ::doramaListItem,
+            mapDorama = { content -> doramaListItem(content) },
         )
     }
 
@@ -276,7 +288,6 @@ object DoramasflixProvider : Provider {
 
     private fun slugFromId(id: String): String = normalizePath(id).substringAfterLast('/')
     private fun movieId(slug: String) = "peliculas-online/$slug"
-    private fun doramaId(slug: String) = "doramas-online/$slug"
 
     private fun contentSlug(content: Content): String? = DoramasflixLogic.nonBlank(content.slug)
     private fun contentBackendId(content: Content): String? = DoramasflixLogic.nonBlank(content.id)
@@ -373,12 +384,15 @@ object DoramasflixProvider : Provider {
         )
     }
 
-    private fun doramaListItem(content: Content): TvShow? {
+    private fun doramaListItem(
+        content: Content,
+        route: DoramasflixSeriesRoute = DoramasflixSeriesRoute.DORAMAS,
+    ): TvShow? {
         if (!contentAllowed(content)) return null
         val slug = contentSlug(content) ?: return null
         val title = apiTitleFor(content) ?: return null
         return TvShow(
-            id = doramaId(slug),
+            id = route.id(slug),
             title = title,
             released = DoramasflixLogic.normalizeDate(content.firstAirDate),
             rating = DoramasflixLogic.resolveApiRating(content.rating, content.ratingCount).rating,
@@ -477,11 +491,16 @@ object DoramasflixProvider : Provider {
         )
     }
 
-    private fun resolveDoramaMetadata(content: Content, slug: String, external: TvShow?): TvShow? {
+    private fun resolveDoramaMetadata(
+        content: Content,
+        slug: String,
+        external: TvShow?,
+        route: DoramasflixSeriesRoute = DoramasflixSeriesRoute.DORAMAS,
+    ): TvShow? {
         val title = apiTitleFor(content) ?: DoramasflixLogic.nonBlank(external?.title) ?: return null
         val apiGenres = genresFor(content)
         return TvShow(
-            id = doramaId(slug),
+            id = route.id(slug),
             title = title,
             overview = resolvedOverview(content, external?.overview),
             released = DoramasflixLogic.normalizeDate(content.firstAirDate)
@@ -1201,8 +1220,13 @@ object DoramasflixProvider : Provider {
     private suspend fun getDoramaPage(page: Int, isTvShow: Boolean): List<TvShow> =
         DoramasflixPaging.visiblePage(page) { sourcePage ->
             val raw = loadDoramaCatalogPage(sourcePage, isTvShow)
+            val route = if (isTvShow) {
+                DoramasflixSeriesRoute.VARIEDADES
+            } else {
+                DoramasflixSeriesRoute.DORAMAS
+            }
             DoramasflixPageBatch(
-                items = raw.items.mapNotNull(::doramaListItem),
+                items = raw.items.mapNotNull { content -> doramaListItem(content, route) },
                 hasNextPage = raw.pageInfo?.hasNextPage == true,
                 sourceSignature = raw.items.map { it.sourceSignature() },
             )
@@ -1221,7 +1245,9 @@ object DoramasflixProvider : Provider {
     }
 
     override suspend fun getTvShow(id: String): TvShow = coroutineScope {
-        val slug = slugFromId(id)
+        val normalizedId = normalizePath(id)
+        val route = DoramasflixSeriesRoute.fromId(normalizedId)
+        val slug = slugFromId(normalizedId)
         val detailDeferred = async { detailDorama(slug) }
         val seasonsDeferred = async { getSeasons(slug) }
         val content = detailDeferred.await()
@@ -1248,7 +1274,7 @@ object DoramasflixProvider : Provider {
                     ?: DoramasflixLogic.meaningfulImage(externalSeason?.poster),
             )
         }
-        val resolved = resolveDoramaMetadata(content, slug, external)
+        val resolved = resolveDoramaMetadata(content, slug, external, route)
             ?: throw Exception("Doramasflix series '$slug' returned no usable title.")
         resolved.copy(
             seasons = seasons,

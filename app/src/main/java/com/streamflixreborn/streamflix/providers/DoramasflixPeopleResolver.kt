@@ -281,7 +281,7 @@ internal class DoramasflixPeopleResolver(
 
         return when (show) {
             is Movie -> mapMovie(content)
-            is TvShow -> mapDorama(content)
+            is TvShow -> mapDorama(content)?.copy(id = show.id)
         }
     }
 

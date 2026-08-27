@@ -142,11 +142,7 @@ internal class DoramasflixPeoplePageMetadata {
             return when {
                 isMovie -> Movie(id = path, title = title, poster = poster)
                 else -> TvShow(
-                    id = if (isVariety) {
-                        "doramas-online/${path.substringAfter("variedades-online/")}"
-                    } else {
-                        path
-                    },
+                    id = path,
                     title = title,
                     poster = poster,
                 )

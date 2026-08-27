@@ -13,7 +13,7 @@ internal class DoramasflixGenreBrowser(
     private val loadMoviePage: suspend (Int) -> ContentPage,
     private val loadDoramaPage: suspend (Int, Boolean) -> ContentPage,
     private val mapMovie: (Content) -> Movie?,
-    private val mapDorama: (Content) -> TvShow?,
+    private val mapDorama: (Content, DoramasflixSeriesRoute) -> TvShow?,
 ) {
 
     companion object {
@@ -72,12 +72,16 @@ internal class DoramasflixGenreBrowser(
                 val doramaShows = doramas.items
                     .asSequence()
                     .filter { content -> hasGenre(content, id) }
-                    .mapNotNull(mapDorama)
+                    .mapNotNull { content ->
+                        mapDorama(content, DoramasflixSeriesRoute.DORAMAS)
+                    }
                     .toList()
                 val varietyShows = variedades.items
                     .asSequence()
                     .filter { content -> hasGenre(content, id) }
-                    .mapNotNull(mapDorama)
+                    .mapNotNull { content ->
+                        mapDorama(content, DoramasflixSeriesRoute.VARIEDADES)
+                    }
                     .toList()
 
                 DoramasflixPageBatch(

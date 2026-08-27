@@ -4,6 +4,9 @@ import android.content.Context
 import android.util.AttributeSet
 import androidx.preference.SwitchPreferenceCompat
 import com.streamflixreborn.streamflix.providers.DoramasflixContentPreferences
+import com.streamflixreborn.streamflix.providers.DoramasflixProvider
+import com.streamflixreborn.streamflix.utils.HomeCacheStore
+import com.streamflixreborn.streamflix.utils.ProviderChangeNotifier
 
 class DoramasflixFilterPreference(
     context: Context,
@@ -17,6 +20,12 @@ class DoramasflixFilterPreference(
 
     override fun persistBoolean(value: Boolean): Boolean {
         val preferenceKey = key ?: return false
-        return DoramasflixContentPreferences.set(preferenceKey, value)
+        val changed = DoramasflixContentPreferences.get(preferenceKey) != value
+        val persisted = DoramasflixContentPreferences.set(preferenceKey, value)
+        if (persisted && changed) {
+            HomeCacheStore.clear(context, DoramasflixProvider)
+            ProviderChangeNotifier.notifyProviderChanged()
+        }
+        return persisted
     }
 }
