@@ -111,7 +111,7 @@ object DoramasflixProvider : Provider {
             loadMoviePage = ::loadMovieCatalogPage,
             loadDoramaPage = ::loadDoramaCatalogPage,
             mapMovie = ::movieListItem,
-            mapDorama = { content -> doramaListItem(content) },
+            mapDorama = { content, route -> doramaListItem(content, route) },
         )
     }
 
@@ -120,7 +120,7 @@ object DoramasflixProvider : Provider {
             searchDoramas = ::searchDoramas,
             searchMovies = ::searchMovies,
             mapMovie = ::movieListItem,
-            mapDorama = ::doramaListItem,
+            mapDorama = { content -> doramaListItem(content) },
         )
     }
 
