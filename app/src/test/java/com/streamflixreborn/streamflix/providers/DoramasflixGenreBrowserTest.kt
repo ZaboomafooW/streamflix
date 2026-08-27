@@ -68,7 +68,9 @@ class DoramasflixGenreBrowserTest {
             },
         )
 
-        val ids = browser.getShows("comedia", 1).map { it.id }
+        val ids = browser.getShows("comedia", 1)
+            .filterIsInstance<TvShow>()
+            .map { it.id }
 
         assertEquals(
             listOf("doramas-online/dorama-show", "variedades-online/variety-show"),
