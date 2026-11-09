@@ -55,7 +55,7 @@ class TmdbProvider(override val language: String) : Provider {
 
         val mapMulti: (TMDb3.MultiItem) -> AppAdapter.Item? = { multi ->
             when (multi) {
-                is TMDb3.Movie -> Movie(
+                is TMDb3.Movie -> if (multi.adult) null else Movie(
                     id = multi.id.toString(),
                     title = multi.title,
                     overview = multi.overview,
@@ -66,7 +66,7 @@ class TmdbProvider(override val language: String) : Provider {
                     tmdbId = multi.id,
                 )
 
-                is TMDb3.Tv -> TvShow(
+                is TMDb3.Tv -> if (multi.adult) null else TvShow(
                     id = multi.id.toString(),
                     title = multi.name,
                     overview = multi.overview,
@@ -109,6 +109,7 @@ class TmdbProvider(override val language: String) : Provider {
             awaitAll(
                 async {
                     TMDb3.Discover.movie(
+                includeAdult = false,
                         language = language,
                         withKeywords = TMDb3.Params.WithBuilder(TMDb3.Keyword.KeywordId.ANIME)
                             .or(TMDb3.Keyword.KeywordId.BASED_ON_ANIME),
@@ -116,6 +117,7 @@ class TmdbProvider(override val language: String) : Provider {
                 },
                 async {
                     TMDb3.Discover.tv(
+                includeAdult = false,
                         language = language,
                         withKeywords = TMDb3.Params.WithBuilder(TMDb3.Keyword.KeywordId.ANIME)
                             .or(TMDb3.Keyword.KeywordId.BASED_ON_ANIME),
@@ -128,6 +130,7 @@ class TmdbProvider(override val language: String) : Provider {
             awaitAll(
                 async {
                     TMDb3.Discover.movie(
+                includeAdult = false,
                         language = language,
                         watchRegion = watchRegion,
                         withWatchProviders = TMDb3.Params.WithBuilder(TMDb3.Provider.WatchProviderId.NETFLIX),
@@ -135,6 +138,7 @@ class TmdbProvider(override val language: String) : Provider {
                 },
                 async {
                     TMDb3.Discover.tv(
+                includeAdult = false,
                         language = language,
                         withNetworks = TMDb3.Params.WithBuilder(TMDb3.Network.NetworkId.NETFLIX),
                     )
@@ -146,6 +150,7 @@ class TmdbProvider(override val language: String) : Provider {
             awaitAll(
                 async {
                     TMDb3.Discover.movie(
+                includeAdult = false,
                         language = language,
                         watchRegion = watchRegion,
                         withWatchProviders = TMDb3.Params.WithBuilder(TMDb3.Provider.WatchProviderId.AMAZON_VIDEO),
@@ -153,6 +158,7 @@ class TmdbProvider(override val language: String) : Provider {
                 },
                 async {
                     TMDb3.Discover.tv(
+                includeAdult = false,
                         language = language,
                         withNetworks = TMDb3.Params.WithBuilder(TMDb3.Network.NetworkId.AMAZON),
                     )
@@ -164,6 +170,7 @@ class TmdbProvider(override val language: String) : Provider {
             awaitAll(
                 async {
                     TMDb3.Discover.movie(
+                includeAdult = false,
                         language = language,
                         watchRegion = watchRegion,
                         withWatchProviders = TMDb3.Params.WithBuilder(TMDb3.Provider.WatchProviderId.DISNEY_PLUS),
@@ -171,6 +178,7 @@ class TmdbProvider(override val language: String) : Provider {
                 },
                 async {
                     TMDb3.Discover.tv(
+                includeAdult = false,
                         language = language,
                         withNetworks = TMDb3.Params.WithBuilder(TMDb3.Network.NetworkId.DISNEY_PLUS),
                     )
@@ -182,6 +190,7 @@ class TmdbProvider(override val language: String) : Provider {
             awaitAll(
                 async {
                     TMDb3.Discover.movie(
+                includeAdult = false,
                         language = language,
                         watchRegion = watchRegion,
                         withWatchProviders = TMDb3.Params.WithBuilder(TMDb3.Provider.WatchProviderId.HULU),
@@ -189,6 +198,7 @@ class TmdbProvider(override val language: String) : Provider {
                 },
                 async {
                     TMDb3.Discover.tv(
+                includeAdult = false,
                         language = language,
                         withNetworks = TMDb3.Params.WithBuilder(TMDb3.Network.NetworkId.HULU),
                     )
@@ -200,6 +210,7 @@ class TmdbProvider(override val language: String) : Provider {
             awaitAll(
                 async {
                     TMDb3.Discover.movie(
+                includeAdult = false,
                         language = language,
                         watchRegion = watchRegion,
                         withWatchProviders = TMDb3.Params.WithBuilder(TMDb3.Provider.WatchProviderId.APPLE_TV_PLUS),
@@ -207,6 +218,7 @@ class TmdbProvider(override val language: String) : Provider {
                 },
                 async {
                     TMDb3.Discover.tv(
+                includeAdult = false,
                         language = language,
                         withNetworks = TMDb3.Params.WithBuilder(TMDb3.Network.NetworkId.APPLE_TV),
                     )
@@ -218,6 +230,7 @@ class TmdbProvider(override val language: String) : Provider {
             awaitAll(
                 async {
                     TMDb3.Discover.tv(
+                includeAdult = false,
                         language = language,
                         withNetworks = TMDb3.Params.WithBuilder(TMDb3.Network.NetworkId.HBO),
                         page = 1,
@@ -225,6 +238,7 @@ class TmdbProvider(override val language: String) : Provider {
                 },
                 async {
                     TMDb3.Discover.tv(
+                includeAdult = false,
                         language = language,
                         withNetworks = TMDb3.Params.WithBuilder(TMDb3.Network.NetworkId.HBO),
                         page = 2,
@@ -233,7 +247,9 @@ class TmdbProvider(override val language: String) : Provider {
             ).flatMap { it.results }
         }
 
-        val trending = trendingDeferred.await()
+        val trending = trendingDeferred.await().filterNot { item ->
+            (item is TMDb3.Movie && item.adult) || (item is TMDb3.Tv && item.adult)
+        }
         categories.add(
             Category(
                 name = Category.FEATURED,
@@ -380,9 +396,9 @@ class TmdbProvider(override val language: String) : Provider {
             return genres
         }
 
-        val results = TMDb3.Search.multi(query, page = page, language = language).results.mapNotNull { multi ->
+        val results = TMDb3.Search.multi(query, page = page, language = language, includeAdult = false).results.mapNotNull { multi ->
             when (multi) {
-                is TMDb3.Movie -> Movie(
+                is TMDb3.Movie -> if (multi.adult) null else Movie(
                     id = multi.id.toString(),
                     title = multi.title,
                     overview = multi.overview,
@@ -393,7 +409,7 @@ class TmdbProvider(override val language: String) : Provider {
                     tmdbId = multi.id,
                 )
 
-                is TMDb3.Tv -> TvShow(
+                is TMDb3.Tv -> if (multi.adult) null else TvShow(
                     id = multi.id.toString(),
                     title = multi.name,
                     overview = multi.overview,
@@ -412,7 +428,7 @@ class TmdbProvider(override val language: String) : Provider {
     }
 
     override suspend fun getMovies(page: Int): List<Movie> {
-        val movies = TMDb3.MovieLists.popular(page = page, language = language).results.map { movie ->
+        val movies = TMDb3.MovieLists.popular(page = page, language = language).results.filterNot { it.adult }.map { movie ->
             Movie(
                 id = movie.id.toString(),
                 title = movie.title,
@@ -429,7 +445,7 @@ class TmdbProvider(override val language: String) : Provider {
     }
 
     override suspend fun getTvShows(page: Int): List<TvShow> {
-        val tvShows = TMDb3.TvSeriesLists.popular(page = page, language = language).results.map { tv ->
+        val tvShows = TMDb3.TvSeriesLists.popular(page = page, language = language).results.filterNot { it.adult }.map { tv ->
             TvShow(
                 id = tv.id.toString(),
                 title = tv.name,
@@ -456,6 +472,10 @@ class TmdbProvider(override val language: String) : Provider {
             ),
             language = language
         ).let { movie ->
+            if (movie.adult) {
+                throw IllegalArgumentException("Adult content is hidden")
+            }
+
             Movie(
                 id = movie.id.toString(),
                 title = movie.title,
@@ -486,7 +506,7 @@ class TmdbProvider(override val language: String) : Provider {
                 } ?: listOf(),
                 recommendations = movie.recommendations?.results?.mapNotNull { multi ->
                     when (multi) {
-                        is TMDb3.Movie -> Movie(
+                        is TMDb3.Movie -> if (multi.adult) null else Movie(
                             id = multi.id.toString(),
                             title = multi.title,
                             overview = multi.overview,
@@ -497,7 +517,7 @@ class TmdbProvider(override val language: String) : Provider {
                             tmdbId = multi.id,
                         )
 
-                        is TMDb3.Tv -> TvShow(
+                        is TMDb3.Tv -> if (multi.adult) null else TvShow(
                             id = multi.id.toString(),
                             title = multi.name,
                             overview = multi.overview,
@@ -529,6 +549,10 @@ class TmdbProvider(override val language: String) : Provider {
             ),
             language = language
         ).let { tv ->
+            if (tv.adult) {
+                throw IllegalArgumentException("Adult content is hidden")
+            }
+
             TvShow(
                 id = tv.id.toString(),
                 title = tv.name,
@@ -566,7 +590,7 @@ class TmdbProvider(override val language: String) : Provider {
                 } ?: listOf(),
                 recommendations = tv.recommendations?.results?.mapNotNull { multi ->
                     when (multi) {
-                        is TMDb3.Movie -> Movie(
+                        is TMDb3.Movie -> if (multi.adult) null else Movie(
                             id = multi.id.toString(),
                             title = multi.title,
                             overview = multi.overview,
@@ -577,7 +601,7 @@ class TmdbProvider(override val language: String) : Provider {
                             tmdbId = multi.id,
                         )
 
-                        is TMDb3.Tv -> TvShow(
+                        is TMDb3.Tv -> if (multi.adult) null else TvShow(
                             id = multi.id.toString(),
                             title = multi.name,
                             overview = multi.overview,
@@ -638,10 +662,11 @@ class TmdbProvider(override val language: String) : Provider {
             name = "",
 
             shows = TMDb3.Discover.movie(
+                includeAdult = false,
                 page = page,
                 withGenres = TMDb3.Params.WithBuilder(id),
                 language = language
-            ).results.map { movie ->
+            ).results.filterNot { it.adult }.map { movie ->
                 Movie(
                     id = movie.id.toString(),
                     title = movie.title,
@@ -653,10 +678,11 @@ class TmdbProvider(override val language: String) : Provider {
                     tmdbId = movie.id,
                 )
             }.mix(TMDb3.Discover.tv(
+                includeAdult = false,
                 page = page,
                 withGenres = TMDb3.Params.WithBuilder(id),
                 language = language
-            ).results.map { tv ->
+            ).results.filterNot { it.adult }.map { tv ->
                 TvShow(
                     id = tv.id.toString(),
                     title = tv.name,
@@ -693,7 +719,7 @@ class TmdbProvider(override val language: String) : Provider {
                 filmography = person.combinedCredits?.cast
                     ?.mapNotNull { multi ->
                         when (multi) {
-                            is TMDb3.Movie -> Movie(
+                            is TMDb3.Movie -> if (multi.adult) null else Movie(
                                 id = multi.id.toString(),
                                 title = multi.title,
                                 overview = multi.overview,
@@ -704,7 +730,7 @@ class TmdbProvider(override val language: String) : Provider {
                                 tmdbId = multi.id,
                             )
 
-                            is TMDb3.Tv -> TvShow(
+                            is TMDb3.Tv -> if (multi.adult) null else TvShow(
                                 id = multi.id.toString(),
                                 title = multi.name,
                                 overview = multi.overview,
