@@ -10,6 +10,7 @@ import com.streamflixreborn.streamflix.models.TvShow
 import com.streamflixreborn.streamflix.providers.IptvProvider
 import com.streamflixreborn.streamflix.providers.Provider
 import com.streamflixreborn.streamflix.utils.ParentalControlUtils
+import com.streamflixreborn.streamflix.utils.ProviderChangeNotifier
 import com.streamflixreborn.streamflix.utils.UserPreferences
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.ExperimentalCoroutinesApi
@@ -109,6 +110,11 @@ class SearchViewModel(database: AppDatabase) : ViewModel() {
 
     init {
         search(query)
+        viewModelScope.launch {
+            ProviderChangeNotifier.providerChangeFlow.collect {
+                search(query)
+            }
+        }
     }
 
     fun search(query: String) = viewModelScope.launch(Dispatchers.IO) {

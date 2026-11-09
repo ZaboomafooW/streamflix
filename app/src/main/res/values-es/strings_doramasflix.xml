@@ -1,0 +1,9 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="settings_category_doramasflix_filters">Filtros de contenido de Doramasflix</string>
+    <string name="settings_doramasflix_show_bl">Mostrar BL</string>
+    <string name="settings_doramasflix_show_gl">Mostrar GL</string>
+    <string name="settings_doramasflix_show_lgbt">Mostrar LGBT</string>
+    <string name="settings_doramasflix_show_adult">Mostrar +18</string>
+    <string name="settings_doramasflix_filter_summary">Permitir este contenido clasificado en la navegación de Doramasflix. Desactivado de forma predeterminada.</string>
+</resources>
