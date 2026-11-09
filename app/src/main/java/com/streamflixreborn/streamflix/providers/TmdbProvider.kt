@@ -875,26 +875,39 @@ class TmdbProvider(override val language: String) : Provider {
                 }
             }
             else -> {
-                // Per inglese (en) o altre lingue non specifiche, usiamo i server globali
-                servers.addAll(listOf(
-                    VixSrcExtractor().server(videoType),
-                    TwoEmbedExtractor().server(videoType),
-                    VidsrcNetExtractor().server(videoType),
-                    VidLinkExtractor().server(videoType),
-                    VidsrcRuExtractor().server(videoType),
-                    VidflixExtractor().server(videoType),
-                ))
+                if (lang == "en") {
+                    servers.add(VixSrcExtractor().server(identifiedVideoType))
+                    servers.add(VidsrcNetExtractor().server(identifiedVideoType))
 
-                if (videoType is Video.Type.Movie) {
-                    servers.add(2, MoviesapiExtractor().server(videoType))
-                }
+                    val dynamicServers = coroutineScope {
+                        val vidrockDeferred = async { VidrockExtractor().servers(identifiedVideoType) }
+                        val primeSrcDeferred = async { PrimeSrcExtractor().servers(identifiedVideoType) }
+                        listOf(vidrockDeferred, primeSrcDeferred).awaitAll().flatten()
+                    }
+                    servers.addAll(dynamicServers)
 
-                servers.addAll(VidrockExtractor().servers(videoType))
-                servers.addAll(VidzeeExtractor().servers(videoType))
-                servers.addAll(PrimeSrcExtractor().servers(videoType))
+                    servers.add(MoviesapiExtractor().server(identifiedVideoType))
+                    servers.add(TwoEmbedExtractor().server(identifiedVideoType))
+                    servers.add(VidLinkExtractor().server(identifiedVideoType))
+                    servers.add(VidsrcRuExtractor().server(identifiedVideoType))
+                } else {
+                    // Preserve the existing global fallback set for non-English TMDb languages.
+                    servers.addAll(listOf(
+                        VixSrcExtractor().server(identifiedVideoType),
+                        TwoEmbedExtractor().server(identifiedVideoType),
+                        VidsrcNetExtractor().server(identifiedVideoType),
+                        VidLinkExtractor().server(identifiedVideoType),
+                        VidsrcRuExtractor().server(identifiedVideoType),
+                        VidflixExtractor().server(identifiedVideoType),
+                    ))
 
-                if (language == "en") {
-                    servers.addAll(1, VideasyExtractor().servers(identifiedVideoType, language))
+                    if (identifiedVideoType is Video.Type.Movie) {
+                        servers.add(2, MoviesapiExtractor().server(identifiedVideoType))
+                    }
+
+                    servers.addAll(VidrockExtractor().servers(identifiedVideoType))
+                    servers.addAll(VidzeeExtractor().servers(identifiedVideoType))
+                    servers.addAll(PrimeSrcExtractor().servers(identifiedVideoType))
                 }
             }
         }
