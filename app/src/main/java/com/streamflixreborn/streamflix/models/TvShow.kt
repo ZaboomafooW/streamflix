@@ -26,8 +26,6 @@ class TvShow(
     var rating: Double? = null,
     var poster: String? = null,
     var banner: String? = null,
-
-    @Ignore
     var imdbId: String? = null,
 
     @Ignore
@@ -43,6 +41,7 @@ class TvShow(
     @Ignore
     val recommendations: List<Show> = listOf(),
     override var isFavorite: Boolean = false,
+    var tmdbId: Int? = null,
 ) : Show, AppAdapter.Item {
 
     var released = released?.toCalendar()
@@ -93,6 +92,8 @@ class TvShow(
     }
 
     fun merge(tvShow: TvShow): TvShow {
+        if (tmdbId == null) tmdbId = tvShow.tmdbId
+        if (imdbId.isNullOrBlank()) imdbId = tvShow.imdbId
         this.isFavorite = tvShow.isFavorite
         this.favoritedAtMillis = tvShow.favoritedAtMillis
         this.isWatching = tvShow.isWatching
@@ -124,26 +125,28 @@ class TvShow(
         directors: List<People> = this.directors,
         cast: List<People> = this.cast,
         recommendations: List<Show> = this.recommendations,
-        isFavorite: Boolean = this.isFavorite
+        isFavorite: Boolean = this.isFavorite,
+        tmdbId: Int? = this.tmdbId,
     ) = TvShow(
-        id,
-        title,
-        overview,
-        released,
-        runtime,
-        trailer,
-        quality,
-        rating,
-        poster,
-        banner,
-        imdbId,
-        providerName,
-        seasons,
-        genres,
-        directors,
-        cast,
-        recommendations,
-        isFavorite,
+        id = id,
+        title = title,
+        overview = overview,
+        released = released,
+        runtime = runtime,
+        trailer = trailer,
+        quality = quality,
+        rating = rating,
+        poster = poster,
+        banner = banner,
+        imdbId = imdbId,
+        providerName = providerName,
+        seasons = seasons,
+        genres = genres,
+        directors = directors,
+        cast = cast,
+        recommendations = recommendations,
+        isFavorite = isFavorite,
+        tmdbId = tmdbId,
     ).apply {
         lastPlayedAtMillis = this@TvShow.lastPlayedAtMillis
         lastPlayedEpisodeId = this@TvShow.lastPlayedEpisodeId
@@ -166,6 +169,7 @@ class TvShow(
         if (poster != other.poster) return false
         if (banner != other.banner) return false
         if (imdbId != other.imdbId) return false
+        if (tmdbId != other.tmdbId) return false
         if (seasons != other.seasons) return false
         if (genres != other.genres) return false
         if (directors != other.directors) return false
@@ -193,6 +197,7 @@ class TvShow(
         result = 31 * result + (poster?.hashCode() ?: 0)
         result = 31 * result + (banner?.hashCode() ?: 0)
         result = 31 * result + (imdbId?.hashCode() ?: 0)
+        result = 31 * result + (tmdbId ?: 0)
         result = 31 * result + seasons.hashCode()
         result = 31 * result + genres.hashCode()
         result = 31 * result + directors.hashCode()
