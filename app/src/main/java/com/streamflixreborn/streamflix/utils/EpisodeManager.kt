@@ -44,16 +44,14 @@ object EpisodeManager {
                 poster = storedTvShow.poster,
                 banner = storedTvShow.banner,
                 released = storedTvShow.released?.format("yyyy-MM-dd"),
-                imdbId = storedTvShow.imdbId,
-                tmdbId = storedTvShow.tmdbId,
+                imdbId = storedTvShow.imdbId
             )
         } ?: TvShow(
             id = type.tvShow.id,
             title = type.tvShow.title,
             poster = type.tvShow.poster,
             banner = type.tvShow.banner,
-            imdbId = type.tvShow.imdbId,
-            tmdbId = type.tvShow.tmdbId,
+            imdbId = type.tvShow.imdbId
         )
         val seasonContext = Season(id = "", number = seasonNumber, title = type.season.title).apply {
             tvShow = tvShowContext
@@ -211,8 +209,7 @@ object EpisodeManager {
                     poster = tvShowFromDb?.poster ?: ep.tvShow?.poster,
                     banner = tvShowFromDb?.banner ?: ep.tvShow?.banner,
                     releaseDate = tvShowFromDb?.released?.format("yyyy-MM-dd") ?: ep.tvShow?.released?.format("yyyy-MM-dd"),
-                    imdbId = tvShowFromDb?.imdbId ?: ep.tvShow?.imdbId,
-                    tmdbId = tvShowFromDb?.tmdbId ?: ep.tvShow?.tmdbId,
+                    imdbId = tvShowFromDb?.imdbId ?: ep.tvShow?.imdbId
                 ),
                 season = Episode.Season(
                     number = seasonFromDb?.number ?: seasonNumber,

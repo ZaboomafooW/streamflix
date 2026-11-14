@@ -27,11 +27,6 @@ class VideasyExtractor : Extractor() {
     )
 
     fun servers(videoType: Video.Type, language: String): List<Video.Server> {
-        val tmdbId = when (videoType) {
-            is Video.Type.Movie -> videoType.tmdbId
-            is Video.Type.Episode -> videoType.tvShow.tmdbId
-        } ?: return emptyList()
-
         return when (language) {
             "en" -> {
                 englishServers.mapNotNull { config ->
@@ -40,11 +35,11 @@ class VideasyExtractor : Extractor() {
                     val url = when (videoType) {
                         is Video.Type.Movie -> {
                             val year = videoType.releaseDate.split("-").firstOrNull() ?: ""
-                            "$mainUrl/${config.endpoint}/sources-with-title?title=${videoType.title}&mediaType=movie&year=$year&tmdbId=$tmdbId&imdbId=${videoType.imdbId ?: ""}"
+                            "$mainUrl/${config.endpoint}/sources-with-title?title=${videoType.title}&mediaType=movie&year=$year&tmdbId=${videoType.id}&imdbId=${videoType.imdbId ?: ""}"
                         }
                         is Video.Type.Episode -> {
                             val year = videoType.tvShow.releaseDate?.split("-")?.firstOrNull() ?: ""
-                            "$mainUrl/${config.endpoint}/sources-with-title?title=${videoType.tvShow.title}&mediaType=tv&year=$year&tmdbId=$tmdbId&imdbId=${videoType.tvShow.imdbId ?: ""}&episodeId=${videoType.number}&seasonId=${videoType.season.number}"
+                            "$mainUrl/${config.endpoint}/sources-with-title?title=${videoType.tvShow.title}&mediaType=tv&year=$year&tmdbId=${videoType.tvShow.id}&imdbId=${videoType.tvShow.imdbId ?: ""}&episodeId=${videoType.number}&seasonId=${videoType.season.number}"
                         }
                     }
                     
@@ -71,11 +66,11 @@ class VideasyExtractor : Extractor() {
                 val url = when (videoType) {
                     is Video.Type.Movie -> {
                         val year = videoType.releaseDate.split("-").firstOrNull() ?: ""
-                        "$mainUrl/$endpoint/sources-with-title?title=${videoType.title}&mediaType=movie&year=$year&tmdbId=$tmdbId&imdbId=${videoType.imdbId ?: ""}&language=$videasyLang"
+                        "$mainUrl/$endpoint/sources-with-title?title=${videoType.title}&mediaType=movie&year=$year&tmdbId=${videoType.id}&imdbId=${videoType.imdbId ?: ""}&language=$videasyLang"
                     }
                     is Video.Type.Episode -> {
                         val year = videoType.tvShow.releaseDate?.split("-")?.firstOrNull() ?: ""
-                        "$mainUrl/$endpoint/sources-with-title?title=${videoType.tvShow.title}&mediaType=tv&year=$year&tmdbId=$tmdbId&imdbId=${videoType.tvShow.imdbId ?: ""}&episodeId=${videoType.number}&seasonId=${videoType.season.number}&language=$videasyLang"
+                        "$mainUrl/$endpoint/sources-with-title?title=${videoType.tvShow.title}&mediaType=tv&year=$year&tmdbId=${videoType.tvShow.id}&imdbId=${videoType.tvShow.imdbId ?: ""}&episodeId=${videoType.number}&seasonId=${videoType.season.number}&language=$videasyLang"
                     }
                 }
 

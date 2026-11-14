@@ -24,7 +24,7 @@ import com.streamflixreborn.streamflix.utils.UserPreferences
         Season::class,
         TvShow::class,
     ],
-    version = 10,
+    version = 9,
     exportSchema = false
 )
 @TypeConverters(Converters::class)
@@ -108,7 +108,6 @@ abstract class AppDatabase : RoomDatabase() {
                 .addMigrations(MIGRATION_6_7)
                 .addMigrations(MIGRATION_7_8)
                 .addMigrations(MIGRATION_8_9)
-                .addMigrations(MIGRATION_9_10)
                 .build()
         }
 
@@ -238,15 +237,6 @@ abstract class AppDatabase : RoomDatabase() {
                     )
                     """.trimIndent()
                 )
-            }
-        }
-
-        private val MIGRATION_9_10: Migration = object : Migration(9, 10) {
-            override fun migrate(db: SupportSQLiteDatabase) {
-                db.execSQL("ALTER TABLE movies ADD COLUMN imdbId TEXT")
-                db.execSQL("ALTER TABLE movies ADD COLUMN tmdbId INTEGER")
-                db.execSQL("ALTER TABLE tv_shows ADD COLUMN imdbId TEXT")
-                db.execSQL("ALTER TABLE tv_shows ADD COLUMN tmdbId INTEGER")
             }
         }
     }

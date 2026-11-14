@@ -22,6 +22,8 @@ class Movie(
     var rating: Double? = null,
     var poster: String? = null,
     var banner: String? = null,
+
+    @Ignore
     var imdbId: String? = null,
 
     @Ignore
@@ -36,7 +38,6 @@ class Movie(
     @Ignore
     val recommendations: List<Show> = listOf(),
     override var isFavorite: Boolean = false,
-    var tmdbId: Int? = null,
 ) : Show, WatchItem, AppAdapter.Item {
 
     var released = released?.toCalendar()
@@ -61,8 +62,6 @@ class Movie(
     }
 
     fun merge(movie: Movie): Movie {
-        if (tmdbId == null) tmdbId = movie.tmdbId
-        if (imdbId.isNullOrBlank()) imdbId = movie.imdbId
         this.isFavorite = movie.isFavorite
         this.favoritedAtMillis = movie.favoritedAtMillis
         this.isWatched = movie.isWatched
@@ -94,26 +93,24 @@ class Movie(
         cast: List<People> = this.cast,
         recommendations: List<Show> = this.recommendations,
         isFavorite: Boolean = this.isFavorite,
-        tmdbId: Int? = this.tmdbId,
     ) = Movie(
-        id = id,
-        title = title,
-        overview = overview,
-        released = released,
-        runtime = runtime,
-        trailer = trailer,
-        quality = quality,
-        rating = rating,
-        poster = poster,
-        banner = banner,
-        imdbId = imdbId,
-        providerName = providerName,
-        genres = genres,
-        directors = directors,
-        cast = cast,
-        recommendations = recommendations,
-        isFavorite = isFavorite,
-        tmdbId = tmdbId,
+        id,
+        title,
+        overview,
+        released,
+        runtime,
+        trailer,
+        quality,
+        rating,
+        poster,
+        banner,
+        imdbId,
+        providerName,
+        genres,
+        directors,
+        cast,
+        recommendations,
+        isFavorite,
     ).apply {
         lastPlayedAtMillis = this@Movie.lastPlayedAtMillis
     }
@@ -134,7 +131,6 @@ class Movie(
         if (poster != other.poster) return false
         if (banner != other.banner) return false
         if (imdbId != other.imdbId) return false
-        if (tmdbId != other.tmdbId) return false
         if (genres != other.genres) return false
         if (directors != other.directors) return false
         if (cast != other.cast) return false
@@ -162,7 +158,6 @@ class Movie(
         result = 31 * result + (poster?.hashCode() ?: 0)
         result = 31 * result + (banner?.hashCode() ?: 0)
         result = 31 * result + (imdbId?.hashCode() ?: 0)
-        result = 31 * result + (tmdbId ?: 0)
         result = 31 * result + genres.hashCode()
         result = 31 * result + directors.hashCode()
         result = 31 * result + cast.hashCode()

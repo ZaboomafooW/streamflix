@@ -63,7 +63,6 @@ class TmdbProvider(override val language: String) : Provider {
                     rating = multi.voteAverage.toDouble(),
                     poster = multi.posterPath?.w500,
                     banner = multi.backdropPath?.original,
-                    tmdbId = multi.id,
                 )
 
                 is TMDb3.Tv -> if (multi.adult) null else TvShow(
@@ -74,7 +73,6 @@ class TmdbProvider(override val language: String) : Provider {
                     rating = multi.voteAverage.toDouble(),
                     poster = multi.posterPath?.w500,
                     banner = multi.backdropPath?.original,
-                    tmdbId = multi.id,
                 )
 
                 else -> null
@@ -406,7 +404,6 @@ class TmdbProvider(override val language: String) : Provider {
                     rating = multi.voteAverage.toDouble(),
                     poster = multi.posterPath?.w500,
                     banner = multi.backdropPath?.original,
-                    tmdbId = multi.id,
                 )
 
                 is TMDb3.Tv -> if (multi.adult) null else TvShow(
@@ -417,7 +414,6 @@ class TmdbProvider(override val language: String) : Provider {
                     rating = multi.voteAverage.toDouble(),
                     poster = multi.posterPath?.w500,
                     banner = multi.backdropPath?.original,
-                    tmdbId = multi.id,
                 )
 
                 else -> null
@@ -437,7 +433,6 @@ class TmdbProvider(override val language: String) : Provider {
                 rating = movie.voteAverage.toDouble(),
                 poster = movie.posterPath?.w500,
                 banner = movie.backdropPath?.original,
-                tmdbId = movie.id,
             )
         }
 
@@ -454,7 +449,6 @@ class TmdbProvider(override val language: String) : Provider {
                 rating = tv.voteAverage.toDouble(),
                 poster = tv.posterPath?.w500,
                 banner = tv.backdropPath?.original,
-                tmdbId = tv.id,
             )
         }
 
@@ -514,7 +508,6 @@ class TmdbProvider(override val language: String) : Provider {
                             rating = multi.voteAverage.toDouble(),
                             poster = multi.posterPath?.w500,
                             banner = multi.backdropPath?.original,
-                            tmdbId = multi.id,
                         )
 
                         is TMDb3.Tv -> if (multi.adult) null else TvShow(
@@ -525,13 +518,11 @@ class TmdbProvider(override val language: String) : Provider {
                             rating = multi.voteAverage.toDouble(),
                             poster = multi.posterPath?.w500,
                             banner = multi.backdropPath?.original,
-                            tmdbId = multi.id,
                         )
 
                         else -> null
                     }
                 } ?: listOf(),
-                tmdbId = movie.id,
             )
         }
 
@@ -598,7 +589,6 @@ class TmdbProvider(override val language: String) : Provider {
                             rating = multi.voteAverage.toDouble(),
                             poster = multi.posterPath?.w500,
                             banner = multi.backdropPath?.original,
-                            tmdbId = multi.id,
                         )
 
                         is TMDb3.Tv -> if (multi.adult) null else TvShow(
@@ -609,13 +599,11 @@ class TmdbProvider(override val language: String) : Provider {
                             rating = multi.voteAverage.toDouble(),
                             poster = multi.posterPath?.w500,
                             banner = multi.backdropPath?.original,
-                            tmdbId = multi.id,
                         )
 
                         else -> null
                     }
                 } ?: listOf(),
-                tmdbId = tv.id,
             )
         }
 
@@ -675,7 +663,6 @@ class TmdbProvider(override val language: String) : Provider {
                     rating = movie.voteAverage.toDouble(),
                     poster = movie.posterPath?.w500,
                     banner = movie.backdropPath?.original,
-                    tmdbId = movie.id,
                 )
             }.mix(TMDb3.Discover.tv(
                 includeAdult = false,
@@ -691,7 +678,6 @@ class TmdbProvider(override val language: String) : Provider {
                     rating = tv.voteAverage.toDouble(),
                     poster = tv.posterPath?.w500,
                     banner = tv.backdropPath?.original,
-                    tmdbId = tv.id,
                 )
             })
         )
@@ -727,7 +713,6 @@ class TmdbProvider(override val language: String) : Provider {
                                 rating = multi.voteAverage.toDouble(),
                                 poster = multi.posterPath?.w500,
                                 banner = multi.backdropPath?.original,
-                                tmdbId = multi.id,
                             )
 
                             is TMDb3.Tv -> if (multi.adult) null else TvShow(
@@ -738,7 +723,6 @@ class TmdbProvider(override val language: String) : Provider {
                                 rating = multi.voteAverage.toDouble(),
                                 poster = multi.posterPath?.w500,
                                 banner = multi.backdropPath?.original,
-                                tmdbId = multi.id,
                             )
 
                         else -> null
@@ -761,16 +745,6 @@ class TmdbProvider(override val language: String) : Provider {
     override suspend fun getServers(id: String, videoType: Video.Type): List<Video.Server> {
         val servers = mutableListOf<Video.Server>()
         val lang = language.lowercase().substringBefore("-")
-        val identifiedVideoType = when (videoType) {
-            is Video.Type.Movie -> videoType.copy(
-                tmdbId = videoType.tmdbId ?: videoType.id.toIntOrNull()
-            )
-            is Video.Type.Episode -> videoType.copy(
-                tvShow = videoType.tvShow.copy(
-                    tmdbId = videoType.tvShow.tmdbId ?: videoType.tvShow.id.toIntOrNull()
-                )
-            )
-        }
 
         Log.d("TmdbProvider", "getServers: lang=$language, simplifiedLang=$lang")
 
@@ -785,12 +759,12 @@ class TmdbProvider(override val language: String) : Provider {
                 if (videoType is Video.Type.Movie) {
                     servers.add(EinschaltenExtractor().server(videoType))
                 }
-                VideasyExtractor().server(identifiedVideoType, language)?.let { servers.add(it) }
+                VideasyExtractor().server(videoType, language)?.let { servers.add(it) }
             }
             "fr" -> {
                 // Solo server francesi
                 servers.addAll(FrembedExtractor(UserPreferences.getProviderCache(FrembedProvider, UserPreferences.PROVIDER_URL)).servers(videoType))
-                servers.addAll(AfterDarkExtractor(UserPreferences.getProviderCache(AfterDarkProvider, UserPreferences.PROVIDER_URL)).servers(identifiedVideoType))
+                servers.addAll(AfterDarkExtractor(UserPreferences.getProviderCache(AfterDarkProvider, UserPreferences.PROVIDER_URL)).servers(videoType))
             }
             "es" -> {
                 // TMDB Spagnolo: Utilizza ESCLUSIVAMENTE server certificati con audio spagnolo ([LAT] o [CAST])
@@ -875,39 +849,26 @@ class TmdbProvider(override val language: String) : Provider {
                 }
             }
             else -> {
-                if (lang == "en") {
-                    servers.add(VixSrcExtractor().server(identifiedVideoType))
-                    servers.add(VidsrcNetExtractor().server(identifiedVideoType))
+                // Per inglese (en) o altre lingue non specifiche, usiamo i server globali
+                servers.addAll(listOf(
+                    VixSrcExtractor().server(videoType),
+                    TwoEmbedExtractor().server(videoType),
+                    VidsrcNetExtractor().server(videoType),
+                    VidLinkExtractor().server(videoType),
+                    VidsrcRuExtractor().server(videoType),
+                    VidflixExtractor().server(videoType),
+                ))
 
-                    val dynamicServers = coroutineScope {
-                        val vidrockDeferred = async { VidrockExtractor().servers(identifiedVideoType) }
-                        val primeSrcDeferred = async { PrimeSrcExtractor().servers(identifiedVideoType) }
-                        listOf(vidrockDeferred, primeSrcDeferred).awaitAll().flatten()
-                    }
-                    servers.addAll(dynamicServers)
+                if (videoType is Video.Type.Movie) {
+                    servers.add(2, MoviesapiExtractor().server(videoType))
+                }
 
-                    servers.add(MoviesapiExtractor().server(identifiedVideoType))
-                    servers.add(TwoEmbedExtractor().server(identifiedVideoType))
-                    servers.add(VidLinkExtractor().server(identifiedVideoType))
-                    servers.add(VidsrcRuExtractor().server(identifiedVideoType))
-                } else {
-                    // Preserve the existing global fallback set for non-English TMDb languages.
-                    servers.addAll(listOf(
-                        VixSrcExtractor().server(identifiedVideoType),
-                        TwoEmbedExtractor().server(identifiedVideoType),
-                        VidsrcNetExtractor().server(identifiedVideoType),
-                        VidLinkExtractor().server(identifiedVideoType),
-                        VidsrcRuExtractor().server(identifiedVideoType),
-                        VidflixExtractor().server(identifiedVideoType),
-                    ))
+                servers.addAll(VidrockExtractor().servers(videoType))
+                servers.addAll(VidzeeExtractor().servers(videoType))
+                servers.addAll(PrimeSrcExtractor().servers(videoType))
 
-                    if (identifiedVideoType is Video.Type.Movie) {
-                        servers.add(2, MoviesapiExtractor().server(identifiedVideoType))
-                    }
-
-                    servers.addAll(VidrockExtractor().servers(identifiedVideoType))
-                    servers.addAll(VidzeeExtractor().servers(identifiedVideoType))
-                    servers.addAll(PrimeSrcExtractor().servers(identifiedVideoType))
+                if (language == "en") {
+                    servers.addAll(1, VideasyExtractor().servers(videoType, language))
                 }
             }
         }
@@ -968,8 +929,7 @@ class TmdbProvider(override val language: String) : Provider {
             }
             
             if (!forcedFound) {
-                video.subtitles.forEach { it.default = false
-                }
+                video.subtitles.forEach { it.default = false }
                 Log.i("StreamFlixES", "[SUBTITLE] -> TMDb (es): No forced subs found, keeping them OFF")
             }
         }

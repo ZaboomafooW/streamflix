@@ -247,8 +247,6 @@ object SuperStreamProvider : Provider {
             quality = data.qualityTag,
             rating = data.imdbRating?.toDoubleOrNull(),
             poster = data.poster,
-            imdbId = data.imdbId,
-            tmdbId = data.tmdbId,
 
             genres = data.cats?.split(",")?.map {
                 Genre(
@@ -318,8 +316,6 @@ object SuperStreamProvider : Provider {
             trailer = data.trailerUrl,
             rating = data.imdbRating?.toDoubleOrNull(),
             poster = data.poster,
-            imdbId = data.imdbId,
-            tmdbId = data.tmdbId,
 
             seasons = data.season.map { number ->
                 Season(

@@ -128,8 +128,7 @@ object EinschaltenProvider : Provider {
                     Movie(
                         id = movieId,
                         title = title,
-                        poster = poster,
-                        tmdbId = movieId.toIntOrNull(),
+                        poster = poster
                     )
                 )
             }
@@ -276,9 +275,7 @@ object EinschaltenProvider : Provider {
             genres = genres,
             cast = tmdbMovie?.cast ?: emptyList(),
             trailer = tmdbMovie?.trailer,
-            recommendations = tmdbMovie?.recommendations ?: emptyList(),
-            imdbId = tmdbMovie?.imdbId,
-            tmdbId = id.toIntOrNull(),
+            recommendations = tmdbMovie?.recommendations ?: emptyList()
         )
     }
 

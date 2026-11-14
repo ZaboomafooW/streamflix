@@ -230,8 +230,8 @@ class StreamingCommunityProvider(private val _language: String? = null) : Provid
 
         // Helper per il mapping
         fun mapTitles(titles: List<StreamingCommunityService.Show>) = titles.map {
-            if (it.type == "movie") Movie(id = it.id + "-" + it.slug, title = it.name, released = it.lastAirDate, rating = it.score?.toDoubleOrNull(), poster = getImageLink(it.images.find { img -> img.type == "poster" }?.filename), banner = getImageLink(it.images.find { img -> img.type == "background" }?.filename), tmdbId = it.tmdbId)
-            else TvShow(id = it.id + "-" + it.slug, title = it.name, released = it.lastAirDate, rating = it.score?.toDoubleOrNull(), poster = getImageLink(it.images.find { img -> img.type == "poster" }?.filename), banner = getImageLink(it.images.find { img -> img.type == "background" }?.filename), tmdbId = it.tmdbId)
+            if (it.type == "movie") Movie(id = it.id + "-" + it.slug, title = it.name, released = it.lastAirDate, rating = it.score?.toDoubleOrNull(), poster = getImageLink(it.images.find { img -> img.type == "poster" }?.filename), banner = getImageLink(it.images.find { img -> img.type == "background" }?.filename))
+            else TvShow(id = it.id + "-" + it.slug, title = it.name, released = it.lastAirDate, rating = it.score?.toDoubleOrNull(), poster = getImageLink(it.images.find { img -> img.type == "poster" }?.filename), banner = getImageLink(it.images.find { img -> img.type == "background" }?.filename))
         }
 
         // 1. Identifichiamo il carosello in evidenza (Hero)
@@ -318,8 +318,8 @@ class StreamingCommunityProvider(private val _language: String? = null) : Provid
         if (res.currentPage == null || (res.lastPage != null && res.currentPage > res.lastPage)) return listOf()
         return res.data.map {
             val poster = getImageLink(it.images.find { img -> img.type == "poster" }?.filename)
-            if (it.type == "movie") Movie(id = it.id + "-" + it.slug, title = it.name, released = it.lastAirDate, rating = it.score?.toDoubleOrNull(), poster = poster, tmdbId = it.tmdbId)
-            else TvShow(id = it.id + "-" + it.slug, title = it.name, released = it.lastAirDate, rating = it.score?.toDoubleOrNull(), poster = poster, tmdbId = it.tmdbId)
+            if (it.type == "movie") Movie(id = it.id + "-" + it.slug, title = it.name, released = it.lastAirDate, rating = it.score?.toDoubleOrNull(), poster = poster)
+            else TvShow(id = it.id + "-" + it.slug, title = it.name, released = it.lastAirDate, rating = it.score?.toDoubleOrNull(), poster = poster)
         }
     }
 
@@ -356,7 +356,7 @@ class StreamingCommunityProvider(private val _language: String? = null) : Provid
         }
 
         return shows.map { title ->
-            Movie(id = title.id + "-" + title.slug, title = title.name, released = title.lastAirDate, rating = title.score?.toDoubleOrNull(), poster = getImageLink(title.images.find { img -> img.type == "poster" }?.filename), tmdbId = title.tmdbId)
+            Movie(id = title.id + "-" + title.slug, title = title.name, released = title.lastAirDate, rating = title.score?.toDoubleOrNull(), poster = getImageLink(title.images.find { img -> img.type == "poster" }?.filename))
         }.distinctBy { it.id }
     }
 
@@ -375,7 +375,7 @@ class StreamingCommunityProvider(private val _language: String? = null) : Provid
         }
 
         return shows.map { title ->
-            TvShow(id = title.id + "-" + title.slug, title = title.name, released = title.lastAirDate, rating = title.score?.toDoubleOrNull(), poster = getImageLink(title.images.find { img -> img.type == "poster" }?.filename), tmdbId = title.tmdbId)
+            TvShow(id = title.id + "-" + title.slug, title = title.name, released = title.lastAirDate, rating = title.score?.toDoubleOrNull(), poster = getImageLink(title.images.find { img -> img.type == "poster" }?.filename))
         }.distinctBy { it.id }
     }
 
@@ -413,8 +413,6 @@ class StreamingCommunityProvider(private val _language: String? = null) : Provid
         return@coroutineScope Movie(
             id = id, title = tmdbMovie?.title ?: title.name, overview = tmdbMovie?.overview ?: title.plot, released = title.lastAirDate, rating = title.score?.toDoubleOrNull(), quality = title.quality, runtime = title.runtime, 
             poster = getImageLink(title.images.find { img -> img.type == "poster" }?.filename), banner = getImageLink(title.images.find { img -> img.type == "background" }?.filename), 
-            imdbId = tmdbMovie?.imdbId,
-            tmdbId = title.tmdbId,
             genres = title.genres?.map { Genre(id = it.id, name = it.name) } ?: listOf(), 
             cast = title.actors?.map { actor ->
                 val tmdbPerson = tmdbMovie?.cast?.find { p -> p.name.equals(actor.name, ignoreCase = true) }
@@ -422,8 +420,8 @@ class StreamingCommunityProvider(private val _language: String? = null) : Provid
             } ?: listOf(), 
             trailer = title.trailers?.find { t -> t.youtubeId != "" }?.youtubeId?.let { yid -> "https://youtube.com/watch?v=$yid" }, 
             recommendations = res.props.sliders?.find { it.titles.isNotEmpty() }?.titles?.map { 
-                if (it.type == "movie") Movie(id = it.id + "-" + it.slug, title = it.name, rating = it.score?.toDoubleOrNull(), poster = getImageLink(it.images.find { img -> img.type == "poster" }?.filename), tmdbId = it.tmdbId)
-                else TvShow(id = it.id + "-" + it.slug, title = it.name, rating = it.score?.toDoubleOrNull(), poster = getImageLink(it.images.find { img -> img.type == "poster" }?.filename), tmdbId = it.tmdbId)
+                if (it.type == "movie") Movie(id = it.id + "-" + it.slug, title = it.name, rating = it.score?.toDoubleOrNull(), poster = getImageLink(it.images.find { img -> img.type == "poster" }?.filename))
+                else TvShow(id = it.id + "-" + it.slug, title = it.name, rating = it.score?.toDoubleOrNull(), poster = getImageLink(it.images.find { img -> img.type == "poster" }?.filename))
             } ?: listOf()
         )
     }
@@ -460,8 +458,6 @@ class StreamingCommunityProvider(private val _language: String? = null) : Provid
 
         return@coroutineScope TvShow(id = id, title = tmdbShow?.title ?: title.name, overview = tmdbShow?.overview ?: title.plot, released = title.lastAirDate, rating = title.score?.toDoubleOrNull(), quality = title.quality, 
             poster = getImageLink(title.images.find { img -> img.type == "poster" }?.filename), banner = getImageLink(title.images.find { img -> img.type == "background" }?.filename), 
-            imdbId = tmdbShow?.imdbId,
-            tmdbId = title.tmdbId,
             genres = title.genres?.map { Genre(id = it.id, name = it.name) } ?: listOf(), 
             cast = title.actors?.map { actor ->
                 val tmdbPerson = tmdbShow?.cast?.find { p -> p.name.equals(actor.name, ignoreCase = true) }
@@ -469,8 +465,8 @@ class StreamingCommunityProvider(private val _language: String? = null) : Provid
             } ?: listOf(), 
             trailer = title.trailers?.find { t -> t.youtubeId != "" }?.youtubeId?.let { yid -> "https://youtube.com/watch?v=$yid" }, 
             recommendations = res.props.sliders?.find { it.titles.isNotEmpty() }?.titles?.map {
-                if (it.type == "movie") Movie(id = it.id + "-" + it.slug, title = it.name, rating = it.score?.toDoubleOrNull(), poster = getImageLink(it.images.find { img -> img.type == "poster" }?.filename), tmdbId = it.tmdbId)
-                else TvShow(id = it.id + "-" + it.slug, title = it.name, rating = it.score?.toDoubleOrNull(), poster = getImageLink(it.images.find { img -> img.type == "poster" }?.filename), tmdbId = it.tmdbId)
+                if (it.type == "movie") Movie(id = it.id + "-" + it.slug, title = it.name, rating = it.score?.toDoubleOrNull(), poster = getImageLink(it.images.find { img -> img.type == "poster" }?.filename))
+                else TvShow(id = it.id + "-" + it.slug, title = it.name, rating = it.score?.toDoubleOrNull(), poster = getImageLink(it.images.find { img -> img.type == "poster" }?.filename))
             } ?: listOf(), 
             seasons = title.seasons?.map { s ->
                 val seasonNumber = s.number.toIntOrNull() ?: (title.seasons.indexOf(s) + 1)
@@ -525,8 +521,8 @@ class StreamingCommunityProvider(private val _language: String? = null) : Provid
 
         return Genre(id = id, name = name, shows = shows.map { title ->
             val poster = getImageLink(title.images.find { img -> img.type == "poster" }?.filename)
-            if (title.type == "movie") Movie(id = title.id + "-" + title.slug, title = title.name, released = title.lastAirDate, rating = title.score?.toDoubleOrNull(), poster = poster, tmdbId = title.tmdbId)
-            else TvShow(id = title.id + "-" + title.slug, title = title.name, released = title.lastAirDate, rating = title.score?.toDoubleOrNull(), poster = poster, tmdbId = title.tmdbId)
+            if (title.type == "movie") Movie(id = title.id + "-" + title.slug, title = title.name, released = title.lastAirDate, rating = title.score?.toDoubleOrNull(), poster = poster)
+            else TvShow(id = title.id + "-" + title.slug, title = title.name, released = title.lastAirDate, rating = title.score?.toDoubleOrNull(), poster = poster)
         })
     }
 
@@ -535,8 +531,8 @@ class StreamingCommunityProvider(private val _language: String? = null) : Provid
         if (res.currentPage == null || (res.lastPage != null && res.currentPage > res.lastPage)) return People(id = id, name = id)
         return People(id = id, name = id, filmography = res.data.map {
             val poster = getImageLink(it.images.find { img -> img.type == "poster" }?.filename)
-            if (it.type == "movie") Movie(id = it.id + "-" + it.slug, title = it.name, released = it.lastAirDate, rating = it.score?.toDoubleOrNull(), poster = poster, tmdbId = it.tmdbId)
-            else TvShow(id = it.id + "-" + it.slug, title = it.name, released = it.lastAirDate, rating = it.score?.toDoubleOrNull(), poster = poster, tmdbId = it.tmdbId)
+            if (it.type == "movie") Movie(id = it.id + "-" + it.slug, title = it.name, released = it.lastAirDate, rating = it.score?.toDoubleOrNull(), poster = poster)
+            else TvShow(id = it.id + "-" + it.slug, title = it.name, released = it.lastAirDate, rating = it.score?.toDoubleOrNull(), poster = poster)
         })
     }
 
