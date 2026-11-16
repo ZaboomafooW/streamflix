@@ -295,6 +295,40 @@
         </PreferenceCategory>
 
         <PreferenceCategory
+            android:key="pc_doramasflix_content_filters"
+            android:title="@string/settings_category_doramasflix_filters"
+            app:iconSpaceReserved="false">
+
+            <com.streamflixreborn.streamflix.fragments.settings.DoramasflixFilterPreference
+                android:key="DORAMASFLIX_SHOW_BL"
+                android:title="@string/settings_doramasflix_show_bl"
+                android:summary="@string/settings_doramasflix_filter_summary"
+                android:defaultValue="false"
+                app:iconSpaceReserved="false" />
+
+            <com.streamflixreborn.streamflix.fragments.settings.DoramasflixFilterPreference
+                android:key="DORAMASFLIX_SHOW_GL"
+                android:title="@string/settings_doramasflix_show_gl"
+                android:summary="@string/settings_doramasflix_filter_summary"
+                android:defaultValue="false"
+                app:iconSpaceReserved="false" />
+
+            <com.streamflixreborn.streamflix.fragments.settings.DoramasflixFilterPreference
+                android:key="DORAMASFLIX_SHOW_LGBT"
+                android:title="@string/settings_doramasflix_show_lgbt"
+                android:summary="@string/settings_doramasflix_filter_summary"
+                android:defaultValue="false"
+                app:iconSpaceReserved="false" />
+
+            <com.streamflixreborn.streamflix.fragments.settings.DoramasflixFilterPreference
+                android:key="DORAMASFLIX_SHOW_ADULT"
+                android:title="@string/settings_doramasflix_show_adult"
+                android:summary="@string/settings_doramasflix_filter_summary"
+                android:defaultValue="false"
+                app:iconSpaceReserved="false" />
+        </PreferenceCategory>
+
+        <PreferenceCategory
             android:key="pc_streamingcommunity_settings"
             android:title="@string/settings_category_streamingcommunity"
             app:iconSpaceReserved="false">
