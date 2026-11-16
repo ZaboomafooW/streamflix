@@ -1,8 +1,10 @@
 package com.streamflixreborn.streamflix.ui
 
 import android.content.Context
+import android.os.SystemClock
 import android.util.AttributeSet
 import android.view.KeyEvent
+import android.view.MotionEvent
 import android.view.View
 import android.widget.Toast
 import androidx.media3.common.Player
@@ -53,7 +55,33 @@ class PlayerTvView @JvmOverloads constructor(
         zoomToast?.show()
     }
 
+    private var canceledSeekBackDownTime: Long? = null
+
+    fun cancelTimelineSeek(): Boolean {
+        val timeline = controller.findViewById<View>(androidx.media3.ui.R.id.exo_progress)
+        if (!controller.isVisible || timeline == null || !timeline.isPressed) return false
+
+        // DefaultTimeBar handles ACTION_CANCEL for both remote and touch scrubs.
+        val now = SystemClock.uptimeMillis()
+        val cancel = MotionEvent.obtain(now, now, MotionEvent.ACTION_CANCEL, 0f, 0f, 0)
+        return try {
+            timeline.onTouchEvent(cancel)
+        } finally {
+            cancel.recycle()
+        }
+    }
+
     override fun dispatchKeyEvent(event: KeyEvent): Boolean {
+        if (event.keyCode == KeyEvent.KEYCODE_BACK) {
+            if (event.action == KeyEvent.ACTION_DOWN && event.repeatCount == 0) {
+                canceledSeekBackDownTime = if (cancelTimelineSeek()) event.downTime else null
+            }
+            if (canceledSeekBackDownTime == event.downTime) {
+                if (event.action == KeyEvent.ACTION_UP) canceledSeekBackDownTime = null
+                return true
+            }
+        }
+
         if (isManualZoomEnabled) {
             if (event.action == KeyEvent.ACTION_DOWN) {
                 // RIPRISTINATA LOGICA ORIGINALE: Scaliamo solo il videoSurfaceView.

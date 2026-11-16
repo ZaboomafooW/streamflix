@@ -640,6 +640,8 @@ class PlayerTvFragment : Fragment() {
             binding.settings.onBackPressed()
         }
 
+        (binding.pvPlayer as? PlayerTvView)?.cancelTimelineSeek() == true -> true
+
         binding.pvPlayer.controller.isVisible -> {
             binding.pvPlayer.hideController()
             true
