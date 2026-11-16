@@ -1,6 +1,11 @@
 package com.streamflixreborn.streamflix.providers
 
-import com.tanasi.retrofit_jsoup.converter.JsoupConverterFactory
+import com.google.gson.JsonElement
+import com.google.gson.JsonObject
+import com.google.gson.JsonParser
+import com.streamflixreborn.streamflix.BuildConfig
+import com.streamflixreborn.streamflix.R
+import com.streamflixreborn.streamflix.StreamFlixApp
 import com.streamflixreborn.streamflix.adapters.AppAdapter
 import com.streamflixreborn.streamflix.extractors.Extractor
 import com.streamflixreborn.streamflix.models.Category
@@ -9,561 +14,869 @@ import com.streamflixreborn.streamflix.models.Genre
 import com.streamflixreborn.streamflix.models.Movie
 import com.streamflixreborn.streamflix.models.People
 import com.streamflixreborn.streamflix.models.Season
-import com.streamflixreborn.streamflix.models.Show
 import com.streamflixreborn.streamflix.models.TvShow
 import com.streamflixreborn.streamflix.models.Video
-import com.streamflixreborn.streamflix.utils.DnsResolver
-import com.google.gson.annotations.SerializedName
-import okhttp3.OkHttpClient
-import org.jsoup.Jsoup
-import org.jsoup.nodes.Document
-import retrofit2.Retrofit
-import retrofit2.converter.gson.GsonConverterFactory
-import retrofit2.http.GET
-import retrofit2.http.Headers
-import retrofit2.http.Path
-import retrofit2.http.Query
-import retrofit2.http.Url
+import com.streamflixreborn.streamflix.utils.NetworkClient
+import com.streamflixreborn.streamflix.utils.RidomoviesRateLimit
+import com.streamflixreborn.streamflix.utils.TmdbUtils
+import com.streamflixreborn.streamflix.utils.UserPreferences
+import com.streamflixreborn.streamflix.utils.WebViewResolver
 import kotlinx.coroutines.async
 import kotlinx.coroutines.coroutineScope
-import java.util.concurrent.TimeUnit
+import kotlinx.coroutines.sync.Mutex
+import kotlinx.coroutines.sync.withLock
+import okhttp3.HttpUrl.Companion.toHttpUrl
+import okhttp3.HttpUrl.Companion.toHttpUrlOrNull
+import okhttp3.ResponseBody
+import org.jsoup.Jsoup
+import org.jsoup.nodes.Document
+import org.jsoup.nodes.Element
+import retrofit2.HttpException
+import retrofit2.Retrofit
+import retrofit2.http.GET
+import retrofit2.http.HeaderMap
+import retrofit2.http.Url
+import java.net.URL
+import java.util.Locale
+import java.util.concurrent.ConcurrentHashMap
 
 object RidomoviesProvider : Provider {
 
     const val URL = "https://ridomovies.su/"
     override val baseUrl = URL
     override val name = "Ridomovies"
-    override val logo = "$URL/uploads/logos/hero_logo-1-1769040020-ab537326.png"
+    override val logo: String
+        get() = "android.resource://${BuildConfig.APPLICATION_ID}/${R.drawable.ic_ridomovies}"
     override val language = "en"
 
-    private val service = Service.build()
-    private var currentSlug: String? = null
+    private const val HOME = "home-rd1"
+    private const val ARTWORK_CACHE_NAME = "ridomovies_artwork_cache"
+    private const val TMDB_RETRY_MS = 24L * 60L * 60L * 1000L
+    private val mediaPath = Regex("""/(movie|tv)/([^/?#]+)""", RegexOption.IGNORE_CASE)
+    private val episodePath =
+        Regex("""/tv/([^/?#]+)/season-(\d+)/episode-(\d+)""", RegexOption.IGNORE_CASE)
+    private val posterAssetSuffix =
+        Regex("""-poster-(?:list|detail|search)\.webp$""", RegexOption.IGNORE_CASE)
+    private val yearRegex = Regex("""\b(?:19|20)\d{2}\b""")
+    private val clearanceMutex = Mutex()
+    private val tmdbIds = ConcurrentHashMap<String, Int>()
+    private val artworkCache by lazy {
+        StreamFlixApp.instance.getSharedPreferences(
+            ARTWORK_CACHE_NAME,
+            android.content.Context.MODE_PRIVATE,
+        )
+    }
+    private var resolver: WebViewResolver? = null
 
-    private fun fixUrl(path: String?): String? {
-        if (path.isNullOrBlank()) return null
-        if (path.startsWith("http://") || path.startsWith("https://")) return path
-        return "${URL.trimEnd('/')}/${path.trimStart('/')}"
+    private val genres = linkedMapOf(
+        "Action" to "action", "Adventure" to "adventure", "Animation" to "animation",
+        "Comedy" to "comedy", "Crime" to "crime", "Documentary" to "documentary",
+        "Drama" to "drama", "Family" to "family", "Fantasy" to "fantasy",
+        "History" to "history", "Horror" to "horror", "Music" to "music",
+        "Mystery" to "mystery", "Romance" to "romance", "Sci-Fi" to "sci-fi",
+        "Thriller" to "thriller", "TV Movie" to "tvmovie", "War" to "war",
+        "Western" to "western",
+    )
+
+    private val service = Retrofit.Builder()
+        .baseUrl(URL)
+        .client(NetworkClient.default)
+        .build()
+        .create(Service::class.java)
+
+    private interface Service {
+        @GET
+        suspend fun get(
+            @Url url: String,
+            @HeaderMap headers: Map<String, String>,
+        ): retrofit2.Response<ResponseBody>
     }
 
-    override suspend fun getHome(): List<Category> {
-        val document = service.getHome()
-        val tvResponse = service.getLatestSeries(1)
+    private data class Card(
+        val id: String,
+        val title: String,
+        val movie: Boolean,
+        val released: String? = null,
+        val runtime: Int? = null,
+        val quality: String? = null,
+        val rating: Double? = null,
+        val poster: String? = null,
+        val banner: String? = null,
+        val overview: String? = null,
+    )
 
-        val categories = mutableListOf<Category>()
+    private data class Metadata(
+        val title: String,
+        val overview: String?,
+        val released: String?,
+        val runtime: Int?,
+        val rating: Double?,
+        val poster: String?,
+        val imdbId: String?,
+        val genres: List<Genre>,
+    )
 
-        categories.add(
-            Category(
-                name = Category.FEATURED,
-                list = document.select("div.highlight-card").mapNotNull {
-                    val href = it.selectFirst("a")?.attr("href") ?: ""
-                    val id = href.trimEnd('/').substringAfterLast("/")
-                    if (id.isEmpty()) return@mapNotNull null
-                    val title = it.selectFirst("h2, h3")?.text() ?: ""
-                    val overview = it.selectFirst("p.highlight-desc")?.text()
-                    val banner = fixUrl(it.selectFirst("img")?.attr("src"))
+    override suspend fun getHome(): List<Category> = coroutineScope {
+        val home = async { document("${URL}$HOME") }
+        val movies = async { getMovies(1) }
+        val tv = async { getTvShows(1) }
 
-                    if (href.contains("/movie/")) {
-                        Movie(
-                            id = id,
-                            title = title,
-                            overview = overview,
-                            banner = banner,
-                        )
-                    } else if (href.contains("/tv/")) {
-                        TvShow(
-                            id = id,
-                            title = title,
-                            overview = overview,
-                            banner = banner,
-                        )
-                    } else {
-                        null
-                    }
-                }
-            )
-        )
-
-        categories.add(
-            Category(
-                name = "Latest Movies",
-                list = document.select("div.movie-card").mapNotNull {
-                    val href = it.selectFirst("a")?.attr("href") ?: ""
-                    if (!href.contains("/movie/")) return@mapNotNull null
-                    Movie(
-                        id = href.trimEnd('/').substringAfterLast("/"),
-                        title = it.selectFirst(".movie-title")?.text() ?: "",
-                        released = it.selectFirst(".movie-year")?.text(),
-                        quality = it.selectFirst(".badge-quality")?.text()?.takeIf { q -> q.isNotBlank() },
-                        poster = fixUrl(it.selectFirst("img")?.attr("src")),
-                    )
-                }
-            )
-        )
-
-        categories.add(
-            Category(
-                name = "Latest TV Series",
-                list = tvResponse.series.map {
-                    TvShow(
-                        id = it.slug,
-                        title = it.title,
-                        released = it.releaseDate?.substringBefore("-"),
-                        quality = it.quality,
-                        poster = fixUrl(it.posterPath),
-                    )
-                }
-            )
-        )
-
-        return categories
-
+        buildList {
+            home.await().selectFirst(".highlights-slider")?.let(::cards)
+                ?.map(::item)
+                ?.takeIf { it.isNotEmpty() }
+                ?.let { add(Category(Category.FEATURED, it)) }
+            movies.await().takeIf { it.isNotEmpty() }
+                ?.let { add(Category("Latest Movies", it)) }
+            tv.await().takeIf { it.isNotEmpty() }
+                ?.let { add(Category("Latest TV Series", it)) }
+        }
     }
 
     override suspend fun search(query: String, page: Int): List<AppAdapter.Item> {
-        if (query.isEmpty()) {
-            val document = service.getHome()
-            val genres = document.select(".dropdown-grid.genres-grid a, .mobile-accordion-content a.mobile-accordion-link").mapNotNull { a ->
-                val href = a.attr("href")
-                if (!href.contains("/genre/")) return@mapNotNull null
-                val slug = href.substringAfter("/genre/").substringBefore("/")
-                val name = a.text()
-                if (slug.isEmpty()) return@mapNotNull null
-                Genre(id = slug, name = name)
-            }.distinctBy { it.id }
-
-            return genres
+        if (query.isBlank()) {
+            if (page > 1) return emptyList()
+            return genres.map { (name, id) -> Genre(id, name) }
         }
+        if (page > 1) return emptyList()
 
-        val response = service.search(query, page)
-
-        val results = response.data.mapNotNull {
-            val slug = it.slug ?: it.slugEn ?: return@mapNotNull null
-            when (it.type) {
-                "movie" -> Movie(
-                    id = slug,
-                    title = it.title,
-                    released = it.releaseDate?.substringBefore("-"),
-                    quality = it.quality,
-                    poster = fixUrl(it.posterPath),
-                )
-                "tv" -> TvShow(
-                    id = slug,
-                    title = it.title,
-                    released = it.releaseDate?.substringBefore("-"),
-                    quality = it.quality,
-                    poster = fixUrl(it.posterPath),
-                )
-                else -> null
-            }
-        }
-
-        return results
+        val url = apiUrl("api/search", "q" to query.trim(), "lang" to "en", "limit" to "32")
+        return json(url).array("data")
+            .mapNotNull { it.obj()?.let(::card) }
+            .map(::item)
     }
 
     override suspend fun getMovies(page: Int): List<Movie> {
-        val response = service.getLatestMovies(page)
-
-        val movies = response.movies.map {
-            Movie(
-                id = it.slug,
-                title = it.title,
-                released = it.releaseDate?.substringBefore("-"),
-                quality = it.quality,
-                poster = fixUrl(it.posterPath),
-            )
-        }
-
-        return movies
+        val url = apiUrl(
+            "api/movies/latest",
+            "page" to page.coerceAtLeast(1).toString(),
+            "limit" to "32",
+            "lang" to "en",
+        )
+        return json(url).array("movies")
+            .mapNotNull { it.obj()?.let(::card) }
+            .filter { it.movie }
+            .map(::movie)
     }
 
     override suspend fun getTvShows(page: Int): List<TvShow> {
-        val response = service.getLatestSeries(page)
-
-        val tvShows = response.series.map {
-            TvShow(
-                id = it.slug,
-                title = it.title,
-                released = it.releaseDate?.substringBefore("-"),
-                quality = it.quality,
-                poster = fixUrl(it.posterPath),
-            )
-        }
-
-        return tvShows
+        val url = apiUrl(
+            "api/tv/latest",
+            "page" to page.coerceAtLeast(1).toString(),
+            "limit" to "32",
+            "lang" to "en",
+        )
+        return json(url).array("series")
+            .mapNotNull { it.obj()?.let(::card) }
+            .filterNot { it.movie }
+            .map(::tvShow)
     }
 
     override suspend fun getMovie(id: String): Movie {
-        val document = service.getMovie(id)
-        val finalId = currentSlug ?: id
+        val slug = slug(id)
+        val metadata = metadata(document("${URL}movie/$slug"), "Movie")
+        if (metadata.title.isBlank()) throw Exception("Ridomovies movie details could not be loaded.")
 
-        val h1Text = document.selectFirst("h1")?.text() ?: ""
-        val title = h1Text.substringBeforeLast("(").trim()
-        val year = if ("(" in h1Text) h1Text.substringAfterLast("(").trimEnd(')') else null
+        val ridoBanner = ridoBackdrop(metadata.poster)
+        val needsTmdb = (ridoBanner == null && cachedArtwork("movie", slug, "banner") == null) ||
+            metadata.poster == null && cachedArtwork("movie", slug, "poster") == null
+        val tmdbMovie = if (needsTmdb && shouldLookupTmdb("movie", slug, "details")) {
+            ridoTmdbId("movie", slug, metadata.title)?.let { tmdbId ->
+                TmdbUtils.getMovieById(tmdbId, language = language)?.also { resolved ->
+                    rememberArtwork("movie", slug, "poster", resolved.poster)
+                    rememberArtwork("movie", slug, "banner", resolved.banner)
+                    markTmdbLookup("movie", slug, "details")
+                }
+            }
+        } else null
 
-        val movie = Movie(
-            id = finalId,
-            title = title,
-            overview = document.selectFirst(".movie-overview")
-                ?.text(),
-            released = year,
-            runtime = document.select("span.meta-info")
-                .find { it.selectFirst("strong")?.text()?.contains("Duration") == true }
-                ?.ownText()?.let {
-                    val hours = it.substringBefore("h").filter { c -> c.isDigit() }.toIntOrNull() ?: 0
-                    val minutes = it.substringAfter("h").substringBefore("m").filter { c -> c.isDigit() }.toIntOrNull() ?: 0
-                    if (hours * 60 + minutes != 0) hours * 60 + minutes else null
-                },
-            rating = document.selectFirst(".imdb-score")
-                ?.text()?.toDoubleOrNull(),
-            poster = fixUrl(document.selectFirst("img.movie-poster-img")?.attr("src")),
-
-            genres = document.select(".genre-links a").map {
-                Genre(
-                    id = it.attr("href").split("/").getOrNull(2) ?: "",
-                    name = it.text(),
-                )
-            },
-            cast = document.select(".cast-card").map {
-                People(
-                    id = "",
-                    name = it.selectFirst(".cast-name")
-                        ?.text()
-                        ?: "",
-                    image = fixUrl(it.selectFirst("img.cast-photo")?.attr("src")),
-                )
-            },
+        return Movie(
+            id = slug,
+            title = metadata.title,
+            overview = metadata.overview,
+            released = metadata.released,
+            runtime = metadata.runtime,
+            rating = metadata.rating,
+            poster = metadata.poster ?: cachedArtwork("movie", slug, "poster"),
+            banner = ridoBanner ?: cachedArtwork("movie", slug, "banner"),
+            imdbId = metadata.imdbId ?: tmdbMovie?.imdbId,
+            genres = metadata.genres,
         )
-
-        return movie
     }
 
     override suspend fun getTvShow(id: String): TvShow {
-        val document = service.getTv(id)
-        val finalId = currentSlug ?: id
+        val slug = slug(id)
+        val doc = document("${URL}tv/$slug")
+        val metadata = metadata(doc, "TVSeries")
+        if (metadata.title.isBlank()) throw Exception("Ridomovies TV details could not be loaded.")
 
-        val h1Text = document.selectFirst("h1")?.text() ?: ""
-        val title = h1Text.substringBeforeLast("(").trim()
-        val year = if ("(" in h1Text) h1Text.substringAfterLast("(").trimEnd(')') else null
+        val seasons = seasonNumbers(doc)
+        val ridoBanner = ridoBackdrop(metadata.poster)
+        val needsTmdb = (ridoBanner == null && cachedArtwork("tv", slug, "banner") == null) ||
+            metadata.poster == null && cachedArtwork("tv", slug, "poster") == null ||
+            seasons.any { cachedSeasonPoster(slug, it) == null }
+        val tmdbTvShow = if (needsTmdb && shouldLookupTmdb("tv", slug, "details")) {
+            ridoTmdbId("tv", slug, metadata.title)?.let { tmdbId ->
+                TmdbUtils.getTvShowById(tmdbId, language = language)?.also { resolved ->
+                    rememberArtwork("tv", slug, "poster", resolved.poster)
+                    rememberArtwork("tv", slug, "banner", resolved.banner)
+                    resolved.seasons.forEach { season ->
+                        rememberSeasonPoster(slug, season.number, season.poster)
+                    }
+                    markTmdbLookup("tv", slug, "details")
+                }
+            }
+        } else null
 
-        val tvShow = TvShow(
-            id = finalId,
-            title = title,
-            overview = document.selectFirst(".movie-overview")
-                ?.text(),
-            released = year,
-            runtime = document.select("span.meta-info")
-                .find { it.selectFirst("strong")?.text()?.contains("Duration") == true }
-                ?.ownText()?.let {
-                    val hours = it.substringBefore("h").filter { c -> c.isDigit() }.toIntOrNull() ?: 0
-                    val minutes = it.substringAfter("h").substringBefore("m").filter { c -> c.isDigit() }.toIntOrNull() ?: 0
-                    if (hours * 60 + minutes != 0) hours * 60 + minutes else null
-                },
-            rating = document.selectFirst(".imdb-score")
-                ?.text()?.toDoubleOrNull(),
-            poster = fixUrl(document.selectFirst("img[class*='poster']")?.attr("src")),
-
-            seasons = document.select(".season-tabs button").mapNotNull { tab ->
-                val seasonNum = tab.attr("data-season-number").toIntOrNull()
-                    ?: return@mapNotNull null
+        return TvShow(
+            id = slug,
+            title = metadata.title,
+            overview = metadata.overview,
+            released = metadata.released,
+            runtime = metadata.runtime,
+            rating = metadata.rating,
+            poster = metadata.poster ?: cachedArtwork("tv", slug, "poster"),
+            banner = ridoBanner ?: cachedArtwork("tv", slug, "banner"),
+            imdbId = metadata.imdbId ?: tmdbTvShow?.imdbId,
+            seasons = seasons.map { number ->
                 Season(
-                    id = "$finalId/$seasonNum",
-                    number = seasonNum,
-                    title = "Season $seasonNum",
-                )
-            }.ifEmpty {
-                listOf(Season(id = "$finalId/1", number = 1, title = "Season 1"))
-            },
-            genres = document.select(".genre-links a").map {
-                Genre(
-                    id = it.attr("href").split("/").getOrNull(2) ?: "",
-                    name = it.text(),
+                    id = "$slug/$number",
+                    number = number,
+                    title = "Season $number",
+                    poster = cachedSeasonPoster(slug, number)
+                        ?: metadata.poster
+                        ?: cachedArtwork("tv", slug, "poster"),
                 )
             },
-            cast = document.select(".cast-card").map {
-                People(
-                    id = "",
-                    name = it.selectFirst(".cast-name")
-                        ?.text()
-                        ?: "",
-                    image = fixUrl(it.selectFirst("img.cast-photo")?.attr("src")),
-                )
-            },
+            genres = metadata.genres,
         )
-
-        return tvShow
     }
 
     override suspend fun getEpisodesBySeason(seasonId: String): List<Episode> {
-        val parts = seasonId.split("/")
-        val tvShowSlug = parts.getOrElse(0) { seasonId }
-        val seasonNum = parts.getOrNull(1)?.toIntOrNull() ?: 1
+        val slug = seasonId.substringBeforeLast('/')
+        val season = seasonId.substringAfterLast('/').toIntOrNull() ?: return emptyList()
+        val showUrl = "${URL}tv/$slug"
+        val seasonUrl = "$showUrl/season-$season"
+        val showDoc = document(showUrl)
+        val metadata = metadata(showDoc, "TVSeries")
 
-        val document = service.getEpisodePage(tvShowSlug, seasonNum, 1)
+        val ajax = runCatching {
+            val html = json(
+                seasonUrl,
+                mapOf(
+                    "Referer" to showUrl,
+                    "X-Requested-With" to "XMLHttpRequest",
+                    "X-Content-Mode" to "episodes_only",
+                ),
+            ).string("episodesHtml")
+            html?.takeIf { it.isNotBlank() }?.let { Jsoup.parse(it, showUrl) }
+        }.getOrNull()
 
-        val episodes = document.select(".episodes-grid .episode-link").mapNotNull { ep ->
-            val href = ep.attr("href")
-            val epTitleRow = ep.selectFirst(".ep-title-row")?.text() ?: ""
-            val epTitle = ep.selectFirst(".ep-name-row")?.text()
-            val epDate = ep.selectFirst(".ep-date")?.text()
-
-            val epNum = epTitleRow.substringAfterLast("Episode ").trim().toIntOrNull()
-                ?: href.substringAfterLast("episode-").toIntOrNull()
-                ?: return@mapNotNull null
-
-            Episode(
-                id = href.trimStart('/'),
-                number = epNum,
-                title = epTitle ?: "Episode $epNum",
-                released = epDate,
-            )
-        }.distinctBy { it.number }
-
-        return episodes
-    }
-
-    override suspend fun getGenre(id: String, page: Int): Genre {
-        return try {
-            coroutineScope {
-                val moviesDeferred = async {
-                    try {
-                        if (page > 1) service.getGenreMoviesPage(id, page) else service.getGenreMovies(id)
-                    } catch (e: Exception) { null }
-                }
-                val tvDeferred = async {
-                    try {
-                        if (page > 1) service.getGenreSeriesPage(id, page) else service.getGenreSeries(id)
-                    } catch (e: Exception) { null }
-                }
-
-                val movieItems = moviesDeferred.await()?.movies.orEmpty()
-                val tvItems = tvDeferred.await()?.movies.orEmpty()
-
-                val shows = mutableListOf<Show>()
-
-                movieItems.forEach { item ->
-                    shows.add(
-                        Movie(
-                            id = item.slug,
-                            title = item.title,
-                            released = item.releaseDate?.substringBefore("-"),
-                            quality = item.quality,
-                            poster = fixUrl(item.posterPath),
-                        )
-                    )
-                }
-
-                tvItems.forEach { item ->
-                    shows.add(
-                        TvShow(
-                            id = item.slug,
-                            title = item.title,
-                            released = item.releaseDate?.substringBefore("-"),
-                            quality = item.quality,
-                            poster = fixUrl(item.posterPath),
-                        )
-                    )
-                }
-
-                Genre(id = id, name = id.replaceFirstChar { it.uppercase() }, shows = shows)
-            }
-        } catch (e: Exception) {
-            Genre(id = id, name = id.replaceFirstChar { it.uppercase() }, shows = emptyList())
+        val seasonDoc = ajax ?: runCatching { document(seasonUrl) }.getOrDefault(showDoc)
+        var resolvedEpisodes = episodes(seasonDoc, slug, season) { number ->
+            cachedEpisodePoster(slug, season, number)
         }
+        if (
+            resolvedEpisodes.any { it.poster.isNullOrBlank() } &&
+            shouldLookupTmdb("tv", slug, "season-$season")
+        ) {
+            ridoTmdbId("tv", slug, metadata.title)?.let { tmdbId ->
+                val tmdbEpisodes = TmdbUtils.getEpisodesBySeason(
+                    tmdbId.toString(),
+                    season,
+                    language = language,
+                )
+                if (tmdbEpisodes.isNotEmpty()) {
+                    tmdbEpisodes.forEach { episode ->
+                        rememberEpisodePoster(slug, season, episode.number, episode.poster)
+                    }
+                    markTmdbLookup("tv", slug, "season-$season")
+                    resolvedEpisodes = episodes(seasonDoc, slug, season) { number ->
+                        cachedEpisodePoster(slug, season, number)
+                    }
+                }
+            }
+        }
+        return resolvedEpisodes
     }
 
-    override suspend fun getPeople(id: String, page: Int): People {
-        throw Exception("Not yet implemented")
+    override suspend fun getGenre(id: String, page: Int): Genre = coroutineScope {
+        val genre = id.lowercase(Locale.ROOT)
+        val suffix = if (page > 1) "/page-${page.coerceAtLeast(1)}" else ""
+        val movies = async {
+            cards(document("${URL}genre/$genre/movie$suffix"))
+                .filter { it.movie }.map(::movie)
+        }
+        val tv = async {
+            cards(document("${URL}genre/$genre/tv$suffix"))
+                .filterNot { it.movie }.map(::tvShow)
+        }
+        Genre(
+            id = genre,
+            name = genres.entries.firstOrNull { it.value == genre }?.key ?: id,
+            shows = movies.await() + tv.await(),
+        )
     }
+
+    override suspend fun getPeople(id: String, page: Int): People =
+        throw Exception("Not yet implemented")
 
     override suspend fun getServers(id: String, videoType: Video.Type): List<Video.Server> {
-        val pageUrl = when (videoType) {
-            is Video.Type.Episode -> id.trimStart('/')
-            is Video.Type.Movie -> "movie/$id"
-        }
-
-        val document = service.getPage(pageUrl)
-        val servers = mutableListOf<Video.Server>()
-
-        fun extractIframeSrc(rawHtml: String): String? {
-            if (rawHtml.isBlank()) return null
-            val iframe = Jsoup.parse(rawHtml).selectFirst("iframe")
-            return iframe?.attr("src")
-        }
-
-        // #player-cover is always present (movies and episodes)
-        document.selectFirst("#player-cover[data-embed]")?.let { el ->
-            val src = extractIframeSrc(el.attr("data-embed"))
-            if (!src.isNullOrBlank()) {
-                servers.add(Video.Server(id = src, name = "Server 1", src = src))
+        val url = when (videoType) {
+            is Video.Type.Movie -> "${URL}movie/${slug(id)}"
+            is Video.Type.Episode -> if (id.contains("/episode-", true)) {
+                absolute(id)
+            } else {
+                "${URL}tv/${slug(videoType.tvShow.id)}/season-${videoType.season.number}/episode-${videoType.number}"
             }
         }
 
-        // Dropdown buttons appear only on multi-server movies — add extras deduplicating against player-cover
-        document.select(".server-dropdown-item[data-server-embed]").forEachIndexed { idx, btn ->
-            val src = extractIframeSrc(btn.attr("data-server-embed"))
-            val label = btn.text().ifBlank { "Server ${idx + 1}" }
-            if (!src.isNullOrBlank() && servers.none { it.src == src }) {
-                servers.add(Video.Server(id = src, name = label, src = src))
-            }
+        val servers = servers(document(url))
+        if (servers.isEmpty()) {
+            throw Exception("Ridomovies doesn't currently have a video file for this title.")
         }
-
         return servers
     }
 
-    override suspend fun getVideo(server: Video.Server): Video {
-        return Extractor.extract(server.src)
+    override suspend fun getVideo(server: Video.Server): Video =
+        Extractor.extract(server.src.ifBlank { server.id }, server)
+
+    private suspend fun document(
+        url: String,
+        extraHeaders: Map<String, String> = emptyMap(),
+    ): Document = Jsoup.parse(
+        text(url, extraHeaders + ("Accept" to "text/html,application/xhtml+xml,*/*;q=0.8")),
+        url,
+    ).apply { setBaseUri(URL) }
+
+    private suspend fun json(
+        url: String,
+        extraHeaders: Map<String, String> = emptyMap(),
+    ): JsonObject {
+        val raw = text(url, extraHeaders + ("Accept" to "application/json"))
+        return runCatching { JsonParser.parseString(raw).asJsonObject }
+            .getOrElse { throw Exception("Ridomovies returned invalid JSON.", it) }
     }
 
-
-    private interface Service {
-
-        companion object {
-            fun build(): Service {
-                val client = OkHttpClient.Builder()
-                    .readTimeout(30, TimeUnit.SECONDS)
-                    .connectTimeout(30, TimeUnit.SECONDS)
-                    .dns(DnsResolver.doh)
-                    .addInterceptor { chain ->
-                        val request = chain.request()
-                        val response = chain.proceed(request)
-
-                        val requestUrl = request.url.toString()
-                        val responseUrl = response.request.url.toString()
-
-                        if (requestUrl != responseUrl) {
-                            currentSlug = responseUrl.substringBefore("?").substringBefore("#")
-                                .trimEnd('/').substringAfterLast("/")
-                        }
-
-                        response
-                    }
-                    .addInterceptor { chain ->
-                        val request = chain.request().newBuilder()
-                            .addHeader("Accept", "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8")
-                            .addHeader("Accept-Language", "en-US,en;q=0.5")
-                            .addHeader("User-Agent", "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/119.0.0.0 Safari/537.36")
-                            .addHeader("Platform", "android")
-                            .build()
-                        chain.proceed(request)
-                    }
-                    .build()
-
-                val retrofit = Retrofit.Builder()
-                    .baseUrl(URL)
-                    .addConverterFactory(JsoupConverterFactory.create())
-                    .addConverterFactory(GsonConverterFactory.create())
-                    .client(client)
-                    .build()
-
-                return retrofit.create(Service::class.java)
-            }
+    private suspend fun text(url: String, extraHeaders: Map<String, String>): String {
+        if (RidomoviesRateLimit.remainingCooldownNanos() > 0L) {
+            throw Exception(RidomoviesRateLimit.message())
         }
 
+        val headers = linkedMapOf(
+            "User-Agent" to NetworkClient.USER_AGENT,
+            "Accept-Language" to "en-US,en;q=0.9",
+            "Referer" to URL,
+        ).apply { putAll(extraHeaders) }
 
-        @GET("home-rd1")
-        suspend fun getHome(): Document
+        var response = service.get(url, headers)
+        if (response.code() == 429) throw rateLimit(response)
+        var body = responseBody(response)
+        if (challenge(response.code(), response.headers()["Server"], body)) {
+            clearChallenge()
+            response = service.get(url, headers)
+            if (response.code() == 429) throw rateLimit(response)
+            body = responseBody(response)
+        }
 
-        @GET
-        suspend fun getPage(@Url url: String): Document
+        if (!response.isSuccessful) throw HttpException(response)
+        if (challenge(response.code(), response.headers()["Server"], body)) {
+            throw Exception("Ridomovies Cloudflare challenge could not be cleared.")
+        }
+        return body
+    }
 
-        @GET("movie/{slug}")
-        suspend fun getMovie(
-            @Path("slug") slug: String,
-        ): Document
+    private fun rateLimit(response: retrofit2.Response<ResponseBody>): Exception {
+        RidomoviesRateLimit.recordRetryAfter(response.headers()["Retry-After"])
+        return Exception(RidomoviesRateLimit.message())
+    }
 
-        @GET("tv/{slug}")
-        suspend fun getTv(
-            @Path("slug") slug: String,
-        ): Document
+    private fun responseBody(response: retrofit2.Response<ResponseBody>) =
+        if (response.isSuccessful) response.body()?.string().orEmpty()
+        else response.errorBody()?.string().orEmpty()
 
-        @GET("tv/{slug}/season-{season}/episode-{episode}")
-        suspend fun getEpisodePage(
-            @Path("slug") slug: String,
-            @Path("season") season: Int,
-            @Path("episode") episode: Int,
-        ): Document
+    private fun challenge(code: Int, server: String?, body: String): Boolean =
+        body.contains("Just a moment", true) ||
+            body.contains("cf-browser-verification", true) ||
+            body.contains("challenge-running", true) ||
+            body.contains("Checking your browser", true) ||
+            (code in setOf(403, 503) && server?.contains("cloudflare", true) == true)
 
-        @GET("api/movies/latest")
-        suspend fun getLatestMovies(
-            @Query("page") page: Int = 1,
-        ): MoviesResponse
-
-        @GET("api/tv/latest")
-        suspend fun getLatestSeries(
-            @Query("page") page: Int = 1,
-        ): SeriesResponse
-
-        @GET("api/search")
-        suspend fun search(
-            @Query("q") q: String,
-            @Query("page") page: Int = 1,
-            @Query("lang") lang: String = "en",
-            @Query("limit") limit: Int = 20,
-        ): SearchResponse
-
-        @Headers("X-Requested-With: XMLHttpRequest")
-        @GET("genre/{genre}/movie")
-        suspend fun getGenreMovies(
-            @Path("genre") genre: String,
-        ): MoviesResponse
-
-        @Headers("X-Requested-With: XMLHttpRequest")
-        @GET("genre/{genre}/movie/page-{page}")
-        suspend fun getGenreMoviesPage(
-            @Path("genre") genre: String,
-            @Path("page") page: Int,
-        ): MoviesResponse
-
-        @Headers("X-Requested-With: XMLHttpRequest")
-        @GET("genre/{genre}/tv")
-        suspend fun getGenreSeries(
-            @Path("genre") genre: String,
-        ): MoviesResponse
-
-        @Headers("X-Requested-With: XMLHttpRequest")
-        @GET("genre/{genre}/tv/page-{page}")
-        suspend fun getGenreSeriesPage(
-            @Path("genre") genre: String,
-            @Path("page") page: Int,
-        ): MoviesResponse
-
-
-        data class MoviesResponse(
-            val success: Boolean,
-            val movies: List<ShowItem>,
-            val page: Int,
-            val hasMore: Boolean,
+    private suspend fun clearChallenge() = clearanceMutex.withLock {
+        val probeUrl = "${URL}$HOME"
+        val probe = service.get(
+            probeUrl,
+            mapOf(
+                "User-Agent" to NetworkClient.USER_AGENT,
+                "Accept-Language" to "en-US,en;q=0.9",
+                "Accept" to "text/html,application/xhtml+xml,*/*;q=0.8",
+            ),
         )
+        if (probe.code() == 429) throw rateLimit(probe)
+        val probeBody = responseBody(probe)
+        if (probe.isSuccessful && !challenge(probe.code(), probe.headers()["Server"], probeBody)) {
+            return@withLock
+        }
 
-        data class SeriesResponse(
-            val success: Boolean,
-            val series: List<ShowItem>,
-            val page: Int,
-            val hasMore: Boolean,
+        val result = webViewResolver().getResult(
+            url = probeUrl,
+            headers = mapOf("User-Agent" to NetworkClient.USER_AGENT),
+            completion = { _, html, cookies ->
+                !challenge(200, null, html) &&
+                    (cookies.contains("cf_clearance") ||
+                        html.contains("RIDOMOVIES", true) ||
+                        html.contains("movie-card", true))
+            },
         )
+        if (challenge(200, null, result.html)) {
+            throw Exception("Ridomovies Cloudflare challenge could not be cleared.")
+        }
+    }
 
-        data class ShowItem(
-            val slug: String,
-            val title: String,
-            @SerializedName("poster_path") val posterPath: String?,
-            @SerializedName("release_date") val releaseDate: String?,
-            val quality: String?,
+    private fun webViewResolver() =
+        resolver ?: WebViewResolver(StreamFlixApp.instance).also { resolver = it }
+
+    private fun cachePrefix(type: String, slug: String): String =
+        "v1|${type.lowercase(Locale.ROOT)}|${slug.lowercase(Locale.ROOT)}"
+
+    private fun tmdbMemoryKey(type: String, slug: String): String =
+        "${type.lowercase(Locale.ROOT)}:${slug.lowercase(Locale.ROOT)}"
+
+    private fun cachedTmdbId(type: String, slug: String): Int? {
+        val memoryKey = tmdbMemoryKey(type, slug)
+        tmdbIds[memoryKey]?.let { return it }
+        val key = "${cachePrefix(type, slug)}|tmdb-id"
+        if (!artworkCache.contains(key)) return null
+        return artworkCache.getInt(key, 0).takeIf { it > 0 }?.also {
+            tmdbIds[memoryKey] = it
+        }
+    }
+
+    private fun rememberTmdbId(type: String, slug: String, tmdbId: Int) {
+        if (tmdbId <= 0 || cachedTmdbId(type, slug) == tmdbId) return
+        tmdbIds[tmdbMemoryKey(type, slug)] = tmdbId
+        artworkCache.edit()
+            .putInt("${cachePrefix(type, slug)}|tmdb-id", tmdbId)
+            .apply()
+    }
+
+    private fun cachedArtwork(type: String, slug: String, field: String): String? =
+        artworkCache.getString("${cachePrefix(type, slug)}|$field", null)
+            ?.takeIf { it.isNotBlank() }
+
+    private fun rememberArtwork(type: String, slug: String, field: String, url: String?) {
+        val value = url?.takeIf { it.isNotBlank() } ?: return
+        if (cachedArtwork(type, slug, field) == value) return
+        artworkCache.edit()
+            .putString("${cachePrefix(type, slug)}|$field", value)
+            .apply()
+    }
+
+    private fun cachedSeasonPoster(slug: String, season: Int): String? =
+        cachedArtwork("tv", slug, "season-$season-poster")
+
+    private fun rememberSeasonPoster(slug: String, season: Int, url: String?) {
+        rememberArtwork("tv", slug, "season-$season-poster", url)
+    }
+
+    private fun cachedEpisodePoster(slug: String, season: Int, episode: Int): String? =
+        cachedArtwork("tv", slug, "season-$season-episode-$episode-poster")
+
+    private fun rememberEpisodePoster(slug: String, season: Int, episode: Int, url: String?) {
+        rememberArtwork("tv", slug, "season-$season-episode-$episode-poster", url)
+    }
+
+    private fun lookupKey(type: String, slug: String, scope: String): String =
+        "${cachePrefix(type, slug)}|$scope-checked-at"
+
+    private fun shouldLookupTmdb(type: String, slug: String, scope: String): Boolean {
+        if (!UserPreferences.enableTmdb) return false
+        val lastLookup = artworkCache.getLong(lookupKey(type, slug, scope), 0L)
+        return lastLookup == 0L || System.currentTimeMillis() - lastLookup >= TMDB_RETRY_MS
+    }
+
+    private fun markTmdbLookup(type: String, slug: String, scope: String) {
+        artworkCache.edit()
+            .putLong(lookupKey(type, slug, scope), System.currentTimeMillis())
+            .apply()
+    }
+
+    private fun cards(container: Element): List<Card> {
+        val isHighlights = container.hasClass("highlights-slider")
+        return container.select(".movie-card, .highlight-card").mapNotNull { item ->
+            val link = item.selectFirst("a[href*='/movie/'], a[href*='/tv/']")
+                ?: return@mapNotNull null
+            val href = absolute(link.attr("href"))
+            val match = mediaPath.find(URL(href).path) ?: return@mapNotNull null
+            val title = item.selectFirst(".movie-title, .highlight-title")
+                ?.text()?.trim()?.takeIf { it.isNotBlank() }
+                ?: link.attr("aria-label").trim().takeIf { it.isNotBlank() }
+                ?: return@mapNotNull null
+            val artwork = item.selectFirst("img")?.let {
+                asset(it.attr("src").takeIf(String::isNotBlank) ?: it.attr("data-src"))
+            }
+            val isHighlight = isHighlights || item.hasClass("highlight-card")
+            Card(
+                id = match.groupValues[2],
+                title = title,
+                movie = match.groupValues[1].equals("movie", true),
+                released = item.selectFirst(".movie-year")?.text()?.let(::year),
+                runtime = if (isHighlight) highlightRuntime(item) else null,
+                quality = item.selectFirst(".movie-quality, .quality")?.text()?.trim(),
+                rating = item.selectFirst("[class*=rating]")?.text()?.let(::number),
+                poster = artwork.takeUnless { isHighlight },
+                banner = artwork.takeIf { isHighlight } ?: ridoBackdrop(artwork),
+                overview = if (isHighlight) highlightOverview(item) else null,
+            )
+        }.distinctBy { "${it.movie}:${it.id}" }
+    }
+
+    private fun highlightOverview(item: Element): String? {
+        val selectors = listOf(
+            ".highlight-description",
+            ".movie-overview",
+            ".overview-text",
+            "[class*=description]",
+            "[class*=overview]",
+            ".highlight-content p",
         )
+        return selectors.asSequence()
+            .flatMap { selector -> item.select(selector).asSequence() }
+            .map { it.text().trim() }
+            .filter { text ->
+                text.length >= 30 &&
+                    !text.startsWith("IMDb", true) &&
+                    !text.startsWith("Genre:", true) &&
+                    !text.startsWith("Duration:", true) &&
+                    !text.equals("Watch Now", true)
+            }
+            .maxByOrNull { it.length }
+    }
 
-        data class SearchResponse(
-            val status: Boolean,
-            val data: List<SearchItem>,
-        )
+    private fun highlightRuntime(item: Element): Int? {
+        item.selectFirst("[class*=duration], [class*=runtime]")
+            ?.text()?.let(::runtime)?.let { return it }
+        val value = Regex(
+            """Duration:\s*((?:\d+\s*h\s*)?\d+\s*min)""",
+            RegexOption.IGNORE_CASE,
+        ).find(item.text())?.groupValues?.getOrNull(1)
+        return runtime(value)
+    }
 
-        data class SearchItem(
-            val id: Int?,
-            val slug: String?,
-            @SerializedName("slug_en") val slugEn: String?,
-            val type: String?,
-            val title: String,
-            @SerializedName("poster_path") val posterPath: String?,
-            @SerializedName("release_date") val releaseDate: String?,
-            val quality: String?,
+    private fun card(row: JsonObject): Card? {
+        val type = row.string("type")?.lowercase(Locale.ROOT) ?: return null
+        if (type !in setOf("movie", "tv")) return null
+        val slug = row.string("slug") ?: row.string("slug_en") ?: return null
+        val title = row.string("title") ?: row.string("original_title") ?: return null
+        val poster = asset(row.string("poster_path") ?: row.string("poster"))
+        row.int("tmdb_id")?.let { rememberTmdbId(type, slug, it) }
+        return Card(
+            id = slug,
+            title = title,
+            movie = type == "movie",
+            released = year(row.string("release_date") ?: row.string("first_air_date")),
+            runtime = row.int("duration") ?: row.int("runtime"),
+            quality = row.string("quality"),
+            rating = row.double("imdb_rating") ?: row.double("rating"),
+            poster = poster,
+            banner = ridoBackdrop(poster),
+            overview = row.string("overview") ?: row.string("description"),
         )
     }
+
+    private suspend fun ridoTmdbId(type: String, slug: String, title: String): Int? {
+        cachedTmdbId(type, slug)?.let { return it }
+        if (!UserPreferences.enableTmdb || title.isBlank()) return null
+
+        val url = apiUrl("api/search", "q" to title, "lang" to "en", "limit" to "32")
+        val row = runCatching {
+            json(url).array("data")
+                .mapNotNull { it.obj() }
+                .firstOrNull { candidate ->
+                    candidate.string("type")?.equals(type, true) == true &&
+                        listOfNotNull(
+                            candidate.string("slug"),
+                            candidate.string("slug_en"),
+                        ).any { it.equals(slug, true) }
+                }
+        }.getOrNull() ?: return null
+
+        return row.int("tmdb_id")?.also { rememberTmdbId(type, slug, it) }
+    }
+
+    private fun item(card: Card): AppAdapter.Item = if (card.movie) movie(card) else tvShow(card)
+
+    private fun movie(card: Card): Movie = Movie(
+        id = card.id, title = card.title, released = card.released,
+        runtime = card.runtime, quality = card.quality, rating = card.rating,
+        poster = card.poster ?: cachedArtwork("movie", card.id, "poster"),
+        banner = card.banner ?: cachedArtwork("movie", card.id, "banner"),
+        overview = card.overview,
+    )
+
+    private fun tvShow(card: Card): TvShow = TvShow(
+        id = card.id, title = card.title, released = card.released,
+        runtime = card.runtime, quality = card.quality, rating = card.rating,
+        poster = card.poster ?: cachedArtwork("tv", card.id, "poster"),
+        banner = card.banner ?: cachedArtwork("tv", card.id, "banner"),
+        overview = card.overview,
+    )
+
+    private fun metadata(doc: Document, wantedType: String): Metadata {
+        val items = jsonLd(doc)
+        val primary = items.firstOrNull { it.type(wantedType) }
+            ?: items.firstOrNull { it.type("Movie") || it.type("TVSeries") }
+        val heading = doc.selectFirst(".movie-title-main, #hero-section h1, main h1, h1")
+            ?.text()?.trim().orEmpty()
+        val title = (primary?.string("name") ?: heading)
+            .replace(Regex("""\s*\((?:19|20)\d{2}\)\s*$"""), "").trim()
+        val overview = doc.selectFirst(".movie-overview, .overview-text")?.text()?.trim()
+            ?.takeIf { it.isNotBlank() } ?: primary?.string("description")
+        val released = year(primary?.string("datePublished") ?: primary?.string("startDate") ?: heading)
+        val runtime = runtime(primary?.string("duration"))
+            ?: doc.select(".meta-info").firstOrNull { it.text().contains("Duration:", true) }
+                ?.text()?.substringAfter(':')?.let(::runtime)
+        val rating = primary?.objectValue("aggregateRating")?.double("ratingValue")
+            ?: doc.selectFirst("[class*=imdb], [class*=rating]")?.text()?.let(::number)
+        val poster = asset(
+            doc.selectFirst(".movie-poster-img, .tv-poster")?.attr("src")?.takeIf { it.isNotBlank() }
+                ?: primary?.string("image"),
+        )
+        val imdb = doc.selectFirst("#detailConfig[data-imdb-id]")?.attr("data-imdb-id")
+            ?.trim()?.takeIf { it.isNotBlank() }
+        val genreNames = mutableListOf<String>()
+        primary?.get("genre")?.let {
+            if (it.isJsonArray) it.asJsonArray.forEach { value ->
+                value.stringValue()?.takeIf(String::isNotBlank)?.let(genreNames::add)
+            } else it.stringValue()?.split(',')?.map { name -> name.trim() }?.let(genreNames::addAll)
+        }
+        if (genreNames.isEmpty()) {
+            doc.select("#hero-section a[href*='/genre/'], .movie-details a[href*='/genre/']")
+                .map { it.text().trim() }.filter(String::isNotBlank).let(genreNames::addAll)
+        }
+        return Metadata(
+            title, overview, released, runtime, rating, poster, imdb,
+            genreNames.distinct().map {
+                Genre(genres[it] ?: it.lowercase(Locale.ROOT).replace(' ', '-'), it)
+            },
+        )
+    }
+
+    private fun seasonNumbers(doc: Document): List<Int> {
+        val values = doc.select(".season-tabs [data-season-number]")
+            .mapNotNull { it.attr("data-season-number").toIntOrNull() }.filter { it > 0 }
+            .toMutableSet()
+        doc.select("a[href*='/season-']").forEach {
+            episodePath.find(it.attr("href"))?.groupValues?.getOrNull(2)
+                ?.toIntOrNull()?.takeIf { n -> n > 0 }?.let(values::add)
+        }
+        return values.sorted()
+    }
+
+    private fun episodes(
+        doc: Document,
+        expectedSlug: String,
+        expectedSeason: Int,
+        fallbackPoster: (Int) -> String?,
+    ): List<Episode> =
+        doc.select("a.episode-link[href], a[href*='/episode-']").mapNotNull { link ->
+            if (link.selectFirst(".ep-no-video") != null) return@mapNotNull null
+            val href = absolute(link.attr("href"))
+            val match = episodePath.find(URL(href).path) ?: return@mapNotNull null
+            if (!match.groupValues[1].equals(expectedSlug, true) ||
+                match.groupValues[2].toIntOrNull() != expectedSeason
+            ) return@mapNotNull null
+            val number = match.groupValues[3].toIntOrNull() ?: return@mapNotNull null
+            val episodePoster = link.selectFirst("img")?.let {
+                asset(it.attr("src").takeIf(String::isNotBlank) ?: it.attr("data-src"))
+            } ?: fallbackPoster(number)
+            Episode(
+                id = URL(href).path.trimStart('/'),
+                number = number,
+                title = link.selectFirst(".ep-name-row, .episode-title")?.text()?.trim()
+                    ?.takeIf { it.isNotBlank() } ?: "Episode $number",
+                poster = episodePoster,
+                overview = link.selectFirst(".episode-overview, .ep-overview, .episode-description")
+                    ?.text()?.trim()?.takeIf { it.isNotBlank() },
+            )
+        }.distinctBy { it.number }.sortedBy { it.number }
+
+    private fun servers(doc: Document): List<Video.Server> {
+        val imdb = doc.selectFirst("#detailConfig[data-imdb-id]")?.attr("data-imdb-id").orEmpty()
+        val result = linkedMapOf<String, Video.Server>()
+
+        doc.selectFirst("#detailConfig[data-videos]")?.attr("data-videos")
+            ?.takeIf { it.isNotBlank() }?.let { raw ->
+                runCatching { JsonParser.parseString(raw).asJsonArray }.getOrNull()?.forEach { value ->
+                    val row = value.obj() ?: return@forEach
+                    val id = row.string("video_id") ?: row.string("video") ?: return@forEach
+                    val template = row.string("template") ?: return@forEach
+                    val url = embed(
+                        template.replace("{{id}}", id).replace("{id}", id).replace("{url}", id),
+                    )?.let { withImdb(it, imdb) } ?: return@forEach
+                    addServer(result, url, row.string("service_name"), row.string("quality"))
+                }
+            }
+
+        doc.select("#player-cover[data-embed], .server-dropdown-item[data-server-embed]").forEach {
+            val raw = it.attr("data-embed").takeIf(String::isNotBlank)
+                ?: it.attr("data-server-embed")
+            embed(raw)?.let { url -> addServer(result, withImdb(url, imdb), null, null) }
+        }
+        return result.values.sortedBy { if (it.name.startsWith("Rapidrame")) 0 else 1 }
+    }
+
+    private fun addServer(
+        result: MutableMap<String, Video.Server>,
+        url: String,
+        suppliedName: String?,
+        quality: String?,
+    ) {
+        val parsed = url.toHttpUrlOrNull() ?: return
+        val host = parsed.host.lowercase(Locale.ROOT)
+        if (
+            host == "youtu.be" ||
+            host == "youtube.com" ||
+            host.endsWith(".youtube.com") ||
+            host == "youtube-nocookie.com" ||
+            host.endsWith(".youtube-nocookie.com")
+        ) return
+
+        val key = "${parsed.host}${parsed.encodedPath.trimEnd('/')}"
+        val detected = when {
+            parsed.host.contains("ridorapid", true) -> "Rapidrame"
+            parsed.host.contains("ridoo", true) -> "Ridoo"
+            parsed.host.contains("closeload", true) -> "Closeload"
+            else -> parsed.host.removePrefix("www.").substringBefore('.')
+                .replace('-', ' ').replaceFirstChar { it.titlecase(Locale.ROOT) }
+        }
+        val name = suppliedName?.takeUnless { it.startsWith("Server", true) } ?: detected
+        val label = listOfNotNull(name, quality?.takeIf(String::isNotBlank)).joinToString(" ")
+        val server = Video.Server(url, label.ifBlank { "Server" }, url)
+        val existing = result[key]
+        if (existing == null ||
+            (parsed.querySize > 0 && existing.src.toHttpUrlOrNull()?.querySize == 0)
+        ) result[key] = server
+    }
+
+    private fun embed(raw: String?): String? {
+        val value = raw?.trim().orEmpty()
+        if (value.isBlank()) return null
+        if (value.startsWith("http://") || value.startsWith("https://") || value.startsWith("//")) {
+            return absolute(value).takeIf { it.toHttpUrlOrNull() != null }
+        }
+        val iframe = Jsoup.parse(value).selectFirst("iframe") ?: return null
+        val source = iframe.attr("src").takeIf(String::isNotBlank)
+            ?: iframe.attr("data-src").takeIf(String::isNotBlank) ?: return null
+        return absolute(source).takeIf { it.toHttpUrlOrNull() != null }
+    }
+
+    private fun withImdb(value: String, imdb: String): String {
+        val url = value.toHttpUrlOrNull() ?: return value
+        if (!url.host.contains("closeload", true) || imdb.isBlank() ||
+            url.queryParameter("imdb_id") != null
+        ) return value
+        return url.newBuilder().addQueryParameter("imdb_id", imdb).build().toString()
+    }
+
+    private fun jsonLd(doc: Document): List<JsonObject> = buildList {
+        doc.select("script[type=application/ld+json]").forEach { script ->
+            val value = runCatching {
+                JsonParser.parseString(script.data().ifBlank { script.html() })
+            }.getOrNull() ?: return@forEach
+            val roots = if (value.isJsonArray) value.asJsonArray else listOf(value)
+            roots.forEach { root ->
+                val obj = root.obj() ?: return@forEach
+                val graph = obj.get("@graph")
+                if (graph?.isJsonArray == true) {
+                    graph.asJsonArray.forEach { it.obj()?.let { obj -> add(obj) } }
+                } else add(obj)
+            }
+        }
+    }
+
+    private fun JsonObject.type(wanted: String): Boolean {
+        val value = get("@type") ?: return false
+        return if (value.isJsonArray) value.asJsonArray.any {
+            it.stringValue()?.equals(wanted, true) == true
+        } else value.stringValue()?.equals(wanted, true) == true
+    }
+
+    private fun apiUrl(path: String, vararg params: Pair<String, String>): String =
+        URL.toHttpUrl().newBuilder().addPathSegments(path).apply {
+            params.forEach { (key, value) -> addQueryParameter(key, value) }
+        }.build().toString()
+
+    private fun absolute(value: String): String {
+        val raw = value.trim()
+        return when {
+            raw.startsWith("//") -> "https:$raw"
+            raw.startsWith("http://") || raw.startsWith("https://") -> raw
+            raw.startsWith("/") -> "${URL.trimEnd('/')}$raw"
+            else -> "$URL$raw"
+        }
+    }
+
+    private fun asset(value: String?): String? =
+        value?.trim()?.takeIf(String::isNotBlank)?.let(::absolute)
+
+    private fun ridoBackdrop(value: String?): String? {
+        val artwork = value?.trim()?.takeIf(String::isNotBlank)?.let(::absolute)
+            ?.toHttpUrlOrNull() ?: return null
+        if (artwork.host != URL.toHttpUrl().host) return null
+        val backdropPath = artwork.encodedPath.replace(
+            posterAssetSuffix,
+            "-backdrop-player.webp",
+        )
+        if (backdropPath == artwork.encodedPath) return null
+        return artwork.newBuilder().encodedPath(backdropPath).build().toString()
+    }
+
+    private fun slug(value: String): String {
+        val raw = value.trim()
+        if (raw.startsWith("http://") || raw.startsWith("https://")) {
+            return mediaPath.find(URL(raw).path)?.groupValues?.getOrNull(2)
+                ?: URL(raw).path.trim('/').substringAfterLast('/')
+        }
+        return raw.substringBefore('?').substringBefore('#').trim('/').substringAfterLast('/')
+    }
+
+    private fun year(value: String?): String? = yearRegex.find(value.orEmpty())?.value
+
+    private fun runtime(value: String?): Int? {
+        val text = value?.trim().orEmpty()
+        Regex("""^PT(?:(\d+)H)?(?:(\d+)M)?$""", RegexOption.IGNORE_CASE)
+            .matchEntire(text)?.let {
+                return ((it.groupValues[1].toIntOrNull() ?: 0) * 60 +
+                    (it.groupValues[2].toIntOrNull() ?: 0)).takeIf { n -> n > 0 }
+            }
+        Regex("""(?:(\d+)\s*h)?\s*(\d+)\s*min""", RegexOption.IGNORE_CASE)
+            .find(text)?.let {
+                return ((it.groupValues[1].toIntOrNull() ?: 0) * 60 +
+                    (it.groupValues[2].toIntOrNull() ?: 0)).takeIf { n -> n > 0 }
+            }
+        return text.toIntOrNull()
+    }
+
+    private fun number(value: String): Double? =
+        Regex("""\d+(?:\.\d+)?""").find(value)?.value?.toDoubleOrNull()
+
+    private fun JsonObject.array(name: String) =
+        get(name)?.takeIf { it.isJsonArray }?.asJsonArray ?: com.google.gson.JsonArray()
+
+    private fun JsonObject.string(name: String): String? =
+        get(name)?.stringValue()?.takeIf(String::isNotBlank)
+
+    private fun JsonObject.int(name: String): Int? =
+        get(name)?.takeIf { it.isJsonPrimitive }?.let { runCatching { it.asInt }.getOrNull() }
+
+    private fun JsonObject.double(name: String): Double? =
+        get(name)?.takeIf { it.isJsonPrimitive }?.let { runCatching { it.asDouble }.getOrNull() }
+
+    private fun JsonObject.objectValue(name: String): JsonObject? = get(name)?.obj()
+
+    private fun JsonElement.obj(): JsonObject? = if (isJsonObject) asJsonObject else null
+
+    private fun JsonElement.stringValue(): String? =
+        if (isJsonPrimitive) runCatching { asString }.getOrNull() else null
 }
