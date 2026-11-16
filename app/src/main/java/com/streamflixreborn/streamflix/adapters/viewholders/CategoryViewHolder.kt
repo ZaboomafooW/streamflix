@@ -216,25 +216,31 @@ class CategoryViewHolder(
             }
             action()
         }
-        
-        // Aggiornamento dello sfondo forzato per TV all'inizio o al cambio indice
-        val poster = when (selected) {
-            is Movie -> selected.banner
-            is TvShow -> selected.banner
-            else -> null
+
+        fun bannerFor(show: Show): String? = when (show) {
+            is Movie -> show.banner
+            is TvShow -> show.banner
         }
-        
-        when (val fragment = context.toActivity()?.getCurrentFragment()) {
-            is HomeTvFragment -> {
-                if (poster != null) {
-                    fragment.updateBackground(poster, false) // Imposta lo sfondo senza marcare come focalizzato
-                }
-                
-                // Se l'elemento è stato appena selezionato (indice cambiato), assicura che l'aggiornamento sia visibile
-                if (category.selectedIndex == category.list.indexOf(selected)) {
-                    fragment.resetSwiperSchedule() // Riavvia lo scheduler per assicurarsi che continui
-                }
+
+        fun showFeaturedBackground(show: Show) {
+            (context.toActivity()?.getCurrentFragment() as? HomeTvFragment)?.let { fragment ->
+                fragment.updateBackground(bannerFor(show), true)
+                fragment.resetSwiperSchedule()
             }
+        }
+
+        fun moveSwiper(delta: Int): Boolean {
+            if (category.list.isEmpty()) return false
+            val size = category.list.size
+            category.selectedIndex = (category.selectedIndex + delta + size) % size
+            val next = category.list.getOrNull(category.selectedIndex) as? Show ?: return false
+            showFeaturedBackground(next)
+
+            val position = bindingAdapterPosition
+            if (position != RecyclerView.NO_POSITION) {
+                bindingAdapter?.notifyItemChanged(position)
+            }
+            return true
         }
 
         binding.tvSwiperTitle.text = when (selected) {
@@ -320,23 +326,17 @@ class CategoryViewHolder(
                     )
                 }
             }
+            setOnFocusChangeListener { _, hasFocus ->
+                if (hasFocus) {
+                    showFeaturedBackground(selected)
+                }
+            }
             setOnKeyListener { _, _, event ->
                 if (event.action == KeyEvent.ACTION_DOWN) {
-                    when (event.keyCode) {
-                        KeyEvent.KEYCODE_DPAD_RIGHT -> {
-                            when (val fragment = context.toActivity()?.getCurrentFragment()) {
-                                is HomeTvFragment -> fragment.resetSwiperSchedule()
-                            }
-                            category.selectedIndex = (category.selectedIndex + 1) % category.list.size
-                            when (val fragment = context.toActivity()?.getCurrentFragment()) {
-                                is HomeTvFragment -> when (val it = category.list[category.selectedIndex]) {
-                                    is Movie -> fragment.updateBackground(it.banner, true)
-                                    is TvShow -> fragment.updateBackground(it.banner, true)
-                                }
-                            }
-                            bindingAdapter?.notifyItemChanged(bindingAdapterPosition)
-                            return@setOnKeyListener true
-                        }
+                    return@setOnKeyListener when (event.keyCode) {
+                        KeyEvent.KEYCODE_DPAD_LEFT -> moveSwiper(-1)
+                        KeyEvent.KEYCODE_DPAD_RIGHT -> moveSwiper(1)
+                        else -> false
                     }
                 }
                 false
