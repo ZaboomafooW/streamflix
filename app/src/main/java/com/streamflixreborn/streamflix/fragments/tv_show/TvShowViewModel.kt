@@ -12,12 +12,16 @@ import com.streamflixreborn.streamflix.utils.ArtworkRepair
 import com.streamflixreborn.streamflix.utils.UserPreferences
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.ExperimentalCoroutinesApi
-import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.SharingStarted
+import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.combine
+import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlinx.coroutines.flow.emitAll
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.flowOn
+import kotlinx.coroutines.flow.map
+import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.flow.transformLatest
 import kotlinx.coroutines.launch
 
@@ -54,7 +58,7 @@ class TvShowViewModel(
 
     private val _state = MutableStateFlow<State>(State.Loading)
     @OptIn(ExperimentalCoroutinesApi::class)
-    val state: Flow<State> = combine(
+    val state: StateFlow<State> = combine(
         _state.transformLatest { state ->
             when (state) {
                 is State.SuccessLoading -> {
@@ -72,7 +76,7 @@ class TvShowViewModel(
                             seasons
                                 .lastOrNull { season ->
                                     season.episodes.lastOrNull()?.isWatched == true ||
-                                            season.episodes.any { it.isWatched }
+                                        season.episodes.any { it.isWatched }
                                 }?.let { season ->
                                     if (season.episodes.lastOrNull()?.isWatched == true) {
                                         val next = seasons.getOrNull(seasons.indexOf(season) + 1)
@@ -81,7 +85,7 @@ class TvShowViewModel(
                                 }
                                 ?: seasons.firstOrNull { season ->
                                     season.episodes.isEmpty() ||
-                                            season.episodes.lastOrNull()?.isWatched == false
+                                        season.episodes.lastOrNull()?.isWatched == false
                                 }
                         }
 
@@ -116,7 +120,18 @@ class TvShowViewModel(
                     if (movies.isEmpty()) {
                         emit(emptyList())
                     } else {
-                        emitAll(database.movieDao().getByIds(movies.map { it.id }))
+                        emitAll(
+                            database.movieDao().getByIds(movies.map { it.id })
+                                .map { persistedMovies ->
+                                    TvShowRecommendationState.changedMovies(
+                                        recommendations = movies,
+                                        persisted = persistedMovies,
+                                    )
+                                }
+                                .distinctUntilChanged { old, new ->
+                                    TvShowRecommendationState.sameMovieUserState(old, new)
+                                }
+                        )
                     }
                 }
                 else -> emit(emptyList<Movie>())
@@ -130,7 +145,18 @@ class TvShowViewModel(
                     if (tvShows.isEmpty()) {
                         emit(emptyList())
                     } else {
-                        emitAll(database.tvShowDao().getByIds(tvShows.map { it.id }))
+                        emitAll(
+                            database.tvShowDao().getByIds(tvShows.map { it.id })
+                                .map { persistedTvShows ->
+                                    TvShowRecommendationState.changedTvShows(
+                                        recommendations = tvShows,
+                                        persisted = persistedTvShows,
+                                    )
+                                }
+                                .distinctUntilChanged { old, new ->
+                                    TvShowRecommendationState.sameTvShowUserState(old, new)
+                                }
+                        )
                     }
                 }
                 else -> emit(emptyList<TvShow>())
@@ -155,11 +181,9 @@ class TvShowViewModel(
                         recommendations = state.tvShow.recommendations.map { show ->
                             when (show) {
                                 is Movie -> moviesById[show.id]
-                                    ?.takeIf { !show.isSame(it) }
                                     ?.let { show.copy().merge(it) }
                                     ?: show
                                 is TvShow -> tvShowsById[show.id]
-                                    ?.takeIf { !show.isSame(it) }
                                     ?.let { show.copy().merge(it) }
                                     ?: show
                             }
@@ -172,6 +196,11 @@ class TvShowViewModel(
             else -> state
         }
     }.flowOn(Dispatchers.IO)
+        .stateIn(
+            scope = viewModelScope,
+            started = SharingStarted.Eagerly,
+            initialValue = State.Loading,
+        )
 
     sealed class State {
         data object Loading : State()
@@ -287,6 +316,44 @@ class TvShowViewModel(
         } catch (e: Exception) {
             Log.e("TvShowViewModel", "getSeason: ", e)
             _seasonState.emit(SeasonState.FailedLoading(e))
+        }
+    }
+}
+
+internal object TvShowRecommendationState {
+    fun changedMovies(
+        recommendations: List<Movie>,
+        persisted: List<Movie>,
+    ): List<Movie> {
+        val recommendationsById = recommendations.associateBy { it.id }
+        return persisted.filter { persistedMovie ->
+            recommendationsById[persistedMovie.id]?.isSame(persistedMovie) == false
+        }
+    }
+
+    fun changedTvShows(
+        recommendations: List<TvShow>,
+        persisted: List<TvShow>,
+    ): List<TvShow> {
+        val recommendationsById = recommendations.associateBy { it.id }
+        return persisted.filter { persistedTvShow ->
+            recommendationsById[persistedTvShow.id]?.isSame(persistedTvShow) == false
+        }
+    }
+
+    fun sameMovieUserState(first: List<Movie>, second: List<Movie>): Boolean {
+        if (first.size != second.size) return false
+        val secondById = second.associateBy { it.id }
+        return first.all { movie ->
+            secondById[movie.id]?.let { movie.isSame(it) } == true
+        }
+    }
+
+    fun sameTvShowUserState(first: List<TvShow>, second: List<TvShow>): Boolean {
+        if (first.size != second.size) return false
+        val secondById = second.associateBy { it.id }
+        return first.all { tvShow ->
+            secondById[tvShow.id]?.let { tvShow.isSame(it) } == true
         }
     }
 }

@@ -56,6 +56,12 @@ class TvShowTvFragment : Fragment() {
 
         initializeTvShow()
 
+        val restoredState = viewModel.state.value as? TvShowViewModel.State.SuccessLoading
+        restoredState?.let { state ->
+            displayTvShow(state.tvShow)
+            binding.isLoading.root.visibility = View.GONE
+        }
+
         viewLifecycleOwner.lifecycleScope.launch {
             viewModel.state.flowWithLifecycle(lifecycle, Lifecycle.State.STARTED).collect { state ->
                 when (state) {
@@ -65,7 +71,9 @@ class TvShowTvFragment : Fragment() {
                         gIsLoadingRetry.visibility = View.GONE
                     }
                     is TvShowViewModel.State.SuccessLoading -> {
-                        displayTvShow(state.tvShow)
+                        if (state !== restoredState) {
+                            displayTvShow(state.tvShow)
+                        }
                         binding.isLoading.root.visibility = View.GONE
                     }
                     is TvShowViewModel.State.FailedLoading -> {
