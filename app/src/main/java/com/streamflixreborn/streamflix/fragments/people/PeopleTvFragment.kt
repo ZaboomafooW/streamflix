@@ -3,6 +3,7 @@ package com.streamflixreborn.streamflix.fragments.people
 import android.os.Bundle
 import android.view.LayoutInflater
 import android.view.View
+import androidx.appcompat.app.AlertDialog
 import android.view.ViewGroup
 import android.widget.Toast
 import androidx.fragment.app.Fragment
@@ -141,19 +142,14 @@ class PeopleTvFragment : Fragment() {
             else -> View.VISIBLE
         }
 
-        binding.tvPeopleDeathday.text = people.deathday?.format("MMMM dd, yyyy")
-
-        binding.gPeopleDeathday.visibility = when {
-            binding.tvPeopleDeathday.text.isNullOrEmpty() -> View.GONE
-            else -> View.VISIBLE
-        }
-
         binding.tvPeopleBirthplace.text = people.placeOfBirth
 
         binding.gPeopleBirthplace.visibility = when {
             binding.tvPeopleBirthplace.text.isNullOrEmpty() -> View.GONE
             else -> View.VISIBLE
         }
+
+        displayShowMore(people)
 
         appAdapter.submitList(people.filmography.onEach {
             when (it) {
@@ -166,6 +162,40 @@ class PeopleTvFragment : Fragment() {
             appAdapter.setOnLoadMoreListener { viewModel.loadMorePeopleFilmography() }
         } else {
             appAdapter.setOnLoadMoreListener(null)
+        }
+    }
+    private fun displayShowMore(people: People) {
+        val biography = people.biography?.trim()?.takeIf { it.isNotEmpty() }
+        val deathday = people.deathday?.format("MMMM dd, yyyy")
+        val hasExtendedDetails = biography != null || deathday != null
+
+        binding.btnPeopleShowMore.visibility = if (hasExtendedDetails) View.VISIBLE else View.GONE
+        binding.btnPeopleShowMore.setOnClickListener(null)
+        if (!hasExtendedDetails) return
+
+        binding.btnPeopleShowMore.setOnClickListener {
+            val details = buildList {
+                people.birthday?.format("MMMM dd, yyyy")?.let { birthday ->
+                    add("${getString(R.string.people_birthday)}: $birthday")
+                }
+                people.placeOfBirth?.trim()?.takeIf { it.isNotEmpty() }?.let { place ->
+                    add("${getString(R.string.people_birthplace)}: $place")
+                }
+                deathday?.let { date ->
+                    add("${getString(R.string.people_deathday)}: $date")
+                }
+                biography?.let { text ->
+                    if (isNotEmpty()) add("")
+                    add(getString(R.string.people_biography))
+                    add(text)
+                }
+            }.joinToString("\n")
+
+            AlertDialog.Builder(requireContext())
+                .setTitle(people.name.takeIf { it.isNotBlank() } ?: args.name)
+                .setMessage(details)
+                .setPositiveButton(android.R.string.ok, null)
+                .show()
         }
     }
 }
