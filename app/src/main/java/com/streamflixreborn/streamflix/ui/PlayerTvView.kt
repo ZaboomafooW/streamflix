@@ -3,6 +3,7 @@ package com.streamflixreborn.streamflix.ui
 import android.content.Context
 import android.util.AttributeSet
 import android.view.KeyEvent
+import android.view.View
 import android.widget.Toast
 import androidx.media3.common.Player
 import androidx.media3.ui.PlayerControlView
@@ -107,7 +108,27 @@ class PlayerTvView @JvmOverloads constructor(
             return super.dispatchKeyEvent(event)
         }
 
-        if (controller.isVisible) return super.dispatchKeyEvent(event)
+        if (controller.isVisible) {
+            val focused = findFocus()
+            val isConfirm = event.keyCode == KeyEvent.KEYCODE_DPAD_CENTER ||
+                event.keyCode == KeyEvent.KEYCODE_ENTER ||
+                event.keyCode == KeyEvent.KEYCODE_NUMPAD_ENTER
+            if (isConfirm && focused?.id == androidx.media3.ui.R.id.exo_progress) {
+                when (event.action) {
+                    KeyEvent.ACTION_DOWN -> if (event.repeatCount == 0) {
+                        // Let the time bar commit any pending keyboard seek.
+                        focused.onKeyDown(KeyEvent.KEYCODE_DPAD_CENTER, event)
+                        showController()
+                    }
+                    KeyEvent.ACTION_UP -> if (!event.isCanceled) {
+                        val toggle = controller.findViewById<View>(androidx.media3.ui.R.id.exo_play_pause)
+                        if (toggle?.isEnabled == true) toggle.performClick()
+                    }
+                }
+                return true
+            }
+            return super.dispatchKeyEvent(event)
+        }
 
         return when (event.keyCode) {
             KeyEvent.KEYCODE_DPAD_LEFT -> {
