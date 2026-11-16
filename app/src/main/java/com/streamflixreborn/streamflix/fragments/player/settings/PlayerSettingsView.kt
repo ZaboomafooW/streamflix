@@ -6,6 +6,7 @@ import android.graphics.Color
 import android.util.AttributeSet
 import androidx.constraintlayout.widget.ConstraintLayout
 import androidx.media3.common.C
+import androidx.media3.common.Format
 import androidx.media3.common.Player
 import androidx.media3.common.TrackSelectionOverride
 import androidx.media3.common.Tracks
@@ -28,6 +29,7 @@ import com.streamflixreborn.streamflix.utils.mediaServers
 import com.streamflixreborn.streamflix.utils.setAlpha
 import com.streamflixreborn.streamflix.utils.setRgb
 import com.streamflixreborn.streamflix.utils.supportedTrackFormats
+import org.json.JSONArray
 import kotlin.math.roundToInt
 
 abstract class PlayerSettingsView @JvmOverloads constructor(
@@ -36,11 +38,82 @@ abstract class PlayerSettingsView @JvmOverloads constructor(
     defStyleAttr: Int = 0
 ) : ConstraintLayout(context, attrs, defStyleAttr) {
 
+    var seriesId: String? = null
+        set(value) {
+            val provider = UserPreferences.currentProvider?.name
+            seriesKey = if (!value.isNullOrBlank() && provider != null) {
+                JSONArray().put(provider).put(value).toString()
+            } else null
+            field = value
+        }
+
+    private var seriesKey: String? = null
+    private val seriesChoices by lazy {
+        context.getSharedPreferences("series_track_choices", Context.MODE_PRIVATE)
+    }
+    private val appliedTypes = mutableSetOf<Int>()
+
+    private fun rememberTrack(type: Int, track: Format?) {
+        val key = seriesKey ?: return
+        val choice = track?.let {
+            JSONArray().put(it.language.orEmpty()).put(it.label.orEmpty())
+                .put(it.roleFlags).put(it.selectionFlags and C.SELECTION_FLAG_FORCED)
+                .put(it.channelCount).toString()
+        } ?: "off"
+        seriesChoices.edit().putString("$key:$type", choice).apply()
+        appliedTypes.add(type)
+    }
+
+    private fun restoreSeriesTracks(player: ExoPlayer) {
+        val key = seriesKey ?: return
+        val builder = player.trackSelectionParameters.buildUpon()
+        for (type in listOf(C.TRACK_TYPE_AUDIO, C.TRACK_TYPE_TEXT)) {
+            if (type in appliedTypes) continue
+            val saved = seriesChoices.getString("$key:$type", null) ?: continue
+            val groups = player.currentTracks.groups.filter { it.type == type }
+            if (groups.isEmpty()) continue
+            if (saved == "off" && type == C.TRACK_TYPE_TEXT) {
+                builder.clearOverridesOfType(type)
+                    .setIgnoredTextSelectionFlags(C.SELECTION_FLAG_FORCED.inv())
+                appliedTypes.add(type)
+                continue
+            }
+
+            val choice = JSONArray(saved)
+            val language = choice.getString(0)
+            val label = choice.getString(1)
+            if (language.isBlank() && label.isBlank()) continue
+            val candidates = groups.flatMap { group ->
+                group.supportedTrackFormats.filter { (_, format) ->
+                    format.language.orEmpty().equals(language, ignoreCase = true) &&
+                        format.roleFlags == choice.getInt(2) &&
+                        (format.selectionFlags and C.SELECTION_FLAG_FORCED) == choice.getInt(3)
+                }.map { (index, _) -> group to index }
+            }
+            val exact = candidates.filter { (group, index) ->
+                group.getTrackFormat(index).label.orEmpty().equals(label, ignoreCase = true)
+            }
+            val sameChannels = exact.filter { (group, index) ->
+                group.getTrackFormat(index).channelCount == choice.getInt(4)
+            }
+            val match = sameChannels.singleOrNull() ?: exact.singleOrNull()
+                ?: candidates.singleOrNull()?.takeIf { language.isNotBlank() && label.isBlank() }
+                ?: continue
+            builder.setOverrideForType(TrackSelectionOverride(match.first.mediaTrackGroup, listOf(match.second)))
+                .setTrackTypeDisabled(type, false)
+            appliedTypes.add(type)
+        }
+        val parameters = builder.build()
+        if (parameters != player.trackSelectionParameters) player.trackSelectionParameters = parameters
+    }
+
     var player: ExoPlayer? = null
         set(value) {
             if (field === value) return
 
+            appliedTypes.clear()
             value?.let {
+                restoreSeriesTracks(it)
                 Settings.Server.init(it)
                 Settings.Quality.init(it, resources)
                 Settings.Audio.init(it, resources)
@@ -50,6 +123,7 @@ abstract class PlayerSettingsView @JvmOverloads constructor(
 
             value?.addListener(object : Player.Listener {
                 override fun onEvents(player: Player, events: Player.Events) {
+                    if (this@PlayerSettingsView.player !== value) return
                     if (events.contains(Player.EVENT_PLAYLIST_METADATA_CHANGED)) {
                         Settings.Server.init(value)
                     }
@@ -57,6 +131,7 @@ abstract class PlayerSettingsView @JvmOverloads constructor(
                         Settings.Server.refresh(value)
                     }
                     if (events.contains(Player.EVENT_TRACKS_CHANGED)) {
+                        restoreSeriesTracks(value)
                         Settings.Quality.init(value, resources)
                         Settings.Audio.init(value, resources)
                         Settings.Subtitle.init(value, resources)
@@ -153,6 +228,7 @@ abstract class PlayerSettingsView @JvmOverloads constructor(
         fun(audio) {
             val player = player ?: return
             if (audio !is Settings.Audio.AudioTrackInformation) return
+            rememberTrack(C.TRACK_TYPE_AUDIO, audio.trackGroup.getTrackFormat(audio.trackIndex))
 
             player.trackSelectionParameters = player.trackSelectionParameters
                 .buildUpon()
@@ -172,15 +248,17 @@ abstract class PlayerSettingsView @JvmOverloads constructor(
 
             when (subtitle) {
                 is Settings.Subtitle.None -> {
+                    rememberTrack(C.TRACK_TYPE_TEXT, null)
                     player.trackSelectionParameters = player.trackSelectionParameters
                         .buildUpon()
                         .clearOverridesOfType(C.TRACK_TYPE_TEXT)
                         .setIgnoredTextSelectionFlags(C.SELECTION_FLAG_FORCED.inv())
                         .build()
-                    UserPreferences.subtitleName = null
+                    if (seriesKey == null) UserPreferences.subtitleName = null
                 }
 
                 is Settings.Subtitle.TextTrackInformation -> {
+                    rememberTrack(C.TRACK_TYPE_TEXT, subtitle.trackGroup.getTrackFormat(subtitle.trackIndex))
                     player.trackSelectionParameters = player.trackSelectionParameters
                         .buildUpon()
                         .setOverrideForType(
@@ -191,7 +269,9 @@ abstract class PlayerSettingsView @JvmOverloads constructor(
                         )
                         .setTrackTypeDisabled(subtitle.trackGroup.type, false)
                         .build()
-                    UserPreferences.subtitleName = (subtitle.language ?: subtitle.label).substringBefore(" ")
+                    if (seriesKey == null) {
+                        UserPreferences.subtitleName = (subtitle.language ?: subtitle.label).substringBefore(" ")
+                    }
                 }
 
                 else -> {}

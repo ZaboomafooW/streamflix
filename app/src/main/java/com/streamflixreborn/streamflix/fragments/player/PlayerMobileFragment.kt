@@ -1547,6 +1547,7 @@ class PlayerMobileFragment : Fragment() {
             }
 
         binding.pvPlayer.player = player
+        binding.settings.seriesId = (args.videoType as? Video.Type.Episode)?.tvShow?.id
         binding.settings.player = player
         binding.settings.subtitleView = binding.pvPlayer.subtitleView
         binding.settings.onSubtitlesClicked = {
