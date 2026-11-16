@@ -144,21 +144,27 @@ class HomeTvFragment : Fragment() {
         } else if (isBackgroundPinned) {
             return
         }
-        if (uri.isNullOrBlank()) return
-
-        Glide.with(requireContext())
-            .load(uri)
-            .transition(DrawableTransitionOptions.withCrossFade())
-            .into(binding.ivHomeBackground)
+        displayBackdrop(uri)
     }
 
     fun pinBackground(uri: String?) {
-        if (uri.isNullOrBlank()) return
         isBackgroundPinned = true
-        Glide.with(requireContext())
+        displayBackdrop(uri)
+    }
+
+    private fun displayBackdrop(uri: String?) {
+        val image = binding.ivHomeBackground
+        val glide = Glide.with(requireContext())
+        if (uri.isNullOrBlank()) {
+            glide.clear(image)
+            image.setImageDrawable(null)
+            return
+        }
+
+        glide
             .load(uri)
             .transition(DrawableTransitionOptions.withCrossFade())
-            .into(binding.ivHomeBackground)
+            .into(image)
     }
 
     fun releasePinnedBackground() {
@@ -193,9 +199,7 @@ class HomeTvFragment : Fragment() {
                     is TvShow -> firstItem.banner
                     else -> null
                 }
-                if (poster != null) {
-                    updateBackground(poster, null)
-                }
+                updateBackground(poster, null)
                 
                 resetSwiperSchedule()
             }
@@ -269,9 +273,7 @@ class HomeTvFragment : Fragment() {
                             is TvShow -> currentItem.banner
                             else -> null
                         }
-                        if (poster != null) {
-                            updateBackground(poster, null)
-                        }
+                        updateBackground(poster, null)
 
                         appAdapter.items.indexOf(category)
                     }
