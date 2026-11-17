@@ -1,5 +1,8 @@
 package com.streamflixreborn.streamflix.fragments.movie
 
+import com.streamflixreborn.streamflix.utils.ServerAvailability
+import com.streamflixreborn.streamflix.models.Video
+import com.streamflixreborn.streamflix.utils.format
 import android.util.Log
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
@@ -97,12 +100,25 @@ class MovieViewModel(id: String, private val database: AppDatabase) : ViewModel(
         _state.emit(State.Loading)
 
         try {
-            val movie = UserPreferences.currentProvider!!.getMovie(id)
+            val provider = UserPreferences.currentProvider!!
+            val movie = provider.getMovie(id)
 
             database.movieDao().getById(id)?.let { movieDb ->
                 movie.merge(movieDb)
             }
             database.movieDao().insert(movie)
+
+            ServerAvailability.prefetch(
+                provider = provider,
+                id = movie.id,
+                videoType = Video.Type.Movie(
+                    id = movie.id,
+                    title = movie.title,
+                    releaseDate = movie.released?.format("yyyy-MM-dd") ?: "",
+                    poster = movie.poster ?: movie.banner ?: "",
+                    imdbId = movie.imdbId,
+                ),
+            )
 
             _state.emit(State.SuccessLoading(movie))
         } catch (e: Exception) {

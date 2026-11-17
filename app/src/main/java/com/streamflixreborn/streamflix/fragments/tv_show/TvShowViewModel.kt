@@ -1,5 +1,8 @@
 package com.streamflixreborn.streamflix.fragments.tv_show
 
+import com.streamflixreborn.streamflix.utils.ServerAvailability
+import com.streamflixreborn.streamflix.models.Video
+import com.streamflixreborn.streamflix.utils.format
 import android.util.Log
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
@@ -31,6 +34,36 @@ class TvShowViewModel(
     private val fallbackPoster: String? = null,
     private val fallbackBanner: String? = null,
 ) : ViewModel() {
+
+    private fun prefetchEpisode(tvShow: TvShow) {
+        val provider = UserPreferences.currentProvider ?: return
+        val episode = tvShow.episodeToWatch ?: return
+        val season = episode.season ?: return
+
+        ServerAvailability.prefetch(
+            provider = provider,
+            id = episode.id,
+            videoType = Video.Type.Episode(
+                id = episode.id,
+                number = episode.number,
+                title = episode.title,
+                poster = episode.poster,
+                overview = episode.overview,
+                tvShow = Video.Type.Episode.TvShow(
+                    id = tvShow.id,
+                    title = tvShow.title,
+                    poster = tvShow.poster,
+                    banner = tvShow.banner,
+                    releaseDate = tvShow.released?.format("yyyy-MM-dd"),
+                    imdbId = tvShow.imdbId,
+                ),
+                season = Video.Type.Episode.Season(
+                    number = season.number,
+                    title = season.title,
+                ),
+            ),
+        )
+    }
 
     private fun episodeSeasonKey(episode: Episode): String? {
         return episode.id.substringBeforeLast("/", "")
@@ -190,6 +223,7 @@ class TvShowViewModel(
                         },
                     ).also { tvShow ->
                         tvShowDb?.let { tvShow.merge(it) }
+                        prefetchEpisode(tvShow)
                     }
                 )
             }

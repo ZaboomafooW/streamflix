@@ -1,5 +1,9 @@
 package com.streamflixreborn.streamflix.fragments.player
 
+import com.streamflixreborn.streamflix.utils.ServerAvailability
+import kotlinx.coroutines.Job
+import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.flow.collect
 import android.net.Uri
 import android.os.Bundle
 import android.util.Log
@@ -32,6 +36,11 @@ class PlayerViewModel(
 
     private val _playPreviousOrNextEpisode = MutableSharedFlow<Video.Type.Episode>()
     val playPreviousOrNextEpisode: SharedFlow<Video.Type.Episode> = _playPreviousOrNextEpisode
+    private val _availableServers = MutableStateFlow<List<Video.Server>>(emptyList())
+    val availableServers = _availableServers.asStateFlow()
+    private var discovery: Job? = null
+    private var lastVideoType: Video.Type? = null
+    private var lastId: String? = null
     init {
         getServers(videoType, id)
         getSubtitles(videoType)
@@ -94,24 +103,28 @@ class PlayerViewModel(
         getSubtitles(episode)
     }
 
-    private fun getServers(videoType: Video.Type, id: String) = viewModelScope.launch(Dispatchers.IO) {
-        Log.d("PlayerViewModel", "Inizio ricerca server per ID: $id")
+    private fun getServers(videoType: Video.Type, id: String, refresh: Boolean = false) {
+        discovery?.cancel()
         lastVideoType = videoType
         lastId = id
-        _state.emit(State.LoadingServers)
-        try {
-            val servers = UserPreferences.currentProvider!!.getServers(id, videoType)
-            if (servers.isEmpty()) throw Exception("No servers found")
-            
-            // LOG POTENZIATO: Mostra tutti i server disponibili per il player
-            Log.i("StreamFlixES", "[SERVERS LIST] -> Provider: ${UserPreferences.currentProvider!!.name}")
-            Log.i("StreamFlixES", "[SERVERS LIST] -> Found ${servers.size} servers: ${servers.joinToString { it.name }}")
-
-            Log.d("PlayerViewModel", "Ricerca server completata: ${servers.size} server trovati")
-            _state.emit(State.SuccessLoadingServers(servers))
-        } catch (e: Exception) {
-            Log.e("PlayerViewModel", "Errore ricerca server: ", e)
-            _state.emit(State.FailedLoadingServers(e))
+        _availableServers.value = emptyList()
+        _state.value = State.LoadingServers
+        val provider = UserPreferences.currentProvider ?: run {
+            _state.value = State.FailedLoadingServers(IllegalStateException("No provider selected"))
+            return
+        }
+        discovery = viewModelScope.launch {
+            var started = false
+            ServerAvailability.prefetch(provider, id, videoType, refresh).collect { result ->
+                _availableServers.value = result.servers
+                if (!started && result.servers.isNotEmpty()) {
+                    started = true
+                    _state.value = State.SuccessLoadingServers(result.servers)
+                } else if (!started && result.finished) {
+                    _state.value = result.error?.let { State.FailedLoadingServers(it) }
+                        ?: State.SuccessLoadingServers(emptyList())
+                }
+            }
         }
     }
 
@@ -119,7 +132,7 @@ class PlayerViewModel(
         Log.d("PlayerViewModel", "Inizio estrazione video dal server: ${server.name}")
         _state.emit(State.LoadingVideo(server))
         try {
-            val video = UserPreferences.currentProvider!!.getVideo(server)
+            val video = server.video ?: UserPreferences.currentProvider!!.getVideo(server)
             if (video.source.isEmpty()) throw Exception("No source found")
 
             // LOGICA SOTTOTITOLI GLOBALE: 
@@ -251,11 +264,9 @@ class PlayerViewModel(
         data class SuccessDownloadingSubDLSubtitle(val subtitle: SubDL.Subtitle, val uri: Uri) : SubtitleState()
         data class FailedDownloadingSubDLSubtitle(val error: Exception, val subtitle: SubDL.Subtitle) : SubtitleState()
     }
-    private var lastVideoType: Video.Type? = null
-    private var lastId: String? = null
     fun reloadServersAfterBypass() {
         val type = lastVideoType ?: return
         val id = lastId ?: return
-        getServers(type, id)
+        getServers(type, id, refresh = true)
     }
 }

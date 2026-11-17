@@ -272,13 +272,23 @@ class PlayerTvFragment : Fragment() {
             binding.tvVolumePercentage
         )
 
+        viewLifecycleOwner.lifecycleScope.launch {
+            viewModel.availableServers.flowWithLifecycle(lifecycle, Lifecycle.State.CREATED).collect { checked ->
+                if (checked.isEmpty() || !::player.isInitialized || checked.any { isSerienStreamBypassUrl(it.id) }) return@collect
+                servers = checked
+                player.playlistMetadata = player.playlistMetadata.buildUpon()
+                    .setMediaServers(checked.map { MediaServer(id = it.id, name = it.name) })
+                    .build()
+            }
+        }
+
         // Stato Video
         viewLifecycleOwner.lifecycleScope.launch {
             viewModel.state.flowWithLifecycle(lifecycle, Lifecycle.State.CREATED).collect { state ->
                 when (state) {
                     PlayerViewModel.State.LoadingServers -> {}
                     is PlayerViewModel.State.SuccessLoadingServers -> {
-                        servers = state.servers
+                        servers = viewModel.availableServers.value
 
                         val sToServer = servers.firstOrNull {
                             isSerienStreamBypassUrl(it.id)
@@ -362,7 +372,7 @@ class PlayerTvFragment : Fragment() {
 
                         player.playlistMetadata = MediaMetadata.Builder()
                             .setTitle(state.toString())
-                            .setMediaServers(state.servers.map {
+                            .setMediaServers(servers.map {
                                 MediaServer(
                                     id = it.id,
                                     name = it.name,
@@ -370,12 +380,12 @@ class PlayerTvFragment : Fragment() {
                             })
                             .build()
                         binding.settings.setOnServerSelectedListener { server ->
-                            viewModel.getVideo(state.servers.find { server.id == it.id }!!)
+                            servers.firstOrNull { server.id == it.id }?.let(viewModel::getVideo)
                         }
-                        val preferredServer = state.servers.firstOrNull {
+                        val preferredServer = servers.firstOrNull {
                             it.name.equals(args.preferredServerName, ignoreCase = true)
                         }
-                        viewModel.getVideo(preferredServer ?: state.servers.first())
+                        viewModel.getVideo(preferredServer ?: servers.first())
 
                     }
                         is PlayerViewModel.State.FailedLoadingServers -> {
