@@ -7,16 +7,16 @@ import org.junit.Test
 
 class SeriesEqualityTest {
     private fun series(): TvShow {
-        val show = TvShow(id = "show", title = "Show").apply {
-            itemType = AppAdapter.Type.TV_SHOW_TV_ITEM
-        }
-        val season = Season(id = "season", number = 1, tvShow = show).apply {
+        val season = Season(id = "season", number = 1).apply {
             itemType = AppAdapter.Type.SEASON_TV_ITEM
         }
+        val show = TvShow(id = "show", title = "Show", seasons = listOf(season)).apply {
+            itemType = AppAdapter.Type.TV_SHOW_TV_ITEM
+        }
+        season.tvShow = show
         val episode = Episode(id = "episode", number = 1, tvShow = show, season = season).apply {
             itemType = AppAdapter.Type.EPISODE_TV_ITEM
         }
-        show.seasons = listOf(season)
         season.episodes = listOf(episode)
         return show
     }
