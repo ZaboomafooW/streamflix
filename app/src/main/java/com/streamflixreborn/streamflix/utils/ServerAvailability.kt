@@ -2,11 +2,11 @@ package com.streamflixreborn.streamflix.utils
 
 import android.os.SystemClock
 import androidx.media3.common.MediaItem
-import androidx.media3.common.PlaybackException
-import androidx.media3.common.Player
 import androidx.media3.datasource.DefaultDataSource
 import androidx.media3.datasource.okhttp.OkHttpDataSource
-import androidx.media3.exoplayer.ExoPlayer
+import androidx.media3.exoplayer.source.preload.DefaultPreloadManager
+import androidx.media3.exoplayer.source.preload.PreloadException
+import androidx.media3.exoplayer.source.preload.PreloadManagerListener
 import androidx.media3.exoplayer.source.DefaultMediaSourceFactory
 import com.streamflixreborn.streamflix.StreamFlixApp
 import com.streamflixreborn.streamflix.models.Video
@@ -38,7 +38,7 @@ object ServerAvailability {
 
     private val scope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
     private val slots = Semaphore(3)
-    private val playerSlot = Semaphore(1)
+    private val bufferSlot = Semaphore(1)
     private var latest: Session? = null
 
     @Synchronized
@@ -70,7 +70,7 @@ object ServerAvailability {
                                 } catch (cancel: CancellationException) {
                                     throw cancel
                                 } catch (_: Exception) { null }
-                                if (video != null && video.source.isNotBlank() && playerSlot.withPermit { playable(video) }) {
+                                if (video != null && video.source.isNotBlank() && bufferSlot.withPermit { playable(video) }) {
                                     val checked = server.copy().also { it.video = video }
                                     result.update { it.copy(servers = it.servers + checked) }
                                 }
@@ -94,27 +94,35 @@ object ServerAvailability {
         val http = OkHttpDataSource.Factory(NetworkClient.default)
             .setDefaultRequestProperties(mapOf("User-Agent" to userAgent) + video.headers.orEmpty())
         val data = DefaultDataSource.Factory(context, http)
-        val player = ExoPlayer.Builder(context)
+        val preloadManager = DefaultPreloadManager.Builder(context) {
+            DefaultPreloadManager.PreloadStatus.specifiedRangeLoaded(1_000L)
+        }
             .setMediaSourceFactory(DefaultMediaSourceFactory(data))
             .build()
         try {
             val ready = CompletableDeferred<Boolean>()
-            player.addListener(object : Player.Listener {
-                override fun onPlaybackStateChanged(playbackState: Int) {
-                    if (playbackState == Player.STATE_READY) ready.complete(true)
-                    if (playbackState == Player.STATE_ENDED) ready.complete(false)
+            preloadManager.addListener(object : PreloadManagerListener {
+                override fun onCompleted(mediaItem: MediaItem) {
+                    ready.complete(true)
                 }
-                override fun onPlayerError(error: PlaybackException) { ready.complete(false) }
+
+                override fun onError(exception: PreloadException) {
+                    ready.complete(false)
+                }
             })
-            player.setMediaItem(MediaItem.Builder().setUri(video.source).setMimeType(video.type).build())
-            player.prepare()
+            val mediaItem = MediaItem.Builder()
+                .setUri(video.source)
+                .setMimeType(video.type)
+                .build()
+            preloadManager.add(mediaItem, 0)
+            preloadManager.invalidate()
             withTimeoutOrNull(8_000) { ready.await() } == true
         } catch (cancel: CancellationException) {
             throw cancel
         } catch (_: Exception) {
             false
         } finally {
-            player.release()
+            preloadManager.release()
         }
     }
 }
