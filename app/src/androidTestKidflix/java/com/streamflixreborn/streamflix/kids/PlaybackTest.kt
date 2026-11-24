@@ -8,6 +8,7 @@ import android.os.Bundle
 import androidx.fragment.app.FragmentActivity
 import androidx.media3.ui.PlayerView
 import androidx.navigation.fragment.NavHostFragment
+import com.streamflixreborn.streamflix.StreamFlixApp
 import com.streamflixreborn.streamflix.R
 import com.streamflixreborn.streamflix.extractors.VidsrcRuExtractor
 import com.streamflixreborn.streamflix.models.Video
@@ -103,12 +104,15 @@ class PlaybackTest : Instrumentation() {
             }
             withTimeout(90_000) {
                 while (!withContext(Dispatchers.Main) {
-                    val player = activity.findViewById<PlayerView>(R.id.pv_player)?.player
+                    val current = StreamFlixApp.currentActivity as? KidFlixActivity
+                    val player = current?.findViewById<PlayerView>(R.id.pv_player)?.player
                     player != null && player.currentPosition > 0 && player.videoSize.width > 0
                 }) delay(100)
             }
         } finally {
-            withContext(Dispatchers.Main) { activity.finish() }
+            withContext(Dispatchers.Main) {
+                (StreamFlixApp.currentActivity as? KidFlixActivity ?: activity).finish()
+            }
         }
     }
 }
