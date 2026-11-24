@@ -78,6 +78,15 @@ android {
         jvmTarget = '17'
     }
 
+    flavorDimensions 'edition'
+    productFlavors {
+        streamflix { dimension 'edition' }
+        kidflix {
+            dimension 'edition'
+            applicationIdSuffix '.kidflix'
+        }
+    }
+
     buildTypes {
         debug {
             minifyEnabled false

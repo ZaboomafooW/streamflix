@@ -1,0 +1,4 @@
+<navigation xmlns:android="http://schemas.android.com/apk/res/android" xmlns:app="http://schemas.android.com/apk/res-auto" android:id="@+id/kids_graph" app:startDestination="@id/kids_home">
+    <fragment android:id="@+id/kids_home" android:name="com.streamflixreborn.streamflix.kids.KidFlixFragment"/>
+    <fragment android:id="@id/player" android:name="com.streamflixreborn.streamflix.fragments.player.PlayerTvFragment"/>
+</navigation>
