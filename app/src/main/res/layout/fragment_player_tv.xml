@@ -26,6 +26,18 @@
         app:show_timeout="2000"
         app:surface_type="surface_view" />
 
+    <TextView
+        android:id="@+id/playback_loading"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:text="@string/playback_loading_video"
+        android:textColor="@android:color/white"
+        android:textSize="20sp"
+        app:layout_constraintTop_toTopOf="parent"
+        app:layout_constraintBottom_toBottomOf="parent"
+        app:layout_constraintStart_toStartOf="parent"
+        app:layout_constraintEnd_toEndOf="parent" />
+
     <com.streamflixreborn.streamflix.fragments.player.settings.PlayerSettingsTvView
         android:id="@+id/settings"
         android:layout_width="350dp"

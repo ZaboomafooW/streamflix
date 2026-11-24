@@ -592,4 +592,6 @@
     <string name="settings_parental_tmdb_disable_blocked">You must unlock parental controls before disabling TMDb.</string>
     <string name="settings_force_extra_buffer_title">Global Extra Buffering</string>
     <string name="settings_force_extra_buffer_summary">Enable extra buffering for all servers by default</string>
+    <string name="playback_sources_exhausted">Playback failed on all available sources. Select the title to try again.</string>
+    <string name="playback_loading_video">Loading video…</string>
 </resources>

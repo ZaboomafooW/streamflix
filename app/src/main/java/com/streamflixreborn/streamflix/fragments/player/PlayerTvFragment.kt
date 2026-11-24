@@ -286,7 +286,7 @@ class PlayerTvFragment : Fragment() {
         viewLifecycleOwner.lifecycleScope.launch {
             viewModel.state.flowWithLifecycle(lifecycle, Lifecycle.State.CREATED).collect { state ->
                 when (state) {
-                    PlayerViewModel.State.LoadingServers -> {}
+                    PlayerViewModel.State.LoadingServers -> binding.playbackLoading.isVisible = true
                     is PlayerViewModel.State.SuccessLoadingServers -> {
                         servers = viewModel.availableServers.value
 
@@ -398,16 +398,7 @@ class PlayerTvFragment : Fragment() {
                         }
 
                         is PlayerViewModel.State.LoadingVideo -> {
-                            player.setMediaItem(
-                                MediaItem.Builder()
-                                    .setUri("".toUri())
-                                    .setMediaMetadata(
-                                        MediaMetadata.Builder()
-                                            .setMediaServerId(state.server.id)
-                                            .build()
-                                    )
-                                    .build()
-                            )
+                            binding.playbackLoading.isVisible = true
                         }
 
                         is PlayerViewModel.State.SuccessLoadingVideo -> {
@@ -777,7 +768,7 @@ class PlayerTvFragment : Fragment() {
 
                     if (EpisodeManager.listIsEmpty(type)) {
                         EpisodeManager.clearEpisodes()
-                        lifecycleScope.launch(Dispatchers.IO) {
+                        viewLifecycleOwner.lifecycleScope.launch(Dispatchers.IO) {
                             EpisodeManager.addEpisodesFromDb(type, database)
                             withContext(Dispatchers.Main) {
                                 EpisodeManager.setCurrentEpisode(type)
@@ -1198,6 +1189,7 @@ class PlayerTvFragment : Fragment() {
                     super.onPlaybackStateChanged(playbackState)
 
                     if (playbackState == Player.STATE_READY) {
+                        _binding?.playbackLoading?.isVisible = false
                         val videoFormat = player.videoFormat
                         updatePlayerScale()
                     }
@@ -1325,6 +1317,9 @@ class PlayerTvFragment : Fragment() {
                     if (nextServer != null) {
                         Log.i("PlayerTvFragment", "Playback failed, trying next server: ${nextServer.name}")
                         viewModel.getVideo(nextServer)
+                    } else if (isAdded && view != null && findNavController().currentDestination?.id == R.id.player) {
+                        Toast.makeText(requireContext(), R.string.playback_sources_exhausted, Toast.LENGTH_LONG).show()
+                        findNavController().navigateUp()
                     }
                 }
             })

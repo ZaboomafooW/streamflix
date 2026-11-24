@@ -82,6 +82,9 @@ android {
     productFlavors {
         streamflix { dimension 'edition' }
         kidflix {
+            testInstrumentationRunner "com.streamflixreborn.streamflix.kids.PlaybackTest"
+            versionCode 161
+            versionNameSuffix "-kidflix.2"
             dimension 'edition'
             applicationIdSuffix '.kidflix'
         }

@@ -1,5 +1,7 @@
 package com.streamflixreborn.streamflix.kids
 
+import kotlinx.coroutines.flow.first
+import com.streamflixreborn.streamflix.utils.ServerAvailability
 import android.content.Context
 import android.graphics.Color
 import android.graphics.Typeface
@@ -276,13 +278,25 @@ class KidFlixFragment : Fragment() {
     }
     private fun play(title: KidTitle, type: Video.Type) {
         if (hidden.contains(title.key)) return
-        val args = Bundle().apply {
-            putString("id",if (type is Video.Type.Episode) type.id else title.id.toString())
-            putString("title",title.name)
-            putString("subtitle",if (type is Video.Type.Episode) "S${type.season.number} E${type.number} · ${type.title.orEmpty()}" else "")
-            putString("preferredServerName", null)
-            putParcelable("videoType",type)
+        request {
+            val provider = requireNotNull(UserPreferences.currentProvider)
+            val id = if (type is Video.Type.Episode) type.id else title.id.toString()
+            status.text = "Finding a playable source for ${title.name}…"
+            val result = ServerAvailability.prefetch(provider, id, type, refresh = true).first { it.finished || it.servers.isNotEmpty() }
+            val server = result.servers.firstOrNull()
+            if (server == null) {
+                status.text = "No playable source for ${title.name}. Select the title to try again."
+                return@request
+            }
+            if (hidden.contains(title.key)) return@request
+            val args = Bundle().apply {
+                putString("id", id)
+                putString("title", title.name)
+                putString("subtitle", if (type is Video.Type.Episode) "S${type.season.number} E${type.number} · ${type.title.orEmpty()}" else "")
+                putString("preferredServerName", server.name)
+                putParcelable("videoType", type)
+            }
+            findNavController().navigate(R.id.player, args)
         }
-        findNavController().navigate(R.id.player,args)
     }
 }

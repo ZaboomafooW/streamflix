@@ -157,48 +157,46 @@ class UpzoneExtractor : Extractor() {
     @SuppressLint("SetJavaScriptEnabled")
     private suspend fun resolveRedirectWithWebView(context: Context, url: String): String =
         withContext(Dispatchers.Main) {
-            val result = withTimeoutOrNull(30000) {
-                suspendCancellableCoroutine { cont ->
-                    val webView = WebView(context)
-                    webView.settings.javaScriptEnabled = true
-                    webView.settings.domStorageEnabled = true
-                    webView.settings.userAgentString = userAgent
+            val webView = WebView(context)
+            val result = try {
+                withTimeoutOrNull(30000) {
+                    suspendCancellableCoroutine<String> { cont ->
+                        webView.settings.javaScriptEnabled = true
+                        webView.settings.domStorageEnabled = true
+                        webView.settings.userAgentString = userAgent
 
-                    webView.webViewClient = object : WebViewClient() {
-                        override fun shouldOverrideUrlLoading(
-                            view: WebView?,
-                            request: WebResourceRequest?
-                        ): Boolean {
-                            val nextUrl = request?.url?.toString().orEmpty()
-                            if (nextUrl.isNotBlank() && cont.isActive) {
-                                cont.resume(nextUrl)
-                                webView.destroy()
-                                return true
+                        webView.webViewClient = object : WebViewClient() {
+                            override fun shouldOverrideUrlLoading(
+                                view: WebView?,
+                                request: WebResourceRequest?
+                            ): Boolean {
+                                val nextUrl = request?.url?.toString().orEmpty()
+                                if (nextUrl.isNotBlank() && cont.isActive) {
+                                    cont.resume(nextUrl)
+                                    return true
+                                }
+                                return false
                             }
-                            return false
+
+                            override fun onPageFinished(view: WebView?, finishedUrl: String?) {
+                                if (!finishedUrl.isNullOrBlank() && cont.isActive) {
+                                    cont.resume(finishedUrl)
+                                }
+                            }
                         }
 
-                        override fun onPageFinished(view: WebView?, finishedUrl: String?) {
-                            if (!finishedUrl.isNullOrBlank() && cont.isActive) {
-                                cont.resume(finishedUrl)
-                                webView.destroy()
-                            }
-                        }
-                    }
-
-                    webView.loadUrl(
-                        url,
-                        mapOf(
-                            "Referer" to buildReferer(url),
-                            "User-Agent" to userAgent
+                        webView.loadUrl(
+                            url,
+                            mapOf(
+                                "Referer" to buildReferer(url),
+                                "User-Agent" to userAgent
+                            )
                         )
-                    )
-
-                    cont.invokeOnCancellation {
-                        webView.stopLoading()
-                        webView.destroy()
                     }
                 }
+            } finally {
+                webView.stopLoading()
+                webView.destroy()
             }
             result ?: url
         }
