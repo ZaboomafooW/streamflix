@@ -38,7 +38,10 @@ class PrimeSrcExtractor : Extractor() {
                     src = "$mainUrl/api/v1/l?key=${server.key}"
                 )
             }
+        } catch (e: kotlinx.coroutines.CancellationException) {
+            throw e
         } catch (e: Exception) {
+            android.util.Log.w("PrimeSrc", "Server discovery failed (${e.javaClass.simpleName})")
             emptyList()
         }
     }

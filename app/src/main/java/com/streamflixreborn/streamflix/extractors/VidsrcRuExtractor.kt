@@ -3,19 +3,17 @@ package com.streamflixreborn.streamflix.extractors
 import android.os.Handler
 import android.os.Looper
 import android.webkit.WebResourceRequest
-import android.webkit.WebSettings
 import android.webkit.WebView
 import android.webkit.WebViewClient
 import androidx.media3.common.MimeTypes
 import com.streamflixreborn.streamflix.StreamFlixApp
 import com.streamflixreborn.streamflix.models.Video
-import com.streamflixreborn.streamflix.utils.DnsResolver
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.suspendCancellableCoroutine
 import kotlinx.coroutines.withContext
 
 import kotlin.coroutines.resume
-import kotlin.coroutines.resumeWithException
+import kotlinx.coroutines.withTimeoutOrNull
 
 class VidsrcRuExtractor : Extractor() {
 
@@ -35,53 +33,33 @@ class VidsrcRuExtractor : Extractor() {
 
     override suspend fun extract(link: String): Video {
         return withContext(Dispatchers.Main) {
-            suspendCancellableCoroutine { continuation ->
-                val webView = WebView(StreamFlixApp.instance.applicationContext)
-                
-                webView.settings.apply {
-                    javaScriptEnabled = true
-                    domStorageEnabled = true
-                }
-
-                val timeoutHandler = Handler(Looper.getMainLooper())
-                val timeoutRunnable = Runnable {
-                    if (continuation.isActive) {
-                        continuation.resumeWithException(Exception("Timeout waiting for VidsrcRu stream"))
-                        webView.destroy()
-                    }
-                }
-                timeoutHandler.postDelayed(timeoutRunnable, 30000)
-
-                webView.webViewClient = object : WebViewClient() {
-                    override fun shouldInterceptRequest(view: WebView?, request: WebResourceRequest?): android.webkit.WebResourceResponse? {
-                        val url = request?.url?.toString() ?: ""
-                        if (url.contains("/file2/") && url.endsWith(".m3u8")) {
-                            timeoutHandler.removeCallbacks(timeoutRunnable)
-                            if (continuation.isActive) {
-                                val video = Video(
-                                    source = url,
-                                    subtitles = emptyList(),
-                                    type = MimeTypes.APPLICATION_M3U8
-                                )
-                                Handler(Looper.getMainLooper()).post {
-                                    continuation.resume(video)
-                                    webView.destroy()
+            val webView = WebView(StreamFlixApp.instance.applicationContext)
+            val main = Handler(Looper.getMainLooper())
+            try {
+                withTimeoutOrNull(30_000) {
+                    suspendCancellableCoroutine<Video> { continuation ->
+                        webView.settings.javaScriptEnabled = true
+                        webView.settings.domStorageEnabled = true
+                        webView.webViewClient = object : WebViewClient() {
+                            override fun shouldInterceptRequest(view: WebView?, request: WebResourceRequest?): android.webkit.WebResourceResponse? {
+                                val url = request?.url.toString()
+                                if (url.contains("/file2/") && url.endsWith(".m3u8")) {
+                                    main.post {
+                                        if (continuation.isActive) {
+                                            continuation.resume(Video(source = url, type = MimeTypes.APPLICATION_M3U8))
+                                        }
+                                    }
                                 }
+                                return super.shouldInterceptRequest(view, request)
                             }
                         }
-                        return super.shouldInterceptRequest(view, request)
+                        webView.loadUrl(link)
                     }
-                }
-
-                webView.loadUrl(link)
-
-                continuation.invokeOnCancellation {
-                    webView.stopLoading()
-                    webView.destroy()
-                }
+                } ?: throw IllegalStateException("Timeout waiting for VidsrcRu stream")
+            } finally {
+                webView.stopLoading()
+                webView.destroy()
             }
         }
     }
-
-
 }
