@@ -9,11 +9,11 @@ internal object KidPolicy {
     private val missingRatings = setOf("", "NR", "NOT RATED", "UNRATED")
     private val excludedProducers = setOf(142470, 150378)
     private val brands = Regex(
-        """moonbug|cocomelon|blippi|meekah|little baby bum|morphle|gecko.s garage|go buster|oddbods|little angel|ryan.s (world|toys|mystery)|pocket.?watch|kids diana|like nastya|vlad (and|&) niki""",
+        """moonbug|cocomelon|blippi|meekah|little baby bum|morphle|gecko.s garage|go buster|oddbods|little angel|ryan.s (world|toys|mystery)|pocket.?watch|kids diana|like nastya|vlad (and|&) niki|a for adley|vlad and nikita|diana and roma|ninja kidz|hobbykids""",
         RegexOption.IGNORE_CASE
     )
     private val formats = Regex(
-        """\bunbox(?:ing|es)?\b|\btoy[ -]?(?:play|reviews?)\b|\bchild influencer\b|\bkid(?:s)? influencers?\b|\blet.s play videos?\b|\bgameplay (?:videos?|channel)\b""",
+        """\bunbox(?:ing|es)?\b|\btoy[ -]?(?:play|reviews?)\b|\b(?:child|family) influencers?\b|\b(?:family|kids?) vlog(?:s|gers?|ging)?\b|\bkidfluencers?\b|\bkid(?:s)? influencers?\b|\blet.s play videos?\b|\bgameplay (?:videos?|channel)\b""",
         RegexOption.IGNORE_CASE
     )
 

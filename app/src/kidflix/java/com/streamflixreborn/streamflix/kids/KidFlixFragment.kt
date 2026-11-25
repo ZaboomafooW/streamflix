@@ -209,7 +209,12 @@ class KidFlixFragment : Fragment() {
         more = false
         titles.clear()
         titles.addAll(KidCatalog.catalog.filter { (selection == null || it.shelf == selection) && it.name.contains(term,true) })
-        load()
+        if (selection != null && (selection.movie || selection.ids.isEmpty())) {
+            page = 1
+            render()
+        } else {
+            load()
+        }
     }
     private fun load() {
         job?.cancel()

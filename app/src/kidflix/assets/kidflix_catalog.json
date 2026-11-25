@@ -418,5 +418,1559 @@
     "name": "The Adventures of Puss in Boots",
     "poster": "/uHpUlyWCqXXUDY7zekQdJmf6QkP.jpg",
     "shelf": "DreamWorks Shows"
+  },
+  {
+    "id": 81046,
+    "name": "The Dragon Prince",
+    "poster": "/d7PIRa6ez7ZEl9D4JUrnSsmcnVD.jpg",
+    "shelf": "Netflix Shows"
+  },
+  {
+    "id": 74728,
+    "name": "Carmen Sandiego",
+    "poster": "/jpis9X6awQ1X5MBm9eHRUc0N0pu.jpg",
+    "shelf": "Netflix Shows"
+  },
+  {
+    "id": 103786,
+    "name": "The Cuphead Show!",
+    "poster": "/l6nGUyxKCi7ODvyfc8qQShliVEd.jpg",
+    "shelf": "Netflix Shows"
+  },
+  {
+    "id": 73472,
+    "name": "The Magic School Bus Rides Again",
+    "poster": "/42cJukwvrC8eZ1mShB5jBE3HLPL.jpg",
+    "shelf": "Netflix Shows"
+  },
+  {
+    "id": 111474,
+    "name": "Gabby's Dollhouse",
+    "poster": "/lyLvpLsC2WzBFZm2cIEn3VgKwEf.jpg",
+    "shelf": "Netflix Shows"
+  },
+  {
+    "id": 195407,
+    "name": "The Creature Cases",
+    "poster": "/tFi3nx53Dfwa5YOd4J2VnIXpqBk.jpg",
+    "shelf": "Netflix Shows"
+  },
+  {
+    "id": 129604,
+    "name": "Ada Twist, Scientist",
+    "poster": "/zDBZxrPPrmvreG4SzQFosxcJsXQ.jpg",
+    "shelf": "Netflix Shows"
+  },
+  {
+    "id": 86957,
+    "name": "Green Eggs and Ham",
+    "poster": "/jkbhdhkFS6jhINuNMvGLUCTry69.jpg",
+    "shelf": "Netflix Shows"
+  },
+  {
+    "id": 157221,
+    "name": "My Dad the Bounty Hunter",
+    "poster": "/cWSPHOTFFf5hs77gamKeLDhxNvm.jpg",
+    "shelf": "Netflix Shows"
+  },
+  {
+    "id": 95599,
+    "name": "Kipo and the Age of Wonderbeasts",
+    "poster": "/4yPluNRnnaO68VOhwDTA46wDXVN.jpg",
+    "shelf": "Netflix Shows"
+  },
+  {
+    "id": 68267,
+    "name": "Trollhunters: Tales of Arcadia",
+    "poster": "/9VZmMzINVdO3ZYGsKItU39pNO2l.jpg",
+    "shelf": "Netflix Shows"
+  },
+  {
+    "id": 79732,
+    "name": "She-Ra and the Princesses of Power",
+    "poster": "/y6YLtlnV5FGh3Mhs5SUc80IQSV5.jpg",
+    "shelf": "Netflix Shows"
+  },
+  {
+    "id": 80805,
+    "name": "The Epic Tales of Captain Underpants",
+    "poster": "/hLaK7YPB4VofyDyBcztee8CbnHH.jpg",
+    "shelf": "Netflix Shows"
+  },
+  {
+    "id": 237512,
+    "name": "Jurassic World: Chaos Theory",
+    "poster": "/c2Od0cY2IeayDj5osUxZSAD1QK.jpg",
+    "shelf": "Netflix Shows"
+  },
+  {
+    "id": 92684,
+    "name": "The Last Kids on Earth",
+    "poster": "/lTpGn2hgB0WGFGp6Q6ArkEWWTsk.jpg",
+    "shelf": "Netflix Shows"
+  },
+  {
+    "id": 100412,
+    "name": "The Baby-Sitters Club",
+    "poster": "/afyG6cPl0jeV3SwNwyZxRG0Q9wd.jpg",
+    "shelf": "Netflix Shows"
+  },
+  {
+    "id": 79431,
+    "name": "The Who Was? Show",
+    "poster": "/pX1xOMRtlsg6YguO12AJDVl4T8K.jpg",
+    "shelf": "Netflix Shows"
+  },
+  {
+    "id": 75758,
+    "name": "Lost in Space",
+    "poster": "/y8NJnTXzb4rio9uvVYFVrXEMofU.jpg",
+    "shelf": "Netflix Shows"
+  },
+  {
+    "id": 65294,
+    "name": "A Series of Unfortunate Events",
+    "poster": "/qg7WXAatXyQq6zO3SnWnRJEayeZ.jpg",
+    "shelf": "Netflix Shows"
+  },
+  {
+    "id": 93233,
+    "name": "Centaurworld",
+    "poster": "/2klp8BwNDbmV5pfBSWhNjr1MktC.jpg",
+    "shelf": "Netflix Shows"
+  },
+  {
+    "id": 136752,
+    "name": "Dogs in Space",
+    "poster": "/wyrX626w311nbLfmG2JXewUjmFi.jpg",
+    "shelf": "Netflix Shows"
+  },
+  {
+    "id": 221301,
+    "name": "Pokémon Concierge",
+    "poster": "/2k53AsWsLrMtcbFyH0nVOqQjj2x.jpg",
+    "shelf": "Netflix Shows"
+  },
+  {
+    "id": 508965,
+    "name": "Klaus",
+    "poster": "/q125RHUDgR4gjwh1QkfYuJLYkL.jpg",
+    "shelf": "Netflix Movies"
+  },
+  {
+    "id": 560057,
+    "name": "The Sea Beast",
+    "poster": "/9Zfv4Ap1e8eKOYnZPtYaWhLkk0d.jpg",
+    "shelf": "Netflix Movies"
+  },
+  {
+    "id": 961323,
+    "name": "Nimona",
+    "poster": "/2NQljeavtfl22207D1kxLpa4LS3.jpg",
+    "shelf": "Netflix Movies"
+  },
+  {
+    "id": 560050,
+    "name": "Over the Moon",
+    "poster": "/lG0TF0wj1n9p9CPy5xlIUIkF56a.jpg",
+    "shelf": "Netflix Movies"
+  },
+  {
+    "id": 501929,
+    "name": "The Mitchells vs. the Machines",
+    "poster": "/mI2Di7HmskQQ34kz0iau6J1vr70.jpg",
+    "shelf": "Netflix Movies"
+  },
+  {
+    "id": 560044,
+    "name": "The Willoughbys",
+    "poster": "/9WrMmjdZvpxLQh1tCQ9tOd1asOb.jpg",
+    "shelf": "Netflix Movies"
+  },
+  {
+    "id": 1075794,
+    "name": "Leo",
+    "poster": "/gSOVog7ydsaF1YpgAqBqnKYFGY.jpg",
+    "shelf": "Netflix Movies"
+  },
+  {
+    "id": 776835,
+    "name": "The Magician's Elephant",
+    "poster": "/cAoAgzOCxSytYBqqCQulhXNR3LB.jpg",
+    "shelf": "Netflix Movies"
+  },
+  {
+    "id": 770254,
+    "name": "Back to the Outback",
+    "poster": "/jbAUTO7qFN8XFG2LM3bz30vzGFJ.jpg",
+    "shelf": "Netflix Movies"
+  },
+  {
+    "id": 1139829,
+    "name": "Orion and the Dark",
+    "poster": "/N2ddXhBX5kqwA9flbm2yqFtX6b.jpg",
+    "shelf": "Netflix Movies"
+  },
+  {
+    "id": 739547,
+    "name": "Thelma the Unicorn",
+    "poster": "/yutiEZ7taGDNau2jGjKIdDwQpDw.jpg",
+    "shelf": "Netflix Movies"
+  },
+  {
+    "id": 832502,
+    "name": "The Monkey King",
+    "poster": "/i6ye8ueFhVE5pXatgyRrZ83LBD8.jpg",
+    "shelf": "Netflix Movies"
+  },
+  {
+    "id": 520758,
+    "name": "Chicken Run: Dawn of the Nugget",
+    "poster": "/eImY0cjbH0bll8EXSqxqEZIZcmY.jpg",
+    "shelf": "Netflix Movies"
+  },
+  {
+    "id": 929204,
+    "name": "Wallace & Gromit: Vengeance Most Fowl",
+    "poster": "/jUWFSBxTOiCinPdTOh3IDUXVemZ.jpg",
+    "shelf": "Netflix Movies"
+  },
+  {
+    "id": 449406,
+    "name": "Vivo",
+    "poster": "/eRLlrhbdYE7XN6VtcZKy6o2BsOw.jpg",
+    "shelf": "Netflix Movies"
+  },
+  {
+    "id": 668482,
+    "name": "Roald Dahl's Matilda the Musical",
+    "poster": "/ga8R3OiOMMgSvZ4cOj8x7prUNYZ.jpg",
+    "shelf": "Netflix Movies"
+  },
+  {
+    "id": 527435,
+    "name": "The Christmas Chronicles",
+    "poster": "/5Il2EMSF2KecrUKZPuen6BZmaCP.jpg",
+    "shelf": "Netflix Movies"
+  },
+  {
+    "id": 654028,
+    "name": "The Christmas Chronicles: Part Two",
+    "poster": "/6sG0kbEvAi3RRLcGGU5h8l3qAPa.jpg",
+    "shelf": "Netflix Movies"
+  },
+  {
+    "id": 550205,
+    "name": "Wish Dragon",
+    "poster": "/lnPf6hzANL6pVQTxUlsNYSuhT5l.jpg",
+    "shelf": "Netflix Movies"
+  },
+  {
+    "id": 829402,
+    "name": "Ultraman: Rising",
+    "poster": "/j886YEkIUsiImY53px5VHKD4lRa.jpg",
+    "shelf": "Netflix Movies"
+  },
+  {
+    "id": 696806,
+    "name": "The Adam Project",
+    "poster": "/wFjboE0aFZNbVOF05fzrka9Fqyx.jpg",
+    "shelf": "Netflix Movies"
+  },
+  {
+    "id": 497582,
+    "name": "Enola Holmes",
+    "poster": "/riYInlsq2kf1AWoGm80JQW5dLKp.jpg",
+    "shelf": "Netflix Movies"
+  },
+  {
+    "id": 15260,
+    "name": "Adventure Time",
+    "poster": "/qk3eQ8jW4opJ48gFWYUXWaMT4l.jpg",
+    "shelf": "HBO Max / Warner Bros. Shows"
+  },
+  {
+    "id": 61175,
+    "name": "Steven Universe",
+    "poster": "/8zRstOgaipruJPlsHK2diMx4lPy.jpg",
+    "shelf": "HBO Max / Warner Bros. Shows"
+  },
+  {
+    "id": 37606,
+    "name": "The Amazing World of Gumball",
+    "poster": "/VYnnyA2hyxi3VUPgCA71mMtt69.jpg",
+    "shelf": "HBO Max / Warner Bros. Shows"
+  },
+  {
+    "id": 63401,
+    "name": "We Bare Bears",
+    "poster": "/3xWzlLZ0kAD6SkVZTekFM9lxZyP.jpg",
+    "shelf": "HBO Max / Warner Bros. Shows"
+  },
+  {
+    "id": 607,
+    "name": "The Powerpuff Girls",
+    "poster": "/468mmhMd21pY4Yx0S0woqeEcxtL.jpg",
+    "shelf": "HBO Max / Warner Bros. Shows"
+  },
+  {
+    "id": 4229,
+    "name": "Dexter's Laboratory",
+    "poster": "/inJJn8lUPWdvdy2h259UnoHWVqC.jpg",
+    "shelf": "HBO Max / Warner Bros. Shows"
+  },
+  {
+    "id": 1720,
+    "name": "Foster's Home for Imaginary Friends",
+    "poster": "/aerZJVODYwji4BnyWrHFmF3JxhX.jpg",
+    "shelf": "HBO Max / Warner Bros. Shows"
+  },
+  {
+    "id": 4686,
+    "name": "Ben 10",
+    "poster": "/eogRp6oAPK0SEvQmCrQ78LTlSdp.jpg",
+    "shelf": "HBO Max / Warner Bros. Shows"
+  },
+  {
+    "id": 604,
+    "name": "Teen Titans",
+    "poster": "/txuXDV4tb4xEkE4C6xeYMU4McT.jpg",
+    "shelf": "HBO Max / Warner Bros. Shows"
+  },
+  {
+    "id": 45140,
+    "name": "Teen Titans Go!",
+    "poster": "/kPKAigYUlWRpnfo4Ptiwlz4FWXU.jpg",
+    "shelf": "HBO Max / Warner Bros. Shows"
+  },
+  {
+    "id": 2098,
+    "name": "Batman: The Animated Series",
+    "poster": "/lBomQFW1vlm1yUYMNSbFZ45R4Ox.jpg",
+    "shelf": "HBO Max / Warner Bros. Shows"
+  },
+  {
+    "id": 1618,
+    "name": "Justice League",
+    "poster": "/caIAQIoM9NLZofT8fz8t47W1gYe.jpg",
+    "shelf": "HBO Max / Warner Bros. Shows"
+  },
+  {
+    "id": 652,
+    "name": "What's New, Scooby-Doo?",
+    "poster": "/qP3DZrKLSPe5WR2N066BIfB2dIq.jpg",
+    "shelf": "HBO Max / Warner Bros. Shows"
+  },
+  {
+    "id": 18123,
+    "name": "Scooby-Doo! Mystery Incorporated",
+    "poster": "/mu8zU2jQfPbGO5bC6RHYrSypxUd.jpg",
+    "shelf": "HBO Max / Warner Bros. Shows"
+  },
+  {
+    "id": 32605,
+    "name": "The Looney Tunes Show",
+    "poster": "/bZWdejWhkgJmXjdQ70DjiJS7v7O.jpg",
+    "shelf": "HBO Max / Warner Bros. Shows"
+  },
+  {
+    "id": 102321,
+    "name": "Looney Tunes Cartoons",
+    "poster": "/2pDQfZMJq95hckoaez9ou93Hmqy.jpg",
+    "shelf": "HBO Max / Warner Bros. Shows"
+  },
+  {
+    "id": 82,
+    "name": "Animaniacs",
+    "poster": "/c1b2UtrhbMOdHKISB2ZvINo9eyc.jpg",
+    "shelf": "HBO Max / Warner Bros. Shows"
+  },
+  {
+    "id": 1996,
+    "name": "The Flintstones",
+    "poster": "/30P6ifagQ3fguTsI33KMmDLTAx6.jpg",
+    "shelf": "HBO Max / Warner Bros. Shows"
+  },
+  {
+    "id": 2362,
+    "name": "The Jetsons",
+    "poster": "/9e2wgxZpAu22yR77fRXzHwOtw9z.jpg",
+    "shelf": "HBO Max / Warner Bros. Shows"
+  },
+  {
+    "id": 155780,
+    "name": "Batwheels",
+    "poster": "/nDNUuNNoFaZFNjSwWCG5XwaOf9f.jpg",
+    "shelf": "HBO Max / Warner Bros. Shows"
+  },
+  {
+    "id": 203687,
+    "name": "Bugs Bunny Builders",
+    "poster": "/llYAgSgJBH1EnC17e2d5WnxgP5K.jpg",
+    "shelf": "HBO Max / Warner Bros. Shows"
+  },
+  {
+    "id": 280217,
+    "name": "The Lego Movie 2: The Second Part",
+    "poster": "/QTESAsBVZwjtGJNDP7utiGV37z.jpg",
+    "shelf": "HBO Max / Warner Bros. Movies"
+  },
+  {
+    "id": 5255,
+    "name": "The Polar Express",
+    "poster": "/eOoCzH0MqeGr2taUZO4SwG416PF.jpg",
+    "shelf": "HBO Max / Warner Bros. Movies"
+  },
+  {
+    "id": 65759,
+    "name": "Happy Feet Two",
+    "poster": "/2gWiQ4mn85jcXtREVePlVViupeV.jpg",
+    "shelf": "HBO Max / Warner Bros. Movies"
+  },
+  {
+    "id": 630,
+    "name": "The Wizard of Oz",
+    "poster": "/uCC3j4pV9eOZwzDUWp2ilbcTf1f.jpg",
+    "shelf": "HBO Max / Warner Bros. Movies"
+  },
+  {
+    "id": 787699,
+    "name": "Wonka",
+    "poster": "/qhb1qOilapbapxWQn9jtRCMwXJF.jpg",
+    "shelf": "HBO Max / Warner Bros. Movies"
+  },
+  {
+    "id": 10166,
+    "name": "The Witches",
+    "poster": "/mPYBjVkeHakkPGY7WaKyyNU4RWm.jpg",
+    "shelf": "HBO Max / Warner Bros. Movies"
+  },
+  {
+    "id": 446894,
+    "name": "Smallfoot",
+    "poster": "/zfaiO7QgpcvR8XDOMokWLRfKeTE.jpg",
+    "shelf": "HBO Max / Warner Bros. Movies"
+  },
+  {
+    "id": 274862,
+    "name": "The Lego Ninjago Movie",
+    "poster": "/vUo0pNXGhp2ffTJxiStWt6fHL7F.jpg",
+    "shelf": "HBO Max / Warner Bros. Movies"
+  },
+  {
+    "id": 385103,
+    "name": "Scoob!",
+    "poster": "/jHo2M1OiH9Re33jYtUQdfzPeUkx.jpg",
+    "shelf": "HBO Max / Warner Bros. Movies"
+  },
+  {
+    "id": 9340,
+    "name": "The Goonies",
+    "poster": "/eBU7gCjTCj9n2LTxvCSIXXOvHkD.jpg",
+    "shelf": "HBO Max / Warner Bros. Movies"
+  },
+  {
+    "id": 671,
+    "name": "Harry Potter and the Philosopher's Stone",
+    "poster": "/wuMc08IPKEatf9rnMNXvIDxqP4W.jpg",
+    "shelf": "HBO Max / Warner Bros. Movies"
+  },
+  {
+    "id": 672,
+    "name": "Harry Potter and the Chamber of Secrets",
+    "poster": "/sdEOH0992YZ0QSxgXNIGLq1ToUi.jpg",
+    "shelf": "HBO Max / Warner Bros. Movies"
+  },
+  {
+    "id": 673,
+    "name": "Harry Potter and the Prisoner of Azkaban",
+    "poster": "/aWxwnYoe8p2d2fcxOqtvAtJ72Rw.jpg",
+    "shelf": "HBO Max / Warner Bros. Movies"
+  },
+  {
+    "id": 92685,
+    "name": "The Owl House",
+    "poster": "/cZLxKTslrf9gzRomVy8BhaYjg7n.jpg",
+    "shelf": "Disney Shows"
+  },
+  {
+    "id": 92649,
+    "name": "The Ghost and Molly McGee",
+    "poster": "/u86g1KKPwsysQx6gA9LJt93xrtA.jpg",
+    "shelf": "Disney Shows"
+  },
+  {
+    "id": 60554,
+    "name": "Star Wars Rebels",
+    "poster": "/eLrScs6Bs26JMcS8hiZhf7YRROr.jpg",
+    "shelf": "Disney Shows"
+  },
+  {
+    "id": 4194,
+    "name": "Star Wars: The Clone Wars",
+    "poster": "/e1nWfnnCVqxS2LeTO3dwGyAsG2V.jpg",
+    "shelf": "Disney Shows"
+  },
+  {
+    "id": 202998,
+    "name": "Star Wars: Young Jedi Adventures",
+    "poster": "/bC2Mix1WPUiY6pldh77oiFl1MvI.jpg",
+    "shelf": "Disney Shows"
+  },
+  {
+    "id": 3934,
+    "name": "Mickey Mouse Clubhouse",
+    "poster": "/gHtEhlAZHxMawOiPq7JoKwkmETQ.jpg",
+    "shelf": "Disney Shows"
+  },
+  {
+    "id": 127635,
+    "name": "Spidey and His Amazing Friends",
+    "poster": "/etO5jDS5WgR4Y1lTyXhQcilJ6u2.jpg",
+    "shelf": "Disney Shows"
+  },
+  {
+    "id": 2675,
+    "name": "The Little Mermaid",
+    "poster": "/32Tb6HZc8yAWqHesMSMnMozr6pi.jpg",
+    "shelf": "Disney Shows"
+  },
+  {
+    "id": 4623,
+    "name": "The Emperor's New School",
+    "poster": "/g1TlTdWPcofNIklBdInaJFp7NkF.jpg",
+    "shelf": "Disney Shows"
+  },
+  {
+    "id": 45013,
+    "name": "Wander Over Yonder",
+    "poster": "/ow88KmFUXMb6S4EKOWyTBy8ta7O.jpg",
+    "shelf": "Disney Shows"
+  },
+  {
+    "id": 4459,
+    "name": "The Muppet Show",
+    "poster": "/6UNPGS6RCmChcZO0ehouZRFiVRs.jpg",
+    "shelf": "Disney Shows"
+  },
+  {
+    "id": 1719,
+    "name": "Gargoyles",
+    "poster": "/yDTZYbiRUapeWRJL6EU3ZtLUAYA.jpg",
+    "shelf": "Disney Shows"
+  },
+  {
+    "id": 10674,
+    "name": "Mulan",
+    "poster": "/jAbexAtB0aSfP5Ay4TpWHARyVnG.jpg",
+    "shelf": "Disney Movies"
+  },
+  {
+    "id": 10693,
+    "name": "Peter Pan",
+    "poster": "/fJJOs1iyrhKfZceANxoPxPwNGF1.jpg",
+    "shelf": "Disney Movies"
+  },
+  {
+    "id": 12092,
+    "name": "Alice in Wonderland",
+    "poster": "/20cvfwfaFqNbe9Fc3VEHJuPRxmn.jpg",
+    "shelf": "Disney Movies"
+  },
+  {
+    "id": 10895,
+    "name": "Pinocchio",
+    "poster": "/bnZJrLRnoQHpzEJdka1KYfsAF3N.jpg",
+    "shelf": "Disney Movies"
+  },
+  {
+    "id": 1241982,
+    "name": "Moana 2",
+    "poster": "/aLVkiINlIeCkcZIzb7XHzPYgO6L.jpg",
+    "shelf": "Disney Movies"
+  },
+  {
+    "id": 527774,
+    "name": "Raya and the Last Dragon",
+    "poster": "/5nVhgCzxKbK47OLIKxCR1syulOn.jpg",
+    "shelf": "Disney Movies"
+  },
+  {
+    "id": 1267,
+    "name": "Meet the Robinsons",
+    "poster": "/naya0zF4kT401Sx15AtwB9vpcJr.jpg",
+    "shelf": "Disney Movies"
+  },
+  {
+    "id": 433,
+    "name": "Mary Poppins",
+    "poster": "/o4Wsby4ydIXhWmtmfvb451D5Np1.jpg",
+    "shelf": "Disney Movies"
+  },
+  {
+    "id": 11176,
+    "name": "The Muppet Movie",
+    "poster": "/8LUjnIW5ph6pHoXDE3Zg4iVi6BV.jpg",
+    "shelf": "Disney Movies"
+  },
+  {
+    "id": 10193,
+    "name": "Toy Story 3",
+    "poster": "/AbbXspMOwdvwWZgVN0nabZq03Ec.jpg",
+    "shelf": "Pixar Movies"
+  },
+  {
+    "id": 301528,
+    "name": "Toy Story 4",
+    "poster": "/w9kR8qbmQ01HwnvK4alvnQ2ca0L.jpg",
+    "shelf": "Pixar Movies"
+  },
+  {
+    "id": 127380,
+    "name": "Finding Dory",
+    "poster": "/3UVe8NL1E2ZdUZ9EDlKGJY5UzE.jpg",
+    "shelf": "Pixar Movies"
+  },
+  {
+    "id": 62211,
+    "name": "Monsters University",
+    "poster": "/y7thwJ7z5Bplv6vwl6RI0yteaDD.jpg",
+    "shelf": "Pixar Movies"
+  },
+  {
+    "id": 976573,
+    "name": "Elemental",
+    "poster": "/4Y1WNkd88JXmGfhtWR7dmDAo1T2.jpg",
+    "shelf": "Pixar Movies"
+  },
+  {
+    "id": 260514,
+    "name": "Cars 3",
+    "poster": "/zg5RDxvIIAKsucjuU2EZJIHEIvz.jpg",
+    "shelf": "Pixar Movies"
+  },
+  {
+    "id": 508439,
+    "name": "Onward",
+    "poster": "/f4aul3FyD3jv3v4bul1IrkWZvzq.jpg",
+    "shelf": "Pixar Movies"
+  },
+  {
+    "id": 158300,
+    "name": "Knuckles",
+    "poster": "/sK6Nr6KNUA4WlAHyNBTioz9FK87.jpg",
+    "shelf": "Paramount Shows"
+  },
+  {
+    "id": 126824,
+    "name": "The Patrick Star Show",
+    "poster": "/44zbV1t35gxgcSN7sTlkUY85GC9.jpg",
+    "shelf": "Paramount Shows"
+  },
+  {
+    "id": 153528,
+    "name": "Big Nate",
+    "poster": "/mvo5zgYvcvH0XscuSu4MLg6UlCw.jpg",
+    "shelf": "Paramount Shows"
+  },
+  {
+    "id": 124920,
+    "name": "Rugrats",
+    "poster": "/bk5bqkQVYC32lozZO6Z0ZLw32jv.jpg",
+    "shelf": "Paramount Shows"
+  },
+  {
+    "id": 236234,
+    "name": "DORA",
+    "poster": "/jga8v6e4S5ZPJRpMuEwiyXbTJuf.jpg",
+    "shelf": "Paramount Shows"
+  },
+  {
+    "id": 204024,
+    "name": "Rock, Paper, Scissors",
+    "poster": "/2DZI8fK4eFlKqAsroe3YlPCaXEo.jpg",
+    "shelf": "Paramount Shows"
+  },
+  {
+    "id": 4630,
+    "name": "The Fairly OddParents",
+    "poster": "/3ryMj7tIvVtiXyI2tLvHYTjOjq4.jpg",
+    "shelf": "Nickelodeon Shows"
+  },
+  {
+    "id": 33880,
+    "name": "The Legend of Korra",
+    "poster": "/dZgYvSfuh1YHDrJuILlVQ5oA2hF.jpg",
+    "shelf": "Nickelodeon Shows"
+  },
+  {
+    "id": 3793,
+    "name": "Invader ZIM",
+    "poster": "/7ARG0kS9LD4Xp8eYJoHpbXcRiZp.jpg",
+    "shelf": "Nickelodeon Shows"
+  },
+  {
+    "id": 2009,
+    "name": "Rocket Power",
+    "poster": "/2As5aMc84mtTurD2DfDLytNLhkh.jpg",
+    "shelf": "Nickelodeon Shows"
+  },
+  {
+    "id": 2129,
+    "name": "The Adventures of Jimmy Neutron: Boy Genius",
+    "poster": "/iSPhSejcTf0uLNtltk7Thx8w75Z.jpg",
+    "shelf": "Nickelodeon Shows"
+  },
+  {
+    "id": 51817,
+    "name": "Teenage Mutant Ninja Turtles",
+    "poster": "/n0DN6kJf0kGeuNFUYLT6eZe5ERR.jpg",
+    "shelf": "Nickelodeon Shows"
+  },
+  {
+    "id": 81026,
+    "name": "Rise of the Teenage Mutant Ninja Turtles",
+    "poster": "/4LZxcn6nWG1yWBKG0RD98HY13b4.jpg",
+    "shelf": "Nickelodeon Shows"
+  },
+  {
+    "id": 893723,
+    "name": "PAW Patrol: The Mighty Movie",
+    "poster": "/aTvePCU7exLepwg5hWySjwxojQK.jpg",
+    "shelf": "Paramount Movies"
+  },
+  {
+    "id": 400160,
+    "name": "The SpongeBob Movie: Sponge on the Run",
+    "poster": "/jlJ8nDhMhCYJuzOw3f52CP1W8MW.jpg",
+    "shelf": "Paramount Movies"
+  },
+  {
+    "id": 639720,
+    "name": "IF",
+    "poster": "/xbKFv4KF3sVYuWKllLlwWDmuZP7.jpg",
+    "shelf": "Paramount Movies"
+  },
+  {
+    "id": 400157,
+    "name": "Wonder Park",
+    "poster": "/8KomINZhIuJeB4oB7k7tkq8tmE.jpg",
+    "shelf": "Paramount Movies"
+  },
+  {
+    "id": 8204,
+    "name": "The Spiderwick Chronicles",
+    "poster": "/uN7MUMaCXfa8DbMMp61A8iXEcEG.jpg",
+    "shelf": "Paramount Movies"
+  },
+  {
+    "id": 44826,
+    "name": "Hugo",
+    "poster": "/1dxRq3o3l3bVWNRvvSb7rRf68qp.jpg",
+    "shelf": "Paramount Movies"
+  },
+  {
+    "id": 417859,
+    "name": "Puss in Boots",
+    "poster": "/7a5Jzjr9TmffGy76y1SZhn3sCiz.jpg",
+    "shelf": "Paramount Movies"
+  },
+  {
+    "id": 17578,
+    "name": "The Adventures of Tintin",
+    "poster": "/fQZ3sLR1Fi63NMsNRbjm9q5qODJ.jpg",
+    "shelf": "Paramount Movies"
+  },
+  {
+    "id": 324852,
+    "name": "Despicable Me 3",
+    "poster": "/e72KCMHNkbZ6USRJmABeqwmaJ5n.jpg",
+    "shelf": "Peacock / Universal Movies"
+  },
+  {
+    "id": 211672,
+    "name": "Minions",
+    "poster": "/dr02BdCNAUPVU07aOodwPYv6HCf.jpg",
+    "shelf": "Peacock / Universal Movies"
+  },
+  {
+    "id": 438148,
+    "name": "Minions: The Rise of Gru",
+    "poster": "/4dBDk1LPdvdhcZdjQBmdXwiVKUA.jpg",
+    "shelf": "Peacock / Universal Movies"
+  },
+  {
+    "id": 328111,
+    "name": "The Secret Life of Pets",
+    "poster": "/g3Hms6AE174doeGR1gz5zX5sVsv.jpg",
+    "shelf": "Peacock / Universal Movies"
+  },
+  {
+    "id": 427416,
+    "name": "Sing",
+    "poster": "/vNZsygCJam5U3P34tXMmuOVZO9n.jpg",
+    "shelf": "Peacock / Universal Movies"
+  },
+  {
+    "id": 502356,
+    "name": "The Super Mario Bros. Movie",
+    "poster": "/qNBAXBIQlnOThrVvA6mA2B5ggV6.jpg",
+    "shelf": "Peacock / Universal Movies"
+  },
+  {
+    "id": 360920,
+    "name": "The Grinch",
+    "poster": "/Al7DMUp8bqUN4JwXVNxfJYyv5cH.jpg",
+    "shelf": "Peacock / Universal Movies"
+  },
+  {
+    "id": 73723,
+    "name": "The Lorax",
+    "poster": "/tePFnZFw5JvjwjQjaKkqDPNMLPU.jpg",
+    "shelf": "Peacock / Universal Movies"
+  },
+  {
+    "id": 1354334,
+    "name": "Migration",
+    "poster": "/lmbAvzkIyC595wKiCwkIqshc2jG.jpg",
+    "shelf": "Peacock / Universal Movies"
+  },
+  {
+    "id": 601,
+    "name": "E.T. the Extra-Terrestrial",
+    "poster": "/an0nD6uq6byfxXCfk6lQBzdL2J1.jpg",
+    "shelf": "Peacock / Universal Movies"
+  },
+  {
+    "id": 3817,
+    "name": "The Land Before Time",
+    "poster": "/p4eUTWcyh5U62Y26HkALQQjdwMF.jpg",
+    "shelf": "Peacock / Universal Shows"
+  },
+  {
+    "id": 74,
+    "name": "Fievel's American Tails",
+    "poster": "/msWEkhcsqi0gfrIIpOonKumOkkT.jpg",
+    "shelf": "Peacock / Universal Shows"
+  },
+  {
+    "id": 129277,
+    "name": "Archibald's Next Big Thing Is Here!",
+    "poster": "/iC5Fv1960uNPD41D7GX6JnhzA7D.jpg",
+    "shelf": "Peacock / Universal Shows"
+  },
+  {
+    "id": 113378,
+    "name": "Trolls: TrollsTopia",
+    "poster": "/idpD7RzSNelzJqBBMFWZbzMfjUu.jpg",
+    "shelf": "Peacock / Universal Shows"
+  },
+  {
+    "id": 132559,
+    "name": "The Croods: Family Tree",
+    "poster": "/c0x8dGn1eurgf2TxvLHsPBrJKks.jpg",
+    "shelf": "Peacock / Universal Shows"
+  },
+  {
+    "id": 109330,
+    "name": "Madagascar: A Little Wild",
+    "poster": "/c9d59YbGDlg15tNOQ18oqRmf09t.jpg",
+    "shelf": "Peacock / Universal Shows"
+  },
+  {
+    "id": 112063,
+    "name": "The Mighty Ones",
+    "poster": "/gpzVxX8YE4LiJGoINwitxfwOCxY.jpg",
+    "shelf": "Peacock / Universal Shows"
+  },
+  {
+    "id": 79371,
+    "name": "The Adventures of Rocky and Bullwinkle",
+    "poster": "/7OhAk7WLtc7TulN3HD7saL5ifdS.jpg",
+    "shelf": "Prime Video Shows"
+  },
+  {
+    "id": 63054,
+    "name": "Lost in Oz",
+    "poster": "/bYPm31BjQed8fqbly7BFPjsOjLH.jpg",
+    "shelf": "Prime Video Shows"
+  },
+  {
+    "id": 72898,
+    "name": "Niko and the Sword of Light",
+    "poster": "/AsiXFOliQUKM6bOO4FfkGDAffko.jpg",
+    "shelf": "Prime Video Shows"
+  },
+  {
+    "id": 77345,
+    "name": "The Dangerous Book for Boys",
+    "poster": "/sU4tfnvxpqDwr4n4usyNYrjdtQ8.jpg",
+    "shelf": "Prime Video Shows"
+  },
+  {
+    "id": 585083,
+    "name": "Hotel Transylvania: Transformania",
+    "poster": "/teCy1egGQa0y8ULJvlrDHQKnxBL.jpg",
+    "shelf": "Prime Video Movies"
+  },
+  {
+    "id": 593910,
+    "name": "Cinderella",
+    "poster": "/clDFqATL4zcE7LzUwkrVj3zHvk7.jpg",
+    "shelf": "Prime Video Movies"
+  },
+  {
+    "id": 672647,
+    "name": "The Map of Tiny Perfect Things",
+    "poster": "/6y3ev0rJFbHA1hU22UPmmfzBjrG.jpg",
+    "shelf": "Prime Video Movies"
+  },
+  {
+    "id": 104002,
+    "name": "Fraggle Rock: Back to the Rock",
+    "poster": "/p8gN7DQMUTRXj9tnkhoCpOXu7vH.jpg",
+    "shelf": "Apple TV Shows"
+  },
+  {
+    "id": 111834,
+    "name": "Stillwater",
+    "poster": "/t6tcFn0LiyKRqR76XwNfErK81cw.jpg",
+    "shelf": "Apple TV Shows"
+  },
+  {
+    "id": 204087,
+    "name": "Duck & Goose",
+    "poster": "/mvRBeORln0UAJ5sTMUVGyAqhPo9.jpg",
+    "shelf": "Apple TV Shows"
+  },
+  {
+    "id": 136300,
+    "name": "Harriet the Spy",
+    "poster": "/wlH2YAt8JxOoKgkF3HlDGt9d734.jpg",
+    "shelf": "Apple TV Shows"
+  },
+  {
+    "id": 209131,
+    "name": "Interrupting Chicken",
+    "poster": "/Av52YtR9fvE0aqPrso1fbkM1fDC.jpg",
+    "shelf": "Apple TV Shows"
+  },
+  {
+    "id": 133106,
+    "name": "Wolfboy and the Everything Factory",
+    "poster": "/gdEXA8G4Bynu4vCzMkqwudGglMe.jpg",
+    "shelf": "Apple TV Shows"
+  },
+  {
+    "id": 441130,
+    "name": "Wolfwalkers",
+    "poster": "/vqGiNbdc2sDwsnivMMYzwAoSSu6.jpg",
+    "shelf": "Apple TV Movies"
+  },
+  {
+    "id": 1186957,
+    "name": "The Velveteen Rabbit",
+    "poster": "/aM0ViG6LVkN1PQGe9Bon1gQXpc7.jpg",
+    "shelf": "Apple TV Movies"
+  },
+  {
+    "id": 541572,
+    "name": "The Elephant Queen",
+    "poster": "/26hkYwRR6VsdjoelsOLpB5Cx1HD.jpg",
+    "shelf": "Apple TV Movies"
+  },
+  {
+    "id": 107124,
+    "name": "Animaniacs",
+    "poster": "/wmPZzLov9OhiknK4jW4qE6mgvHf.jpg",
+    "shelf": "Hulu Shows"
+  },
+  {
+    "id": 89221,
+    "name": "Holly Hobbie",
+    "poster": "/xqN1haLzynIyZHs0GmgRGQELA5m.jpg",
+    "shelf": "Hulu Shows"
+  },
+  {
+    "id": 227973,
+    "name": "The Peanuts Movie",
+    "poster": "/aiwdwnl7RFs1vcBanOKr13ye3wE.jpg",
+    "shelf": "Hulu / 20th Century Movies"
+  },
+  {
+    "id": 950,
+    "name": "Ice Age: The Meltdown",
+    "poster": "/zDduhCHasKQ9YOTvlOreHem7Wbi.jpg",
+    "shelf": "Hulu / 20th Century Movies"
+  },
+  {
+    "id": 46195,
+    "name": "Rio",
+    "poster": "/4nJxhUknKV8Gqdhov8pU1YWDYfb.jpg",
+    "shelf": "Hulu / 20th Century Movies"
+  },
+  {
+    "id": 172385,
+    "name": "Rio 2",
+    "poster": "/gVNTBrjxh2YRmQFjlaqrNbHVvrd.jpg",
+    "shelf": "Hulu / 20th Century Movies"
+  },
+  {
+    "id": 9928,
+    "name": "Robots",
+    "poster": "/fnKCh67l2DDG9NxxIlk9IpsXQ99.jpg",
+    "shelf": "Hulu / 20th Century Movies"
+  },
+  {
+    "id": 228326,
+    "name": "The Book of Life",
+    "poster": "/aotTZos5KswgCryEzx2rlOjFsm1.jpg",
+    "shelf": "Hulu / 20th Century Movies"
+  },
+  {
+    "id": 809,
+    "name": "Shrek 2",
+    "poster": "/2yYP0PQjG8zVqturh1BAqu2Tixl.jpg",
+    "shelf": "DreamWorks Movies"
+  },
+  {
+    "id": 810,
+    "name": "Shrek the Third",
+    "poster": "/n4SexGGQzI26E269tfpa80MZaGV.jpg",
+    "shelf": "DreamWorks Movies"
+  },
+  {
+    "id": 953,
+    "name": "Madagascar",
+    "poster": "/zMpJY5CJKUufG9OTw0In4eAFqPX.jpg",
+    "shelf": "DreamWorks Movies"
+  },
+  {
+    "id": 38055,
+    "name": "Megamind",
+    "poster": "/uZ9ytt3sPTx62XTfN56ILSuYWRe.jpg",
+    "shelf": "DreamWorks Movies"
+  },
+  {
+    "id": 140300,
+    "name": "Kung Fu Panda 3",
+    "poster": "/oajNi4Su39WAByHI6EONu8G8HYn.jpg",
+    "shelf": "DreamWorks Movies"
+  },
+  {
+    "id": 49519,
+    "name": "The Croods",
+    "poster": "/27zvjVOtOi5ped1HSlJKNsKXkFH.jpg",
+    "shelf": "DreamWorks Movies"
+  },
+  {
+    "id": 136799,
+    "name": "Trolls",
+    "poster": "/9VlK2j0THZWzhQPq0W3Oc0IIdBB.jpg",
+    "shelf": "DreamWorks Movies"
+  },
+  {
+    "id": 446893,
+    "name": "Trolls World Tour",
+    "poster": "/7W0G3YECgDAfnuiHG91r8WqgIOe.jpg",
+    "shelf": "DreamWorks Movies"
+  },
+  {
+    "id": 11619,
+    "name": "Flushed Away",
+    "poster": "/ahVxu86XwxMp8RkartqY4B3mK9l.jpg",
+    "shelf": "DreamWorks Movies"
+  },
+  {
+    "id": 81188,
+    "name": "Rise of the Guardians",
+    "poster": "/yfzmfWGjcmyugH6FZ13WcsUGiNj.jpg",
+    "shelf": "DreamWorks Movies"
+  },
+  {
+    "id": 431580,
+    "name": "Abominable",
+    "poster": "/20djTLqppfBx5WYA67Y300S6aPD.jpg",
+    "shelf": "DreamWorks Movies"
+  },
+  {
+    "id": 656,
+    "name": "Curious George",
+    "poster": "/1FsihcjjTrzkmD9i8hRPzE6GhZf.jpg",
+    "shelf": "PBS KIDS Shows"
+  },
+  {
+    "id": 4665,
+    "name": "The Berenstain Bears",
+    "poster": "/cRA1KVomv7d9avL7UpdPBJmASrv.jpg",
+    "shelf": "PBS KIDS Shows"
+  },
+  {
+    "id": 4302,
+    "name": "Between the Lions",
+    "poster": "/3MIfUYQvR58F99QFnSiwCo7fTnF.jpg",
+    "shelf": "PBS KIDS Shows"
+  },
+  {
+    "id": 211185,
+    "name": "Rosie's Rules",
+    "poster": "/a3v9hYlgEmYWvpH6auoPcKPwdUI.jpg",
+    "shelf": "PBS KIDS Shows"
+  },
+  {
+    "id": 77379,
+    "name": "Pinkalicious & Peterrific",
+    "poster": "/2Px2hChVZT2tPu1jDhfIs5W2tFt.jpg",
+    "shelf": "PBS KIDS Shows"
+  },
+  {
+    "id": 96504,
+    "name": "Xavier Riddle and the Secret Museum",
+    "poster": "/b7g6VuOEb2KCY2NVoXmO7S6vqls.jpg",
+    "shelf": "PBS KIDS Shows"
+  },
+  {
+    "id": 125605,
+    "name": "Donkey Hodie",
+    "poster": "/aGpTCYYsRDYOPAUZLe2aOLRNnbf.jpg",
+    "shelf": "PBS KIDS Shows"
+  },
+  {
+    "id": 232434,
+    "name": "Lyla in the Loop",
+    "poster": "/86t3DbL1nIZGqQJfzHiYuVPZFgH.jpg",
+    "shelf": "PBS KIDS Shows"
+  },
+  {
+    "id": 1615,
+    "name": "Chip 'n' Dale Rescue Rangers",
+    "poster": "/44VE1LaaZq4bZhMDo6Yi29NO4H.jpg",
+    "shelf": "Disney Shows"
+  },
+  {
+    "id": 3319,
+    "name": "Darkwing Duck",
+    "poster": "/1gJMSXS0gwM8gDJnzVSITcxbQc.jpg",
+    "shelf": "Disney Shows"
+  },
+  {
+    "id": 2345,
+    "name": "Kim Possible",
+    "poster": "/qsDNX8DPwWydDn9oUIhe1WcTuUH.jpg",
+    "shelf": "Disney Shows"
+  },
+  {
+    "id": 543,
+    "name": "The Proud Family",
+    "poster": "/wcfbfActZ9VZ3anFqe3YYNWOHsG.jpg",
+    "shelf": "Disney Shows"
+  },
+  {
+    "id": 85349,
+    "name": "Amphibia",
+    "poster": "/bFCgv9iWZECWSDxNQYc9soqvwjx.jpg",
+    "shelf": "Disney Shows"
+  },
+  {
+    "id": 46928,
+    "name": "Sofia the First",
+    "poster": "/eZHmUO1OQRpVkAOdj9VwYCCyQew.jpg",
+    "shelf": "Disney Shows"
+  },
+  {
+    "id": 46262,
+    "name": "Doc McStuffins",
+    "poster": "/eeGWJaFkxX0vvOFFpNFXrh9QVxl.jpg",
+    "shelf": "Disney Shows"
+  },
+  {
+    "id": 1878,
+    "name": "The Backyardigans",
+    "poster": "/dIB32UlWZ81M2HDtQVp72LGq8v8.jpg",
+    "shelf": "Nickelodeon Shows"
+  },
+  {
+    "id": 31623,
+    "name": "Team Umizoomi",
+    "poster": "/y090DrGOIK5LyrCq3GeA8TZZ4lY.jpg",
+    "shelf": "Nickelodeon Shows"
+  },
+  {
+    "id": 1647,
+    "name": "Go, Diego, Go!",
+    "poster": "/p7Y6IPzPRkZ4oHU0D8DOIIis70a.jpg",
+    "shelf": "Nickelodeon Shows"
+  },
+  {
+    "id": 537,
+    "name": "Hey Arnold!",
+    "poster": "/c1Yv042okfvMdT1Ulwlat9Tj70B.jpg",
+    "shelf": "Nickelodeon Shows"
+  },
+  {
+    "id": 3022,
+    "name": "Rugrats",
+    "poster": "/wmsINbZuEBLNP2Z26Xffx5NHJpW.jpg",
+    "shelf": "Nickelodeon Shows"
+  },
+  {
+    "id": 2408,
+    "name": "The Wild Thornberrys",
+    "poster": "/6SHAvvwmOFJwFhbkAqa6MjsiO7P.jpg",
+    "shelf": "Nickelodeon Shows"
+  },
+  {
+    "id": 39898,
+    "name": "Kung Fu Panda: Legends of Awesomeness",
+    "poster": "/rkq5Jt7boR5v65bDbELHz3DW7sv.jpg",
+    "shelf": "DreamWorks Shows"
+  },
+  {
+    "id": 63350,
+    "name": "Dinotrux",
+    "poster": "/grFWAAeKAzJv0ofYNt8g2TcLwey.jpg",
+    "shelf": "DreamWorks Shows"
+  },
+  {
+    "id": 71680,
+    "name": "Spirit: Riding Free",
+    "poster": "/jRJYUWTH1qyTL0us4dix6wasN0A.jpg",
+    "shelf": "DreamWorks Shows"
+  },
+  {
+    "id": 37472,
+    "name": "Octonauts",
+    "poster": "/iYUhUSKWKpSBahaWLUQIPckAy8p.jpg",
+    "shelf": "Family Favorites Shows"
+  },
+  {
+    "id": 82456,
+    "name": "Hilda",
+    "poster": "/giWufGBC7uxrmK9ZESdk9D1cyGm.jpg",
+    "shelf": "Family Favorites Shows"
+  },
+  {
+    "id": 69926,
+    "name": "Puffin Rock",
+    "poster": "/8ZYTNkpubnG8epqlJLjaWbbO30R.jpg",
+    "shelf": "Family Favorites Shows"
+  },
+  {
+    "id": 65047,
+    "name": "Tumble Leaf",
+    "poster": "/8MbsSjulW9HZHfLecV2S2dyzk77.jpg",
+    "shelf": "Family Favorites Shows"
+  },
+  {
+    "id": 46866,
+    "name": "Sarah & Duck",
+    "poster": "/u4SwnXjUFDiyRPPBc4st9TGQefm.jpg",
+    "shelf": "Family Favorites Shows"
+  },
+  {
+    "id": 10386,
+    "name": "The Iron Giant",
+    "poster": "/k1Cv5CHJvqGWK1xJDUJz8DojFEy.jpg",
+    "shelf": "HBO Max / Warner Bros. Movies"
+  },
+  {
+    "id": 137106,
+    "name": "The Lego Movie",
+    "poster": "/lbctonEnewCYZ4FYoTZhs8cidAl.jpg",
+    "shelf": "HBO Max / Warner Bros. Movies"
+  },
+  {
+    "id": 324849,
+    "name": "The Lego Batman Movie",
+    "poster": "/e1TliRWOdXQ73pRunbpFiGst6Kd.jpg",
+    "shelf": "HBO Max / Warner Bros. Movies"
+  },
+  {
+    "id": 2300,
+    "name": "Space Jam",
+    "poster": "/4RN5El3Pj2W4gpwgiAGLVfSJv2g.jpg",
+    "shelf": "HBO Max / Warner Bros. Movies"
+  },
+  {
+    "id": 9836,
+    "name": "Happy Feet",
+    "poster": "/zP4CK9O70P8GDilfTkPm4lrmaks.jpg",
+    "shelf": "HBO Max / Warner Bros. Movies"
+  },
+  {
+    "id": 252,
+    "name": "Willy Wonka & the Chocolate Factory",
+    "poster": "/vmpsZkrs4Uvkp9r1atL8B3frA63.jpg",
+    "shelf": "HBO Max / Warner Bros. Movies"
+  },
+  {
+    "id": 10144,
+    "name": "The Little Mermaid",
+    "poster": "/plcZXvI310FkbwIptvd6rqk63LP.jpg",
+    "shelf": "Disney Movies"
+  },
+  {
+    "id": 10198,
+    "name": "The Princess and the Frog",
+    "poster": "/yprv5PbnEksoVj2v6XEnDBg9joR.jpg",
+    "shelf": "Disney Movies"
+  },
+  {
+    "id": 10020,
+    "name": "Beauty and the Beast",
+    "poster": "/hUJ0UvQ5tgE2Z9WpfuduVSdiCiU.jpg",
+    "shelf": "Disney Movies"
+  },
+  {
+    "id": 812,
+    "name": "Aladdin",
+    "poster": "/eLFfl7vS8dkeG1hKp5mwbm37V83.jpg",
+    "shelf": "Disney Movies"
+  },
+  {
+    "id": 11224,
+    "name": "Cinderella",
+    "poster": "/4nssBcQUBadCTBjrAkX46mVEKts.jpg",
+    "shelf": "Disney Movies"
+  },
+  {
+    "id": 10882,
+    "name": "Sleeping Beauty",
+    "poster": "/pO9YMLSmj3essVSWSGygjGxX6Kw.jpg",
+    "shelf": "Disney Movies"
+  },
+  {
+    "id": 3170,
+    "name": "Bambi",
+    "poster": "/wV9e2y4myJ4KMFsyFfWYcUOawyK.jpg",
+    "shelf": "Disney Movies"
+  },
+  {
+    "id": 11360,
+    "name": "Dumbo",
+    "poster": "/hKDdllslMtsU9JixAv5HR9biXlp.jpg",
+    "shelf": "Disney Movies"
+  },
+  {
+    "id": 329996,
+    "name": "Dumbo",
+    "poster": "/A7XkpLfNH0El2yyDLc4b0KLAKvE.jpg",
+    "shelf": "Disney Movies"
+  },
+  {
+    "id": 330457,
+    "name": "Frozen II",
+    "poster": "/mINJaa34MtknCYl5AjtNJzWj8cD.jpg",
+    "shelf": "Disney Movies"
+  },
+  {
+    "id": 38757,
+    "name": "Tangled",
+    "poster": "/ym7Kst6a4uodryxqbGOxmewF235.jpg",
+    "shelf": "Disney Movies"
+  },
+  {
+    "id": 11970,
+    "name": "Hercules",
+    "poster": "/dK9rNoC97tgX3xXg5zdxFisdfcp.jpg",
+    "shelf": "Disney Movies"
+  },
+  {
+    "id": 37135,
+    "name": "Tarzan",
+    "poster": "/bTvHlcqiOjGa3lFtbrTLTM3zasY.jpg",
+    "shelf": "Disney Movies"
+  },
+  {
+    "id": 11886,
+    "name": "Robin Hood",
+    "poster": "/x9AvkYek0bGdxQSZ8W3lAjGrREm.jpg",
+    "shelf": "Disney Movies"
+  },
+  {
+    "id": 9325,
+    "name": "The Jungle Book",
+    "poster": "/yN1kuupnPTLUprgfvC5WapgrxG4.jpg",
+    "shelf": "Disney Movies"
+  },
+  {
+    "id": 9994,
+    "name": "The Great Mouse Detective",
+    "poster": "/9uDr7vfjCFr39KGCcqrk44Cg7fQ.jpg",
+    "shelf": "Disney Movies"
+  },
+  {
+    "id": 10340,
+    "name": "Lady and the Tramp",
+    "poster": "/340NcWz9SQXWQyf4oicMxjbrLOb.jpg",
+    "shelf": "Disney Movies"
+  },
+  {
+    "id": 12230,
+    "name": "One Hundred and One Dalmatians",
+    "poster": "/kSlYq6FrBUviGSEh8v4L9nrSnBT.jpg",
+    "shelf": "Disney Movies"
+  },
+  {
+    "id": 863,
+    "name": "Toy Story 2",
+    "poster": "/4rbcp3ng8n1MKHjpeqW0L7Fnpzz.jpg",
+    "shelf": "Pixar Movies"
+  },
+  {
+    "id": 260513,
+    "name": "Incredibles 2",
+    "poster": "/9lFKBtaVIhP7E2Pk0IY1CwTKTMZ.jpg",
+    "shelf": "Pixar Movies"
+  },
+  {
+    "id": 62177,
+    "name": "Brave",
+    "poster": "/1XAuDtMWpL0sYSFK0R6EZate2Ux.jpg",
+    "shelf": "Pixar Movies"
+  },
+  {
+    "id": 508943,
+    "name": "Luca",
+    "poster": "/9x4i9uKGXt8IiiIF5Ey0DIoY738.jpg",
+    "shelf": "Pixar Movies"
+  },
+  {
+    "id": 508442,
+    "name": "Soul",
+    "poster": "/hm58Jw4Lw8OIeECIq5qyPYhAeRJ.jpg",
+    "shelf": "Pixar Movies"
+  },
+  {
+    "id": 1022789,
+    "name": "Inside Out 2",
+    "poster": "/vpnVM9B6NMmQpWeZvzLvDESb2QY.jpg",
+    "shelf": "Pixar Movies"
+  },
+  {
+    "id": 9487,
+    "name": "A Bug's Life",
+    "poster": "/Ah3J9OJVc2CNCuH2zMydXy9fmIC.jpg",
+    "shelf": "Pixar Movies"
+  },
+  {
+    "id": 49013,
+    "name": "Cars 2",
+    "poster": "/okIz1HyxeVOMzYwwHUjH2pHi74I.jpg",
+    "shelf": "Pixar Movies"
+  },
+  {
+    "id": 105864,
+    "name": "The Good Dinosaur",
+    "poster": "/8RSkxOO80btfKjyiC5ZiTaCHIT8.jpg",
+    "shelf": "Pixar Movies"
+  },
+  {
+    "id": 44896,
+    "name": "Rango",
+    "poster": "/A5MP1guV8pbruieG0tnpPIbaJtt.jpg",
+    "shelf": "Paramount Movies"
+  },
+  {
+    "id": 675445,
+    "name": "PAW Patrol: The Movie",
+    "poster": "/jXavWyam2VPR6bOhLwwuP3K2Hw4.jpg",
+    "shelf": "Paramount Movies"
+  },
+  {
+    "id": 614930,
+    "name": "Teenage Mutant Ninja Turtles: Mutant Mayhem",
+    "poster": "/gyh0eECE2IqrW8GWl3KoHBfc45j.jpg",
+    "shelf": "Paramount Movies"
+  },
+  {
+    "id": 585245,
+    "name": "Clifford the Big Red Dog",
+    "poster": "/30ULVKdjBcQTsj2aOSThXXZNSxF.jpg",
+    "shelf": "Paramount Movies"
+  },
+  {
+    "id": 10192,
+    "name": "Shrek Forever After",
+    "poster": "/6HrfPZtKcGmX2tUWW3cnciZTaSD.jpg",
+    "shelf": "DreamWorks Movies"
+  },
+  {
+    "id": 315162,
+    "name": "Puss in Boots: The Last Wish",
+    "poster": "/kuf6dutpsT0vSVehic3EZIqkOBt.jpg",
+    "shelf": "DreamWorks Movies"
+  },
+  {
+    "id": 10527,
+    "name": "Madagascar: Escape 2 Africa",
+    "poster": "/agRbLOHgN46TQO4YdKR462iR7To.jpg",
+    "shelf": "DreamWorks Movies"
+  },
+  {
+    "id": 82702,
+    "name": "How to Train Your Dragon 2",
+    "poster": "/d13Uj86LdbDLrfDoHR5aDOFYyJC.jpg",
+    "shelf": "DreamWorks Movies"
+  },
+  {
+    "id": 166428,
+    "name": "How to Train Your Dragon: The Hidden World",
+    "poster": "/xvx4Yhf0DVH8G4LzNISpMfFBDy2.jpg",
+    "shelf": "DreamWorks Movies"
+  },
+  {
+    "id": 49444,
+    "name": "Kung Fu Panda 2",
+    "poster": "/mtqqD00vB4PGRt20gWtGqFhrkd0.jpg",
+    "shelf": "DreamWorks Movies"
+  },
+  {
+    "id": 1011985,
+    "name": "Kung Fu Panda 4",
+    "poster": "/kDp1vUBnMpe8ak4rjgl3cLELqjU.jpg",
+    "shelf": "DreamWorks Movies"
+  },
+  {
+    "id": 20352,
+    "name": "Despicable Me",
+    "poster": "/b1BT309QWjtFUlJPLmXmrcHOWEL.jpg",
+    "shelf": "Peacock / Universal Movies"
+  },
+  {
+    "id": 93456,
+    "name": "Despicable Me 2",
+    "poster": "/5Fh4NdoEnCjCK9wLjdJ9DJNFl2b.jpg",
+    "shelf": "Peacock / Universal Movies"
+  },
+  {
+    "id": 519182,
+    "name": "Despicable Me 4",
+    "poster": "/wWba3TaojhK7NdycRhoQpsG0FaH.jpg",
+    "shelf": "Peacock / Universal Movies"
+  },
+  {
+    "id": 412117,
+    "name": "The Secret Life of Pets 2",
+    "poster": "/s9xg4V5EDKiphgIksVJ9gewBM11.jpg",
+    "shelf": "Peacock / Universal Movies"
+  },
+  {
+    "id": 335797,
+    "name": "Sing",
+    "poster": "/rwopfpHqPCYBSgBuZwkaXXqHp14.jpg",
+    "shelf": "Peacock / Universal Movies"
+  },
+  {
+    "id": 438695,
+    "name": "Sing 2",
+    "poster": "/aWeKITRFbbwY8txG5uCj4rMCfSP.jpg",
+    "shelf": "Peacock / Universal Movies"
+  },
+  {
+    "id": 940551,
+    "name": "Migration",
+    "poster": "/ldfCF9RhR40mppkzmftxapaHeTo.jpg",
+    "shelf": "Peacock / Universal Movies"
   }
 ]

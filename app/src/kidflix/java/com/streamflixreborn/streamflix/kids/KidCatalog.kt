@@ -28,7 +28,13 @@ internal object KidCatalog {
         tv("Disney", 54, 44, 281), films("Pixar", 3),
         Shelf("Pixar", false, "with_companies", setOf(3)),
         films("Disney", 2, 6125), tv("Paramount", 2076, 4330), films("Paramount", 4),
-        Shelf("DreamWorks", false, "with_companies", setOf(521, 42141)), films("DreamWorks", 521))
+        Shelf("DreamWorks", false, "with_companies", setOf(521, 42141)), films("DreamWorks", 521),
+        tv("Netflix"), films("Netflix"),
+        tv("HBO Max / Warner Bros."), films("HBO Max / Warner Bros."),
+        tv("Peacock / Universal"), films("Peacock / Universal"),
+        tv("Prime Video"), films("Prime Video"),
+        tv("Apple TV"), films("Apple TV"),
+        tv("Hulu"), films("Hulu / 20th Century"))
 
     private val bundled: List<KidTitle> by lazy {
         val json = StreamFlixApp.instance.assets.open("kidflix_catalog.json").bufferedReader().use { JSONArray(it.readText()) }
@@ -115,7 +121,7 @@ internal object KidCatalog {
 
     val catalog: List<KidTitle> get() {
         restoreCatalog()
-        return bundled + resolved.values.sortedBy { it.name }
+        return (bundled + resolved.values.sortedBy { it.name }).distinctBy { it.key }
     }
 
     suspend fun expand(shelf: Shelf, append: (KidTitle) -> Unit) {
@@ -123,7 +129,7 @@ internal object KidCatalog {
         restoreCatalog()
         for ((name, year) in additions[shelf.brand].orEmpty()) {
             val key = "$name/$year"
-            if (key in resolved) continue
+            if (resolved.containsKey(key) || bundled.any { !it.shelf.movie && it.name.equals(name, true) && it.shelf == shelf }) continue
             try {
                 val match = TMDb3.Search.multi(name, false, "en", 1).results.filterIsInstance<TMDb3.Tv>()
                     .firstOrNull { !it.adult && it.name.filter(Char::isLetterOrDigit).equals(name.filter(Char::isLetterOrDigit), true)
@@ -154,7 +160,7 @@ internal object KidCatalog {
     data class Page(val titles: List<KidTitle>, val more: Boolean)
 
     suspend fun page(shelf: Shelf?, query: String, page: Int): Page {
-        if (query.isBlank() && shelf != null && (shelf == favorites || shelf == specials)) {
+        if (query.isBlank() && shelf != null && (shelf.movie || shelf.ids.isEmpty())) {
             return Page(catalog.filter { it.shelf == shelf }, false)
         }
         val result = if (query.isNotBlank()) TMDb3.Search.multi(query, false, "en", page)
@@ -171,7 +177,7 @@ internal object KidCatalog {
     }
 
     private suspend fun inspect(item: TMDb3.MultiItem): KidTitle? = when (item) {
-        is TMDb3.Movie -> movie(item.id)
+        is TMDb3.Movie -> catalog.firstOrNull { it.shelf.movie && it.id == item.id }
         is TMDb3.Tv -> show(item.id)
         else -> null
     }
@@ -180,19 +186,6 @@ internal object KidCatalog {
         shelves.firstOrNull { shelf -> shelf.movie == movie && shelf.ids.any {
             it in (if (shelf.field == "with_companies") companies else networks)
         } }
-
-    private suspend fun movie(id: Int): KidTitle? {
-        val info = TMDb3.Movies.details(id, listOf(TMDb3.Params.AppendToResponse.Movie.RELEASES_DATES), "en")
-        val companies = info.productionCompanies.orEmpty()
-        if (info.adult || info.video || KidPolicy.excluded(info.title, info.overview, companies)) return null
-        val ratings = info.releaseDates?.results.orEmpty().filter { it.iso3166 == "US" }
-            .flatMap { it.releaseDates }.mapNotNull { it.certification }.filter { it.isNotBlank() }
-        val approved = catalog.firstOrNull { it.shelf.movie && it.id == id }
-        val special = approved?.shelf == specials
-        if (!KidPolicy.allowedRatings(ratings, movie = true, pbs = special)) return null
-        val shelf = approved?.shelf ?: trusted(true, companies.map { it.id }.toSet(), emptySet()) ?: return null
-        return KidTitle(id, info.title, info.posterPath, shelf)
-    }
 
     private suspend fun show(id: Int): KidTitle? {
         val info = TMDb3.TvSeries.details(id, listOf(TMDb3.Params.AppendToResponse.Tv.CONTENT_RATING), "en")
