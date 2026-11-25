@@ -2,7 +2,6 @@ package com.streamflixreborn.streamflix.kids
 
 import kotlinx.coroutines.flow.first
 import com.streamflixreborn.streamflix.utils.ServerAvailability
-import com.streamflixreborn.streamflix.utils.PublisherEpisodes
 import android.content.Context
 import android.graphics.Color
 import android.graphics.Typeface
@@ -562,8 +561,6 @@ class KidFlixFragment : Fragment() {
         actions.addView(primary)
         val restart = button("Restart") {}
         actions.addView(restart)
-        val publisher = button("Watch on YouTube") {}.apply { visibility = View.GONE }
-        actions.addView(publisher)
         val browse = button("Episodes") {}
         info.addView(browse, -2, -2)
 
@@ -623,9 +620,7 @@ class KidFlixFragment : Fragment() {
                     preview.addView(still)
                     row.addView(preview, dp(142), dp(80))
                     val path = episode.stillPath?.takeIf { stillCounts[it] == 1 && it != tv.backdropPath && it != tv.posterPath && it != season.posterPath }
-                    val publishedId = PublisherEpisodes.videoId(tv.id.toString(), episode.name)
                     val previewUrl = path?.w500 ?: EpisodeArtwork.image(tv.id, episode.name)
-                        ?: publishedId?.let { "https://i.ytimg.com/vi/$it/hqdefault.jpg" }
                     if (previewUrl == null) missing.add(episode to still) else artwork(still, previewUrl)
                     val summary = column().apply { setPadding(dp(12), 0, 0, 0) }
                     row.addView(summary)
@@ -633,7 +628,6 @@ class KidFlixFragment : Fragment() {
                     summary.addView(label(episode.overview.orEmpty(), 14f))
                     row.setOnClickListener { startEpisode(season, episode) }
                     episodes.addView(row)
-                    if (publishedId != null) summary.addView(button("Watch on YouTube") { PublisherEpisodes.watch(requireContext(), publishedId) })
                 }
                 if (missing.isNotEmpty()) {
                     val images = EpisodeArtwork.lookup(tv.externalIds?.tvdbId, tv.externalIds?.imdbId)
@@ -681,7 +675,6 @@ class KidFlixFragment : Fragment() {
             hero.visibility = View.VISIBLE
             showStatus = heroStatus
             primary.requestFocus()
-            publisher.visibility = View.GONE
             restart.isEnabled = false
             primary.text = "Play episode"
             primary.setOnClickListener { openHero() }
@@ -712,10 +705,6 @@ class KidFlixFragment : Fragment() {
                 val choice = target ?: first
                 if (choice == null) { heroStatus.text = "No episodes available"; return@request }
                 val (season, episode) = choice
-                PublisherEpisodes.videoId(tv.id.toString(), episode.name)?.let { id ->
-                    publisher.visibility = View.VISIBLE
-                    publisher.setOnClickListener { PublisherEpisodes.watch(requireContext(), id) }
-                }
                 val progress = history[episode.id.toString()]?.watchHistory
                 val resume = (progress?.lastPlaybackPositionMillis ?: 0L) > 0 && target != null
                 seasonNumber = season.seasonNumber
@@ -738,24 +727,6 @@ class KidFlixFragment : Fragment() {
         fun enterBrowser() {
             openEpisodes()
             if (browser.visibility == View.VISIBLE) returnToHero = ::openHero
-        }
-        if (tv.id == 258124) {
-            info.addView(button("Official Danny Go! videos") {
-                job?.cancel()
-                val list = column().apply { setPadding(dp(30), dp(16), dp(30), dp(10)) }
-                list.addView(label("Danny Go! on YouTube", 24f))
-                for ((name, id) in PublisherEpisodes.videos(tv.id.toString())) {
-                    list.addView(button(name) { PublisherEpisodes.watch(requireContext(), id) })
-                }
-                val page = ScrollView(requireContext()).apply { addView(list) }
-                hero.visibility = View.GONE
-                layer.addView(page, -1, -1)
-                list.getChildAt(1)?.requestFocus()
-                returnToHero = {
-                    layer.removeView(page)
-                    openHero()
-                }
-            }, -2, -2)
         }
         browse.setOnClickListener { enterBrowser() }
         primary.setOnKeyListener { _, key, event ->

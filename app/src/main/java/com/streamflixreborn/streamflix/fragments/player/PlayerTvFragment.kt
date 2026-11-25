@@ -2,6 +2,7 @@ package com.streamflixreborn.streamflix.fragments.player
 
 import com.streamflixreborn.streamflix.providers.TmdbProvider
 import com.streamflixreborn.streamflix.utils.TMDb3
+import com.streamflixreborn.streamflix.BuildConfig
 import com.streamflixreborn.streamflix.utils.PublisherEpisodes
 import android.annotation.SuppressLint
 import android.app.PendingIntent
@@ -260,6 +261,9 @@ class PlayerTvFragment : Fragment() {
     override fun onViewCreated(view: View, savedInstanceState: Bundle?) {
         super.onViewCreated(view, savedInstanceState)
 
+        if (BuildConfig.FLAVOR == "kidflix") {
+            binding.pvPlayer.controller.binding.btnExoExternalPlayer.visibility = View.GONE
+        }
         initializePlayer(false)
         initializeVideo()
         binding.pvPlayer.onMediaPreviousClicked = ::handleMediaPrevious
@@ -354,7 +358,7 @@ class PlayerTvFragment : Fragment() {
                         val isAD = providerName.contains("AfterDark", ignoreCase = true)
 
                         if (servers.isEmpty()) {
-                            val published = if (isTmdb) PublisherEpisodes.videoId(currentVideoTypeForUi()) else null
+                            val published = if (isTmdb && BuildConfig.FLAVOR != "kidflix") PublisherEpisodes.videoId(currentVideoTypeForUi()) else null
                             if (published != null) {
                                 androidx.appcompat.app.AlertDialog.Builder(requireContext())
                                     .setMessage("This episode is available on the publisher’s YouTube channel.")
@@ -829,6 +833,7 @@ class PlayerTvFragment : Fragment() {
             updatePlayerHeader()
 
             binding.pvPlayer.controller.binding.btnExoExternalPlayer.setOnClickListener {
+                if (BuildConfig.FLAVOR == "kidflix") return@setOnClickListener
                 Toast.makeText(
                     requireContext(),
                     getString(R.string.player_external_player_error_video),
@@ -1097,6 +1102,7 @@ class PlayerTvFragment : Fragment() {
             )
 
             binding.pvPlayer.controller.binding.btnExoExternalPlayer.setOnClickListener {
+                if (BuildConfig.FLAVOR == "kidflix") return@setOnClickListener
                 val videoTitle = when (val type = args.videoType) {
                     is Video.Type.Movie -> type.title
                     is Video.Type.Episode -> "${type.tvShow.title} • S${type.season.number} E${type.number}"
