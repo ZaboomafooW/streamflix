@@ -41,7 +41,10 @@ class VidrockExtractor : Extractor() {
                     src = "$apiUrl#$serverName",
                 )
             }
-        } catch (_: Exception) {
+        } catch (e: kotlinx.coroutines.CancellationException) {
+            throw e
+        } catch (e: Exception) {
+            android.util.Log.w("Vidrock", "Server discovery failed (${e.javaClass.simpleName})")
             emptyList()
         }
     }
@@ -89,7 +92,10 @@ class VidrockExtractor : Extractor() {
     private suspend fun resolveCdnSource(service: Service, url: String): ResolvedSource? {
         val qualities = try {
             service.getQualities(url)
-        } catch (_: Exception) {
+        } catch (e: kotlinx.coroutines.CancellationException) {
+            throw e
+        } catch (e: Exception) {
+            android.util.Log.w("Vidrock", "Quality lookup failed (${e.javaClass.simpleName})")
             emptyList()
         }
 
