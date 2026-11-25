@@ -1687,7 +1687,19 @@ class PlayerTvFragment : Fragment() {
             return baseBuilder
                 .setMediaSourceFactory(DefaultMediaSourceFactory(dataSourceFactory))
                 .setLoadControl(loadControl)
-                .build()
+                .build().also { player ->
+                    val language = UserPreferences.currentProvider?.language?.substringBefore("-")?.lowercase()
+                    val preferredAudio = when (language) {
+                        "en", null -> "eng"
+                        "es" -> "spa"
+                        else -> null
+                    }
+                    if (preferredAudio != null) {
+                        player.trackSelectionParameters = player.trackSelectionParameters.buildUpon()
+                            .setPreferredAudioLanguage(preferredAudio)
+                            .build()
+                    }
+                }
         }
 
         private fun initializePlayer(extraBuffering: Boolean, softwareDecoder: Boolean = currentSoftwareDecoder) {
@@ -1732,13 +1744,6 @@ class PlayerTvFragment : Fragment() {
                         true,
                     )
 
-                    val lang = UserPreferences.currentProvider?.language?.substringBefore("-")
-                    if (lang == "es") {
-                        player.trackSelectionParameters =
-                            player.trackSelectionParameters.buildUpon()
-                                .setPreferredAudioLanguage("spa")
-                                .build()
-                    }
 
                     mediaSession = MediaSession.Builder(requireContext(), player)
                         .build()
