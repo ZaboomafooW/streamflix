@@ -2,6 +2,7 @@ package com.streamflixreborn.streamflix.kids
 
 import kotlinx.coroutines.flow.first
 import com.streamflixreborn.streamflix.utils.ServerAvailability
+import com.streamflixreborn.streamflix.utils.PublisherEpisodes
 import android.content.Context
 import android.graphics.Color
 import android.graphics.Typeface
@@ -206,10 +207,10 @@ class KidFlixFragment : Fragment() {
                 Destination.HOME -> false
             }
         }.sortedWith(compareByDescending<Shelf> { it.brand == "PBS KIDS" }
-            .thenByDescending { section -> catalog.firstOrNull { it.shelf == section }?.releaseDate.orEmpty() }
+            .thenByDescending { section -> catalog.firstOrNull { it.belongsTo(section) }?.releaseDate.orEmpty() }
             .thenBy { it.label })
         sections.forEach { section ->
-            val preview = catalog.filter { it.shelf == section }
+            val preview = catalog.filter { it.belongsTo(section) }
             if (preview.isNotEmpty()) {
                 val header = LinearLayout(requireContext()).apply {
                     gravity = Gravity.CENTER_VERTICAL
@@ -229,7 +230,7 @@ class KidFlixFragment : Fragment() {
                 rows[section] = row
                 preview.forEach { row.addView(card(it),dp(114),ViewGroup.LayoutParams.WRAP_CONTENT) }
                 body.addView(HorizontalScrollView(requireContext()).apply { addView(row) })
-            } else if (KidCatalog.catalog.none { it.shelf == section }) {
+            } else if (KidCatalog.catalog.none { it.belongsTo(section) }) {
                 body.addView(button(section.label) { open(section, "") })
             }
         }
@@ -266,7 +267,10 @@ class KidFlixFragment : Fragment() {
 
     private fun channelCards(catalog: List<KidTitle>) {
         // The first title for each brand is its newest visible release.
-        val newest = catalog.distinctBy { channelName(it.shelf) }.associateBy { channelName(it.shelf) }
+        val newest = mutableMapOf<String, KidTitle>()
+        for (title in catalog) {
+            for (brand in title.channels + channelName(title.shelf)) newest.getOrPut(brand) { title }
+        }
         val brands = KidCatalog.shelves.map(::channelName).distinct().sortedWith(
             compareByDescending<String> { it == "PBS KIDS" }.thenByDescending { newest[it]?.releaseDate.orEmpty() }.thenBy { it })
         val columns = ((resources.configuration.screenWidthDp - 172) / 170).coerceIn(1, 4)
@@ -374,7 +378,7 @@ class KidFlixFragment : Fragment() {
         page = 0
         more = false
         titles.clear()
-        titles.addAll(KidCatalog.catalog.filter { (selection == null || it.shelf == selection) && it.name.contains(term,true) })
+        titles.addAll(KidCatalog.catalog.filter { (selection == null || it.belongsTo(selection)) && it.name.contains(term,true) })
         if (selection != null && (selection.movie || selection.ids.isEmpty())) {
             page = 1
             render()
@@ -558,6 +562,8 @@ class KidFlixFragment : Fragment() {
         actions.addView(primary)
         val restart = button("Restart") {}
         actions.addView(restart)
+        val publisher = button("Watch on YouTube") {}.apply { visibility = View.GONE }
+        actions.addView(publisher)
         val browse = button("Episodes") {}
         info.addView(browse, -2, -2)
 
@@ -596,10 +602,11 @@ class KidFlixFragment : Fragment() {
             episodes.removeAllViews()
             episodeScroll.scrollTo(0, 0)
             notice.text = "${season.name} · Loading episodes…"
-            val seasonArt = season.posterPath ?: tv.posterPath
             request {
                 val list = episodesFor(season)
                 notice.text = "${season.name} · ${list.size} episodes"
+                val stillCounts = list.mapNotNull { it.stillPath }.groupingBy { it }.eachCount()
+                val missing = mutableListOf<Pair<TMDb3.Episode, ImageView>>()
                 for (episode in list) {
                     val row = LinearLayout(requireContext()).apply {
                         isFocusable = true
@@ -611,14 +618,26 @@ class KidFlixFragment : Fragment() {
                         setPadding(dp(6), dp(4), dp(6), dp(4))
                     }
                     val still = ImageView(requireContext()).apply { scaleType = ImageView.ScaleType.FIT_CENTER }
-                    row.addView(still, dp(142), dp(80))
-                    artwork(still, (episode.stillPath ?: tv.backdropPath ?: seasonArt)?.w500)
+                    val preview = FrameLayout(requireContext())
+                    preview.addView(label("S${season.seasonNumber} · E${episode.episodeNumber}", 17f).apply { gravity = Gravity.CENTER })
+                    preview.addView(still)
+                    row.addView(preview, dp(142), dp(80))
+                    val path = episode.stillPath?.takeIf { stillCounts[it] == 1 && it != tv.backdropPath && it != tv.posterPath && it != season.posterPath }
+                    val publishedId = PublisherEpisodes.videoId(tv.id.toString(), episode.name)
+                    val previewUrl = path?.w500 ?: EpisodeArtwork.image(tv.id, episode.name)
+                        ?: publishedId?.let { "https://i.ytimg.com/vi/$it/hqdefault.jpg" }
+                    if (previewUrl == null) missing.add(episode to still) else artwork(still, previewUrl)
                     val summary = column().apply { setPadding(dp(12), 0, 0, 0) }
                     row.addView(summary)
                     summary.addView(label("${episode.episodeNumber}. ${episode.name.orEmpty()}", 17f))
                     summary.addView(label(episode.overview.orEmpty(), 14f))
                     row.setOnClickListener { startEpisode(season, episode) }
                     episodes.addView(row)
+                    if (publishedId != null) summary.addView(button("Watch on YouTube") { PublisherEpisodes.watch(requireContext(), publishedId) })
+                }
+                if (missing.isNotEmpty()) {
+                    val images = EpisodeArtwork.lookup(tv.externalIds?.tvdbId, tv.externalIds?.imdbId)
+                    for ((episode, image) in missing) artwork(image, images["${season.seasonNumber}/${EpisodeArtwork.key(episode.name)}"])
                 }
             }
         }
@@ -662,6 +681,7 @@ class KidFlixFragment : Fragment() {
             hero.visibility = View.VISIBLE
             showStatus = heroStatus
             primary.requestFocus()
+            publisher.visibility = View.GONE
             restart.isEnabled = false
             primary.text = "Play episode"
             primary.setOnClickListener { openHero() }
@@ -692,6 +712,10 @@ class KidFlixFragment : Fragment() {
                 val choice = target ?: first
                 if (choice == null) { heroStatus.text = "No episodes available"; return@request }
                 val (season, episode) = choice
+                PublisherEpisodes.videoId(tv.id.toString(), episode.name)?.let { id ->
+                    publisher.visibility = View.VISIBLE
+                    publisher.setOnClickListener { PublisherEpisodes.watch(requireContext(), id) }
+                }
                 val progress = history[episode.id.toString()]?.watchHistory
                 val resume = (progress?.lastPlaybackPositionMillis ?: 0L) > 0 && target != null
                 seasonNumber = season.seasonNumber

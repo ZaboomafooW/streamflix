@@ -197,6 +197,9 @@
     "genres": [
       "Comedy",
       "Kindness & Friendship"
+    ],
+    "channels": [
+      "Disney Junior / Playhouse Disney"
     ]
   },
   {
@@ -207,6 +210,9 @@
     "releaseDate": "2017-01-23",
     "genres": [
       "Science & Learning"
+    ],
+    "channels": [
+      "CBeebies"
     ]
   },
   {
@@ -251,6 +257,9 @@
     "releaseDate": "2022-09-12",
     "genres": [
       "Science & Learning"
+    ],
+    "channels": [
+      "CBeebies"
     ]
   },
   {
@@ -261,6 +270,9 @@
     "releaseDate": "2010-01-25",
     "genres": [
       "Science & Learning"
+    ],
+    "channels": [
+      "CBeebies"
     ]
   },
   {
@@ -380,6 +392,9 @@
     "releaseDate": "2017-08-12",
     "genres": [
       "Adventure"
+    ],
+    "channels": [
+      "Disney XD"
     ]
   },
   {
@@ -400,6 +415,9 @@
     "releaseDate": "2012-06-15",
     "genres": [
       "Mysteries"
+    ],
+    "channels": [
+      "Disney XD"
     ]
   },
   {
@@ -468,6 +486,9 @@
     "releaseDate": "1996-09-08",
     "genres": [
       "Mysteries"
+    ],
+    "channels": [
+      "Nick Jr."
     ]
   },
   {
@@ -475,7 +496,10 @@
     "name": "PAW Patrol",
     "poster": "/8HXkgUBO5OF8ZK9XbY69RM4S5rv.jpg",
     "shelf": "Nickelodeon Shows",
-    "releaseDate": "2013-08-12"
+    "releaseDate": "2013-08-12",
+    "channels": [
+      "Nick Jr."
+    ]
   },
   {
     "id": 387,
@@ -495,6 +519,9 @@
     "releaseDate": "2005-02-21",
     "genres": [
       "Adventure"
+    ],
+    "channels": [
+      "Nicktoons"
     ]
   },
   {
@@ -989,14 +1016,20 @@
     "name": "Adventure Time",
     "poster": "/qk3eQ8jW4opJ48gFWYUXWaMT4l.jpg",
     "shelf": "HBO Max / Warner Bros. Shows",
-    "releaseDate": "2010-04-05"
+    "releaseDate": "2010-04-05",
+    "channels": [
+      "Cartoon Network"
+    ]
   },
   {
     "id": 61175,
     "name": "Steven Universe",
     "poster": "/8zRstOgaipruJPlsHK2diMx4lPy.jpg",
     "shelf": "HBO Max / Warner Bros. Shows",
-    "releaseDate": "2013-11-04"
+    "releaseDate": "2013-11-04",
+    "channels": [
+      "Cartoon Network"
+    ]
   },
   {
     "id": 37606,
@@ -1006,6 +1039,9 @@
     "releaseDate": "2011-05-03",
     "genres": [
       "Comedy"
+    ],
+    "channels": [
+      "Cartoon Network"
     ]
   },
   {
@@ -1016,6 +1052,9 @@
     "releaseDate": "2015-08-24",
     "genres": [
       "Comedy"
+    ],
+    "channels": [
+      "Cartoon Network"
     ]
   },
   {
@@ -1030,7 +1069,10 @@
     "name": "Dexter's Laboratory",
     "poster": "/inJJn8lUPWdvdy2h259UnoHWVqC.jpg",
     "shelf": "HBO Max / Warner Bros. Shows",
-    "releaseDate": "1996-04-28"
+    "releaseDate": "1996-04-28",
+    "channels": [
+      "Cartoon Network"
+    ]
   },
   {
     "id": 1720,
@@ -1047,6 +1089,9 @@
     "releaseDate": "2005-12-27",
     "genres": [
       "Science Fiction"
+    ],
+    "channels": [
+      "Cartoon Network"
     ]
   },
   {
@@ -1054,7 +1099,10 @@
     "name": "Teen Titans",
     "poster": "/txuXDV4tb4xEkE4C6xeYMU4McT.jpg",
     "shelf": "HBO Max / Warner Bros. Shows",
-    "releaseDate": "2003-07-19"
+    "releaseDate": "2003-07-19",
+    "channels": [
+      "Cartoon Network"
+    ]
   },
   {
     "id": 45140,
@@ -1068,7 +1116,10 @@
     "name": "Batman: The Animated Series",
     "poster": "/lBomQFW1vlm1yUYMNSbFZ45R4Ox.jpg",
     "shelf": "HBO Max / Warner Bros. Shows",
-    "releaseDate": "1992-09-05"
+    "releaseDate": "1992-09-05",
+    "channels": [
+      "Fox Kids"
+    ]
   },
   {
     "id": 1618,
@@ -1122,35 +1173,50 @@
     "name": "Animaniacs",
     "poster": "/c1b2UtrhbMOdHKISB2ZvINo9eyc.jpg",
     "shelf": "HBO Max / Warner Bros. Shows",
-    "releaseDate": "1993-09-13"
+    "releaseDate": "1993-09-13",
+    "channels": [
+      "Fox Kids"
+    ]
   },
   {
     "id": 1996,
     "name": "The Flintstones",
     "poster": "/30P6ifagQ3fguTsI33KMmDLTAx6.jpg",
     "shelf": "HBO Max / Warner Bros. Shows",
-    "releaseDate": "1960-09-30"
+    "releaseDate": "1960-09-30",
+    "channels": [
+      "Boomerang"
+    ]
   },
   {
     "id": 2362,
     "name": "The Jetsons",
     "poster": "/9e2wgxZpAu22yR77fRXzHwOtw9z.jpg",
     "shelf": "HBO Max / Warner Bros. Shows",
-    "releaseDate": "1962-09-23"
+    "releaseDate": "1962-09-23",
+    "channels": [
+      "Boomerang"
+    ]
   },
   {
     "id": 155780,
     "name": "Batwheels",
     "poster": "/nDNUuNNoFaZFNjSwWCG5XwaOf9f.jpg",
     "shelf": "HBO Max / Warner Bros. Shows",
-    "releaseDate": "2022-10-15"
+    "releaseDate": "2022-10-15",
+    "channels": [
+      "Cartoonito"
+    ]
   },
   {
     "id": 203687,
     "name": "Bugs Bunny Builders",
     "poster": "/llYAgSgJBH1EnC17e2d5WnxgP5K.jpg",
     "shelf": "HBO Max / Warner Bros. Shows",
-    "releaseDate": "2022-07-25"
+    "releaseDate": "2022-07-25",
+    "channels": [
+      "Cartoonito"
+    ]
   },
   {
     "id": 280217,
@@ -1289,6 +1355,9 @@
     "releaseDate": "2014-10-13",
     "genres": [
       "Science Fiction"
+    ],
+    "channels": [
+      "Disney XD"
     ]
   },
   {
@@ -1316,7 +1385,10 @@
     "name": "Mickey Mouse Clubhouse",
     "poster": "/gHtEhlAZHxMawOiPq7JoKwkmETQ.jpg",
     "shelf": "Disney Shows",
-    "releaseDate": "2006-05-05"
+    "releaseDate": "2006-05-05",
+    "channels": [
+      "Disney Junior / Playhouse Disney"
+    ]
   },
   {
     "id": 127635,
@@ -1348,7 +1420,10 @@
     "name": "Wander Over Yonder",
     "poster": "/ow88KmFUXMb6S4EKOWyTBy8ta7O.jpg",
     "shelf": "Disney Shows",
-    "releaseDate": "2013-09-13"
+    "releaseDate": "2013-09-13",
+    "channels": [
+      "Disney XD"
+    ]
   },
   {
     "id": 4459,
@@ -1568,6 +1643,9 @@
     "releaseDate": "2012-04-14",
     "genres": [
       "Adventure"
+    ],
+    "channels": [
+      "Nicktoons"
     ]
   },
   {
@@ -2184,21 +2262,31 @@
     "name": "Sofia the First",
     "poster": "/eZHmUO1OQRpVkAOdj9VwYCCyQew.jpg",
     "shelf": "Disney Shows",
-    "releaseDate": "2012-11-18"
+    "releaseDate": "2012-11-18",
+    "channels": [
+      "Disney Junior / Playhouse Disney"
+    ]
   },
   {
     "id": 46262,
     "name": "Doc McStuffins",
     "poster": "/eeGWJaFkxX0vvOFFpNFXrh9QVxl.jpg",
     "shelf": "Disney Shows",
-    "releaseDate": "2012-03-23"
+    "releaseDate": "2012-03-23",
+    "channels": [
+      "Disney Junior / Playhouse Disney"
+    ]
   },
   {
     "id": 1878,
     "name": "The Backyardigans",
     "poster": "/dIB32UlWZ81M2HDtQVp72LGq8v8.jpg",
     "shelf": "Nickelodeon Shows",
-    "releaseDate": "2004-10-11"
+    "releaseDate": "2004-10-11",
+    "channels": [
+      "Nick Jr.",
+      "Treehouse TV"
+    ]
   },
   {
     "id": 31623,
@@ -2208,6 +2296,9 @@
     "releaseDate": "2010-01-25",
     "genres": [
       "Science & Learning"
+    ],
+    "channels": [
+      "Nick Jr."
     ]
   },
   {
@@ -2267,6 +2358,9 @@
     "releaseDate": "2010-10-05",
     "genres": [
       "Science & Learning"
+    ],
+    "channels": [
+      "CBeebies"
     ]
   },
   {
@@ -2305,6 +2399,9 @@
     "releaseDate": "2013-02-01",
     "genres": [
       "Kindness & Friendship"
+    ],
+    "channels": [
+      "CBeebies"
     ]
   },
   {
@@ -2742,5 +2839,361 @@
     "genres": [
       "Science & Learning"
     ]
+  },
+  {
+    "id": 2284,
+    "name": "Teenage Mutant Ninja Turtles",
+    "shelf": "4Kids TV / FoxBox Shows",
+    "releaseDate": "2003-02-08",
+    "poster": "/sEb6sTxyGoguCX4fK1G0hyzyLcv.jpg"
+  },
+  {
+    "id": 10926,
+    "name": "Sonic X",
+    "shelf": "4Kids TV / FoxBox Shows",
+    "releaseDate": "2003-04-06",
+    "poster": "/1EFqCQv0td8LMogXCpNEAW3uxgL.jpg",
+    "channels": [
+      "The CW4Kids / Toonzai"
+    ]
+  },
+  {
+    "id": 1291,
+    "name": "Viva Piñata",
+    "shelf": "4Kids TV / FoxBox Shows",
+    "releaseDate": "2006-08-26",
+    "poster": "/7s9EW3RGzPukoTi83m0jyyndpLX.jpg"
+  },
+  {
+    "id": 21409,
+    "name": "Dinosaur King",
+    "shelf": "The CW4Kids / Toonzai Shows",
+    "releaseDate": "2007-02-04",
+    "poster": "/gD29ZcDxvtlptdXKKSCEIOHrE5z.jpg"
+  },
+  {
+    "id": 3787,
+    "name": "Chaotic",
+    "shelf": "The CW4Kids / Toonzai Shows",
+    "releaseDate": "2006-10-07",
+    "poster": "/mUCUpVv6igtmh3ohxByu2OlG5AG.jpg"
+  },
+  {
+    "id": 3428,
+    "name": "Super Robot Monkey Team Hyperforce Go!",
+    "shelf": "Jetix Shows",
+    "releaseDate": "2004-09-18",
+    "poster": "/gcTY3iHLC1wm9wB4pKn2vvCxCfK.jpg"
+  },
+  {
+    "id": 3441,
+    "name": "Get Ed",
+    "shelf": "Jetix Shows",
+    "releaseDate": "2005-09-19",
+    "poster": "/lwqgRR7UNdMZ22ycjllcGihnoT1.jpg"
+  },
+  {
+    "id": 3809,
+    "name": "Yin Yang Yo!",
+    "shelf": "Jetix Shows",
+    "releaseDate": "2006-08-26",
+    "poster": "/qb8gxfpjQ2smnnDIEiEsFmK1lqE.jpg"
+  },
+  {
+    "id": 6782,
+    "name": "Pucca",
+    "shelf": "Jetix Shows",
+    "releaseDate": "2006-09-18",
+    "poster": "/xQjSUOEQTrCqDoBiEYIrNlajCD.jpg"
+  },
+  {
+    "id": 1546,
+    "name": "Recess",
+    "shelf": "ABC Kids / One Saturday Morning Shows",
+    "releaseDate": "1997-09-13",
+    "poster": "/nRKCxiZROeNaC5H80hVqSqWMYZr.jpg"
+  },
+  {
+    "id": 4568,
+    "name": "Pepper Ann",
+    "shelf": "ABC Kids / One Saturday Morning Shows",
+    "releaseDate": "1997-09-13",
+    "poster": "/605jNVI63jueuJTKg032F7U7xEj.jpg"
+  },
+  {
+    "id": 3288,
+    "name": "The Weekenders",
+    "shelf": "ABC Kids / One Saturday Morning Shows",
+    "releaseDate": "2000-02-26",
+    "poster": "/aqpaC32hWrf9jdPkLiS3u73OcyZ.jpg"
+  },
+  {
+    "id": 3745,
+    "name": "Teacher's Pet",
+    "shelf": "ABC Kids / One Saturday Morning Shows",
+    "releaseDate": "2000-09-09",
+    "poster": "/8IOx9VFLgSkrAmHInca6LZ1dCeR.jpg"
+  },
+  {
+    "id": 79,
+    "name": "Dora the Explorer",
+    "shelf": "Nick Jr. Shows",
+    "releaseDate": "2000-08-14",
+    "poster": "/iaJNOSpEQgU4yePsbcC6yxneRNF.jpg"
+  },
+  {
+    "id": 2309,
+    "name": "Danny Phantom",
+    "shelf": "Nicktoons Shows",
+    "releaseDate": "2004-04-03",
+    "poster": "/pBUOFBmZLaIxzjDjQP7d3QZrd4w.jpg"
+  },
+  {
+    "id": 5687,
+    "name": "The Smurfs",
+    "shelf": "Boomerang Shows",
+    "releaseDate": "1981-09-12",
+    "poster": "/cezQyM5cO454vUdLiLOkv78K64D.jpg"
+  },
+  {
+    "id": 985,
+    "name": "Wacky Races",
+    "shelf": "Boomerang Shows",
+    "releaseDate": "1968-09-14",
+    "poster": "/yHeolC3qvELoeq8poh7BsMpBKd9.jpg"
+  },
+  {
+    "id": 33765,
+    "name": "My Little Pony: Friendship Is Magic",
+    "shelf": "Discovery Kids / The Hub Shows",
+    "releaseDate": "2010-10-10",
+    "poster": "/uvCchgn7uUUE2MJfhzg39M4RaZW.jpg"
+  },
+  {
+    "id": 38881,
+    "name": "Transformers: Rescue Bots",
+    "shelf": "Discovery Kids / The Hub Shows",
+    "releaseDate": "2012-02-18",
+    "poster": "/wtugHPxksnORftAs7EOGK3Oy0I5.jpg"
+  },
+  {
+    "id": 38,
+    "name": "Time Warp Trio",
+    "shelf": "Discovery Kids / The Hub Shows",
+    "releaseDate": "2005-07-09",
+    "poster": "/dnPnZyHHAjJg72g9VsHqM409aNa.jpg"
+  },
+  {
+    "id": 2099,
+    "name": "Kenny the Shark",
+    "shelf": "Discovery Kids / The Hub Shows",
+    "releaseDate": "2003-11-01",
+    "poster": "/yTQ7uYgQYaGU2XVipI25jb1pDva.jpg"
+  },
+  {
+    "id": 81348,
+    "name": "Nina's World",
+    "shelf": "Sprout / Universal Kids Shows",
+    "releaseDate": "2015-09-09",
+    "poster": "/6Wo0XnUHQmAkVLh0ytJve4GApvt.jpg"
+  },
+  {
+    "id": 59532,
+    "name": "The Chica Show",
+    "shelf": "Sprout / Universal Kids Shows",
+    "releaseDate": "2012-11-24",
+    "poster": "/cvLsFtHXmg3uzdzAMjYRbDMC57u.jpg"
+  },
+  {
+    "id": 82279,
+    "name": "Floogals",
+    "shelf": "Sprout / Universal Kids Shows",
+    "releaseDate": "2016-01-18",
+    "poster": "/62UkqpMjjhLD83K4rnMwCIsGd8R.jpg"
+  },
+  {
+    "id": 1232,
+    "name": "Babar",
+    "shelf": "Qubo Shows",
+    "releaseDate": "1989-01-03",
+    "poster": "/ZHUj7Doria6U1ckYgGWdd5EENl.jpg",
+    "channels": [
+      "YTV"
+    ]
+  },
+  {
+    "id": 15546,
+    "name": "The Zula Patrol",
+    "shelf": "Qubo Shows",
+    "releaseDate": "2005-09-04",
+    "poster": "/1bOV2zGspGUiCyxeUXTByWAPHVz.jpg"
+  },
+  {
+    "id": 13350,
+    "name": "Jacob Two-Two",
+    "shelf": "Qubo Shows",
+    "releaseDate": "2003-09-07",
+    "poster": "/sh0RNDedpE4sgo5JEromOPlF2ax.jpg"
+  },
+  {
+    "id": 32419,
+    "name": "Horrible Histories",
+    "shelf": "CBBC Shows",
+    "releaseDate": "2009-04-16",
+    "poster": "/fwj7zkWHtveXUaB9cwrQIMvmgeQ.jpg"
+  },
+  {
+    "id": 69581,
+    "name": "The Worst Witch",
+    "shelf": "CBBC Shows",
+    "releaseDate": "2017-01-11",
+    "poster": "/fLhJKgPKeBsQaSe0i7VOnRQl37r.jpg"
+  },
+  {
+    "id": 64092,
+    "name": "Danger Mouse",
+    "shelf": "CBBC Shows",
+    "releaseDate": "2015-09-28",
+    "poster": "/cnWr5XFOPaiIwJfx2MCj3MEQtsL.jpg"
+  },
+  {
+    "id": 3902,
+    "name": "Shaun the Sheep",
+    "shelf": "CBBC Shows",
+    "releaseDate": "2007-03-05",
+    "poster": "/z2gPfTQd3I0JLWOAEdKYMQRLoun.jpg"
+  },
+  {
+    "id": 2030,
+    "name": "Atomic Betty",
+    "shelf": "Teletoon Shows",
+    "releaseDate": "2004-09-17",
+    "poster": "/2yhMWAmzKcCTgTSh1UkdFxTMLke.jpg"
+  },
+  {
+    "id": 2121,
+    "name": "ReBoot",
+    "shelf": "YTV Shows",
+    "releaseDate": "1994-09-10",
+    "poster": "/5C2ZVZEZJdQLkaeO9cCw7rJ0EUM.jpg"
+  },
+  {
+    "id": 958,
+    "name": "Beast Wars: Transformers",
+    "shelf": "YTV Shows",
+    "releaseDate": "1996-04-22",
+    "poster": "/v0tGICAWwtXawt3YQpp8SOdtspb.jpg"
+  },
+  {
+    "id": 46358,
+    "name": "Franklin and Friends",
+    "shelf": "Treehouse TV Shows",
+    "releaseDate": "2011-02-14",
+    "poster": "/leSMFU3eAXlDmE2kjciJALnl2gO.jpg"
+  },
+  {
+    "id": 12971,
+    "name": "Dragon Ball Z",
+    "shelf": "Toonami Shows",
+    "releaseDate": "1989-04-26",
+    "poster": "/oQ5CnVj3TRifXl2bIOri6H6rfNe.jpg"
+  },
+  {
+    "id": 2723,
+    "name": "Samurai Jack",
+    "shelf": "Toonami Shows",
+    "releaseDate": "2001-08-10",
+    "poster": "/ddZ7Q2WZ0xAHkVXYvcEgNGFgVkw.jpg"
+  },
+  {
+    "id": 1988,
+    "name": "ThunderCats",
+    "shelf": "Toonami Shows",
+    "releaseDate": "1985-01-23",
+    "poster": "/6TO2Ma9S6lhlZaXRNH7OVuPwh0U.jpg"
+  },
+  {
+    "id": 4574,
+    "name": "X-Men",
+    "shelf": "Fox Kids Shows",
+    "releaseDate": "1992-10-31",
+    "poster": "/2OFwsFhAobczgJWnVdwd9oZAF2N.jpg"
+  },
+  {
+    "id": 888,
+    "name": "Spider-Man",
+    "shelf": "Fox Kids Shows",
+    "releaseDate": "1994-11-19",
+    "poster": "/1BX1HZZqDoLDx9Ry4oET6dA9293.jpg"
+  },
+  {
+    "id": 1767,
+    "name": "Bobby's World",
+    "shelf": "Fox Kids Shows",
+    "releaseDate": "1990-09-08",
+    "poster": "/zrcPIkzTim0ICyc6h81LfmBSQgB.jpg"
+  },
+  {
+    "id": 14540,
+    "name": "The Tick",
+    "shelf": "Fox Kids Shows",
+    "releaseDate": "1994-09-10",
+    "poster": "/rRme2aeGyDwel0e9NSPx9FzIPq9.jpg"
+  },
+  {
+    "id": 5835,
+    "name": "Goosebumps",
+    "shelf": "Fox Kids Shows",
+    "releaseDate": "1995-10-27",
+    "poster": "/km7uuxaU4mzp49Hpt5hxnLx7p6F.jpg"
+  },
+  {
+    "id": 79061,
+    "name": "Craig of the Creek",
+    "shelf": "Cartoon Network Shows",
+    "releaseDate": "2018-03-30",
+    "poster": "/u4LaONJSBi0khRe2L8nqBk81dlc.jpg"
+  },
+  {
+    "id": 9907,
+    "name": "Chowder",
+    "shelf": "Cartoon Network Shows",
+    "releaseDate": "2007-11-02",
+    "poster": "/4H5diUE5bKp9dxcisJ3wbZzvAg7.jpg"
+  },
+  {
+    "id": 2228,
+    "name": "Pinky and the Brain",
+    "shelf": "Kids' WB Shows",
+    "releaseDate": "1995-09-09",
+    "poster": "/69Hrbgi2qcy8xjcwad94VNHpXLI.jpg"
+  },
+  {
+    "id": 4334,
+    "name": "Freakazoid!",
+    "shelf": "Kids' WB Shows",
+    "releaseDate": "1995-09-09",
+    "poster": "/ig0pc2AhY5d3GEghcxEWwo9AUtg.jpg"
+  },
+  {
+    "id": 240,
+    "name": "Jackie Chan Adventures",
+    "shelf": "Kids' WB Shows",
+    "releaseDate": "2000-09-09",
+    "poster": "/by2GTFpd2BQ5uJxWPlfcmfrNrfB.jpg"
+  },
+  {
+    "id": 1487,
+    "name": "Static Shock",
+    "shelf": "Kids' WB Shows",
+    "releaseDate": "2000-09-23",
+    "poster": "/c4bMyE2SZv9B6rS0Anvlwej14R1.jpg"
+  },
+  {
+    "id": 513,
+    "name": "Batman Beyond",
+    "shelf": "Kids' WB Shows",
+    "releaseDate": "1999-01-10",
+    "poster": "/qAcF9tpWip7BGNad0NtUdt2ZWAz.jpg"
   }
 ]

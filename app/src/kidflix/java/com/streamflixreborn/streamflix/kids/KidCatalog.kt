@@ -13,7 +13,8 @@ internal data class Shelf(val brand: String, val movie: Boolean, val field: Stri
     val label = "$brand " + if (movie) "Movies" else "Shows"
 }
 
-internal data class KidTitle(val id: Int, val name: String, val poster: String?, val shelf: Shelf, val releaseDate: String, val genres: List<String> = emptyList()) {
+internal data class KidTitle(val id: Int, val name: String, val poster: String?, val shelf: Shelf, val releaseDate: String, val genres: List<String> = emptyList(), val channels: List<String> = emptyList()) {
+    fun belongsTo(section: Shelf) = shelf == section || (!section.movie && section.brand in channels)
     val key = (if (shelf.movie) "movie" else "tv") + "/$id"
 }
 
@@ -39,16 +40,38 @@ internal object KidCatalog {
         tv("Peacock / Universal"), films("Peacock / Universal"),
         tv("Prime Video"), films("Prime Video"),
         tv("Apple TV"), films("Apple TV"),
-        tv("Hulu"), films("Hulu / 20th Century"))
+        tv("Hulu"), films("Hulu / 20th Century"),
+        tv("Fox Kids"),
+        tv("Cartoon Network"),
+        tv("Kids' WB"),
+        tv("4Kids TV / FoxBox"),
+        tv("The CW4Kids / Toonzai"),
+        tv("Jetix"),
+        tv("ABC Kids / One Saturday Morning"),
+        tv("Disney XD"),
+        tv("Disney Junior / Playhouse Disney"),
+        tv("Nick Jr."),
+        tv("Nicktoons"),
+        tv("Boomerang"),
+        tv("Discovery Kids / The Hub"),
+        tv("Sprout / Universal Kids"),
+        tv("Qubo"),
+        tv("CBeebies"),
+        tv("CBBC"),
+        tv("Teletoon"),
+        tv("YTV"),
+        tv("Treehouse TV"),
+        tv("Cartoonito"),
+        tv("Toonami"))
 
     private val bundled: List<KidTitle> by lazy {
         val json = StreamFlixApp.instance.assets.open("kidflix_catalog.json").bufferedReader().use { JSONArray(it.readText()) }
         (0 until json.length()).map { index ->
             val item = json.getJSONObject(index)
-            val genres = item.optJSONArray("genres")
+            fun strings(field: String) = item.optJSONArray(field)?.let { values -> (0 until values.length()).map { values.getString(it) } }.orEmpty()
             KidTitle(item.getInt("id"),item.getString("name"),item.optString("poster").takeIf { it.startsWith("/") },
                 shelves.single { it.label == item.getString("shelf") }, item.optString("releaseDate"),
-                genres?.let { values -> (0 until values.length()).map { values.getString(it) } }.orEmpty())
+                strings("genres"), strings("channels"))
         }
     }
 
@@ -136,7 +159,7 @@ internal object KidCatalog {
         restoreCatalog()
         for ((name, year) in additions[shelf.brand].orEmpty()) {
             val key = "$name/$year"
-            if (resolved[key]?.releaseDate?.isNotEmpty() == true || bundled.any { !it.shelf.movie && it.name.equals(name, true) && it.shelf == shelf }) continue
+            if (resolved[key]?.releaseDate?.isNotEmpty() == true || bundled.any { !it.shelf.movie && it.name.equals(name, true) && it.belongsTo(shelf) }) continue
             try {
                 val match = TMDb3.Search.multi(name, false, "en", 1).results.filterIsInstance<TMDb3.Tv>()
                     .firstOrNull { !it.adult && it.name.filter(Char::isLetterOrDigit).equals(name.filter(Char::isLetterOrDigit), true)
@@ -168,7 +191,7 @@ internal object KidCatalog {
 
     suspend fun page(shelf: Shelf?, query: String, page: Int): Page {
         if (query.isBlank() && shelf != null && (shelf.movie || shelf.ids.isEmpty())) {
-            return Page(catalog.filter { it.shelf == shelf }, false)
+            return Page(catalog.filter { it.belongsTo(shelf) }, false)
         }
         val result = if (query.isNotBlank()) TMDb3.Search.multi(query, false, "en", page)
         else {
@@ -179,7 +202,7 @@ internal object KidCatalog {
         }
         val titles = coroutineScope {
             result.results.map { item -> async { permits.withPermit { inspect(item) } } }.awaitAll()
-        }.filterNotNull().filter { shelf == null || it.shelf == shelf }
+        }.filterNotNull().filter { shelf == null || it.belongsTo(shelf) }
         return Page(titles.distinctBy { it.key }, page < result.totalPages && page < 500)
     }
 
@@ -203,6 +226,6 @@ internal object KidCatalog {
         if (shelf != pbs && shelf != favorites && info.type != TMDb3.Tv.Type.SCRIPTED) return null
         val ratings = info.contentRatings?.results.orEmpty().filter { it.iso3166 == "US" }.map { it.rating }.filter { it.isNotBlank() }
         if (!KidPolicy.allowedRatings(ratings, movie = false, pbs = shelf == pbs, favorite = shelf == favorites)) return null
-        return KidTitle(id, info.name, info.posterPath, shelf, info.firstAirDate.orEmpty())
+        return approved ?: KidTitle(id, info.name, info.posterPath, shelf, info.firstAirDate.orEmpty())
     }
 }
