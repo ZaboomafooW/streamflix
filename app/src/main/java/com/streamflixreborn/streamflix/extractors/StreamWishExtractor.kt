@@ -128,13 +128,10 @@ open class StreamWishExtractor : Extractor() {
         val document = service.get(redirectedUrl, referer = referer)
 
 
-        val script = Regex(
-            "<script .*>(eval.*?)</script>",
-            RegexOption.DOT_MATCHES_ALL
-        ).findAll(document.toString())
-            .mapNotNull { it.groupValues[1].let { js -> JsUnpacker(js).unpack() } }
-            .firstOrNull { it.contains("m3u8") }
-            ?: throw Exception("Can't retrieve script")
+        val script = document.select("script").asSequence().map { it.data() }
+            .mapNotNull { js -> if (js.trimStart().startsWith("eval(")) JsUnpacker(js).unpack() else js }
+            .firstOrNull { it.contains(".m3u8") }
+            ?: throw Exception("Can't retrieve stream playlist")
 
         val source = Regex("""(?:["']?hls(\d*)["']?|["']?file["']?)\s*[:=]\s*["']((?:https?://|/)[^"']+\.m3u8[^"']*)["']""")
             .findAll(script)
@@ -185,41 +182,39 @@ open class StreamWishExtractor : Extractor() {
     @SuppressLint("SetJavaScriptEnabled")
     suspend fun resolveRedirectWithWebView(context: Context, url: String, mainUrl: String): String =
         withContext(Dispatchers.Main) {
-            val result = withTimeoutOrNull(30000) {
-                suspendCancellableCoroutine { cont ->
-                    val webView = WebView(context)
-                    webView.settings.javaScriptEnabled = true
-                    webView.settings.domStorageEnabled = true
+            val webView = WebView(context)
+            val result = try {
+                withTimeoutOrNull(30000) {
+                    suspendCancellableCoroutine<String> { cont ->
+                        webView.settings.javaScriptEnabled = true
+                        webView.settings.domStorageEnabled = true
 
-                    webView.webViewClient = object : WebViewClient() {
-                        override fun shouldOverrideUrlLoading(
-                            view: WebView?,
-                            request: WebResourceRequest?
-                        ): Boolean {
-                            val newUrl = request?.url.toString()
-                            if (newUrl.contains(mainUrl) || newUrl.contains("/e/")) {
-                                if (cont.isActive) cont.resume(newUrl)
-                                webView.destroy()
-                                return true
+                        webView.webViewClient = object : WebViewClient() {
+                            override fun shouldOverrideUrlLoading(
+                                view: WebView?,
+                                request: WebResourceRequest?
+                            ): Boolean {
+                                val newUrl = request?.url.toString()
+                                if (newUrl.contains(mainUrl) || newUrl.contains("/e/")) {
+                                    if (cont.isActive) cont.resume(newUrl)
+                                    return true
+                                }
+                                return false
                             }
-                            return false
+
+                            override fun onPageFinished(view: WebView?, url: String?) {
+                                if (url != null && (url.contains(mainUrl) || url.contains("/e/") || !url.contains("about:blank"))) {
+                                    if (cont.isActive) cont.resume(url)
+                                }
+                            }
                         }
 
-                        override fun onPageFinished(view: WebView?, url: String?) {
-                            if (url != null && (url.contains(mainUrl) || url.contains("/e/") || !url.contains("about:blank"))) {
-                                if (cont.isActive) cont.resume(url)
-                                webView.destroy()
-                            }
-                        }
-                    }
-
-                    webView.loadUrl(url)
-
-                    cont.invokeOnCancellation {
-                        webView.stopLoading()
-                        webView.destroy()
+                        webView.loadUrl(url)
                     }
                 }
+            } finally {
+                webView.stopLoading()
+                webView.destroy()
             }
             result ?: url // Fallback to original URL if timeout
         }
