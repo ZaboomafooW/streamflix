@@ -97,8 +97,8 @@ class KidFlixFragment : Fragment() {
     }
     private var currentShow: Pair<KidTitle, TMDb3.Tv.Detail>? = null
     private var seasonNumber = 0
-    private var episodeNumber = 0
     private var showStatus: TextView? = null
+    private var returnToHero: (() -> Unit)? = null
     private var browseFocus: View? = null
     private lateinit var browseBack: OnBackPressedCallback
 
@@ -106,6 +106,7 @@ class KidFlixFragment : Fragment() {
         browseBack = object : OnBackPressedCallback(false) {
             override fun handleOnBackPressed() {
                 if (currentShow == null) { home(); return }
+                returnToHero?.let { it(); return }
                 job?.cancel()
                 val frame = requireView() as FrameLayout
                 frame.removeViewAt(1)
@@ -126,6 +127,7 @@ class KidFlixFragment : Fragment() {
         job?.cancel()
         showStatus = null
         browseFocus = null
+        returnToHero = null
         super.onDestroyView()
     }
     private fun home() {
@@ -269,7 +271,6 @@ class KidFlixFragment : Fragment() {
                         poster=tv.posterPath?.w500, banner=tv.backdropPath?.w500, imdbId=tv.externalIds?.imdbId))
                 }
                 seasonNumber = 0
-                episodeNumber = 0
                 currentShow = title to tv
                 showPage(title, tv)
             }
@@ -293,47 +294,73 @@ class KidFlixFragment : Fragment() {
         browseFocus = frame.findFocus()
         frame.getChildAt(0).visibility = View.GONE
         browseBack.isEnabled = true
-        val pageView = column().apply {
-            setBackgroundColor(Color.rgb(19, 38, 66))
-            setPadding(dp(30), dp(18), dp(30), dp(12))
+        val layer = FrameLayout(requireContext()).apply { setBackgroundColor(ink) }
+        frame.addView(layer)
+        val hero = FrameLayout(requireContext())
+        layer.addView(hero)
+        val artwork = ImageView(requireContext()).apply { scaleType = ImageView.ScaleType.FIT_CENTER }
+        hero.addView(artwork, -1, -1)
+        val backdrop = tv.backdropPath ?: tv.posterPath
+        val artUrl = if (backdrop?.startsWith("/") == true) "https://image.tmdb.org/t/p/original$backdrop" else backdrop
+        Glide.with(this).load(artUrl).fitCenter().into(artwork)
+        hero.addView(View(requireContext()).apply {
+            background = GradientDrawable(GradientDrawable.Orientation.LEFT_RIGHT,
+                intArrayOf(Color.argb(235,18,33,54), Color.argb(175,18,33,54), Color.TRANSPARENT))
+        }, -1, -1)
+        val info = column().apply { setPadding(dp(40), 0, dp(20), dp(24)) }
+        hero.addView(info, FrameLayout.LayoutParams(dp(420), -2, Gravity.BOTTOM or Gravity.START))
+        info.addView(label(tv.name, 36f).apply { setTypeface(null, Typeface.BOLD) })
+        val available = tv.seasons.filter { it.seasonNumber > 0 }.sortedBy { it.seasonNumber }
+        info.addView(label(listOfNotNull(tv.firstAirDate?.take(4), "${available.size} seasons").joinToString(" · "), 15f))
+        val episodeTitle = label("", 21f)
+        val synopsis = label(tv.overview, 16f).apply { maxLines = 4 }
+        val heroStatus = label("", 14f)
+        info.addView(episodeTitle)
+        info.addView(synopsis)
+        info.addView(heroStatus)
+        val primary = button("Play episode") {}
+        info.addView(primary, -2, -2)
+        val browse = button("Episodes") {}
+        info.addView(browse, -2, -2)
+
+        val browser = column().apply {
+            visibility = View.GONE
+            setPadding(dp(30), dp(16), dp(30), dp(10))
         }
-        frame.addView(pageView)
-        val header = LinearLayout(requireContext())
-        pageView.addView(header)
-        val artwork = ImageView(requireContext()).apply { scaleType = ImageView.ScaleType.CENTER_CROP }
-        header.addView(artwork, dp(180), dp(101))
-        Glide.with(this).load((tv.backdropPath ?: tv.posterPath)?.w500).into(artwork)
-        val info = column().apply { setPadding(dp(14), 0, 0, 0) }
-        header.addView(info)
-        info.addView(label(tv.name, 25f))
-        info.addView(label(tv.overview, 15f).apply { maxLines = 3 })
-        val notice = label("", 15f)
-        showStatus = notice
-        pageView.addView(notice)
+        layer.addView(browser)
+        browser.addView(label(tv.name, 24f))
+        val notice = label("Episodes", 16f)
+        browser.addView(notice)
         val panes = LinearLayout(requireContext())
-        pageView.addView(panes, -1, -1)
+        browser.addView(panes, -1, -1)
         val seasons = column()
         val episodes = column().apply { setPadding(dp(12), 0, 0, 0) }
         panes.addView(ScrollView(requireContext()).apply { addView(seasons) }, dp(165), -1)
         val episodeScroll = ScrollView(requireContext()).apply { addView(episodes) }
         panes.addView(episodeScroll, LinearLayout.LayoutParams(0, -1, 1f))
-        val available = tv.seasons.filter { it.seasonNumber > 0 }.sortedBy { it.seasonNumber }
-        val selected = available.firstOrNull { it.seasonNumber == seasonNumber } ?: available.firstOrNull()
-        if (selected == null) { notice.text = "No seasons available"; return }
         val series = Video.Type.Episode.TvShow(tv.id.toString(), tv.name, tv.posterPath?.w500,
             tv.backdropPath?.w500, tv.firstAirDate, tv.externalIds?.imdbId)
+        val cache = mutableMapOf<Int, List<TMDb3.Episode>>()
+        suspend fun episodesFor(season: TMDb3.Season): List<TMDb3.Episode> =
+            cache[season.seasonNumber] ?: TMDb3.TvSeasons.details(tv.id, season.seasonNumber)
+                .episodes.orEmpty().sortedBy { it.episodeNumber }.also { cache[season.seasonNumber] = it }
+
+        fun startEpisode(season: TMDb3.Season, episode: TMDb3.Episode) {
+            seasonNumber = season.seasonNumber
+            play(title, Video.Type.Episode(episode.id.toString(), episode.episodeNumber, episode.name,
+                episode.stillPath?.w500, episode.overview, series, Video.Type.Episode.Season(season.seasonNumber, season.name)))
+        }
 
         fun loadSeason(season: TMDb3.Season) {
-            if (seasonNumber != season.seasonNumber) episodeNumber = 0
+            for (i in available.indices) seasons.getChildAt(i)?.isActivated = available[i] == season
+            if (seasonNumber == season.seasonNumber && episodes.childCount > 0) return
             seasonNumber = season.seasonNumber
             episodes.removeAllViews()
             episodeScroll.scrollTo(0, 0)
             notice.text = "${season.name} · Loading episodes…"
             val seasonArt = season.posterPath ?: tv.posterPath
-            Glide.with(this).load((seasonArt ?: tv.backdropPath)?.w500).fitCenter().into(artwork)
-            info.getChildAt(1).let { (it as TextView).text = season.overview?.takeIf(String::isNotBlank) ?: tv.overview }
             request {
-                val list = TMDb3.TvSeasons.details(tv.id, season.seasonNumber).episodes.orEmpty()
+                val list = episodesFor(season)
                 notice.text = "${season.name} · ${list.size} episodes"
                 for (episode in list) {
                     val row = LinearLayout(requireContext()).apply {
@@ -345,30 +372,117 @@ class KidFlixFragment : Fragment() {
                         }
                         setPadding(dp(6), dp(4), dp(6), dp(4))
                     }
-                    val still = ImageView(requireContext()).apply { scaleType = ImageView.ScaleType.CENTER_CROP }
+                    val still = ImageView(requireContext()).apply { scaleType = ImageView.ScaleType.FIT_CENTER }
                     row.addView(still, dp(142), dp(80))
-                    Glide.with(this).load((episode.stillPath ?: tv.backdropPath ?: seasonArt)?.w500).into(still)
+                    Glide.with(this).load((episode.stillPath ?: tv.backdropPath ?: seasonArt)?.w500).fitCenter().into(still)
                     val summary = column().apply { setPadding(dp(12), 0, 0, 0) }
                     row.addView(summary)
                     summary.addView(label("${episode.episodeNumber}. ${episode.name.orEmpty()}", 17f))
                     summary.addView(label(episode.overview.orEmpty(), 14f))
-                    row.setOnClickListener {
-                        episodeNumber = episode.episodeNumber
-                        play(title, Video.Type.Episode(episode.id.toString(), episode.episodeNumber,
-                            episode.name, episode.stillPath?.w500, episode.overview, series,
-                            Video.Type.Episode.Season(season.seasonNumber, season.name)))
-                    }
+                    row.setOnClickListener { startEpisode(season, episode) }
                     episodes.addView(row)
-                    if (episodeNumber == episode.episodeNumber) row.requestFocus()
                 }
             }
         }
-        for (season in available) {
-            val tab = button(season.name) { loadSeason(season) }
-            seasons.addView(tab)
-            if (season == selected) tab.requestFocus()
+        val tabs = available.map { season ->
+            button(season.name) { loadSeason(season) }.apply {
+                background = StateListDrawable().apply {
+                    addState(intArrayOf(android.R.attr.state_focused), tile(mint))
+                    addState(intArrayOf(android.R.attr.state_activated), tile(Color.rgb(34, 114, 109)))
+                    addState(intArrayOf(), tile(ink))
+                }
+                setOnFocusChangeListener { _, focused ->
+                    if (focused) loadSeason(season)
+                }
+                setOnHoverListener { _, event ->
+                    if (event.action == android.view.MotionEvent.ACTION_HOVER_ENTER) requestFocusFromTouch()
+                    false
+                }
+                seasons.addView(this)
+            }
         }
-        loadSeason(selected)
+
+        fun openEpisodes() {
+            if (tabs.isEmpty() || browser.visibility == View.VISIBLE) return
+            job?.cancel()
+            episodes.removeAllViews()
+            hero.visibility = View.GONE
+            browser.visibility = View.VISIBLE
+            showStatus = notice
+            val index = available.indexOfFirst { it.seasonNumber == seasonNumber }.coerceAtLeast(0)
+            tabs[index].requestFocus()
+        }
+
+        fun openHero() {
+            returnToHero = null
+            browser.visibility = View.GONE
+            hero.visibility = View.VISIBLE
+            showStatus = heroStatus
+            primary.requestFocus()
+            primary.text = "Play episode"
+            primary.setOnClickListener { openHero() }
+            heroStatus.text = "Loading episode…"
+            request {
+                val db = AppDatabase.getInstance(requireContext())
+                val (lastId, history) = withContext(Dispatchers.IO) {
+                    db.tvShowDao().getById(tv.id.toString())?.lastPlayedEpisodeId to
+                        db.episodeDao().getByTvShowId(tv.id.toString()).associateBy { it.id }
+                }
+                val anchor = history[lastId] ?: history.values.maxByOrNull {
+                    maxOf(it.watchHistory?.lastEngagementTimeUtcMillis ?: 0L, it.watchedDate?.timeInMillis ?: 0L)
+                }?.takeIf { it.isWatched || it.watchHistory != null }
+                var passedAnchor = anchor == null
+                var first: Pair<TMDb3.Season, TMDb3.Episode>? = null
+                var target: Pair<TMDb3.Season, TMDb3.Episode>? = null
+                for (season in available) {
+                    for (episode in episodesFor(season)) {
+                        if (first == null) first = season to episode
+                        if (episode.id.toString() == anchor?.id) passedAnchor = true
+                        if (passedAnchor && history[episode.id.toString()]?.isWatched != true) {
+                            target = season to episode
+                            break
+                        }
+                    }
+                    if (target != null) break
+                }
+                val choice = target ?: first
+                if (choice == null) { heroStatus.text = "No episodes available"; return@request }
+                val (season, episode) = choice
+                val progress = history[episode.id.toString()]?.watchHistory
+                val resume = (progress?.lastPlaybackPositionMillis ?: 0L) > 0 && target != null
+                seasonNumber = season.seasonNumber
+                episodeTitle.text = "S${season.seasonNumber} E${episode.episodeNumber} · ${episode.name.orEmpty()}"
+                synopsis.text = episode.overview?.takeIf { it.isNotBlank() } ?: tv.overview
+                val remaining = ((progress?.durationMillis ?: 0) - (progress?.lastPlaybackPositionMillis ?: 0))
+                heroStatus.text = if (resume && remaining > 0) "${(remaining + 59999) / 60000} min remaining" else ""
+                primary.text = when {
+                    resume -> "Continue"
+                    target == null -> "Watch again"
+                    anchor != null -> "Play next episode"
+                    else -> "Play first episode"
+                }
+                primary.setOnClickListener { startEpisode(season, episode) }
+            }
+        }
+
+        fun enterBrowser() {
+            openEpisodes()
+            if (browser.visibility == View.VISIBLE) returnToHero = ::openHero
+        }
+        browse.setOnClickListener { enterBrowser() }
+        primary.setOnKeyListener { _, key, event ->
+            if (key == android.view.KeyEvent.KEYCODE_DPAD_DOWN && event.action == android.view.KeyEvent.ACTION_DOWN) {
+                enterBrowser()
+                true
+            } else false
+        }
+        tabs.firstOrNull()?.setOnKeyListener { _, key, event ->
+            if (key == android.view.KeyEvent.KEYCODE_DPAD_UP && event.action == android.view.KeyEvent.ACTION_DOWN) {
+                openHero()
+                true
+            } else false
+        }
+        openHero()
     }
 
     private fun play(title: KidTitle, type: Video.Type) {
