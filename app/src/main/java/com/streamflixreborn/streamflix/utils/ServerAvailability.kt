@@ -1,6 +1,7 @@
 package com.streamflixreborn.streamflix.utils
 
 import android.os.SystemClock
+import android.util.Log
 import androidx.media3.common.MediaItem
 import androidx.media3.datasource.DefaultDataSource
 import androidx.media3.datasource.okhttp.OkHttpDataSource
@@ -36,6 +37,10 @@ object ServerAvailability {
     private data class Key(val provider: String, val language: String, val id: String, val series: String?, val season: Int?, val episode: Int?)
     private data class Session(val key: Key, val started: Long, val result: MutableStateFlow<Result>, val job: Job)
 
+    private const val EXTRACTION_TIMEOUT_MS = 35_000L
+    private const val PRELOAD_TIMEOUT_MS = 15_000L
+    private const val TAG = "ServerAvailability"
+
     private val scope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
     private val slots = Semaphore(3)
     private val bufferSlot = Semaphore(1)
@@ -64,16 +69,29 @@ object ServerAvailability {
                 coroutineScope {
                     candidates.distinctBy { it.id to it.name }.forEach { server ->
                         launch {
-                            slots.withPermit {
-                                val video = try {
-                                    withTimeoutOrNull(15_000) { provider.getVideo(server) }
+                            val video = slots.withPermit {
+                                try {
+                                    withTimeoutOrNull(EXTRACTION_TIMEOUT_MS) {
+                                        provider.getVideo(server)
+                                    }.also {
+                                        if (it == null) Log.w(TAG, "${server.name}: extraction timed out")
+                                    }
                                 } catch (cancel: CancellationException) {
                                     throw cancel
-                                } catch (_: Exception) { null }
-                                if (video != null && video.source.isNotBlank() && bufferSlot.withPermit { playable(video) }) {
-                                    val checked = server.copy().also { it.video = video }
-                                    result.update { it.copy(servers = it.servers + checked) }
+                                } catch (error: Exception) {
+                                    Log.w(TAG, "${server.name}: extraction failed (${error.javaClass.simpleName})")
+                                    null
                                 }
+                            } ?: return@launch
+
+                            if (video.source.isBlank()) {
+                                Log.w(TAG, "${server.name}: empty media source")
+                                return@launch
+                            }
+
+                            if (bufferSlot.withPermit { playable(server.name, video) }) {
+                                val checked = server.copy().also { it.video = video }
+                                result.update { it.copy(servers = it.servers + checked) }
                             }
                         }
                     }
@@ -89,13 +107,13 @@ object ServerAvailability {
         return result
     }
 
-    private suspend fun playable(video: Video): Boolean = withContext(Dispatchers.Main.immediate) {
+    private suspend fun playable(name: String, video: Video): Boolean = withContext(Dispatchers.Main.immediate) {
         val context = StreamFlixApp.instance
         val http = OkHttpDataSource.Factory(NetworkClient.default)
             .setDefaultRequestProperties(mapOf("User-Agent" to userAgent) + video.headers.orEmpty())
         val data = DefaultDataSource.Factory(context, http)
         val preloadManager = DefaultPreloadManager.Builder(context) {
-            DefaultPreloadManager.PreloadStatus.specifiedRangeLoaded(1_000L)
+            DefaultPreloadManager.PreloadStatus.specifiedRangeLoaded(3_000L)
         }
             .setMediaSourceFactory(DefaultMediaSourceFactory(data))
             .build()
@@ -107,6 +125,7 @@ object ServerAvailability {
                 }
 
                 override fun onError(exception: PreloadException) {
+                    Log.w(TAG, "$name: preload failed (${exception.javaClass.simpleName}; cause=${exception.cause?.javaClass?.simpleName})")
                     ready.complete(false)
                 }
             })
@@ -116,10 +135,14 @@ object ServerAvailability {
                 .build()
             preloadManager.add(mediaItem, 0)
             preloadManager.invalidate()
-            withTimeoutOrNull(8_000) { ready.await() } == true
+            val result = withTimeoutOrNull(PRELOAD_TIMEOUT_MS) { ready.await() }
+            if (result == null) Log.w(TAG, "$name: preload timed out")
+            if (result == true) Log.d(TAG, "$name: preload passed")
+            result == true
         } catch (cancel: CancellationException) {
             throw cancel
-        } catch (_: Exception) {
+        } catch (error: Exception) {
+            Log.w(TAG, "$name: validation failed (${error.javaClass.simpleName})")
             false
         } finally {
             preloadManager.release()

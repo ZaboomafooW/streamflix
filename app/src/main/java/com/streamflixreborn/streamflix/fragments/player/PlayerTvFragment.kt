@@ -274,7 +274,7 @@ class PlayerTvFragment : Fragment() {
 
         viewLifecycleOwner.lifecycleScope.launch {
             viewModel.availableServers.flowWithLifecycle(lifecycle, Lifecycle.State.CREATED).collect { checked ->
-                if (checked.isEmpty() || !::player.isInitialized || checked.any { isSerienStreamBypassUrl(it.id) }) return@collect
+                if (!::player.isInitialized || checked.any { isSerienStreamBypassUrl(it.id) }) return@collect
                 servers = checked
                 player.playlistMetadata = player.playlistMetadata.buildUpon()
                     .setMediaServers(checked.map { MediaServer(id = it.id, name = it.name) })
@@ -408,7 +408,7 @@ class PlayerTvFragment : Fragment() {
                         }
 
                         is PlayerViewModel.State.FailedLoadingVideo -> {
-                            val nextServer = servers.getOrNull(servers.indexOf(state.server) + 1)
+                            val nextServer = viewModel.nextServerAfterFailure(state.server)
                             if (nextServer != null) {
                                 viewModel.getVideo(nextServer)
                             } else {
@@ -1313,14 +1313,7 @@ class PlayerTvFragment : Fragment() {
                     super.onPlayerError(error)
                     Log.e("PlayerTvFragment", "onPlayerError: ", error)
 
-                    val nextServer = servers.getOrNull(servers.indexOf(currentServer) + 1)
-                    if (nextServer != null) {
-                        Log.i("PlayerTvFragment", "Playback failed, trying next server: ${nextServer.name}")
-                        viewModel.getVideo(nextServer)
-                    } else if (isAdded && view != null && findNavController().currentDestination?.id == R.id.player) {
-                        Toast.makeText(requireContext(), R.string.playback_sources_exhausted, Toast.LENGTH_LONG).show()
-                        findNavController().navigateUp()
-                    }
+                    currentServer?.let { viewModel.reportPlaybackFailure(it, error) }
                 }
             })
 
