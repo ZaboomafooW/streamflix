@@ -8,6 +8,7 @@ import com.google.gson.annotations.SerializedName
 import com.tanasi.retrofit_jsoup.converter.JsoupConverterFactory
 import com.streamflixreborn.streamflix.models.Video
 import com.streamflixreborn.streamflix.utils.DnsResolver
+import com.streamflixreborn.streamflix.utils.HlsAudioPreference
 import okhttp3.HttpUrl.Companion.toHttpUrlOrNull
 import okhttp3.OkHttpClient
 import org.jsoup.nodes.Document
@@ -37,8 +38,10 @@ class VixSrcExtractor : Extractor() {
     }
 
     override suspend fun extract(link: String): Video {
-        val service = VixSrcExtractorService.build(mainUrl)
         val providerLang = UserPreferences.currentProvider?.language ?: "en"
+        val acceptLanguage = if (providerLang.substringBefore("-").equals("en", true)) "en-US,en;q=0.9"
+            else "it-IT,it;q=0.9,en-US;q=0.8,en;q=0.7"
+        val service = VixSrcExtractorService.build(mainUrl, acceptLanguage)
         
         var apiPath = link.substringAfter(mainUrl).trimStart('/')
         if (!apiPath.startsWith("api/")) {
@@ -114,7 +117,7 @@ class VixSrcExtractor : Extractor() {
         masterParams.forEach { (key, value) -> httpUrlBuilder.addQueryParameter(key, value) }
         val finalUrl = httpUrlBuilder.build().toString()
 
-        val finalHeaders = mutableMapOf("Referer" to "$mainUrl/$currentEmbedPath", "User-Agent" to "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36")
+        val finalHeaders = mutableMapOf("Referer" to "$mainUrl/$currentEmbedPath", "Accept-Language" to acceptLanguage, "User-Agent" to "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36")
         
         var videoSource = finalUrl
 
@@ -135,7 +138,7 @@ class VixSrcExtractor : Extractor() {
                     
                     Log.i("StreamFlixES", "[VixSrc] --- Processing START (Lang: $langCode) ---")
 
-                    val lines = playlistContent.lines()
+                    val lines = HlsAudioPreference.prefer(playlistContent.lines(), langCode)
                     val finalLines = mutableListOf<String>()
                     val uriRegex = """URI=["']([^"']+)["']""".toRegex()
 
@@ -153,20 +156,6 @@ class VixSrcExtractor : Extractor() {
                         }
 
                         if (patchedLine.startsWith("#EXT-X-MEDIA:TYPE=AUDIO")) {
-                            patchedLine = patchedLine.replace(Regex("DEFAULT=YES", RegexOption.IGNORE_CASE), "DEFAULT=NO")
-                                                     .replace(Regex("AUTOSELECT=YES", RegexOption.IGNORE_CASE), "AUTOSELECT=NO")
-                            
-                            val isTargetAudio = patchedLine.contains("LANGUAGE=\"$langCode\"", ignoreCase = true) || 
-                                                patchedLine.contains("NAME=\"$langCode\"", ignoreCase = true) ||
-                                                (langCode == "it" && (patchedLine.contains("Italian", true) || patchedLine.contains("ita", true))) ||
-                                                (langCode == "es" && (patchedLine.contains("Spanish", true) || patchedLine.contains("Español", true) || patchedLine.contains("Castellano", true) || patchedLine.contains("spa", true))) ||
-                                                (langCode == "en" && (patchedLine.contains("English", true) || patchedLine.contains("eng", true)))
-                            
-                            if (isTargetAudio) {
-                                patchedLine = patchedLine.replace("DEFAULT=NO", "DEFAULT=YES")
-                                                         .replace("AUTOSELECT=NO", "AUTOSELECT=YES")
-                                Log.i("StreamFlixES", "[AUDIO] -> SET DEFAULT: $langCode")
-                            }
                             finalLines.add(patchedLine)
                         } else if (patchedLine.startsWith("#EXT-X-MEDIA:TYPE=SUBTITLES")) {
                             val trackName = patchedLine.substringAfter("NAME=\"", "Unknown").substringBefore("\"")
@@ -214,7 +203,7 @@ class VixSrcExtractor : Extractor() {
 
     private interface VixSrcExtractorService {
         companion object {
-            fun build(baseUrl: String): VixSrcExtractorService {
+            fun build(baseUrl: String, acceptLanguage: String): VixSrcExtractorService {
                 val client = OkHttpClient.Builder()
                     .dns(DnsResolver.doh)
                     .followRedirects(true)
@@ -222,6 +211,7 @@ class VixSrcExtractor : Extractor() {
                     .addInterceptor { chain ->
                         val request = chain.request().newBuilder()
                             .header("Referer", baseUrl)
+                            .header("Accept-Language", acceptLanguage)
                             .build()
                         chain.proceed(request)
                     }
@@ -248,7 +238,6 @@ class VixSrcExtractor : Extractor() {
         @Headers(
             "User-Agent: Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36",
             "Accept: text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,image/apng,*/*;q=0.8,application/signed-exchange;v=b3;q=0.7",
-            "Accept-Language: it-IT,it;q=0.9,en-US;q=0.8,en;q=0.7",
             "X-Requested-With: XMLHttpRequest"
         )
         suspend fun getSource(@Url url: String): Document
