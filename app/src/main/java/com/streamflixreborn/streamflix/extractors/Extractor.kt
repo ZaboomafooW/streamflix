@@ -19,7 +19,9 @@ abstract class Extractor {
     }
 
     companion object {
-        private val extractors = listOf(
+        private val extractors by lazy { registeredExtractors() }
+
+        private fun registeredExtractors() = listOf(
             JKPlayerExtractor(),
             RabbitstreamExtractor(),
             RabbitstreamExtractor.MegacloudExtractor(),
