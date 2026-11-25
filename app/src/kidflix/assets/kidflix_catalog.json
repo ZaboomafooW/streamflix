@@ -4,14 +4,20 @@
     "name": "Wild Kratts",
     "poster": "/7Nn1AZb6LJv0WedeK7o4yU6Aioh.jpg",
     "shelf": "PBS KIDS Shows",
-    "releaseDate": "2011-01-03"
+    "releaseDate": "2011-01-03",
+    "genres": [
+      "Science & Learning"
+    ]
   },
   {
     "id": 73549,
     "name": "Odd Squad",
     "poster": "/yRVaHKUbUF7e97po0fulgG4yM3h.jpg",
     "shelf": "PBS KIDS Shows",
-    "releaseDate": "2014-11-26"
+    "releaseDate": "2014-11-26",
+    "genres": [
+      "Mysteries"
+    ]
   },
   {
     "id": 2153,
@@ -39,14 +45,20 @@
     "name": "Dinosaur Train",
     "poster": "/w2g5siiEMMzhZvdWl4rRk2gXLMC.jpg",
     "shelf": "PBS KIDS Shows",
-    "releaseDate": "2009-09-07"
+    "releaseDate": "2009-09-07",
+    "genres": [
+      "Science & Learning"
+    ]
   },
   {
     "id": 62694,
     "name": "Peg + Cat",
     "poster": "/lLLoF9lYMsEq4jPBNczkrCwVjrR.jpg",
     "shelf": "PBS KIDS Shows",
-    "releaseDate": "2013-10-07"
+    "releaseDate": "2013-10-07",
+    "genres": [
+      "Science & Learning"
+    ]
   },
   {
     "id": 14511,
@@ -60,21 +72,30 @@
     "name": "Cyberchase",
     "poster": "/rNBxZw1GqLkt8FB9TL9p9jSEBl8.jpg",
     "shelf": "PBS KIDS Shows",
-    "releaseDate": "2002-01-21"
+    "releaseDate": "2002-01-21",
+    "genres": [
+      "Science & Learning"
+    ]
   },
   {
     "id": 68046,
     "name": "Nature Cat",
     "poster": "/fNjiDb37HydqazzGpriSfFaIKlv.jpg",
     "shelf": "PBS KIDS Shows",
-    "releaseDate": "2015-11-25"
+    "releaseDate": "2015-11-25",
+    "genres": [
+      "Science & Learning"
+    ]
   },
   {
     "id": 124747,
     "name": "Elinor Wonders Why",
     "poster": "/3MEwgOMnsTfuOHcPoX8hAOKrKYn.jpg",
     "shelf": "PBS KIDS Shows",
-    "releaseDate": "2020-09-07"
+    "releaseDate": "2020-09-07",
+    "genres": [
+      "Science & Learning"
+    ]
   },
   {
     "id": 206935,
@@ -102,7 +123,10 @@
     "name": "Ready Jet Go!",
     "poster": "/2APkN4Qi6SqHaW6te16fBOdIlI.jpg",
     "shelf": "PBS KIDS Shows",
-    "releaseDate": "2016-02-17"
+    "releaseDate": "2016-02-17",
+    "genres": [
+      "Science & Learning"
+    ]
   },
   {
     "id": 502,
@@ -116,14 +140,20 @@
     "name": "The Magic School Bus",
     "poster": "/3A70wxUpplD4V3IcL8WmNFBgAbV.jpg",
     "shelf": "PBS KIDS Shows",
-    "releaseDate": "1994-09-10"
+    "releaseDate": "1994-09-10",
+    "genres": [
+      "Science & Learning"
+    ]
   },
   {
     "id": 7744,
     "name": "Sid the Science Kid",
     "poster": "/9r8Wtd0e0S87OuYUX1UNzsXs7eJ.jpg",
     "shelf": "PBS KIDS Shows",
-    "releaseDate": "2008-09-01"
+    "releaseDate": "2008-09-01",
+    "genres": [
+      "Science & Learning"
+    ]
   },
   {
     "id": 104752,
@@ -151,21 +181,30 @@
     "name": "Bluey",
     "poster": "/9p4pNoGcuyCfHcGWKNrTopqMWtq.jpg",
     "shelf": "Family Favorites Shows",
-    "releaseDate": "2018-10-01"
+    "releaseDate": "2018-10-01",
+    "genres": [
+      "Comedy"
+    ]
   },
   {
     "id": 106009,
     "name": "Numberblocks",
     "poster": "/vt872bR11jYDRSzTSfLuOmb2SMt.jpg",
     "shelf": "Family Favorites Shows",
-    "releaseDate": "2017-01-23"
+    "releaseDate": "2017-01-23",
+    "genres": [
+      "Science & Learning"
+    ]
   },
   {
     "id": 70437,
     "name": "Ask the Storybots",
     "poster": "/6IY8bmJcUGmgcB9ERnx8hLw7Qz5.jpg",
     "shelf": "Family Favorites Shows",
-    "releaseDate": "2016-08-12"
+    "releaseDate": "2016-08-12",
+    "genres": [
+      "Science & Learning"
+    ]
   },
   {
     "id": 115577,
@@ -186,21 +225,30 @@
     "name": "StoryBots: Answer Time",
     "poster": "/ccMq0WNCvgq1GitFrBRbJ3BTzet.jpg",
     "shelf": "Family Favorites Shows",
-    "releaseDate": "2022-11-21"
+    "releaseDate": "2022-11-21",
+    "genres": [
+      "Science & Learning"
+    ]
   },
   {
     "id": 218091,
     "name": "Colourblocks",
     "poster": "/x2nHyPqd0Ij05V5TrnMS8r6w3db.jpg",
     "shelf": "Family Favorites Shows",
-    "releaseDate": "2022-09-12"
+    "releaseDate": "2022-09-12",
+    "genres": [
+      "Science & Learning"
+    ]
   },
   {
     "id": 32037,
     "name": "Alphablocks",
     "poster": "/dppvWTIEUSAKJblYoiRP5Pj59yf.jpg",
     "shelf": "Family Favorites Shows",
-    "releaseDate": "2010-01-25"
+    "releaseDate": "2010-01-25",
+    "genres": [
+      "Science & Learning"
+    ]
   },
   {
     "id": 862,
@@ -214,14 +262,20 @@
     "name": "Finding Nemo",
     "poster": "/eHuGQ10FUzK1mdOY69wF5pGgEf5.jpg",
     "shelf": "Pixar Movies",
-    "releaseDate": "2003-05-30"
+    "releaseDate": "2003-05-30",
+    "genres": [
+      "Adventure"
+    ]
   },
   {
     "id": 10681,
     "name": "WALL·E",
     "poster": "/hbhFnRzzg6ZDmm8YAmxBnQpQIPh.jpg",
     "shelf": "Pixar Movies",
-    "releaseDate": "2008-06-26"
+    "releaseDate": "2008-06-26",
+    "genres": [
+      "Science Fiction"
+    ]
   },
   {
     "id": 585,
@@ -249,28 +303,40 @@
     "name": "Up",
     "poster": "/mFvoEwSfLqbcWwFsDjQebn9bzFe.jpg",
     "shelf": "Pixar Movies",
-    "releaseDate": "2009-05-28"
+    "releaseDate": "2009-05-28",
+    "genres": [
+      "Adventure"
+    ]
   },
   {
     "id": 2062,
     "name": "Ratatouille",
     "poster": "/t3vaWRPSf6WjDSamIkKDs1iQWna.jpg",
     "shelf": "Pixar Movies",
-    "releaseDate": "2007-06-28"
+    "releaseDate": "2007-06-28",
+    "genres": [
+      "Comedy"
+    ]
   },
   {
     "id": 150540,
     "name": "Inside Out",
     "poster": "/2H1TmgdfNtsKlU9jKdeNyYL5y8T.jpg",
     "shelf": "Pixar Movies",
-    "releaseDate": "2015-06-17"
+    "releaseDate": "2015-06-17",
+    "genres": [
+      "Comedy"
+    ]
   },
   {
     "id": 354912,
     "name": "Coco",
     "poster": "/6Ryitt95xrO8KXuqRGm1fUuNwqF.jpg",
     "shelf": "Pixar Movies",
-    "releaseDate": "2017-10-27"
+    "releaseDate": "2017-10-27",
+    "genres": [
+      "Music & Musicals"
+    ]
   },
   {
     "id": 114502,
@@ -298,21 +364,30 @@
     "name": "DuckTales",
     "poster": "/3klapeIKLp9IBy4uHo7szTeMTdQ.jpg",
     "shelf": "Disney Shows",
-    "releaseDate": "2017-08-12"
+    "releaseDate": "2017-08-12",
+    "genres": [
+      "Adventure"
+    ]
   },
   {
     "id": 1877,
     "name": "Phineas and Ferb",
     "poster": "/g6TidT7be954rrzPPBTIXkSmfXj.jpg",
     "shelf": "Disney Shows",
-    "releaseDate": "2007-08-17"
+    "releaseDate": "2007-08-17",
+    "genres": [
+      "Comedy"
+    ]
   },
   {
     "id": 40075,
     "name": "Gravity Falls",
     "poster": "/qwi3p6PzKfQZ4YXBzv3CP5pO2dE.jpg",
     "shelf": "Disney Shows",
-    "releaseDate": "2012-06-15"
+    "releaseDate": "2012-06-15",
+    "genres": [
+      "Mysteries"
+    ]
   },
   {
     "id": 2005,
@@ -326,21 +401,33 @@
     "name": "Moana",
     "poster": "/m5MDZOIFEFlxGiLuAzWzFSsWcye.jpg",
     "shelf": "Disney Movies",
-    "releaseDate": "2016-10-13"
+    "releaseDate": "2016-10-13",
+    "genres": [
+      "Adventure",
+      "Music & Musicals"
+    ]
   },
   {
     "id": 109445,
     "name": "Frozen",
     "poster": "/itAKcobTYGpYT8Phwjd8c9hleTo.jpg",
     "shelf": "Disney Movies",
-    "releaseDate": "2013-11-20"
+    "releaseDate": "2013-11-20",
+    "genres": [
+      "Fantasy",
+      "Music & Musicals"
+    ]
   },
   {
     "id": 568124,
     "name": "Encanto",
     "poster": "/4j0PNHkMr5ax3IA8tjtxcmPU3QT.jpg",
     "shelf": "Disney Movies",
-    "releaseDate": "2021-11-24"
+    "releaseDate": "2021-11-24",
+    "genres": [
+      "Fantasy",
+      "Music & Musicals"
+    ]
   },
   {
     "id": 269149,
@@ -354,14 +441,21 @@
     "name": "The Lion King",
     "poster": "/sKCr78MXSLixwmZ8DyJLrpMsd15.jpg",
     "shelf": "Disney Movies",
-    "releaseDate": "1994-06-15"
+    "releaseDate": "1994-06-15",
+    "genres": [
+      "Adventure",
+      "Music & Musicals"
+    ]
   },
   {
     "id": 10821,
     "name": "Blue's Clues",
     "poster": "/dSCi1cLsKiQ7713m8Lf9J8iHbRH.jpg",
     "shelf": "Nickelodeon Shows",
-    "releaseDate": "1996-09-08"
+    "releaseDate": "1996-09-08",
+    "genres": [
+      "Mysteries"
+    ]
   },
   {
     "id": 57532,
@@ -375,14 +469,20 @@
     "name": "SpongeBob SquarePants",
     "poster": "/5h0EU2lqBb03dp5vtRuUHJwqzem.jpg",
     "shelf": "Nickelodeon Shows",
-    "releaseDate": "1999-05-01"
+    "releaseDate": "1999-05-01",
+    "genres": [
+      "Comedy"
+    ]
   },
   {
     "id": 246,
     "name": "Avatar: The Last Airbender",
     "poster": "/yaGt4GIutpbXHsv48tWceWg6s56.jpg",
     "shelf": "Nickelodeon Shows",
-    "releaseDate": "2005-02-21"
+    "releaseDate": "2005-02-21",
+    "genres": [
+      "Adventure"
+    ]
   },
   {
     "id": 14444,
@@ -410,7 +510,10 @@
     "name": "Star Trek: Prodigy",
     "poster": "/Aqub3PSzLm2F398vitkbkxjopjO.jpg",
     "shelf": "Paramount Shows",
-    "releaseDate": "2021-10-28"
+    "releaseDate": "2021-10-28",
+    "genres": [
+      "Science Fiction"
+    ]
   },
   {
     "id": 231394,
@@ -438,14 +541,20 @@
     "name": "Sonic the Hedgehog 3",
     "poster": "/d8Ryb8AunYAuycVKDp5HpdWPKgC.jpg",
     "shelf": "Paramount Movies",
-    "releaseDate": "2024-12-19"
+    "releaseDate": "2024-12-19",
+    "genres": [
+      "Adventure"
+    ]
   },
   {
     "id": 808,
     "name": "Shrek",
     "poster": "/zscUsmzDJFZjUY8f8BQqMSWlmNQ.jpg",
     "shelf": "DreamWorks Movies",
-    "releaseDate": "2001-05-18"
+    "releaseDate": "2001-05-18",
+    "genres": [
+      "Comedy"
+    ]
   },
   {
     "id": 9502,
@@ -473,14 +582,21 @@
     "name": "The Wild Robot",
     "poster": "/wTnV3PCVW5O92JMrFvvrRcV39RU.jpg",
     "shelf": "DreamWorks Movies",
-    "releaseDate": "2024-09-12"
+    "releaseDate": "2024-09-12",
+    "genres": [
+      "Adventure",
+      "Science Fiction"
+    ]
   },
   {
     "id": 93741,
     "name": "Jurassic World Camp Cretaceous",
     "poster": "/pwte1p4ZySI1qAVSVdSTRKjuIAa.jpg",
     "shelf": "DreamWorks Shows",
-    "releaseDate": "2020-09-18"
+    "releaseDate": "2020-09-18",
+    "genres": [
+      "Adventure"
+    ]
   },
   {
     "id": 61886,
@@ -494,14 +610,20 @@
     "name": "The Dragon Prince",
     "poster": "/d7PIRa6ez7ZEl9D4JUrnSsmcnVD.jpg",
     "shelf": "Netflix Shows",
-    "releaseDate": "2018-09-14"
+    "releaseDate": "2018-09-14",
+    "genres": [
+      "Fantasy"
+    ]
   },
   {
     "id": 74728,
     "name": "Carmen Sandiego",
     "poster": "/jpis9X6awQ1X5MBm9eHRUc0N0pu.jpg",
     "shelf": "Netflix Shows",
-    "releaseDate": "2019-01-18"
+    "releaseDate": "2019-01-18",
+    "genres": [
+      "Mysteries"
+    ]
   },
   {
     "id": 103786,
@@ -515,7 +637,10 @@
     "name": "The Magic School Bus Rides Again",
     "poster": "/42cJukwvrC8eZ1mShB5jBE3HLPL.jpg",
     "shelf": "Netflix Shows",
-    "releaseDate": "2017-09-29"
+    "releaseDate": "2017-09-29",
+    "genres": [
+      "Science & Learning"
+    ]
   },
   {
     "id": 111474,
@@ -529,14 +654,20 @@
     "name": "The Creature Cases",
     "poster": "/tFi3nx53Dfwa5YOd4J2VnIXpqBk.jpg",
     "shelf": "Netflix Shows",
-    "releaseDate": "2022-04-12"
+    "releaseDate": "2022-04-12",
+    "genres": [
+      "Mysteries"
+    ]
   },
   {
     "id": 129604,
     "name": "Ada Twist, Scientist",
     "poster": "/zDBZxrPPrmvreG4SzQFosxcJsXQ.jpg",
     "shelf": "Netflix Shows",
-    "releaseDate": "2021-09-28"
+    "releaseDate": "2021-09-28",
+    "genres": [
+      "Science & Learning"
+    ]
   },
   {
     "id": 86957,
@@ -550,7 +681,10 @@
     "name": "My Dad the Bounty Hunter",
     "poster": "/cWSPHOTFFf5hs77gamKeLDhxNvm.jpg",
     "shelf": "Netflix Shows",
-    "releaseDate": "2023-02-09"
+    "releaseDate": "2023-02-09",
+    "genres": [
+      "Science Fiction"
+    ]
   },
   {
     "id": 95599,
@@ -585,7 +719,10 @@
     "name": "Jurassic World: Chaos Theory",
     "poster": "/c2Od0cY2IeayDj5osUxZSAD1QK.jpg",
     "shelf": "Netflix Shows",
-    "releaseDate": "2024-05-24"
+    "releaseDate": "2024-05-24",
+    "genres": [
+      "Adventure"
+    ]
   },
   {
     "id": 92684,
@@ -613,7 +750,10 @@
     "name": "Lost in Space",
     "poster": "/y8NJnTXzb4rio9uvVYFVrXEMofU.jpg",
     "shelf": "Netflix Shows",
-    "releaseDate": "2018-04-13"
+    "releaseDate": "2018-04-13",
+    "genres": [
+      "Science Fiction"
+    ]
   },
   {
     "id": 65294,
@@ -634,7 +774,10 @@
     "name": "Dogs in Space",
     "poster": "/wyrX626w311nbLfmG2JXewUjmFi.jpg",
     "shelf": "Netflix Shows",
-    "releaseDate": "2021-11-18"
+    "releaseDate": "2021-11-18",
+    "genres": [
+      "Science Fiction"
+    ]
   },
   {
     "id": 221301,
@@ -655,7 +798,10 @@
     "name": "The Sea Beast",
     "poster": "/9Zfv4Ap1e8eKOYnZPtYaWhLkk0d.jpg",
     "shelf": "Netflix Movies",
-    "releaseDate": "2022-06-24"
+    "releaseDate": "2022-06-24",
+    "genres": [
+      "Adventure"
+    ]
   },
   {
     "id": 961323,
@@ -676,7 +822,10 @@
     "name": "The Mitchells vs. the Machines",
     "poster": "/mI2Di7HmskQQ34kz0iau6J1vr70.jpg",
     "shelf": "Netflix Movies",
-    "releaseDate": "2021-04-22"
+    "releaseDate": "2021-04-22",
+    "genres": [
+      "Science Fiction"
+    ]
   },
   {
     "id": 560044,
@@ -697,7 +846,10 @@
     "name": "The Magician's Elephant",
     "poster": "/cAoAgzOCxSytYBqqCQulhXNR3LB.jpg",
     "shelf": "Netflix Movies",
-    "releaseDate": "2023-03-10"
+    "releaseDate": "2023-03-10",
+    "genres": [
+      "Fantasy"
+    ]
   },
   {
     "id": 770254,
@@ -711,7 +863,10 @@
     "name": "Orion and the Dark",
     "poster": "/N2ddXhBX5kqwA9flbm2yqFtX6b.jpg",
     "shelf": "Netflix Movies",
-    "releaseDate": "2024-02-01"
+    "releaseDate": "2024-02-01",
+    "genres": [
+      "Fantasy"
+    ]
   },
   {
     "id": 739547,
@@ -739,21 +894,30 @@
     "name": "Wallace & Gromit: Vengeance Most Fowl",
     "poster": "/jUWFSBxTOiCinPdTOh3IDUXVemZ.jpg",
     "shelf": "Netflix Movies",
-    "releaseDate": "2024-12-18"
+    "releaseDate": "2024-12-18",
+    "genres": [
+      "Comedy"
+    ]
   },
   {
     "id": 449406,
     "name": "Vivo",
     "poster": "/eRLlrhbdYE7XN6VtcZKy6o2BsOw.jpg",
     "shelf": "Netflix Movies",
-    "releaseDate": "2021-07-30"
+    "releaseDate": "2021-07-30",
+    "genres": [
+      "Music & Musicals"
+    ]
   },
   {
     "id": 668482,
     "name": "Roald Dahl's Matilda the Musical",
     "poster": "/ga8R3OiOMMgSvZ4cOj8x7prUNYZ.jpg",
     "shelf": "Netflix Movies",
-    "releaseDate": "2022-11-25"
+    "releaseDate": "2022-11-25",
+    "genres": [
+      "Music & Musicals"
+    ]
   },
   {
     "id": 527435,
@@ -774,7 +938,10 @@
     "name": "Wish Dragon",
     "poster": "/lnPf6hzANL6pVQTxUlsNYSuhT5l.jpg",
     "shelf": "Netflix Movies",
-    "releaseDate": "2021-01-15"
+    "releaseDate": "2021-01-15",
+    "genres": [
+      "Fantasy"
+    ]
   },
   {
     "id": 829402,
@@ -788,14 +955,20 @@
     "name": "The Adam Project",
     "poster": "/wFjboE0aFZNbVOF05fzrka9Fqyx.jpg",
     "shelf": "Netflix Movies",
-    "releaseDate": "2022-03-11"
+    "releaseDate": "2022-03-11",
+    "genres": [
+      "Science Fiction"
+    ]
   },
   {
     "id": 497582,
     "name": "Enola Holmes",
     "poster": "/riYInlsq2kf1AWoGm80JQW5dLKp.jpg",
     "shelf": "Netflix Movies",
-    "releaseDate": "2020-09-22"
+    "releaseDate": "2020-09-22",
+    "genres": [
+      "Mysteries"
+    ]
   },
   {
     "id": 15260,
@@ -816,14 +989,20 @@
     "name": "The Amazing World of Gumball",
     "poster": "/VYnnyA2hyxi3VUPgCA71mMtt69.jpg",
     "shelf": "HBO Max / Warner Bros. Shows",
-    "releaseDate": "2011-05-03"
+    "releaseDate": "2011-05-03",
+    "genres": [
+      "Comedy"
+    ]
   },
   {
     "id": 63401,
     "name": "We Bare Bears",
     "poster": "/3xWzlLZ0kAD6SkVZTekFM9lxZyP.jpg",
     "shelf": "HBO Max / Warner Bros. Shows",
-    "releaseDate": "2015-08-24"
+    "releaseDate": "2015-08-24",
+    "genres": [
+      "Comedy"
+    ]
   },
   {
     "id": 607,
@@ -851,7 +1030,10 @@
     "name": "Ben 10",
     "poster": "/eogRp6oAPK0SEvQmCrQ78LTlSdp.jpg",
     "shelf": "HBO Max / Warner Bros. Shows",
-    "releaseDate": "2005-12-27"
+    "releaseDate": "2005-12-27",
+    "genres": [
+      "Science Fiction"
+    ]
   },
   {
     "id": 604,
@@ -886,28 +1068,40 @@
     "name": "What's New, Scooby-Doo?",
     "poster": "/qP3DZrKLSPe5WR2N066BIfB2dIq.jpg",
     "shelf": "HBO Max / Warner Bros. Shows",
-    "releaseDate": "2002-09-14"
+    "releaseDate": "2002-09-14",
+    "genres": [
+      "Mysteries"
+    ]
   },
   {
     "id": 18123,
     "name": "Scooby-Doo! Mystery Incorporated",
     "poster": "/mu8zU2jQfPbGO5bC6RHYrSypxUd.jpg",
     "shelf": "HBO Max / Warner Bros. Shows",
-    "releaseDate": "2010-07-12"
+    "releaseDate": "2010-07-12",
+    "genres": [
+      "Mysteries"
+    ]
   },
   {
     "id": 32605,
     "name": "The Looney Tunes Show",
     "poster": "/bZWdejWhkgJmXjdQ70DjiJS7v7O.jpg",
     "shelf": "HBO Max / Warner Bros. Shows",
-    "releaseDate": "2011-05-03"
+    "releaseDate": "2011-05-03",
+    "genres": [
+      "Comedy"
+    ]
   },
   {
     "id": 102321,
     "name": "Looney Tunes Cartoons",
     "poster": "/2pDQfZMJq95hckoaez9ou93Hmqy.jpg",
     "shelf": "HBO Max / Warner Bros. Shows",
-    "releaseDate": "2020-05-27"
+    "releaseDate": "2020-05-27",
+    "genres": [
+      "Comedy"
+    ]
   },
   {
     "id": 82,
@@ -970,14 +1164,20 @@
     "name": "The Wizard of Oz",
     "poster": "/uCC3j4pV9eOZwzDUWp2ilbcTf1f.jpg",
     "shelf": "HBO Max / Warner Bros. Movies",
-    "releaseDate": "1939-08-21"
+    "releaseDate": "1939-08-21",
+    "genres": [
+      "Fantasy"
+    ]
   },
   {
     "id": 787699,
     "name": "Wonka",
     "poster": "/qhb1qOilapbapxWQn9jtRCMwXJF.jpg",
     "shelf": "HBO Max / Warner Bros. Movies",
-    "releaseDate": "2023-12-06"
+    "releaseDate": "2023-12-06",
+    "genres": [
+      "Music & Musicals"
+    ]
   },
   {
     "id": 10166,
@@ -1005,42 +1205,60 @@
     "name": "Scoob!",
     "poster": "/jHo2M1OiH9Re33jYtUQdfzPeUkx.jpg",
     "shelf": "HBO Max / Warner Bros. Movies",
-    "releaseDate": "2020-07-08"
+    "releaseDate": "2020-07-08",
+    "genres": [
+      "Mysteries"
+    ]
   },
   {
     "id": 9340,
     "name": "The Goonies",
     "poster": "/eBU7gCjTCj9n2LTxvCSIXXOvHkD.jpg",
     "shelf": "HBO Max / Warner Bros. Movies",
-    "releaseDate": "1985-06-07"
+    "releaseDate": "1985-06-07",
+    "genres": [
+      "Adventure"
+    ]
   },
   {
     "id": 671,
     "name": "Harry Potter and the Philosopher's Stone",
     "poster": "/wuMc08IPKEatf9rnMNXvIDxqP4W.jpg",
     "shelf": "HBO Max / Warner Bros. Movies",
-    "releaseDate": "2001-11-16"
+    "releaseDate": "2001-11-16",
+    "genres": [
+      "Fantasy"
+    ]
   },
   {
     "id": 672,
     "name": "Harry Potter and the Chamber of Secrets",
     "poster": "/sdEOH0992YZ0QSxgXNIGLq1ToUi.jpg",
     "shelf": "HBO Max / Warner Bros. Movies",
-    "releaseDate": "2002-11-13"
+    "releaseDate": "2002-11-13",
+    "genres": [
+      "Fantasy"
+    ]
   },
   {
     "id": 673,
     "name": "Harry Potter and the Prisoner of Azkaban",
     "poster": "/aWxwnYoe8p2d2fcxOqtvAtJ72Rw.jpg",
     "shelf": "HBO Max / Warner Bros. Movies",
-    "releaseDate": "2004-05-31"
+    "releaseDate": "2004-05-31",
+    "genres": [
+      "Fantasy"
+    ]
   },
   {
     "id": 92685,
     "name": "The Owl House",
     "poster": "/cZLxKTslrf9gzRomVy8BhaYjg7n.jpg",
     "shelf": "Disney Shows",
-    "releaseDate": "2020-01-10"
+    "releaseDate": "2020-01-10",
+    "genres": [
+      "Fantasy"
+    ]
   },
   {
     "id": 92649,
@@ -1054,21 +1272,30 @@
     "name": "Star Wars Rebels",
     "poster": "/eLrScs6Bs26JMcS8hiZhf7YRROr.jpg",
     "shelf": "Disney Shows",
-    "releaseDate": "2014-10-13"
+    "releaseDate": "2014-10-13",
+    "genres": [
+      "Science Fiction"
+    ]
   },
   {
     "id": 4194,
     "name": "Star Wars: The Clone Wars",
     "poster": "/e1nWfnnCVqxS2LeTO3dwGyAsG2V.jpg",
     "shelf": "Disney Shows",
-    "releaseDate": "2008-10-03"
+    "releaseDate": "2008-10-03",
+    "genres": [
+      "Science Fiction"
+    ]
   },
   {
     "id": 202998,
     "name": "Star Wars: Young Jedi Adventures",
     "poster": "/bC2Mix1WPUiY6pldh77oiFl1MvI.jpg",
     "shelf": "Disney Shows",
-    "releaseDate": "2023-05-04"
+    "releaseDate": "2023-05-04",
+    "genres": [
+      "Science Fiction"
+    ]
   },
   {
     "id": 3934,
@@ -1089,7 +1316,11 @@
     "name": "The Little Mermaid",
     "poster": "/32Tb6HZc8yAWqHesMSMnMozr6pi.jpg",
     "shelf": "Disney Shows",
-    "releaseDate": "1992-09-12"
+    "releaseDate": "1992-09-12",
+    "genres": [
+      "Fantasy",
+      "Music & Musicals"
+    ]
   },
   {
     "id": 4623,
@@ -1152,35 +1383,51 @@
     "name": "Moana 2",
     "poster": "/aLVkiINlIeCkcZIzb7XHzPYgO6L.jpg",
     "shelf": "Disney Movies",
-    "releaseDate": "2024-11-21"
+    "releaseDate": "2024-11-21",
+    "genres": [
+      "Adventure",
+      "Music & Musicals"
+    ]
   },
   {
     "id": 527774,
     "name": "Raya and the Last Dragon",
     "poster": "/5nVhgCzxKbK47OLIKxCR1syulOn.jpg",
     "shelf": "Disney Movies",
-    "releaseDate": "2021-03-03"
+    "releaseDate": "2021-03-03",
+    "genres": [
+      "Adventure"
+    ]
   },
   {
     "id": 1267,
     "name": "Meet the Robinsons",
     "poster": "/naya0zF4kT401Sx15AtwB9vpcJr.jpg",
     "shelf": "Disney Movies",
-    "releaseDate": "2007-03-23"
+    "releaseDate": "2007-03-23",
+    "genres": [
+      "Science Fiction"
+    ]
   },
   {
     "id": 433,
     "name": "Mary Poppins",
     "poster": "/o4Wsby4ydIXhWmtmfvb451D5Np1.jpg",
     "shelf": "Disney Movies",
-    "releaseDate": "1964-12-17"
+    "releaseDate": "1964-12-17",
+    "genres": [
+      "Music & Musicals"
+    ]
   },
   {
     "id": 11176,
     "name": "The Muppet Movie",
     "poster": "/8LUjnIW5ph6pHoXDE3Zg4iVi6BV.jpg",
     "shelf": "Disney Movies",
-    "releaseDate": "1979-06-22"
+    "releaseDate": "1979-06-22",
+    "genres": [
+      "Music & Musicals"
+    ]
   },
   {
     "id": 10193,
@@ -1194,21 +1441,30 @@
     "name": "Toy Story 4",
     "poster": "/w9kR8qbmQ01HwnvK4alvnQ2ca0L.jpg",
     "shelf": "Pixar Movies",
-    "releaseDate": "2019-06-19"
+    "releaseDate": "2019-06-19",
+    "genres": [
+      "Comedy"
+    ]
   },
   {
     "id": 127380,
     "name": "Finding Dory",
     "poster": "/3UVe8NL1E2ZdUZ9EDlKGJY5UzE.jpg",
     "shelf": "Pixar Movies",
-    "releaseDate": "2016-06-16"
+    "releaseDate": "2016-06-16",
+    "genres": [
+      "Adventure"
+    ]
   },
   {
     "id": 62211,
     "name": "Monsters University",
     "poster": "/y7thwJ7z5Bplv6vwl6RI0yteaDD.jpg",
     "shelf": "Pixar Movies",
-    "releaseDate": "2013-06-19"
+    "releaseDate": "2013-06-19",
+    "genres": [
+      "Comedy"
+    ]
   },
   {
     "id": 976573,
@@ -1229,7 +1485,10 @@
     "name": "Onward",
     "poster": "/f4aul3FyD3jv3v4bul1IrkWZvzq.jpg",
     "shelf": "Pixar Movies",
-    "releaseDate": "2020-02-29"
+    "releaseDate": "2020-02-29",
+    "genres": [
+      "Fantasy"
+    ]
   },
   {
     "id": 158300,
@@ -1243,7 +1502,10 @@
     "name": "The Patrick Star Show",
     "poster": "/44zbV1t35gxgcSN7sTlkUY85GC9.jpg",
     "shelf": "Paramount Shows",
-    "releaseDate": "2021-07-09"
+    "releaseDate": "2021-07-09",
+    "genres": [
+      "Comedy"
+    ]
   },
   {
     "id": 153528,
@@ -1264,7 +1526,10 @@
     "name": "DORA",
     "poster": "/jga8v6e4S5ZPJRpMuEwiyXbTJuf.jpg",
     "shelf": "Paramount Shows",
-    "releaseDate": "2024-04-12"
+    "releaseDate": "2024-04-12",
+    "genres": [
+      "Adventure"
+    ]
   },
   {
     "id": 204024,
@@ -1285,14 +1550,20 @@
     "name": "The Legend of Korra",
     "poster": "/dZgYvSfuh1YHDrJuILlVQ5oA2hF.jpg",
     "shelf": "Nickelodeon Shows",
-    "releaseDate": "2012-04-14"
+    "releaseDate": "2012-04-14",
+    "genres": [
+      "Adventure"
+    ]
   },
   {
     "id": 3793,
     "name": "Invader ZIM",
     "poster": "/7ARG0kS9LD4Xp8eYJoHpbXcRiZp.jpg",
     "shelf": "Nickelodeon Shows",
-    "releaseDate": "2001-03-30"
+    "releaseDate": "2001-03-30",
+    "genres": [
+      "Science Fiction"
+    ]
   },
   {
     "id": 2009,
@@ -1306,7 +1577,10 @@
     "name": "The Adventures of Jimmy Neutron: Boy Genius",
     "poster": "/iSPhSejcTf0uLNtltk7Thx8w75Z.jpg",
     "shelf": "Nickelodeon Shows",
-    "releaseDate": "2002-07-20"
+    "releaseDate": "2002-07-20",
+    "genres": [
+      "Science Fiction"
+    ]
   },
   {
     "id": 51817,
@@ -1355,7 +1629,10 @@
     "name": "The Spiderwick Chronicles",
     "poster": "/uN7MUMaCXfa8DbMMp61A8iXEcEG.jpg",
     "shelf": "Paramount Movies",
-    "releaseDate": "2008-02-14"
+    "releaseDate": "2008-02-14",
+    "genres": [
+      "Fantasy"
+    ]
   },
   {
     "id": 44826,
@@ -1376,7 +1653,10 @@
     "name": "The Adventures of Tintin",
     "poster": "/fQZ3sLR1Fi63NMsNRbjm9q5qODJ.jpg",
     "shelf": "Paramount Movies",
-    "releaseDate": "2011-10-24"
+    "releaseDate": "2011-10-24",
+    "genres": [
+      "Adventure"
+    ]
   },
   {
     "id": 324852,
@@ -1411,7 +1691,10 @@
     "name": "Sing",
     "poster": "/vNZsygCJam5U3P34tXMmuOVZO9n.jpg",
     "shelf": "Peacock / Universal Movies",
-    "releaseDate": "2016-11-06"
+    "releaseDate": "2016-11-06",
+    "genres": [
+      "Music & Musicals"
+    ]
   },
   {
     "id": 502356,
@@ -1446,14 +1729,20 @@
     "name": "E.T. the Extra-Terrestrial",
     "poster": "/an0nD6uq6byfxXCfk6lQBzdL2J1.jpg",
     "shelf": "Peacock / Universal Movies",
-    "releaseDate": "1982-06-11"
+    "releaseDate": "1982-06-11",
+    "genres": [
+      "Science Fiction"
+    ]
   },
   {
     "id": 3817,
     "name": "The Land Before Time",
     "poster": "/p4eUTWcyh5U62Y26HkALQQjdwMF.jpg",
     "shelf": "Peacock / Universal Shows",
-    "releaseDate": "2007-03-05"
+    "releaseDate": "2007-03-05",
+    "genres": [
+      "Adventure"
+    ]
   },
   {
     "id": 74,
@@ -1474,7 +1763,10 @@
     "name": "Trolls: TrollsTopia",
     "poster": "/idpD7RzSNelzJqBBMFWZbzMfjUu.jpg",
     "shelf": "Peacock / Universal Shows",
-    "releaseDate": "2020-11-19"
+    "releaseDate": "2020-11-19",
+    "genres": [
+      "Music & Musicals"
+    ]
   },
   {
     "id": 132559,
@@ -1537,7 +1829,10 @@
     "name": "Cinderella",
     "poster": "/clDFqATL4zcE7LzUwkrVj3zHvk7.jpg",
     "shelf": "Prime Video Movies",
-    "releaseDate": "2021-09-03"
+    "releaseDate": "2021-09-03",
+    "genres": [
+      "Fantasy"
+    ]
   },
   {
     "id": 672647,
@@ -1572,7 +1867,10 @@
     "name": "Harriet the Spy",
     "poster": "/wlH2YAt8JxOoKgkF3HlDGt9d734.jpg",
     "shelf": "Apple TV Shows",
-    "releaseDate": "2021-11-18"
+    "releaseDate": "2021-11-18",
+    "genres": [
+      "Mysteries"
+    ]
   },
   {
     "id": 209131,
@@ -1593,7 +1891,10 @@
     "name": "Wolfwalkers",
     "poster": "/vqGiNbdc2sDwsnivMMYzwAoSSu6.jpg",
     "shelf": "Apple TV Movies",
-    "releaseDate": "2020-10-26"
+    "releaseDate": "2020-10-26",
+    "genres": [
+      "Fantasy"
+    ]
   },
   {
     "id": 1186957,
@@ -1628,7 +1929,10 @@
     "name": "The Peanuts Movie",
     "poster": "/aiwdwnl7RFs1vcBanOKr13ye3wE.jpg",
     "shelf": "Hulu / 20th Century Movies",
-    "releaseDate": "2015-11-05"
+    "releaseDate": "2015-11-05",
+    "genres": [
+      "Comedy"
+    ]
   },
   {
     "id": 950,
@@ -1656,7 +1960,10 @@
     "name": "Robots",
     "poster": "/fnKCh67l2DDG9NxxIlk9IpsXQ99.jpg",
     "shelf": "Hulu / 20th Century Movies",
-    "releaseDate": "2005-03-10"
+    "releaseDate": "2005-03-10",
+    "genres": [
+      "Science Fiction"
+    ]
   },
   {
     "id": 228326,
@@ -1712,14 +2019,20 @@
     "name": "Trolls",
     "poster": "/9VlK2j0THZWzhQPq0W3Oc0IIdBB.jpg",
     "shelf": "DreamWorks Movies",
-    "releaseDate": "2016-10-13"
+    "releaseDate": "2016-10-13",
+    "genres": [
+      "Music & Musicals"
+    ]
   },
   {
     "id": 446893,
     "name": "Trolls World Tour",
     "poster": "/7W0G3YECgDAfnuiHG91r8WqgIOe.jpg",
     "shelf": "DreamWorks Movies",
-    "releaseDate": "2020-03-11"
+    "releaseDate": "2020-03-11",
+    "genres": [
+      "Music & Musicals"
+    ]
   },
   {
     "id": 11619,
@@ -1782,7 +2095,10 @@
     "name": "Xavier Riddle and the Secret Museum",
     "poster": "/b7g6VuOEb2KCY2NVoXmO7S6vqls.jpg",
     "shelf": "PBS KIDS Shows",
-    "releaseDate": "2019-11-11"
+    "releaseDate": "2019-11-11",
+    "genres": [
+      "Science & Learning"
+    ]
   },
   {
     "id": 125605,
@@ -1803,7 +2119,10 @@
     "name": "Chip 'n' Dale Rescue Rangers",
     "poster": "/44VE1LaaZq4bZhMDo6Yi29NO4H.jpg",
     "shelf": "Disney Shows",
-    "releaseDate": "1989-03-04"
+    "releaseDate": "1989-03-04",
+    "genres": [
+      "Mysteries"
+    ]
   },
   {
     "id": 3319,
@@ -1859,7 +2178,10 @@
     "name": "Team Umizoomi",
     "poster": "/y090DrGOIK5LyrCq3GeA8TZZ4lY.jpg",
     "shelf": "Nickelodeon Shows",
-    "releaseDate": "2010-01-25"
+    "releaseDate": "2010-01-25",
+    "genres": [
+      "Science & Learning"
+    ]
   },
   {
     "id": 1647,
@@ -1915,14 +2237,21 @@
     "name": "Octonauts",
     "poster": "/iYUhUSKWKpSBahaWLUQIPckAy8p.jpg",
     "shelf": "Family Favorites Shows",
-    "releaseDate": "2010-10-05"
+    "releaseDate": "2010-10-05",
+    "genres": [
+      "Science & Learning"
+    ]
   },
   {
     "id": 82456,
     "name": "Hilda",
     "poster": "/giWufGBC7uxrmK9ZESdk9D1cyGm.jpg",
     "shelf": "Family Favorites Shows",
-    "releaseDate": "2018-09-21"
+    "releaseDate": "2018-09-21",
+    "genres": [
+      "Adventure",
+      "Fantasy"
+    ]
   },
   {
     "id": 69926,
@@ -1950,21 +2279,30 @@
     "name": "The Iron Giant",
     "poster": "/k1Cv5CHJvqGWK1xJDUJz8DojFEy.jpg",
     "shelf": "HBO Max / Warner Bros. Movies",
-    "releaseDate": "1999-08-06"
+    "releaseDate": "1999-08-06",
+    "genres": [
+      "Science Fiction"
+    ]
   },
   {
     "id": 137106,
     "name": "The Lego Movie",
     "poster": "/lbctonEnewCYZ4FYoTZhs8cidAl.jpg",
     "shelf": "HBO Max / Warner Bros. Movies",
-    "releaseDate": "2014-02-07"
+    "releaseDate": "2014-02-07",
+    "genres": [
+      "Comedy"
+    ]
   },
   {
     "id": 324849,
     "name": "The Lego Batman Movie",
     "poster": "/e1TliRWOdXQ73pRunbpFiGst6Kd.jpg",
     "shelf": "HBO Max / Warner Bros. Movies",
-    "releaseDate": "2017-02-10"
+    "releaseDate": "2017-02-10",
+    "genres": [
+      "Comedy"
+    ]
   },
   {
     "id": 2300,
@@ -1978,7 +2316,10 @@
     "name": "Happy Feet",
     "poster": "/zP4CK9O70P8GDilfTkPm4lrmaks.jpg",
     "shelf": "HBO Max / Warner Bros. Movies",
-    "releaseDate": "2006-11-17"
+    "releaseDate": "2006-11-17",
+    "genres": [
+      "Music & Musicals"
+    ]
   },
   {
     "id": 252,
@@ -1992,21 +2333,33 @@
     "name": "The Little Mermaid",
     "poster": "/plcZXvI310FkbwIptvd6rqk63LP.jpg",
     "shelf": "Disney Movies",
-    "releaseDate": "1989-11-15"
+    "releaseDate": "1989-11-15",
+    "genres": [
+      "Fantasy",
+      "Music & Musicals"
+    ]
   },
   {
     "id": 10198,
     "name": "The Princess and the Frog",
     "poster": "/yprv5PbnEksoVj2v6XEnDBg9joR.jpg",
     "shelf": "Disney Movies",
-    "releaseDate": "2009-12-11"
+    "releaseDate": "2009-12-11",
+    "genres": [
+      "Fantasy",
+      "Music & Musicals"
+    ]
   },
   {
     "id": 10020,
     "name": "Beauty and the Beast",
     "poster": "/hUJ0UvQ5tgE2Z9WpfuduVSdiCiU.jpg",
     "shelf": "Disney Movies",
-    "releaseDate": "1991-11-22"
+    "releaseDate": "1991-11-22",
+    "genres": [
+      "Fantasy",
+      "Music & Musicals"
+    ]
   },
   {
     "id": 812,
@@ -2020,7 +2373,10 @@
     "name": "Cinderella",
     "poster": "/4nssBcQUBadCTBjrAkX46mVEKts.jpg",
     "shelf": "Disney Movies",
-    "releaseDate": "1950-03-04"
+    "releaseDate": "1950-03-04",
+    "genres": [
+      "Fantasy"
+    ]
   },
   {
     "id": 10882,
@@ -2055,7 +2411,11 @@
     "name": "Frozen II",
     "poster": "/mINJaa34MtknCYl5AjtNJzWj8cD.jpg",
     "shelf": "Disney Movies",
-    "releaseDate": "2019-11-22"
+    "releaseDate": "2019-11-22",
+    "genres": [
+      "Fantasy",
+      "Music & Musicals"
+    ]
   },
   {
     "id": 38757,
@@ -2076,7 +2436,10 @@
     "name": "Tarzan",
     "poster": "/bTvHlcqiOjGa3lFtbrTLTM3zasY.jpg",
     "shelf": "Disney Movies",
-    "releaseDate": "1999-06-18"
+    "releaseDate": "1999-06-18",
+    "genres": [
+      "Adventure"
+    ]
   },
   {
     "id": 11886,
@@ -2097,7 +2460,10 @@
     "name": "The Great Mouse Detective",
     "poster": "/9uDr7vfjCFr39KGCcqrk44Cg7fQ.jpg",
     "shelf": "Disney Movies",
-    "releaseDate": "1986-07-02"
+    "releaseDate": "1986-07-02",
+    "genres": [
+      "Mysteries"
+    ]
   },
   {
     "id": 10340,
@@ -2153,7 +2519,10 @@
     "name": "Inside Out 2",
     "poster": "/vpnVM9B6NMmQpWeZvzLvDESb2QY.jpg",
     "shelf": "Pixar Movies",
-    "releaseDate": "2024-06-14"
+    "releaseDate": "2024-06-14",
+    "genres": [
+      "Comedy"
+    ]
   },
   {
     "id": 9487,
@@ -2216,7 +2585,10 @@
     "name": "Puss in Boots: The Last Wish",
     "poster": "/kuf6dutpsT0vSVehic3EZIqkOBt.jpg",
     "shelf": "DreamWorks Movies",
-    "releaseDate": "2022-12-21"
+    "releaseDate": "2022-12-21",
+    "genres": [
+      "Comedy"
+    ]
   },
   {
     "id": 10527,
@@ -2251,7 +2623,10 @@
     "name": "Kung Fu Panda 4",
     "poster": "/kDp1vUBnMpe8ak4rjgl3cLELqjU.jpg",
     "shelf": "DreamWorks Movies",
-    "releaseDate": "2024-03-08"
+    "releaseDate": "2024-03-08",
+    "genres": [
+      "Comedy"
+    ]
   },
   {
     "id": 20352,
@@ -2272,7 +2647,10 @@
     "name": "Despicable Me 4",
     "poster": "/wWba3TaojhK7NdycRhoQpsG0FaH.jpg",
     "shelf": "Peacock / Universal Movies",
-    "releaseDate": "2024-07-03"
+    "releaseDate": "2024-07-03",
+    "genres": [
+      "Comedy"
+    ]
   },
   {
     "id": 412117,
@@ -2286,14 +2664,20 @@
     "name": "Sing",
     "poster": "/rwopfpHqPCYBSgBuZwkaXXqHp14.jpg",
     "shelf": "Peacock / Universal Movies",
-    "releaseDate": "2016-12-21"
+    "releaseDate": "2016-12-21",
+    "genres": [
+      "Music & Musicals"
+    ]
   },
   {
     "id": 438695,
     "name": "Sing 2",
     "poster": "/aWeKITRFbbwY8txG5uCj4rMCfSP.jpg",
     "shelf": "Peacock / Universal Movies",
-    "releaseDate": "2021-12-22"
+    "releaseDate": "2021-12-22",
+    "genres": [
+      "Music & Musicals"
+    ]
   },
   {
     "id": 940551,

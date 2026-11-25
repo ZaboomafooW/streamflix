@@ -13,11 +13,12 @@ internal data class Shelf(val brand: String, val movie: Boolean, val field: Stri
     val label = "$brand " + if (movie) "Movies" else "Shows"
 }
 
-internal data class KidTitle(val id: Int, val name: String, val poster: String?, val shelf: Shelf, val releaseDate: String) {
+internal data class KidTitle(val id: Int, val name: String, val poster: String?, val shelf: Shelf, val releaseDate: String, val genres: List<String> = emptyList()) {
     val key = (if (shelf.movie) "movie" else "tv") + "/$id"
 }
 
 internal object KidCatalog {
+    val homeGenres = listOf("Adventure", "Comedy", "Fantasy", "Science Fiction", "Music & Musicals", "Mysteries", "Science & Learning")
     val newestFirst = compareByDescending<KidTitle> { it.releaseDate }
         .thenBy(String.CASE_INSENSITIVE_ORDER) { it.name }
         .thenBy { it.key }
@@ -44,8 +45,10 @@ internal object KidCatalog {
         val json = StreamFlixApp.instance.assets.open("kidflix_catalog.json").bufferedReader().use { JSONArray(it.readText()) }
         (0 until json.length()).map { index ->
             val item = json.getJSONObject(index)
+            val genres = item.optJSONArray("genres")
             KidTitle(item.getInt("id"),item.getString("name"),item.optString("poster").takeIf { it.startsWith("/") },
-                shelves.single { it.label == item.getString("shelf") }, item.optString("releaseDate"))
+                shelves.single { it.label == item.getString("shelf") }, item.optString("releaseDate"),
+                genres?.let { values -> (0 until values.length()).map { values.getString(it) } }.orEmpty())
         }
     }
 

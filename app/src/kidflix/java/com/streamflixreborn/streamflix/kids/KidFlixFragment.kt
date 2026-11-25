@@ -73,28 +73,55 @@ class KidFlixFragment : Fragment() {
     }
 
     override fun onCreateView(inflater: LayoutInflater, container: ViewGroup?, state: Bundle?): View {
-        val root = column().apply {
-            setBackgroundColor(Color.rgb(19,38,66))
-            setPadding(dp(30),dp(18),dp(30),dp(12))
+        val shell = LinearLayout(requireContext()).apply { setBackgroundColor(Color.rgb(19, 38, 66)) }
+        val rail = column().apply {
+            setBackgroundColor(ink)
+            setPadding(dp(10), dp(18), dp(10), dp(12))
         }
-        val tools = LinearLayout(requireContext())
-        tools.gravity = Gravity.CENTER_VERTICAL
-        tools.addView(TextView(requireContext()).apply {
-            text = "KidFlix"
-            textSize = 27f
+        shell.addView(rail, dp(144), -1)
+        rail.addView(label("KidFlix", 25f).apply {
             setTextColor(mint)
             setTypeface(null, Typeface.BOLD)
-        }, LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.WRAP_CONTENT, 1f))
-        tools.addView(button("Home") { home() })
-        tools.addView(button("Search") { input("Search KidFlix", query) { if (it.isNotBlank()) open(null,it.trim()) } })
-        tools.addView(button("Settings") { settings() })
-        root.addView(tools)
-        status = TextView(requireContext()).apply { setPadding(0,dp(12),0,dp(8)); textSize = 17f; setTextColor(Color.WHITE) }
-        root.addView(status)
+            setPadding(dp(8), 0, 0, dp(16))
+        })
+        destinations.clear()
+        for (entry in Destination.values()) {
+            val item = button(entry.caption) {
+                destination = entry
+                channel = null
+                home()
+            }
+            item.background = StateListDrawable().apply {
+                addState(intArrayOf(android.R.attr.state_focused), tile(mint))
+                addState(intArrayOf(android.R.attr.state_selected), tile(Color.rgb(34, 114, 109)))
+                addState(intArrayOf(), tile(ink))
+            }
+            destinations[entry] = item
+            rail.addView(item)
+        }
+        rail.addView(button("Search") { input("Search KidFlix", query) { if (it.isNotBlank()) open(null, it.trim()) } })
+        rail.addView(button("Settings") { settings() })
+
+        val content = column().apply { setPadding(dp(14), dp(14), dp(14), dp(10)) }
+        shell.addView(content, LinearLayout.LayoutParams(0, -1, 1f))
+        status = label("", 20f).apply { setPadding(0, 0, 0, dp(8)) }
+        content.addView(status)
         body = column()
-        root.addView(ScrollView(requireContext()).apply { addView(body) })
-        return FrameLayout(requireContext()).apply { addView(root) }
+        scroll = ScrollView(requireContext()).apply { addView(body) }
+        content.addView(scroll)
+        return FrameLayout(requireContext()).apply { addView(shell) }
     }
+
+    private enum class Destination(val caption: String) {
+        HOME("Home"), SHOWS("TV Shows"), MOVIES("Movies"), CHANNELS("Channels")
+    }
+
+    private var destination = Destination.HOME
+    private var channel: String? = null
+    private val destinations = mutableMapOf<Destination, Button>()
+    private lateinit var scroll: ScrollView
+    private val canGoBack get() = shelf != null || query.isNotBlank() || destination != Destination.HOME
+
     private var currentMovie: Pair<KidTitle, TMDb3.Movie.Detail>? = null
     private var homeExpansion: Job? = null
     private var currentShow: Pair<KidTitle, TMDb3.Tv.Detail>? = null
@@ -107,7 +134,16 @@ class KidFlixFragment : Fragment() {
     override fun onViewCreated(view: View, state: Bundle?) {
         browseBack = object : OnBackPressedCallback(false) {
             override fun handleOnBackPressed() {
-                if (currentShow == null && currentMovie == null) { home(); return }
+                if (currentShow == null && currentMovie == null) {
+                    val previousChannel = channel.takeIf { shelf == null && query.isBlank() }
+                    if (shelf == null && query.isBlank()) {
+                        if (channel != null) channel = null else destination = Destination.HOME
+                    }
+                    home()
+                    val target = previousChannel?.let { body.findViewWithTag<View>(it) } ?: destinations[destination]
+                    target?.requestFocus()
+                    return
+                }
                 returnToHero?.let { it(); return }
                 job?.cancel()
                 val frame = requireView() as FrameLayout
@@ -118,11 +154,11 @@ class KidFlixFragment : Fragment() {
                 showStatus = null
                 browseFocus?.requestFocus()
                 browseFocus = null
-                isEnabled = shelf != null || query.isNotBlank()
+                isEnabled = canGoBack
             }
         }
         requireActivity().onBackPressedDispatcher.addCallback(viewLifecycleOwner,browseBack)
-        browseBack.isEnabled = shelf != null || query.isNotBlank()
+        browseBack.isEnabled = canGoBack
         if (shelf != null || query.isNotBlank()) render() else home()
         currentMovie?.let { (title, movie) -> moviePage(title, movie) }
         currentShow?.let { (title, tv) -> showPage(title, tv) }
@@ -132,6 +168,7 @@ class KidFlixFragment : Fragment() {
         showStatus = null
         browseFocus = null
         returnToHero = null
+        destinations.clear()
         super.onDestroyView()
     }
     private fun home() {
@@ -140,21 +177,45 @@ class KidFlixFragment : Fragment() {
         query = ""
         titles.clear()
         body.removeAllViews()
-        status.text = "Browse by brand  ·  Hold OK on a title to hide it"
-        browseBack.isEnabled = false
+        scroll.scrollTo(0, 0)
+        destinations.forEach { (entry, item) -> item.isSelected = entry == destination }
+        status.text = channel ?: destination.caption
+        browseBack.isEnabled = canGoBack
         homeExpansion?.cancel()
-        val watching = column().apply { visibility = View.GONE }
-        body.addView(watching)
+        val catalog = KidCatalog.catalog.filterNot { hidden.contains(it.key) }.sortedWith(KidCatalog.newestFirst)
+        if (destination == Destination.HOME) {
+            val watching = column().apply { visibility = View.GONE }
+            body.addView(watching)
+            addShelf("Newest Releases", catalog.take(20))
+            for (genre in KidCatalog.homeGenres) {
+                addShelf(genre, catalog.filter { genre in it.genres }.take(20))
+            }
+            homeExpansion = viewLifecycleOwner.lifecycleScope.launch { continueWatching(watching) }
+            return
+        }
+        if (destination == Destination.CHANNELS && channel == null) {
+            channelCards(catalog)
+            return
+        }
         val rows = mutableMapOf<Shelf, LinearLayout>()
-        KidCatalog.shelves.forEach { section ->
-            val preview = KidCatalog.catalog.filter { it.shelf == section && !hidden.contains(it.key) }.sortedWith(KidCatalog.newestFirst)
+        val sections = KidCatalog.shelves.filter {
+            when (destination) {
+                Destination.SHOWS -> !it.movie
+                Destination.MOVIES -> it.movie
+                Destination.CHANNELS -> channelName(it) == channel
+                Destination.HOME -> false
+            }
+        }.sortedWith(compareByDescending<Shelf> { section -> catalog.firstOrNull { it.shelf == section }?.releaseDate.orEmpty() }
+            .thenBy { it.label })
+        sections.forEach { section ->
+            val preview = catalog.filter { it.shelf == section }
             if (preview.isNotEmpty()) {
                 val header = LinearLayout(requireContext()).apply {
                     gravity = Gravity.CENTER_VERTICAL
                     setPadding(0,dp(12),0,dp(6))
                 }
                 header.addView(TextView(requireContext()).apply {
-                    text = section.label
+                    text = if (channel == null) section.brand else if (section.movie) "Movies" else "TV Shows"
                     textSize = 20f
                     setTextColor(Color.WHITE)
                     setTypeface(null,Typeface.BOLD)
@@ -171,8 +232,8 @@ class KidFlixFragment : Fragment() {
                 body.addView(button(section.label) { open(section, "") })
             }
         }
+        if (channel != null && body.childCount == 0) body.addView(label("No visible titles", 16f))
         homeExpansion = viewLifecycleOwner.lifecycleScope.launch {
-            launch { continueWatching(watching) }
             rows.forEach { (section, row) ->
                 launch {
                     KidCatalog.expand(section) { title ->
@@ -189,6 +250,54 @@ class KidFlixFragment : Fragment() {
             }
         }
     }
+    private fun addShelf(name: String, items: List<KidTitle>) {
+        if (items.isEmpty()) return
+        body.addView(label(name, 20f).apply {
+            setTypeface(null, Typeface.BOLD)
+            setPadding(0, dp(12), 0, dp(6))
+        })
+        val row = LinearLayout(requireContext())
+        items.forEach { row.addView(card(it), dp(114), -2) }
+        body.addView(HorizontalScrollView(requireContext()).apply { addView(row) })
+    }
+
+    private fun channelName(shelf: Shelf) = if (shelf.brand == "Hulu / 20th Century") "Hulu" else shelf.brand
+
+    private fun channelCards(catalog: List<KidTitle>) {
+        // The first title for each brand is its newest visible release.
+        val newest = catalog.distinctBy { channelName(it.shelf) }.associateBy { channelName(it.shelf) }
+        val brands = KidCatalog.shelves.map(::channelName).distinct().sortedWith(
+            compareByDescending<String> { newest[it]?.releaseDate.orEmpty() }.thenBy { it })
+        val columns = ((resources.configuration.screenWidthDp - 172) / 170).coerceIn(1, 4)
+        for (batch in brands.chunked(columns)) {
+            val row = LinearLayout(requireContext())
+            body.addView(row)
+            for (brand in batch) {
+                val tile = column().apply {
+                    background = focusBackground()
+                    isFocusable = true
+                    setPadding(dp(4), dp(4), dp(4), dp(4))
+                    tag = brand
+                    contentDescription = brand
+                    setOnClickListener {
+                        channel = brand
+                        home()
+                        body.requestFocus(View.FOCUS_DOWN)
+                    }
+                }
+                val image = ImageView(requireContext()).apply { scaleType = ImageView.ScaleType.FIT_CENTER }
+                tile.addView(image, -1, dp(84))
+                artwork(image, newest[brand]?.poster?.w500)
+                tile.addView(label(brand, 16f).apply {
+                    gravity = Gravity.CENTER
+                    setBackgroundColor(ink)
+                })
+                row.addView(tile, LinearLayout.LayoutParams(0, -2, 1f).apply { setMargins(dp(3), dp(3), dp(3), dp(3)) })
+            }
+            repeat(columns - batch.size) { row.addView(View(requireContext()), LinearLayout.LayoutParams(0, 1, 1f)) }
+        }
+    }
+
     private val airedEpisodes get() = requireContext().getSharedPreferences("kidflix_last_aired", Context.MODE_PRIVATE)
 
     private fun rememberLastAired(id: String, episodeId: Int) {
@@ -257,6 +366,7 @@ class KidFlixFragment : Fragment() {
     }
     private fun open(selection: Shelf?, term: String) {
         homeExpansion?.cancel()
+        scroll.scrollTo(0, 0)
         shelf = selection
         query = term
         browseBack.isEnabled = true
@@ -297,7 +407,8 @@ class KidFlixFragment : Fragment() {
         body.removeAllViews()
         val visible = titles.distinctBy { it.key }.filterNot { hidden.contains(it.key) }.sortedWith(KidCatalog.newestFirst)
         status.text = (shelf?.label ?: "Search · $query") + if (visible.isEmpty() && page > 0) " · No matching titles on this page" else ""
-        visible.chunked(5).forEach { batch ->
+        val columns = ((resources.configuration.screenWidthDp - 172) / 114).coerceIn(1, 6)
+        visible.chunked(columns).forEach { batch ->
             val row = LinearLayout(requireContext())
             batch.forEach { title ->
                 row.addView(card(title),dp(114),ViewGroup.LayoutParams.WRAP_CONTENT)
