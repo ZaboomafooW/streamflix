@@ -853,9 +853,20 @@ class TmdbProvider(override val language: String) : Provider {
                     servers.add(VixSrcExtractor().server(videoType))
                     servers.add(VidsrcNetExtractor().server(videoType))
 
+                    suspend fun discover(name: String, lookup: suspend () -> List<Video.Server>): List<Video.Server> {
+                        return try {
+                            kotlinx.coroutines.withTimeoutOrNull(15_000) { lookup() }.orEmpty()
+                        } catch (e: kotlinx.coroutines.CancellationException) {
+                            throw e
+                        } catch (e: Exception) {
+                            Log.w("TmdbProvider", "Source discovery failed for $name", e)
+                            emptyList()
+                        }
+                    }
+
                     val dynamicServers = coroutineScope {
-                        val vidrockDeferred = async { VidrockExtractor().servers(videoType) }
-                        val primeSrcDeferred = async { PrimeSrcExtractor().servers(videoType) }
+                        val vidrockDeferred = async { discover("Vidrock") { VidrockExtractor().servers(videoType) } }
+                        val primeSrcDeferred = async { discover("PrimeSrc") { PrimeSrcExtractor().servers(videoType) } }
                         listOf(vidrockDeferred, primeSrcDeferred).awaitAll().flatten()
                     }
                     servers.addAll(dynamicServers)
@@ -864,6 +875,11 @@ class TmdbProvider(override val language: String) : Provider {
                     servers.add(TwoEmbedExtractor().server(videoType))
                     servers.add(VidLinkExtractor().server(videoType))
                     servers.add(VidsrcRuExtractor().server(videoType))
+                    servers.add(VidflixExtractor().server(videoType))
+                    val nonEnglishVidzeeServers = setOf("Viet", "Velocità", "Hindi", "Bengali", "Tamil", "Telugu", "Malayalam")
+                    servers.addAll(VidzeeExtractor().servers(videoType).filterNot {
+                        it.name.substringBefore(" (Vidzee)") in nonEnglishVidzeeServers
+                    })
                 } else {
                     // Preserve the existing global fallback set for non-English TMDb languages.
                     servers.addAll(listOf(
