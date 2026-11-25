@@ -95,6 +95,8 @@ class KidFlixFragment : Fragment() {
         root.addView(ScrollView(requireContext()).apply { addView(body) })
         return FrameLayout(requireContext()).apply { addView(root) }
     }
+    private var currentMovie: Pair<KidTitle, TMDb3.Movie.Detail>? = null
+    private var homeExpansion: Job? = null
     private var currentShow: Pair<KidTitle, TMDb3.Tv.Detail>? = null
     private var seasonNumber = 0
     private var showStatus: TextView? = null
@@ -105,12 +107,13 @@ class KidFlixFragment : Fragment() {
     override fun onViewCreated(view: View, state: Bundle?) {
         browseBack = object : OnBackPressedCallback(false) {
             override fun handleOnBackPressed() {
-                if (currentShow == null) { home(); return }
+                if (currentShow == null && currentMovie == null) { home(); return }
                 returnToHero?.let { it(); return }
                 job?.cancel()
                 val frame = requireView() as FrameLayout
                 frame.removeViewAt(1)
                 frame.getChildAt(0).visibility = View.VISIBLE
+                currentMovie = null
                 currentShow = null
                 showStatus = null
                 browseFocus?.requestFocus()
@@ -121,6 +124,7 @@ class KidFlixFragment : Fragment() {
         requireActivity().onBackPressedDispatcher.addCallback(viewLifecycleOwner,browseBack)
         browseBack.isEnabled = shelf != null || query.isNotBlank()
         if (shelf != null || query.isNotBlank()) render() else home()
+        currentMovie?.let { (title, movie) -> moviePage(title, movie) }
         currentShow?.let { (title, tv) -> showPage(title, tv) }
     }
     override fun onDestroyView() {
@@ -138,6 +142,8 @@ class KidFlixFragment : Fragment() {
         body.removeAllViews()
         status.text = "Browse by brand  ·  Hold OK on a title to hide it"
         browseBack.isEnabled = false
+        homeExpansion?.cancel()
+        val rows = mutableMapOf<Shelf, LinearLayout>()
         KidCatalog.shelves.forEach { section ->
             val preview = KidCatalog.catalog.filter { it.shelf == section && !hidden.contains(it.key) }
             if (preview.isNotEmpty()) {
@@ -156,10 +162,20 @@ class KidFlixFragment : Fragment() {
                 })
                 body.addView(header)
                 val row = LinearLayout(requireContext())
+                rows[section] = row
                 preview.forEach { row.addView(card(it),dp(114),ViewGroup.LayoutParams.WRAP_CONTENT) }
                 body.addView(HorizontalScrollView(requireContext()).apply { addView(row) })
             } else if (KidCatalog.catalog.none { it.shelf == section }) {
                 body.addView(button(section.label) { open(section, "") })
+            }
+        }
+        homeExpansion = viewLifecycleOwner.lifecycleScope.launch {
+            rows.forEach { (section, row) ->
+                launch {
+                    KidCatalog.expand(section) { title ->
+                        if (!hidden.contains(title.key)) row.addView(card(title), dp(114), ViewGroup.LayoutParams.WRAP_CONTENT)
+                    }
+                }
             }
         }
     }
@@ -185,6 +201,7 @@ class KidFlixFragment : Fragment() {
             }.show()
     }
     private fun open(selection: Shelf?, term: String) {
+        homeExpansion?.cancel()
         shelf = selection
         query = term
         browseBack.isEnabled = true
@@ -229,6 +246,21 @@ class KidFlixFragment : Fragment() {
         }
         if (more) body.addView(button("Load more") { load() })
     }
+    private fun artwork(image: ImageView, url: String?) {
+        if (url.isNullOrBlank()) return
+        val context = image.context.applicationContext
+        viewLifecycleOwner.lifecycleScope.launch {
+            val model: Any = try {
+                KidArtwork.localCopy(context, url)
+            } catch (e: CancellationException) {
+                throw e
+            } catch (e: Exception) {
+                url
+            }
+            Glide.with(image).load(model).into(image)
+        }
+    }
+
     private fun card(title: KidTitle): View {
         val card = column().apply {
             gravity = Gravity.CENTER
@@ -248,7 +280,7 @@ class KidFlixFragment : Fragment() {
         }
         val image = ImageView(requireContext()).apply { scaleType = ImageView.ScaleType.CENTER_CROP }
         card.addView(image,dp(98),dp(138))
-        Glide.with(this).load(title.poster?.w500).override(dp(98),dp(138)).into(image)
+        artwork(image, title.poster?.w500)
         card.addView(TextView(requireContext()).apply { text = title.name; maxLines = 2; gravity = Gravity.CENTER; setTextColor(Color.WHITE) })
         return card
     }
@@ -262,7 +294,8 @@ class KidFlixFragment : Fragment() {
                     db.movieDao().save(Movie(id=m.id.toString(), title=m.title, overview=m.overview, released=m.releaseDate,
                         poster=m.posterPath?.w500, banner=m.backdropPath?.w500, imdbId=m.imdbId))
                 }
-                play(title, Video.Type.Movie(m.id.toString(),m.title,m.releaseDate.orEmpty(),m.posterPath?.w500.orEmpty(),m.imdbId))
+                currentMovie = title to m
+                moviePage(title, m)
             } else {
                 val tv = TMDb3.TvSeries.details(title.id,listOf(TMDb3.Params.AppendToResponse.Tv.EXTERNAL_IDS))
                 val db = AppDatabase.getInstance(requireContext())
@@ -289,7 +322,7 @@ class KidFlixFragment : Fragment() {
         setTextColor(Color.WHITE)
     }
 
-    private fun showPage(title: KidTitle, tv: TMDb3.Tv.Detail) {
+    private fun hero(name: String, backdrop: String?): Pair<FrameLayout, LinearLayout> {
         val frame = requireView() as FrameLayout
         browseFocus = frame.findFocus()
         frame.getChildAt(0).visibility = View.GONE
@@ -300,16 +333,43 @@ class KidFlixFragment : Fragment() {
         layer.addView(hero)
         val artwork = ImageView(requireContext()).apply { scaleType = ImageView.ScaleType.FIT_CENTER }
         hero.addView(artwork, -1, -1)
-        val backdrop = tv.backdropPath ?: tv.posterPath
         val artUrl = if (backdrop?.startsWith("/") == true) "https://image.tmdb.org/t/p/original$backdrop" else backdrop
-        Glide.with(this).load(artUrl).fitCenter().into(artwork)
+        this.artwork(artwork, artUrl)
         hero.addView(View(requireContext()).apply {
             background = GradientDrawable(GradientDrawable.Orientation.LEFT_RIGHT,
                 intArrayOf(Color.argb(235,18,33,54), Color.argb(175,18,33,54), Color.TRANSPARENT))
         }, -1, -1)
         val info = column().apply { setPadding(dp(40), 0, dp(20), dp(24)) }
         hero.addView(info, FrameLayout.LayoutParams(dp(420), -2, Gravity.BOTTOM or Gravity.START))
-        info.addView(label(tv.name, 36f).apply { setTypeface(null, Typeface.BOLD) })
+        info.addView(label(name, 36f).apply { setTypeface(null, Typeface.BOLD) })
+        return layer to info
+    }
+
+    private fun moviePage(title: KidTitle, movie: TMDb3.Movie.Detail) {
+        val (_, info) = hero(movie.title, movie.backdropPath ?: movie.posterPath)
+        info.addView(label(movie.releaseDate.orEmpty().take(4), 15f))
+        info.addView(label(movie.overview.orEmpty(), 16f).apply { maxLines = 5 })
+        val notice = label("", 14f)
+        showStatus = notice
+        info.addView(notice)
+        val type = Video.Type.Movie(movie.id.toString(), movie.title, movie.releaseDate.orEmpty(),
+            movie.posterPath?.w500.orEmpty(), movie.imdbId)
+        val actions = LinearLayout(requireContext())
+        info.addView(actions)
+        val primary = button("Play") { play(title, type) }
+        actions.addView(primary)
+        actions.addView(button("Restart") { play(title, type, true) })
+        primary.requestFocus()
+        request {
+            val db = AppDatabase.getInstance(requireContext())
+            val progress = withContext(Dispatchers.IO) { db.movieDao().getById(type.id)?.watchHistory }
+            if ((progress?.lastPlaybackPositionMillis ?: 0L) > 0L) primary.text = "Continue"
+        }
+    }
+
+    private fun showPage(title: KidTitle, tv: TMDb3.Tv.Detail) {
+        val (layer, info) = hero(tv.name, tv.backdropPath ?: tv.posterPath)
+        val hero = layer.getChildAt(0)
         val available = tv.seasons.filter { it.seasonNumber > 0 }.sortedBy { it.seasonNumber }
         info.addView(label(listOfNotNull(tv.firstAirDate?.take(4), "${available.size} seasons").joinToString(" · "), 15f))
         val episodeTitle = label("", 21f)
@@ -319,7 +379,11 @@ class KidFlixFragment : Fragment() {
         info.addView(synopsis)
         info.addView(heroStatus)
         val primary = button("Play episode") {}
-        info.addView(primary, -2, -2)
+        val actions = LinearLayout(requireContext())
+        info.addView(actions)
+        actions.addView(primary)
+        val restart = button("Restart") {}
+        actions.addView(restart)
         val browse = button("Episodes") {}
         info.addView(browse, -2, -2)
 
@@ -345,14 +409,14 @@ class KidFlixFragment : Fragment() {
             cache[season.seasonNumber] ?: TMDb3.TvSeasons.details(tv.id, season.seasonNumber)
                 .episodes.orEmpty().sortedBy { it.episodeNumber }.also { cache[season.seasonNumber] = it }
 
-        fun startEpisode(season: TMDb3.Season, episode: TMDb3.Episode) {
+        fun startEpisode(season: TMDb3.Season, episode: TMDb3.Episode, restart: Boolean = false) {
             seasonNumber = season.seasonNumber
             play(title, Video.Type.Episode(episode.id.toString(), episode.episodeNumber, episode.name,
-                episode.stillPath?.w500, episode.overview, series, Video.Type.Episode.Season(season.seasonNumber, season.name)))
+                episode.stillPath?.w500, episode.overview, series, Video.Type.Episode.Season(season.seasonNumber, season.name)), restart)
         }
 
         fun loadSeason(season: TMDb3.Season) {
-            for (i in available.indices) seasons.getChildAt(i)?.isActivated = available[i] == season
+            for (i in available.indices) (seasons.getChildAt(i) as? LinearLayout)?.getChildAt(1)?.isActivated = available[i] == season
             if (seasonNumber == season.seasonNumber && episodes.childCount > 0) return
             seasonNumber = season.seasonNumber
             episodes.removeAllViews()
@@ -374,7 +438,7 @@ class KidFlixFragment : Fragment() {
                     }
                     val still = ImageView(requireContext()).apply { scaleType = ImageView.ScaleType.FIT_CENTER }
                     row.addView(still, dp(142), dp(80))
-                    Glide.with(this).load((episode.stillPath ?: tv.backdropPath ?: seasonArt)?.w500).fitCenter().into(still)
+                    artwork(still, (episode.stillPath ?: tv.backdropPath ?: seasonArt)?.w500)
                     val summary = column().apply { setPadding(dp(12), 0, 0, 0) }
                     row.addView(summary)
                     summary.addView(label("${episode.episodeNumber}. ${episode.name.orEmpty()}", 17f))
@@ -385,6 +449,11 @@ class KidFlixFragment : Fragment() {
             }
         }
         val tabs = available.map { season ->
+            val entry = LinearLayout(requireContext()).apply { gravity = Gravity.CENTER_VERTICAL }
+            val poster = ImageView(requireContext()).apply { scaleType = ImageView.ScaleType.FIT_CENTER }
+            entry.addView(poster, dp(32), dp(48))
+            artwork(poster, (season.posterPath ?: tv.posterPath)?.w500)
+            seasons.addView(entry)
             button(season.name) { loadSeason(season) }.apply {
                 background = StateListDrawable().apply {
                     addState(intArrayOf(android.R.attr.state_focused), tile(mint))
@@ -398,7 +467,7 @@ class KidFlixFragment : Fragment() {
                     if (event.action == android.view.MotionEvent.ACTION_HOVER_ENTER) requestFocusFromTouch()
                     false
                 }
-                seasons.addView(this)
+                entry.addView(this, LinearLayout.LayoutParams(0, -2, 1f))
             }
         }
 
@@ -419,6 +488,7 @@ class KidFlixFragment : Fragment() {
             hero.visibility = View.VISIBLE
             showStatus = heroStatus
             primary.requestFocus()
+            restart.isEnabled = false
             primary.text = "Play episode"
             primary.setOnClickListener { openHero() }
             heroStatus.text = "Loading episode…"
@@ -462,6 +532,8 @@ class KidFlixFragment : Fragment() {
                     else -> "Play first episode"
                 }
                 primary.setOnClickListener { startEpisode(season, episode) }
+                restart.isEnabled = true
+                restart.setOnClickListener { startEpisode(season, episode, true) }
             }
         }
 
@@ -485,7 +557,7 @@ class KidFlixFragment : Fragment() {
         openHero()
     }
 
-    private fun play(title: KidTitle, type: Video.Type) {
+    private fun play(title: KidTitle, type: Video.Type, restart: Boolean = false) {
         if (hidden.contains(title.key)) return
         request {
             val provider = requireNotNull(UserPreferences.currentProvider)
@@ -502,6 +574,7 @@ class KidFlixFragment : Fragment() {
                 putString("id", id)
                 putString("title", title.name)
                 putString("subtitle", if (type is Video.Type.Episode) "S${type.season.number} E${type.number} · ${type.title.orEmpty()}" else "")
+                putBoolean("restartFromBeginning", restart)
                 putString("preferredServerName", server.name)
                 putParcelable("videoType", type)
             }

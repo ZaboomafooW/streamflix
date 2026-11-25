@@ -1324,7 +1324,10 @@ class PlayerTvFragment : Fragment() {
                 }
             })
 
-            if (startPositionMs != null) {
+            if (arguments?.getBoolean("restartFromBeginning") == true) {
+                arguments?.remove("restartFromBeginning")
+                player.seekTo(0L)
+            } else if (startPositionMs != null) {
                 player.seekTo(startPositionMs)
             } else if (currentPosition == 0L) {
                 val videoType = args.videoType
