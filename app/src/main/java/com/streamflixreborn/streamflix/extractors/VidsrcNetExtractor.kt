@@ -35,7 +35,7 @@ class VidsrcNetExtractor : Extractor() {
     override suspend fun extract(link: String): Video {
         val service = Service.build(mainUrl)
 
-        val frame = service.get(link).selectFirst("iframe#player_iframe")
+        val frame = service.get(link).apply { setBaseUri(link) }.selectFirst("iframe#player_iframe")
             ?: throw IllegalStateException("VidSrc player frame is missing")
         val api = frame.absUrl("data-api")
         val iframedoc = if (api.isNotBlank() && java.net.URI(api).host == java.net.URI(link).host) {
@@ -43,7 +43,7 @@ class VidsrcNetExtractor : Extractor() {
             java.net.URI(link).resolve(src).toString()
         } else frame.absUrl("src")
         require(iframedoc.startsWith("https://")) { "VidSrc player URL is unavailable" }
-        val doc = service.get(iframedoc, link)
+        val doc = service.get(iframedoc, link).apply { setBaseUri(iframedoc) }
         val media = doc.select("video[src], video source[src]").firstOrNull {
             val path = it.absUrl("src").toUri().path.orEmpty()
             path.endsWith(".m3u8", true) || path.endsWith(".mp4", true)

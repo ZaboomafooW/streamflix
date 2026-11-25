@@ -746,6 +746,23 @@ class TmdbProvider(override val language: String) : Provider {
         val servers = mutableListOf<Video.Server>()
         val lang = language.lowercase().substringBefore("-")
 
+        if (TMDb3.originalAudioLanguage(videoType) == null) {
+            try {
+                kotlinx.coroutines.withTimeoutOrNull(2500L) {
+                    when (videoType) {
+                        is Video.Type.Movie -> videoType.id.toIntOrNull()?.let { TMDb3.Movies.details(it) }
+                        is Video.Type.Episode -> videoType.tvShow.id.toIntOrNull()?.let { TMDb3.TvSeries.details(it) }
+                    }
+                }
+            } catch (e: kotlinx.coroutines.CancellationException) {
+                throw e
+            } catch (_: java.io.IOException) {
+                // Playback can proceed using the stream's language metadata.
+            } catch (_: retrofit2.HttpException) {
+                // The provider may still have the title.
+            }
+        }
+
         Log.d("TmdbProvider", "getServers: lang=$language, simplifiedLang=$lang")
 
         when (lang) {

@@ -7,6 +7,7 @@ import com.google.gson.JsonDeserializer
 import com.google.gson.JsonElement
 import com.google.gson.JsonObject
 import com.google.gson.annotations.SerializedName
+import com.streamflixreborn.streamflix.models.Video
 import com.streamflixreborn.streamflix.BuildConfig
 import okhttp3.OkHttpClient
 import retrofit2.Retrofit
@@ -18,7 +19,6 @@ import retrofit2.http.QueryMap
 import java.lang.reflect.Type
 import java.util.Calendar
 
-import com.streamflixreborn.streamflix.models.Video
 
 object TMDb3 {
     private val originalLanguages = android.util.LruCache<String, String>(512)
@@ -399,7 +399,10 @@ object TMDb3 {
             return service.getMovieDetails(
                 movieId = movieId,
                 params = params.filterNotNullValues(),
-            ).also { detail -> detail.originalLanguage.takeUnless { it.isNullOrBlank() }?.let { originalLanguages.put("movie/$movieId", it) } }
+            ).also { detail ->
+                val original = detail.originalLanguage
+                if (!original.isNullOrBlank()) originalLanguages.put("movie/$movieId", original)
+            }
         }
     }
 
@@ -692,7 +695,10 @@ object TMDb3 {
             return service.getTvDetails(
                 seriesId = seriesId,
                 params = params.filterNotNullValues(),
-            ).also { detail -> detail.originalLanguage.takeUnless { it.isNullOrBlank() }?.let { originalLanguages.put("tv/$seriesId", it) } }
+            ).also { detail ->
+                val original = detail.originalLanguage
+                if (!original.isNullOrBlank()) originalLanguages.put("tv/$seriesId", original)
+            }
         }
     }
 

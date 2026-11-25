@@ -14,9 +14,22 @@ internal object PublisherEpisodes {
         StreamFlixApp.instance.assets.open("publisher_episodes.json").bufferedReader().use { JSONObject(it.readText()) }
     }
 
+    private fun key(name: String) = name.lowercase().filter(Char::isLetterOrDigit)
+
+    private val episodes by lazy {
+        shows.keys().asSequence().associateWith { showId ->
+            val entries = shows.getJSONObject(showId)
+            entries.keys().asSequence().associate { name -> key(name) to entries.getString(name) }
+        }
+    }
+
+    fun videos(showId: String): List<Pair<String, String>> {
+        val entries = shows.optJSONObject(showId) ?: return emptyList()
+        return entries.keys().asSequence().sorted().map { name -> name to entries.getString(name) }.toList()
+    }
+
     fun videoId(showId: String, name: String?): String? {
-        val title = name.orEmpty().lowercase().filter(Char::isLetterOrDigit)
-        return shows.optJSONObject(showId)?.optString(title)?.takeIf { it.isNotBlank() }
+        return episodes[showId]?.get(key(name.orEmpty()))
     }
 
     fun videoId(type: Video.Type): String? = (type as? Video.Type.Episode)?.let { videoId(it.tvShow.id, it.title) }
