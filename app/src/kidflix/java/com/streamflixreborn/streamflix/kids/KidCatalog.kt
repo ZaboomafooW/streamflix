@@ -13,11 +13,15 @@ internal data class Shelf(val brand: String, val movie: Boolean, val field: Stri
     val label = "$brand " + if (movie) "Movies" else "Shows"
 }
 
-internal data class KidTitle(val id: Int, val name: String, val poster: String?, val shelf: Shelf) {
+internal data class KidTitle(val id: Int, val name: String, val poster: String?, val shelf: Shelf, val releaseDate: String) {
     val key = (if (shelf.movie) "movie" else "tv") + "/$id"
 }
 
 internal object KidCatalog {
+    val newestFirst = compareByDescending<KidTitle> { it.releaseDate }
+        .thenBy(String.CASE_INSENSITIVE_ORDER) { it.name }
+        .thenBy { it.key }
+
     private fun tv(brand: String, vararg ids: Int) = Shelf(brand, false, "with_networks", ids.toSet())
     private fun films(brand: String, vararg ids: Int) = Shelf(brand, true, "with_companies", ids.toSet())
     private val favorites = tv("Family Favorites")
@@ -41,7 +45,7 @@ internal object KidCatalog {
         (0 until json.length()).map { index ->
             val item = json.getJSONObject(index)
             KidTitle(item.getInt("id"),item.getString("name"),item.optString("poster").takeIf { it.startsWith("/") },
-                shelves.single { it.label == item.getString("shelf") })
+                shelves.single { it.label == item.getString("shelf") }, item.optString("releaseDate"))
         }
     }
 
@@ -114,7 +118,7 @@ internal object KidCatalog {
         for ((key, value) in saved.all) {
             val fields = runCatching { JSONArray(value as String) }.getOrNull() ?: continue
             val shelf = shelves.firstOrNull { !it.movie && it.brand == fields.optString(3) } ?: continue
-            resolved[key] = KidTitle(fields.getInt(0), fields.getString(1), fields.optString(2).ifBlank { null }, shelf)
+            resolved[key] = KidTitle(fields.getInt(0), fields.getString(1), fields.optString(2).ifBlank { null }, shelf, fields.optString(4))
         }
         restored = true
     }
@@ -129,7 +133,7 @@ internal object KidCatalog {
         restoreCatalog()
         for ((name, year) in additions[shelf.brand].orEmpty()) {
             val key = "$name/$year"
-            if (resolved.containsKey(key) || bundled.any { !it.shelf.movie && it.name.equals(name, true) && it.shelf == shelf }) continue
+            if (resolved[key]?.releaseDate?.isNotEmpty() == true || bundled.any { !it.shelf.movie && it.name.equals(name, true) && it.shelf == shelf }) continue
             try {
                 val match = TMDb3.Search.multi(name, false, "en", 1).results.filterIsInstance<TMDb3.Tv>()
                     .firstOrNull { !it.adult && it.name.filter(Char::isLetterOrDigit).equals(name.filter(Char::isLetterOrDigit), true)
@@ -138,11 +142,11 @@ internal object KidCatalog {
                 if (info.adult || KidPolicy.excluded(info.name, info.overview, info.productionCompanies.orEmpty())) continue
                 val ratings = info.contentRatings?.results.orEmpty().filter { it.iso3166 == "US" }.map { it.rating }
                 if (!KidPolicy.allowedRatings(ratings, false, pbs = shelf == pbs, favorite = shelf == favorites)) continue
-                val item = KidTitle(info.id, info.name, info.posterPath, shelf)
+                val item = KidTitle(info.id, info.name, info.posterPath, shelf, info.firstAirDate.orEmpty())
                 val existing = catalog.any { it.key == item.key }
-                if (!existing) {
+                if (!existing || resolved.containsKey(key)) {
                     resolved[key] = item
-                    saved.edit().putString(key, JSONArray(listOf(item.id, item.name, item.poster.orEmpty(), shelf.brand)).toString()).apply()
+                    saved.edit().putString(key, JSONArray(listOf(item.id, item.name, item.poster.orEmpty(), shelf.brand, item.releaseDate)).toString()).apply()
                     append(item)
                 }
             } catch (e: kotlinx.coroutines.CancellationException) {
@@ -167,7 +171,7 @@ internal object KidCatalog {
         else {
             requireNotNull(shelf)
             val params = mapOf(shelf.field to shelf.ids.joinToString("|"), "page" to page.toString(),
-                "include_adult" to "false", "language" to "en", "sort_by" to "popularity.desc")
+                "include_adult" to "false", "language" to "en", "sort_by" to "first_air_date.desc", "first_air_date.lte" to java.text.SimpleDateFormat("yyyy-MM-dd", java.util.Locale.US).format(java.util.Date()))
             if (shelf.movie) TMDb3.Discover.movie(params) else TMDb3.Discover.tv(params)
         }
         val titles = coroutineScope {
@@ -187,7 +191,7 @@ internal object KidCatalog {
             it in (if (shelf.field == "with_companies") companies else networks)
         } }
 
-    private suspend fun show(id: Int): KidTitle? {
+    suspend fun show(id: Int): KidTitle? {
         val info = TMDb3.TvSeries.details(id, listOf(TMDb3.Params.AppendToResponse.Tv.CONTENT_RATING), "en")
         val companies = info.productionCompanies.orEmpty()
         if (info.adult || KidPolicy.excluded(info.name, info.overview, companies)) return null
@@ -196,6 +200,6 @@ internal object KidCatalog {
         if (shelf != pbs && shelf != favorites && info.type != TMDb3.Tv.Type.SCRIPTED) return null
         val ratings = info.contentRatings?.results.orEmpty().filter { it.iso3166 == "US" }.map { it.rating }.filter { it.isNotBlank() }
         if (!KidPolicy.allowedRatings(ratings, movie = false, pbs = shelf == pbs, favorite = shelf == favorites)) return null
-        return KidTitle(id, info.name, info.posterPath, shelf)
+        return KidTitle(id, info.name, info.posterPath, shelf, info.firstAirDate.orEmpty())
     }
 }

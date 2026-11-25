@@ -143,9 +143,11 @@ class KidFlixFragment : Fragment() {
         status.text = "Browse by brand  ·  Hold OK on a title to hide it"
         browseBack.isEnabled = false
         homeExpansion?.cancel()
+        val watching = column().apply { visibility = View.GONE }
+        body.addView(watching)
         val rows = mutableMapOf<Shelf, LinearLayout>()
         KidCatalog.shelves.forEach { section ->
-            val preview = KidCatalog.catalog.filter { it.shelf == section && !hidden.contains(it.key) }
+            val preview = KidCatalog.catalog.filter { it.shelf == section && !hidden.contains(it.key) }.sortedWith(KidCatalog.newestFirst)
             if (preview.isNotEmpty()) {
                 val header = LinearLayout(requireContext()).apply {
                     gravity = Gravity.CENTER_VERTICAL
@@ -170,15 +172,68 @@ class KidFlixFragment : Fragment() {
             }
         }
         homeExpansion = viewLifecycleOwner.lifecycleScope.launch {
+            launch { continueWatching(watching) }
             rows.forEach { (section, row) ->
                 launch {
                     KidCatalog.expand(section) { title ->
-                        if (!hidden.contains(title.key)) row.addView(card(title), dp(114), ViewGroup.LayoutParams.WRAP_CONTENT)
+                        if (!hidden.contains(title.key)) {
+                            val old = (0 until row.childCount).firstOrNull { (row.getChildAt(it).tag as KidTitle).key == title.key }
+                            if (old != null) row.removeViewAt(old)
+                            val index = (0 until row.childCount).firstOrNull {
+                                KidCatalog.newestFirst.compare(title, row.getChildAt(it).tag as KidTitle) < 0
+                            } ?: row.childCount
+                            row.addView(card(title), index, LinearLayout.LayoutParams(dp(114), ViewGroup.LayoutParams.WRAP_CONTENT))
+                        }
                     }
                 }
             }
         }
     }
+    private val airedEpisodes get() = requireContext().getSharedPreferences("kidflix_last_aired", Context.MODE_PRIVATE)
+
+    private fun rememberLastAired(id: String, episodeId: Int) {
+        airedEpisodes.edit().putInt(id, episodeId)
+            .putLong("checked/$id", System.currentTimeMillis()).apply()
+    }
+
+    private suspend fun continueWatching(section: LinearLayout) {
+        val db = AppDatabase.getInstance(requireContext())
+        val catalog = KidCatalog.catalog.associateBy { it.key }
+        val movies = db.movieDao().getWatchingMovies().first().filter {
+            !it.isWatched && (it.watchHistory?.lastPlaybackPositionMillis ?: 0L) > 0L
+        }
+        val episodes = withContext(Dispatchers.IO) { db.episodeDao().getPlaybackHistory() }
+        val watching = movies.mapNotNull { catalog["movie/${it.id}"] }.toMutableList()
+        for ((id, history) in episodes.groupBy { it.tvShow?.id }) {
+            if (id == null || hidden.contains("tv/$id")) continue
+            val title = catalog["tv/$id"] ?: try {
+                id.toIntOrNull()?.let { KidCatalog.show(it) }
+            } catch (e: CancellationException) { throw e }
+            catch (e: Exception) { null }
+            if (title == null) continue
+            if (history.any { !it.isWatched && it.watchHistory != null }) {
+                watching.add(title)
+                continue
+            }
+            var latest = airedEpisodes.getInt(id, 0)
+            if (latest == 0 || System.currentTimeMillis() - airedEpisodes.getLong("checked/$id", 0L) >= 86400000L) {
+                try {
+                    latest = TMDb3.TvSeries.details(title.id).lastEpisodeToAir?.id ?: 0
+                    if (latest != 0) rememberLastAired(id, latest)
+                } catch (e: CancellationException) { throw e }
+                catch (e: Exception) { if (latest == 0) continue }
+            }
+            if (latest != 0 && history.none { it.id == latest.toString() && it.isWatched }) watching.add(title)
+        }
+        val visible = watching.filterNot { hidden.contains(it.key) }.sortedWith(KidCatalog.newestFirst)
+        if (visible.isEmpty()) return
+        section.addView(label("Continue Watching", 20f).apply { setTypeface(null, Typeface.BOLD) })
+        val row = LinearLayout(requireContext())
+        visible.forEach { row.addView(card(it), dp(114), ViewGroup.LayoutParams.WRAP_CONTENT) }
+        section.addView(HorizontalScrollView(requireContext()).apply { addView(row) })
+        section.visibility = View.VISIBLE
+    }
+
     private fun input(label: String, value: String, save: (String) -> Unit) {
         val field = EditText(requireContext()).apply { setSingleLine(); setText(value) }
         AlertDialog.Builder(requireContext()).setTitle(label).setView(field)
@@ -240,7 +295,7 @@ class KidFlixFragment : Fragment() {
     }
     private fun render() {
         body.removeAllViews()
-        val visible = titles.distinctBy { it.key }.filterNot { hidden.contains(it.key) }
+        val visible = titles.distinctBy { it.key }.filterNot { hidden.contains(it.key) }.sortedWith(KidCatalog.newestFirst)
         status.text = (shelf?.label ?: "Search · $query") + if (visible.isEmpty() && page > 0) " · No matching titles on this page" else ""
         visible.chunked(5).forEach { batch ->
             val row = LinearLayout(requireContext())
@@ -268,6 +323,7 @@ class KidFlixFragment : Fragment() {
 
     private fun card(title: KidTitle): View {
         val card = column().apply {
+            tag = title
             gravity = Gravity.CENTER
             isFocusable = true
             isClickable = true
@@ -308,6 +364,7 @@ class KidFlixFragment : Fragment() {
                     db.tvShowDao().save(TvShow(id=tv.id.toString(), title=tv.name, overview=tv.overview, released=tv.firstAirDate,
                         poster=tv.posterPath?.w500, banner=tv.backdropPath?.w500, imdbId=tv.externalIds?.imdbId))
                 }
+                tv.lastEpisodeToAir?.let { latest -> rememberLastAired(tv.id.toString(), latest.id) }
                 seasonNumber = 0
                 currentShow = title to tv
                 showPage(title, tv)

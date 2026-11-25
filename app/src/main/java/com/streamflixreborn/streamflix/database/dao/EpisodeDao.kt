@@ -17,6 +17,9 @@ interface EpisodeDao {
     @Query("SELECT * FROM episodes")
     fun getAllForBackup(): List<Episode>
 
+    @Query("SELECT * FROM episodes WHERE tvShow IS NOT NULL AND (isWatched = 1 OR lastEngagementTimeUtcMillis IS NOT NULL)")
+    fun getPlaybackHistory(): List<Episode>
+
     @Query(
         """
         SELECT episodes.*, (SELECT MAX(e.watchedDate)
