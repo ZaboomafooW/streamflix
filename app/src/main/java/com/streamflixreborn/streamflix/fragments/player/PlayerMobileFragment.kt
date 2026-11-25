@@ -284,7 +284,7 @@ class PlayerMobileFragment : Fragment() {
 
         viewLifecycleOwner.lifecycleScope.launch {
             viewModel.availableServers.flowWithLifecycle(lifecycle, Lifecycle.State.CREATED).collect { checked ->
-                if (checked.isEmpty() || !::player.isInitialized || checked.any { isSerienStreamBypassUrl(it.id) }) return@collect
+                if (!::player.isInitialized || checked.any { isSerienStreamBypassUrl(it.id) }) return@collect
                 servers = checked
                 player.playlistMetadata = player.playlistMetadata.buildUpon()
                     .setMediaServers(checked.map { MediaServer(id = it.id, name = it.name) })
@@ -387,7 +387,7 @@ class PlayerMobileFragment : Fragment() {
                     }
 
                     is PlayerViewModel.State.FailedLoadingVideo -> {
-                        val nextServer = servers.getOrNull(servers.indexOf(state.server) + 1)
+                        val nextServer = viewModel.nextServerAfterFailure(state.server)
                         if (nextServer != null) {
                             viewModel.getVideo(nextServer)
                         } else {
@@ -1144,11 +1144,7 @@ class PlayerMobileFragment : Fragment() {
                 super.onPlayerError(error)
                 Log.e("PlayerMobileFragment", "onPlayerError: ", error)
                 
-                val nextServer = servers.getOrNull(servers.indexOf(currentServer) + 1)
-                if (nextServer != null) {
-                    Log.i("PlayerMobileFragment", "Playback failed, trying next server: ${nextServer.name}")
-                    viewModel.getVideo(nextServer)
-                }
+                currentServer?.let { viewModel.reportPlaybackFailure(it, error) }
             }
         })
 

@@ -853,9 +853,23 @@ class TmdbProvider(override val language: String) : Provider {
                     servers.add(VixSrcExtractor().server(videoType))
                     servers.add(VidsrcNetExtractor().server(videoType))
 
+                    suspend fun discover(name: String, lookup: suspend () -> List<Video.Server>): List<Video.Server> {
+                        return try {
+                            kotlinx.coroutines.withTimeoutOrNull(15_000) { lookup() } ?: run {
+                                Log.w("TmdbProvider", "$name: discovery timed out")
+                                emptyList()
+                            }
+                        } catch (e: kotlinx.coroutines.CancellationException) {
+                            throw e
+                        } catch (e: Exception) {
+                            Log.w("TmdbProvider", "$name: discovery failed (${e.javaClass.simpleName})")
+                            emptyList()
+                        }
+                    }
+
                     val dynamicServers = coroutineScope {
-                        val vidrockDeferred = async { VidrockExtractor().servers(videoType) }
-                        val primeSrcDeferred = async { PrimeSrcExtractor().servers(videoType) }
+                        val vidrockDeferred = async { discover("Vidrock") { VidrockExtractor().servers(videoType) } }
+                        val primeSrcDeferred = async { discover("PrimeSrc") { PrimeSrcExtractor().servers(videoType) } }
                         listOf(vidrockDeferred, primeSrcDeferred).awaitAll().flatten()
                     }
                     servers.addAll(dynamicServers)
