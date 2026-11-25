@@ -24,14 +24,20 @@
     "name": "Arthur",
     "poster": "/nYN8okmcsmhd4bGVcqifZ5OCumB.jpg",
     "shelf": "PBS KIDS Shows",
-    "releaseDate": "1996-10-07"
+    "releaseDate": "1996-10-07",
+    "genres": [
+      "Kindness & Friendship"
+    ]
   },
   {
     "id": 40050,
     "name": "Daniel Tiger's Neighborhood",
     "poster": "/pUbHrEFTWegyhIxFmtpOpAQsbfT.jpg",
     "shelf": "PBS KIDS Shows",
-    "releaseDate": "2012-09-03"
+    "releaseDate": "2012-09-03",
+    "genres": [
+      "Kindness & Friendship"
+    ]
   },
   {
     "id": 93548,
@@ -109,7 +115,10 @@
     "name": "Alma's Way",
     "poster": "/nt03knfNVuw5Hqr08CLdZZiaOik.jpg",
     "shelf": "PBS KIDS Shows",
-    "releaseDate": "2021-10-04"
+    "releaseDate": "2021-10-04",
+    "genres": [
+      "Kindness & Friendship"
+    ]
   },
   {
     "id": 14766,
@@ -133,7 +142,10 @@
     "name": "Sesame Street",
     "poster": "/14k9BfZ2p4rQBMeJ5crKTfUZVwD.jpg",
     "shelf": "PBS KIDS Shows",
-    "releaseDate": "1969-11-10"
+    "releaseDate": "1969-11-10",
+    "genres": [
+      "Kindness & Friendship"
+    ]
   },
   {
     "id": 7248,
@@ -183,7 +195,8 @@
     "shelf": "Family Favorites Shows",
     "releaseDate": "2018-10-01",
     "genres": [
-      "Comedy"
+      "Comedy",
+      "Kindness & Friendship"
     ]
   },
   {
@@ -585,7 +598,8 @@
     "releaseDate": "2024-09-12",
     "genres": [
       "Adventure",
-      "Science Fiction"
+      "Science Fiction",
+      "Kindness & Friendship"
     ]
   },
   {
@@ -1453,7 +1467,8 @@
     "shelf": "Pixar Movies",
     "releaseDate": "2016-06-16",
     "genres": [
-      "Adventure"
+      "Adventure",
+      "Kindness & Friendship"
     ]
   },
   {
@@ -1853,7 +1868,10 @@
     "name": "Stillwater",
     "poster": "/t6tcFn0LiyKRqR76XwNfErK81cw.jpg",
     "shelf": "Apple TV Shows",
-    "releaseDate": "2020-12-04"
+    "releaseDate": "2020-12-04",
+    "genres": [
+      "Kindness & Friendship"
+    ]
   },
   {
     "id": 204087,
@@ -1901,7 +1919,10 @@
     "name": "The Velveteen Rabbit",
     "poster": "/aM0ViG6LVkN1PQGe9Bon1gQXpc7.jpg",
     "shelf": "Apple TV Movies",
-    "releaseDate": "2023-11-21"
+    "releaseDate": "2023-11-21",
+    "genres": [
+      "Kindness & Friendship"
+    ]
   },
   {
     "id": 541572,
@@ -2067,7 +2088,10 @@
     "name": "The Berenstain Bears",
     "poster": "/cRA1KVomv7d9avL7UpdPBJmASrv.jpg",
     "shelf": "PBS KIDS Shows",
-    "releaseDate": "2003-01-06"
+    "releaseDate": "2003-01-06",
+    "genres": [
+      "Kindness & Friendship"
+    ]
   },
   {
     "id": 4302,
@@ -2081,7 +2105,10 @@
     "name": "Rosie's Rules",
     "poster": "/a3v9hYlgEmYWvpH6auoPcKPwdUI.jpg",
     "shelf": "PBS KIDS Shows",
-    "releaseDate": "2022-10-03"
+    "releaseDate": "2022-10-03",
+    "genres": [
+      "Kindness & Friendship"
+    ]
   },
   {
     "id": 77379,
@@ -2258,7 +2285,10 @@
     "name": "Puffin Rock",
     "poster": "/8ZYTNkpubnG8epqlJLjaWbbO30R.jpg",
     "shelf": "Family Favorites Shows",
-    "releaseDate": "2021-07-06"
+    "releaseDate": "2021-07-06",
+    "genres": [
+      "Kindness & Friendship"
+    ]
   },
   {
     "id": 65047,
@@ -2272,7 +2302,10 @@
     "name": "Sarah & Duck",
     "poster": "/u4SwnXjUFDiyRPPBc4st9TGQefm.jpg",
     "shelf": "Family Favorites Shows",
-    "releaseDate": "2013-02-01"
+    "releaseDate": "2013-02-01",
+    "genres": [
+      "Kindness & Friendship"
+    ]
   },
   {
     "id": 10386,
@@ -2281,7 +2314,8 @@
     "shelf": "HBO Max / Warner Bros. Movies",
     "releaseDate": "1999-08-06",
     "genres": [
-      "Science Fiction"
+      "Science Fiction",
+      "Kindness & Friendship"
     ]
   },
   {
@@ -2505,7 +2539,10 @@
     "name": "Luca",
     "poster": "/9x4i9uKGXt8IiiIF5Ey0DIoY738.jpg",
     "shelf": "Pixar Movies",
-    "releaseDate": "2021-06-18"
+    "releaseDate": "2021-06-18",
+    "genres": [
+      "Kindness & Friendship"
+    ]
   },
   {
     "id": 508442,
@@ -2685,5 +2722,25 @@
     "poster": "/ldfCF9RhR40mppkzmftxapaHeTo.jpg",
     "shelf": "Peacock / Universal Movies",
     "releaseDate": "2023-12-22"
+  },
+  {
+    "id": 4217,
+    "name": "Zoboomafoo",
+    "poster": "/5JMgrHBaspcU9KIfC7nTfPFNL9x.jpg",
+    "shelf": "PBS KIDS Shows",
+    "releaseDate": "1999-01-25",
+    "genres": [
+      "Science & Learning"
+    ]
+  },
+  {
+    "id": 933,
+    "name": "Kratts' Creatures",
+    "poster": "/6FSDfMgrCH1zYSoFppJ0OZVGpBU.jpg",
+    "shelf": "PBS KIDS Shows",
+    "releaseDate": "1996-06-03",
+    "genres": [
+      "Science & Learning"
+    ]
   }
 ]

@@ -18,7 +18,7 @@ internal data class KidTitle(val id: Int, val name: String, val poster: String?,
 }
 
 internal object KidCatalog {
-    val homeGenres = listOf("Adventure", "Comedy", "Fantasy", "Science Fiction", "Music & Musicals", "Mysteries", "Science & Learning")
+    val homeGenres = listOf("Science & Learning", "Kindness & Friendship", "Adventure", "Comedy", "Fantasy", "Science Fiction", "Music & Musicals", "Mysteries")
     val newestFirst = compareByDescending<KidTitle> { it.releaseDate }
         .thenBy(String.CASE_INSENSITIVE_ORDER) { it.name }
         .thenBy { it.key }

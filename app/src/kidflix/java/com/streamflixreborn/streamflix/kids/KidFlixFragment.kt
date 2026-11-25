@@ -188,7 +188,7 @@ class KidFlixFragment : Fragment() {
             body.addView(watching)
             addShelf("Newest Releases", catalog.take(20))
             for (genre in KidCatalog.homeGenres) {
-                addShelf(genre, catalog.filter { genre in it.genres }.take(20))
+                addShelf(genre, catalog.filter { genre in it.genres })
             }
             homeExpansion = viewLifecycleOwner.lifecycleScope.launch { continueWatching(watching) }
             return
@@ -205,7 +205,8 @@ class KidFlixFragment : Fragment() {
                 Destination.CHANNELS -> channelName(it) == channel
                 Destination.HOME -> false
             }
-        }.sortedWith(compareByDescending<Shelf> { section -> catalog.firstOrNull { it.shelf == section }?.releaseDate.orEmpty() }
+        }.sortedWith(compareByDescending<Shelf> { it.brand == "PBS KIDS" }
+            .thenByDescending { section -> catalog.firstOrNull { it.shelf == section }?.releaseDate.orEmpty() }
             .thenBy { it.label })
         sections.forEach { section ->
             val preview = catalog.filter { it.shelf == section }
@@ -267,7 +268,7 @@ class KidFlixFragment : Fragment() {
         // The first title for each brand is its newest visible release.
         val newest = catalog.distinctBy { channelName(it.shelf) }.associateBy { channelName(it.shelf) }
         val brands = KidCatalog.shelves.map(::channelName).distinct().sortedWith(
-            compareByDescending<String> { newest[it]?.releaseDate.orEmpty() }.thenBy { it })
+            compareByDescending<String> { it == "PBS KIDS" }.thenByDescending { newest[it]?.releaseDate.orEmpty() }.thenBy { it })
         val columns = ((resources.configuration.screenWidthDp - 172) / 170).coerceIn(1, 4)
         for (batch in brands.chunked(columns)) {
             val row = LinearLayout(requireContext())
