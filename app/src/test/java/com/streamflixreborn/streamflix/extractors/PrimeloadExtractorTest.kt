@@ -52,7 +52,7 @@ class PrimeloadExtractorTest {
             video.headers?.get("Referer"),
         )
         assertEquals(MimeTypes.APPLICATION_M3U8, video.type)
-        assertEquals(false, video.maintainToken)
+        org.junit.Assert.assertNull(video.segmentToken)
     }
 
     @Test

@@ -49,7 +49,7 @@ class VidxGoExtractor : Extractor() {
             
             val initialUri = android.net.Uri.parse(videoUrl)
             val segmentToken = Video.SegmentToken(initialUri.encodedQuery)
-        val refreshToken = java.lang.ref.WeakReference(segmentToken)
+            val refreshToken = java.lang.ref.WeakReference(segmentToken)
 
             kotlinx.coroutines.GlobalScope.launch(kotlinx.coroutines.Dispatchers.IO) {
                 while (refreshToken.get() != null) {
