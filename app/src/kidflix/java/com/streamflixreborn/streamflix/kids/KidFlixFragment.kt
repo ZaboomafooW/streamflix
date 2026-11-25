@@ -739,6 +739,24 @@ class KidFlixFragment : Fragment() {
             openEpisodes()
             if (browser.visibility == View.VISIBLE) returnToHero = ::openHero
         }
+        if (tv.id == 258124) {
+            info.addView(button("Official Danny Go! videos") {
+                job?.cancel()
+                val list = column().apply { setPadding(dp(30), dp(16), dp(30), dp(10)) }
+                list.addView(label("Danny Go! on YouTube", 24f))
+                for ((name, id) in PublisherEpisodes.videos(tv.id.toString())) {
+                    list.addView(button(name) { PublisherEpisodes.watch(requireContext(), id) })
+                }
+                val page = ScrollView(requireContext()).apply { addView(list) }
+                hero.visibility = View.GONE
+                layer.addView(page, -1, -1)
+                list.getChildAt(1)?.requestFocus()
+                returnToHero = {
+                    layer.removeView(page)
+                    openHero()
+                }
+            }, -2, -2)
+        }
         browse.setOnClickListener { enterBrowser() }
         primary.setOnKeyListener { _, key, event ->
             if (key == android.view.KeyEvent.KEYCODE_DPAD_DOWN && event.action == android.view.KeyEvent.ACTION_DOWN) {
