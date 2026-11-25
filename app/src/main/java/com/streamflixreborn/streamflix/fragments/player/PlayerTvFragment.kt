@@ -1,5 +1,8 @@
 package com.streamflixreborn.streamflix.fragments.player
 
+import com.streamflixreborn.streamflix.providers.TmdbProvider
+import com.streamflixreborn.streamflix.utils.TMDb3
+import com.streamflixreborn.streamflix.utils.PublisherEpisodes
 import android.annotation.SuppressLint
 import android.app.PendingIntent
 import android.content.BroadcastReceiver
@@ -113,7 +116,7 @@ import kotlinx.coroutines.withContext
 import org.json.JSONObject
 import java.util.Locale
 import java.util.UUID
-import com.streamflixreborn.streamflix.extractors.TokenManager
+import com.streamflixreborn.streamflix.utils.PlaybackHttp
 
 class PlayerTvFragment : Fragment() {
     companion object {
@@ -351,6 +354,16 @@ class PlayerTvFragment : Fragment() {
                         val isAD = providerName.contains("AfterDark", ignoreCase = true)
 
                         if (servers.isEmpty()) {
+                            val published = if (isTmdb) PublisherEpisodes.videoId(currentVideoTypeForUi()) else null
+                            if (published != null) {
+                                androidx.appcompat.app.AlertDialog.Builder(requireContext())
+                                    .setMessage("This episode is available on the publisher’s YouTube channel.")
+                                    .setPositiveButton("Watch on YouTube") { _, _ -> PublisherEpisodes.watch(requireContext(), published) }
+                                    .setNegativeButton(android.R.string.cancel, null)
+                                    .setOnDismissListener { if (isAdded) findNavController().navigateUp() }
+                                    .show()
+                                return@collect
+                            }
                             val message = if (isTmdb || isAD) {
                                 val langCode = providerName.substringAfter("(").substringBefore(")")
                                 val locale = Locale.forLanguageTag(langCode)
@@ -1695,17 +1708,13 @@ class PlayerTvFragment : Fragment() {
                 .setMediaSourceFactory(DefaultMediaSourceFactory(dataSourceFactory))
                 .setLoadControl(loadControl)
                 .build().also { player ->
-                    val language = UserPreferences.currentProvider?.language?.substringBefore("-")?.lowercase()
-                    val preferredAudio = when (language) {
-                        "en", null -> "eng"
-                        "es" -> "spa"
-                        else -> null
-                    }
-                    if (preferredAudio != null) {
-                        player.trackSelectionParameters = player.trackSelectionParameters.buildUpon()
-                            .setPreferredAudioLanguage(preferredAudio)
-                            .build()
-                    }
+                    val provider = UserPreferences.currentProvider
+                    val original = if (provider is TmdbProvider) TMDb3.originalAudioLanguage(args.videoType) else null
+                    val languages = if (provider is TmdbProvider) listOfNotNull(original, "en").distinct()
+                        else listOfNotNull(provider?.language)
+                    player.trackSelectionParameters = player.trackSelectionParameters.buildUpon()
+                        .setPreferredAudioLanguages(*languages.toTypedArray())
+                        .build()
                 }
         }
 
@@ -1714,31 +1723,7 @@ class PlayerTvFragment : Fragment() {
             currentExtraBuffering = extraBuffering
             currentSoftwareDecoder = softwareDecoder
 
-            var tokenLogged = false
-            val okHttpClient = OkHttpClient.Builder()
-                .dns(DnsResolver.doh)
-                .addInterceptor { chain ->
-                    var request = chain.request()
-                    
-                    if (currentVideo?.maintainToken == true) {
-                        val latestQuery = TokenManager.latestQuery
-                        if (latestQuery != null) {
-                            val origHttpUrl = request.url
-                            val updatedHttpUrl = origHttpUrl.newBuilder().query(latestQuery).build()
-                            request = request.newBuilder().url(updatedHttpUrl).build()
-                            if (!tokenLogged) {
-                                android.util.Log.d("TokenManager", "[TV-INTERCEPTOR] Token successfully injected (applied to all segments)")
-                                tokenLogged = true
-                            }
-                        } else {
-                            android.util.Log.w("TokenManager", "[TV-INTERCEPTOR] maintainToken=true but latestQuery is null! URL: ${request.url.host}")
-                        }
-                    }
-                    
-                    chain.proceed(request)
-                }
-                .build()
-            httpDataSource = OkHttpDataSource.Factory(okHttpClient)
+            httpDataSource = PlaybackHttp.factory { currentVideo }
 
             dataSourceFactory = DefaultDataSource.Factory(requireContext(), httpDataSource)
 

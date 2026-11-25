@@ -34,7 +34,7 @@ object ServerAvailability {
     data class Result(val servers: List<Video.Server> = emptyList(), val finished: Boolean = false,
                       val error: Exception? = null)
 
-    private data class Key(val provider: Provider, val id: String, val series: String?, val season: Int?, val episode: Int?)
+    private data class Key(val provider: String, val language: String, val id: String, val series: String?, val season: Int?, val episode: Int?)
     private data class Session(val key: Key, val started: Long, val result: MutableStateFlow<Result>, val job: Job)
 
     private const val EXTRACTION_TIMEOUT_MS = 35_000L
@@ -49,16 +49,17 @@ object ServerAvailability {
     @Synchronized
     fun prefetch(provider: Provider, id: String, videoType: Video.Type, refresh: Boolean = false): StateFlow<Result> {
         val episode = videoType as? Video.Type.Episode
-        val key = Key(provider, id, episode?.tvShow?.id, episode?.season?.number, episode?.number)
+        val key = Key(provider.name, provider.language, id, episode?.tvShow?.id, episode?.season?.number, episode?.number)
         val now = SystemClock.elapsedRealtime()
         latest?.let {
-            if (!refresh && it.key == key && now - it.started < 60_000) return it.result
+            if (!refresh && it.key == key && (!it.result.value.finished || now - it.started < 60_000)) return it.result
             if (it.result.subscriptionCount.value == 0) it.job.cancel()
         }
         val result = MutableStateFlow(Result())
         val job = scope.launch {
             try {
-                val candidates = provider.getServers(id, videoType)
+                val candidates = kotlinx.coroutines.withTimeoutOrNull(60_000L) { provider.getServers(id, videoType) }
+                    ?: throw java.io.IOException("Source discovery timed out")
                 if (provider === SerienStreamProvider && candidates.any {
                         android.net.Uri.parse(it.id).host?.equals(android.net.Uri.parse(provider.baseUrl).host, true) == true
                     }) {
@@ -109,7 +110,7 @@ object ServerAvailability {
 
     private suspend fun playable(name: String, video: Video): Boolean = withContext(Dispatchers.Main.immediate) {
         val context = StreamFlixApp.instance
-        val http = OkHttpDataSource.Factory(NetworkClient.default)
+        val http = PlaybackHttp.factory { video }
             .setDefaultRequestProperties(mapOf("User-Agent" to userAgent) + video.headers.orEmpty())
         val data = DefaultDataSource.Factory(context, http)
         val preloadManager = DefaultPreloadManager.Builder(context) {

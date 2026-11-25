@@ -38,7 +38,7 @@ class TwoEmbedExtractor : Extractor() {
         val iframeUrl = resolveUrl(link, iframeSrc)
         val iframeUri = Uri.parse(iframeUrl)
         val id = iframeUri.getQueryParameter("id")
-            ?: iframeUrl.substringAfter("id=", "").substringBefore("&").takeIf { it.isNotBlank() }
+            ?: iframeUri.pathSegments.takeIf { it.size == 2 && it.first() == "e" }?.last()
             ?: throw Exception("Can't retrieve 2Embed stream id")
 
         val scheme = iframeUri.scheme ?: "https"

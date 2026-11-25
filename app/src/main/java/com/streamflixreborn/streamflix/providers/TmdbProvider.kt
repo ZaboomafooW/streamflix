@@ -878,6 +878,11 @@ class TmdbProvider(override val language: String) : Provider {
                     servers.add(TwoEmbedExtractor().server(videoType))
                     servers.add(VidLinkExtractor().server(videoType))
                     servers.add(VidsrcRuExtractor().server(videoType))
+                    servers.add(VidflixExtractor().server(videoType))
+                    val regionalServers = setOf("Viet", "Velocità", "Hindi", "Bengali", "Tamil", "Telugu", "Malayalam")
+                    servers.addAll(VidzeeExtractor().servers(videoType).filterNot {
+                        it.name.substringBefore(" (Vidzee)") in regionalServers
+                    })
                 } else {
                     // Preserve the existing global fallback set for non-English TMDb languages.
                     servers.addAll(listOf(

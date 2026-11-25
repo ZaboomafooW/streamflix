@@ -6,7 +6,6 @@ import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.collect
 import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.first
-import kotlinx.coroutines.withTimeoutOrNull
 import android.net.Uri
 import android.os.Bundle
 import android.util.Log
@@ -148,14 +147,9 @@ class PlayerViewModel(
         _availableServers.value = _availableServers.value.filterNot { it in failedServers }
 
         val failure = _state.value
-        val next = withTimeoutOrNull(30_000L) {
-            combine(_availableServers, discoveryFinished, _state) { available, finished, state ->
-                Triple(available, finished, state)
-            }.first { (available, finished, state) ->
-                available.isNotEmpty() || finished || state !== failure
-            }
-        }
-        if (next == null) Log.w("PlayerViewModel", "Timed out waiting for remaining sources")
+        combine(_availableServers, discoveryFinished, _state) { available, finished, state ->
+            available.isNotEmpty() || finished || state !== failure
+        }.first { it }
         return if (_state.value === failure) _availableServers.value.firstOrNull() else null
     }
 
