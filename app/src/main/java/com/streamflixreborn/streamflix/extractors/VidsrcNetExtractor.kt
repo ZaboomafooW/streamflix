@@ -35,12 +35,22 @@ class VidsrcNetExtractor : Extractor() {
     override suspend fun extract(link: String): Video {
         val service = Service.build(mainUrl)
 
-        val iframedoc = service.get(link)
-            .selectFirst("iframe#player_iframe")?.attr("src")
-            ?.let { if (it.startsWith("//")) "https:$it" else it }
-            ?: throw Exception("Can't retrieve rcp")
-
+        val frame = service.get(link).selectFirst("iframe#player_iframe")
+            ?: throw IllegalStateException("VidSrc player frame is missing")
+        val api = frame.absUrl("data-api")
+        val iframedoc = if (api.isNotBlank() && java.net.URI(api).host == java.net.URI(link).host) {
+            val src = org.json.JSONObject(service.get(api, link).text()).getString("src")
+            java.net.URI(link).resolve(src).toString()
+        } else frame.absUrl("src")
+        require(iframedoc.startsWith("https://")) { "VidSrc player URL is unavailable" }
         val doc = service.get(iframedoc, link)
+        val media = doc.select("video[src], video source[src]").firstOrNull {
+            val path = it.absUrl("src").toUri().path.orEmpty()
+            path.endsWith(".m3u8", true) || path.endsWith(".mp4", true)
+        }
+        if (media != null) {
+            return Video(source = media.absUrl("src"), headers = mapOf("Referer" to iframedoc))
+        }
         val prorcp = Regex("src: '(/prorcp/.*?)'")
             .find(doc.toString())?.groupValues?.get(1)
             ?.let { iframedoc.substringBefore("/rcp") + it }

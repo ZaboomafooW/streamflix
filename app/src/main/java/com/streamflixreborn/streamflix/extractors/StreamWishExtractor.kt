@@ -128,13 +128,10 @@ open class StreamWishExtractor : Extractor() {
         val document = service.get(redirectedUrl, referer = referer)
 
 
-        val script = Regex(
-            "<script .*>(eval.*?)</script>",
-            RegexOption.DOT_MATCHES_ALL
-        ).findAll(document.toString())
-            .mapNotNull { it.groupValues[1].let { js -> JsUnpacker(js).unpack() } }
-            .firstOrNull { it.contains("m3u8") }
-            ?: throw Exception("Can't retrieve script")
+        val script = document.select("script").asSequence().map { it.data() }
+            .mapNotNull { js -> if (js.trimStart().startsWith("eval(")) JsUnpacker(js).unpack() else js }
+            .firstOrNull { it.contains(".m3u8") }
+            ?: throw Exception("Can't retrieve stream playlist")
 
         val source = Regex("""(?:["']?hls(\d*)["']?|["']?file["']?)\s*[:=]\s*["']((?:https?://|/)[^"']+\.m3u8[^"']*)["']""")
             .findAll(script)

@@ -58,7 +58,8 @@ object ServerAvailability {
         val result = MutableStateFlow(Result())
         val job = scope.launch {
             try {
-                val candidates = provider.getServers(id, videoType)
+                val candidates = kotlinx.coroutines.withTimeoutOrNull(60_000L) { provider.getServers(id, videoType) }
+                    ?: throw java.io.IOException("Source discovery timed out")
                 if (provider === SerienStreamProvider && candidates.any {
                         android.net.Uri.parse(it.id).host?.equals(android.net.Uri.parse(provider.baseUrl).host, true) == true
                     }) {
@@ -109,7 +110,7 @@ object ServerAvailability {
 
     private suspend fun playable(name: String, video: Video): Boolean = withContext(Dispatchers.Main.immediate) {
         val context = StreamFlixApp.instance
-        val http = OkHttpDataSource.Factory(NetworkClient.default)
+        val http = PlaybackHttp.factory { video }
             .setDefaultRequestProperties(mapOf("User-Agent" to userAgent) + video.headers.orEmpty())
         val data = DefaultDataSource.Factory(context, http)
         val preloadManager = DefaultPreloadManager.Builder(context) {

@@ -42,11 +42,14 @@ class VidsrcRuExtractor : Extractor() {
                         webView.settings.domStorageEnabled = true
                         webView.webViewClient = object : WebViewClient() {
                             override fun shouldInterceptRequest(view: WebView?, request: WebResourceRequest?): android.webkit.WebResourceResponse? {
-                                val url = request?.url.toString()
-                                if (url.contains("/file2/") && url.endsWith(".m3u8")) {
+                                val uri = request?.url ?: return super.shouldInterceptRequest(view, request)
+                                val path = uri.path.orEmpty()
+                                if (path.contains("/file2/") && path.endsWith(".m3u8", ignoreCase = true)) {
+                                    val url = uri.toString()
+                                    val headers = request.requestHeaders.filterKeys { it.equals("Referer", true) || it.equals("User-Agent", true) || it.equals("Origin", true) }
                                     main.post {
                                         if (continuation.isActive) {
-                                            continuation.resume(Video(source = url, type = MimeTypes.APPLICATION_M3U8))
+                                            continuation.resume(Video(source = url, headers = headers, type = MimeTypes.APPLICATION_M3U8))
                                         }
                                     }
                                 }

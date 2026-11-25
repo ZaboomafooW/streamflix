@@ -18,7 +18,19 @@ import retrofit2.http.QueryMap
 import java.lang.reflect.Type
 import java.util.Calendar
 
+import com.streamflixreborn.streamflix.models.Video
+
 object TMDb3 {
+    private val originalLanguages = android.util.LruCache<String, String>(512)
+
+    fun originalAudioLanguage(type: Video.Type): String? {
+        val key = when (type) {
+            is Video.Type.Movie -> "movie/${type.id}"
+            is Video.Type.Episode -> "tv/${type.tvShow.id}"
+        }
+        return originalLanguages.get(key)
+    }
+
 
     private const val URL = "https://api.themoviedb.org/3/"
     private var service = ApiService.build()
@@ -387,7 +399,7 @@ object TMDb3 {
             return service.getMovieDetails(
                 movieId = movieId,
                 params = params.filterNotNullValues(),
-            )
+            ).also { detail -> detail.originalLanguage.takeUnless { it.isNullOrBlank() }?.let { originalLanguages.put("movie/$movieId", it) } }
         }
     }
 
@@ -680,7 +692,7 @@ object TMDb3 {
             return service.getTvDetails(
                 seriesId = seriesId,
                 params = params.filterNotNullValues(),
-            )
+            ).also { detail -> detail.originalLanguage.takeUnless { it.isNullOrBlank() }?.let { originalLanguages.put("tv/$seriesId", it) } }
         }
     }
 

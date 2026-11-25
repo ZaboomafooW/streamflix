@@ -855,11 +855,14 @@ class TmdbProvider(override val language: String) : Provider {
 
                     suspend fun discover(name: String, lookup: suspend () -> List<Video.Server>): List<Video.Server> {
                         return try {
-                            kotlinx.coroutines.withTimeoutOrNull(15_000) { lookup() }.orEmpty()
+                            kotlinx.coroutines.withTimeoutOrNull(15_000) { lookup() } ?: run {
+                                Log.w("TmdbProvider", "$name: discovery timed out")
+                                emptyList()
+                            }
                         } catch (e: kotlinx.coroutines.CancellationException) {
                             throw e
                         } catch (e: Exception) {
-                            Log.w("TmdbProvider", "Source discovery failed for $name", e)
+                            Log.w("TmdbProvider", "$name: discovery failed (${e.javaClass.simpleName})")
                             emptyList()
                         }
                     }
@@ -876,9 +879,9 @@ class TmdbProvider(override val language: String) : Provider {
                     servers.add(VidLinkExtractor().server(videoType))
                     servers.add(VidsrcRuExtractor().server(videoType))
                     servers.add(VidflixExtractor().server(videoType))
-                    val nonEnglishVidzeeServers = setOf("Viet", "Velocità", "Hindi", "Bengali", "Tamil", "Telugu", "Malayalam")
+                    val regionalServers = setOf("Viet", "Velocità", "Hindi", "Bengali", "Tamil", "Telugu", "Malayalam")
                     servers.addAll(VidzeeExtractor().servers(videoType).filterNot {
-                        it.name.substringBefore(" (Vidzee)") in nonEnglishVidzeeServers
+                        it.name.substringBefore(" (Vidzee)") in regionalServers
                     })
                 } else {
                     // Preserve the existing global fallback set for non-English TMDb languages.
