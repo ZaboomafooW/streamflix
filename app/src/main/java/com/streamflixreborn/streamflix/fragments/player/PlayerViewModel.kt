@@ -4,6 +4,9 @@ import com.streamflixreborn.streamflix.utils.ServerAvailability
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.collect
+import kotlinx.coroutines.flow.combine
+import kotlinx.coroutines.flow.first
+import kotlinx.coroutines.withTimeoutOrNull
 import android.net.Uri
 import android.os.Bundle
 import android.util.Log
@@ -41,6 +44,7 @@ class PlayerViewModel(
     private var discovery: Job? = null
     private var videoRequest: Job? = null
     private val failedServers = mutableSetOf<Video.Server>()
+    private val discoveryFinished = MutableStateFlow(false)
     private var lastVideoType: Video.Type? = null
     private var lastId: String? = null
     init {
@@ -109,6 +113,7 @@ class PlayerViewModel(
         discovery?.cancel()
         videoRequest?.cancel()
         failedServers.clear()
+        discoveryFinished.value = false
         lastVideoType = videoType
         lastId = id
         _availableServers.value = emptyList()
@@ -122,6 +127,7 @@ class PlayerViewModel(
             ServerAvailability.prefetch(provider, id, videoType, refresh).collect { result ->
                 val available = result.servers.filterNot { it in failedServers }
                 _availableServers.value = available
+                discoveryFinished.value = result.finished
                 if (!started && available.isNotEmpty()) {
                     started = true
                     _state.value = State.SuccessLoadingServers(available)
@@ -133,10 +139,24 @@ class PlayerViewModel(
         }
     }
 
-    fun nextServerAfterFailure(server: Video.Server): Video.Server? {
+    fun isCurrentFailure(server: Video.Server): Boolean =
+        (_state.value as? State.FailedLoadingVideo)?.server == server
+
+    suspend fun nextServerAfterFailure(server: Video.Server): Video.Server? {
+        if (!isCurrentFailure(server)) return null
         failedServers.add(server)
         _availableServers.value = _availableServers.value.filterNot { it in failedServers }
-        return _availableServers.value.firstOrNull()
+
+        val failure = _state.value
+        val next = withTimeoutOrNull(30_000L) {
+            combine(_availableServers, discoveryFinished, _state) { available, finished, state ->
+                Triple(available, finished, state)
+            }.first { (available, finished, state) ->
+                available.isNotEmpty() || finished || state !== failure
+            }
+        }
+        if (next == null) Log.w("PlayerViewModel", "Timed out waiting for remaining sources")
+        return if (_state.value === failure) _availableServers.value.firstOrNull() else null
     }
 
     fun reportPlaybackFailure(server: Video.Server, error: Exception) {
@@ -148,9 +168,9 @@ class PlayerViewModel(
     fun getVideo(server: Video.Server) {
         if (server in failedServers) return
         videoRequest?.cancel()
+        _state.value = State.LoadingVideo(server)
         videoRequest = viewModelScope.launch(Dispatchers.IO) {
             Log.d("PlayerViewModel", "Inizio estrazione video dal server: ${server.name}")
-            _state.emit(State.LoadingVideo(server))
             try {
                 val video = server.video ?: UserPreferences.currentProvider!!.getVideo(server)
                 if (video.source.isEmpty()) throw Exception("No source found")

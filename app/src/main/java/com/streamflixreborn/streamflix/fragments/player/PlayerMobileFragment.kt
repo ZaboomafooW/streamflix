@@ -388,6 +388,7 @@ class PlayerMobileFragment : Fragment() {
 
                     is PlayerViewModel.State.FailedLoadingVideo -> {
                         val nextServer = viewModel.nextServerAfterFailure(state.server)
+                        if (!viewModel.isCurrentFailure(state.server)) return@collect
                         if (nextServer != null) {
                             viewModel.getVideo(nextServer)
                         } else {
@@ -1048,6 +1049,19 @@ class PlayerMobileFragment : Fragment() {
             }
         }
         player.addListener(object : Player.Listener {
+            override fun onTracksChanged(tracks: androidx.media3.common.Tracks) {
+                val audio = tracks.groups.filter { it.type == C.TRACK_TYPE_AUDIO }.flatMap { group ->
+                    (0 until group.length).map { index ->
+                        val format = group.getTrackFormat(index)
+                        val language = format.language ?: "und"
+                        "$language (supported=${group.isTrackSupported(index)}, selected=${group.isTrackSelected(index)})"
+                    }
+                }
+                if (audio.isNotEmpty()) {
+                    Log.d("PlaybackTracks", "${currentServer?.name}: audio=${audio.distinct().joinToString()}")
+                }
+            }
+
             override fun onIsPlayingChanged(isPlaying: Boolean) {
                 super.onIsPlayingChanged(isPlaying)
                 binding.pvPlayer.keepScreenOn = isPlaying || UserPreferences.keepScreenOnWhenPaused

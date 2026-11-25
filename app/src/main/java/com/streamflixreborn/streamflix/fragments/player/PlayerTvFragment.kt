@@ -409,6 +409,7 @@ class PlayerTvFragment : Fragment() {
 
                         is PlayerViewModel.State.FailedLoadingVideo -> {
                             val nextServer = viewModel.nextServerAfterFailure(state.server)
+                            if (!viewModel.isCurrentFailure(state.server)) return@collect
                             if (nextServer != null) {
                                 viewModel.getVideo(nextServer)
                             } else {
@@ -1197,6 +1198,16 @@ class PlayerTvFragment : Fragment() {
 
                 override fun onTracksChanged(tracks: androidx.media3.common.Tracks) {
                     super.onTracksChanged(tracks)
+                    val audio = tracks.groups.filter { it.type == C.TRACK_TYPE_AUDIO }.flatMap { group ->
+                        (0 until group.length).map { index ->
+                            val format = group.getTrackFormat(index)
+                            val language = format.language ?: "und"
+                            "$language (supported=${group.isTrackSupported(index)}, selected=${group.isTrackSelected(index)})"
+                        }
+                    }
+                    if (audio.isNotEmpty()) {
+                        Log.d("PlaybackTracks", "${currentServer?.name}: audio=${audio.distinct().joinToString()}")
+                    }
                     val videoGroups = tracks.groups.filter { it.type == C.TRACK_TYPE_VIDEO }
                     val videoTracks = videoGroups.sumOf { it.length }
                     val selectedHeights = buildList {
