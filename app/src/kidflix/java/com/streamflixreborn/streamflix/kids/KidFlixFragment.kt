@@ -1,5 +1,6 @@
 package com.streamflixreborn.streamflix.kids
 
+import kotlinx.coroutines.withTimeoutOrNull
 import kotlinx.coroutines.flow.first
 import com.streamflixreborn.streamflix.utils.ServerAvailability
 import android.content.Context
@@ -750,8 +751,16 @@ class KidFlixFragment : Fragment() {
             val provider = requireNotNull(UserPreferences.currentProvider)
             val id = if (type is Video.Type.Episode) type.id else title.id.toString()
             (showStatus ?: status).text = "Finding a playable source for ${title.name}…"
-            val result = ServerAvailability.prefetch(provider, id, type, refresh = true).first { it.finished || it.servers.isNotEmpty() }
-            val server = result.servers.firstOrNull()
+            val discovery = ServerAvailability.prefetch(provider, id, type, refresh = true)
+            val first = discovery.first { it.finished || it.servers.isNotEmpty() }
+            val server = if (type is Video.Type.Episode && type.tvShow.id == "888") {
+                // Give the English edition time to buffer if a dubbed source answers first.
+                val result = withTimeoutOrNull(15_000L) {
+                    discovery.first { it.finished || it.servers.any { s -> s.name == "Internet Archive (English)" } }
+                } ?: discovery.value
+                result.servers.firstOrNull { it.name == "Internet Archive (English)" }
+                    ?: result.servers.firstOrNull()
+            } else first.servers.firstOrNull()
             if (server == null) {
                 (showStatus ?: status).text = "No playable source for ${title.name}. Select the title to try again."
                 return@request
