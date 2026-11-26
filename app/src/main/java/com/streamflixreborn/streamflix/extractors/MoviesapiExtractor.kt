@@ -23,13 +23,15 @@ class MoviesapiExtractor : Extractor() {
             id = name,
             name = name,
             src = when (videoType) {
-                is Video.Type.Movie -> "${mainUrl}movie/${videoType.id}"
-                is Video.Type.Episode -> "${mainUrl}tv/${videoType.tvShow.id}/${videoType.season.number}/${videoType.number}"
+                is Video.Type.Movie -> "https://vidspark.to/movie/${videoType.id}"
+                is Video.Type.Episode -> "https://vidspark.to/tv/${videoType.tvShow.id}/${videoType.season.number}/${videoType.number}"
             },
         )
     }
 
     override suspend fun extract(link: String): Video {
+        val uri = URI(link)
+        if (uri.host == "vidspark.to" && VidSparkPlayer.titlePath.matches(uri.path)) return VidSparkPlayer.resolve(uri.path)
         val document = Service.build(mainUrl).get(
             url = link,
             referer = mainUrl,
@@ -39,7 +41,8 @@ class MoviesapiExtractor : Extractor() {
         val iframeSrc = document.selectFirst("iframe[src]")
             ?.attr("src")
             ?.takeIf { it.isNotBlank() }
-            ?: throw Exception("Can't retrieve MoviesAPI iframe")
+            ?: return if (VidSparkPlayer.titlePath.matches(uri.path)) VidSparkPlayer.resolve(uri.path)
+                else throw Exception("MoviesAPI player frame is missing")
 
         val iframeUrl = URI(link).resolve(iframeSrc).toString()
         return Extractor.extract(iframeUrl)

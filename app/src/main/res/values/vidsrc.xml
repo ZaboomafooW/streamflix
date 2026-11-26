@@ -1,0 +1,5 @@
+<resources>
+    <bool name="allow_vidsrc_player">true</bool>
+    <string name="vidsrc_player">VidSrc player</string>
+    <string name="vidsrc_offer">No native source is available. Open the VidSrc player for this title?</string>
+</resources>
