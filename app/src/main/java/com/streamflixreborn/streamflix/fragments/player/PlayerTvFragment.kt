@@ -260,6 +260,10 @@ class PlayerTvFragment : Fragment() {
     override fun onViewCreated(view: View, savedInstanceState: Bundle?) {
         super.onViewCreated(view, savedInstanceState)
 
+        binding.pvPlayer.controller.binding.btnVidsrcPlayer.apply {
+            isVisible = offersVidSrc()
+            setOnClickListener { openVidSrc() }
+        }
         initializePlayer(false)
         initializeVideo()
         binding.pvPlayer.onMediaPreviousClicked = ::handleMediaPrevious
@@ -353,6 +357,7 @@ class PlayerTvFragment : Fragment() {
                         val isTmdb = providerName.contains("TMDb", ignoreCase = true)
                         val isAD = providerName.contains("AfterDark", ignoreCase = true)
 
+                        if (servers.isEmpty() && offerVidSrcAfterFailure()) return@collect
                         if (servers.isEmpty()) {
                             val published = if (isTmdb) PublisherEpisodes.videoId(currentVideoTypeForUi()) else null
                             if (published != null) {
@@ -435,6 +440,7 @@ class PlayerTvFragment : Fragment() {
                             if (nextServer != null) {
                                 viewModel.getVideo(nextServer)
                             } else {
+                                if (offerVidSrcAfterFailure()) return@collect
                                 val providerName = UserPreferences.currentProvider?.name ?: ""
                                 val isTmdb = providerName.contains("TMDb", ignoreCase = true)
                                 val isAD = providerName.contains("AfterDark", ignoreCase = true)
@@ -651,6 +657,32 @@ class PlayerTvFragment : Fragment() {
             _binding = null
             isSetupDone = false
         }
+
+    private fun offersVidSrc(): Boolean {
+        val provider = UserPreferences.currentProvider
+        return resources.getBoolean(R.bool.allow_vidsrc_player) && provider is TmdbProvider &&
+            provider.language.substringBefore("-").equals("en", ignoreCase = true)
+    }
+
+    private fun openVidSrc() {
+        val url = com.streamflixreborn.streamflix.extractors.VidsrcNetExtractor().server(currentVideoTypeForUi()).src
+        if (::player.isInitialized) player.pause()
+        startActivity(Intent(requireContext(), VidSrcPlayerActivity::class.java).setData(Uri.parse(url)))
+    }
+
+    private fun offerVidSrcAfterFailure(): Boolean {
+        if (!offersVidSrc()) return false
+        androidx.appcompat.app.AlertDialog.Builder(requireContext())
+            .setMessage(R.string.vidsrc_offer)
+            .setPositiveButton(R.string.vidsrc_player) { _, _ ->
+                openVidSrc()
+                findNavController().navigateUp()
+            }
+            .setNegativeButton(android.R.string.cancel) { _, _ -> findNavController().navigateUp() }
+            .setOnCancelListener { findNavController().navigateUp() }
+            .show()
+        return true
+    }
 
     fun onBackPressed(): Boolean = when {
 

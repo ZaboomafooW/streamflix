@@ -26,7 +26,7 @@
         android:layout_marginEnd="16dp"
         android:textColor="#FFFFFF"
         android:textSize="34sp"
-        app:layout_constraintEnd_toStartOf="@id/btn_exo_external_player"
+        app:layout_constraintEnd_toStartOf="@id/btn_vidsrc_player"
         app:layout_constraintStart_toStartOf="parent"
         app:layout_constraintTop_toTopOf="parent"
         tools:text="Title" />
@@ -39,10 +39,20 @@
         android:layout_marginTop="4dp"
         android:layout_marginEnd="16dp"
         android:textSize="20sp"
-        app:layout_constraintEnd_toStartOf="@id/btn_exo_external_player"
+        app:layout_constraintEnd_toStartOf="@id/btn_vidsrc_player"
         app:layout_constraintStart_toStartOf="parent"
         app:layout_constraintTop_toBottomOf="@id/tv_exo_title"
         tools:text="Description" />
+
+    <Button
+        android:id="@+id/btn_vidsrc_player"
+        android:layout_width="wrap_content"
+        android:layout_height="48dp"
+        android:text="@string/vidsrc_player"
+        android:visibility="gone"
+        android:focusable="true"
+        app:layout_constraintEnd_toStartOf="@id/btn_exo_external_player"
+        app:layout_constraintTop_toTopOf="@id/btn_exo_external_player" />
 
     <ImageView
         android:id="@+id/btn_exo_external_player"
