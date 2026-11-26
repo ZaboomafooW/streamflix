@@ -769,6 +769,10 @@ class TmdbProvider(override val language: String) : Provider {
             NumberblocksArchive.server(videoType.title)?.let(servers::add)
         }
 
+        if (lang == "en" && videoType is Video.Type.Episode && videoType.tvShow.id == "888") {
+            SpiderManArchive.server(videoType)?.let(servers::add)
+        }
+
         when (lang) {
             "it" -> {
                 // Se la lingua è italiano, includiamo solo i server noti per l'italiano.
@@ -900,10 +904,7 @@ class TmdbProvider(override val language: String) : Provider {
                     servers.add(VidLinkExtractor().server(videoType))
                     servers.add(VidsrcRuExtractor().server(videoType))
                     servers.add(VidflixExtractor().server(videoType))
-                    val regionalServers = setOf("Viet", "Velocità", "Hindi", "Bengali", "Tamil", "Telugu", "Malayalam")
-                    servers.addAll(VidzeeExtractor().servers(videoType).filterNot {
-                        it.name.substringBefore(" (Vidzee)") in regionalServers
-                    })
+                    servers.addAll(VidzeeExtractor().servers(videoType))
                 } else {
                     // Preserve the existing global fallback set for non-English TMDb languages.
                     servers.addAll(listOf(
