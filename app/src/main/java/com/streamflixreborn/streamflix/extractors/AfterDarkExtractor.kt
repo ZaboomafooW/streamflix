@@ -8,6 +8,8 @@ import okhttp3.OkHttpClient
 import okhttp3.Request
 import java.util.concurrent.TimeUnit
 import java.util.regex.Pattern
+import kotlinx.coroutines.currentCoroutineContext
+import kotlinx.coroutines.ensureActive
 
 class AfterDarkExtractor( var newUrl: String = "" ) : Extractor() {
     val defaultUrl = "https://afterdark.best"
@@ -31,6 +33,7 @@ class AfterDarkExtractor( var newUrl: String = "" ) : Extractor() {
         )
 
         private val client = OkHttpClient.Builder()
+            .callTimeout(12, TimeUnit.SECONDS)
             .readTimeout(15, TimeUnit.SECONDS)
             .connectTimeout(15, TimeUnit.SECONDS)
             .dns(DnsResolver.doh)
@@ -54,6 +57,7 @@ class AfterDarkExtractor( var newUrl: String = "" ) : Extractor() {
         })
 
         for ((pName, pHash) in PROVIDER_HASHES) {
+            currentCoroutineContext().ensureActive()
             val apiUrl = "$mainUrl/_serverFn/$pHash?payload=$encodedPayload"
             
             try {
