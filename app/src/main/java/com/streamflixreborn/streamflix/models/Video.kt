@@ -11,7 +11,8 @@ data class Video(
     val type: String? = null,
     val extraBuffering: Boolean = false,
     val useServerSubtitleSetting: Boolean = false,
-    val segmentToken: SegmentToken? = null
+    val segmentToken: SegmentToken? = null,
+    val alternateFiles: List<String> = emptyList()
 ) : Serializable {
 
     class SegmentToken(@Volatile var encodedQuery: String?) : Serializable

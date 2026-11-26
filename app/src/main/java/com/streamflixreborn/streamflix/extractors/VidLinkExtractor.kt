@@ -62,11 +62,11 @@ class VidLinkExtractor : Extractor() {
         val stream = JSONObject(body).optJSONObject("stream")
             ?: throw Exception("VidLink stream data missing")
         val playlist = stream.optString("playlist").takeIf { it.isNotBlank() }
-        val fileSource = selectFileSource(stream.optJSONObject("qualities"))
+        val files = fileSources(stream.optJSONObject("qualities"))
         val source = if (stream.optString("type").equals("file", ignoreCase = true)) {
-            fileSource ?: playlist
+            files.firstOrNull() ?: playlist
         } else {
-            playlist ?: fileSource
+            playlist ?: files.firstOrNull()
         } ?: throw Exception("VidLink returned no playable source")
 
         val subtitles = mutableListOf<Video.Subtitle>()
@@ -97,6 +97,7 @@ class VidLinkExtractor : Extractor() {
 
         Video(
             source = source,
+            alternateFiles = files.filter { it != source },
             subtitles = subtitles,
             headers = headers,
             type = when {
@@ -107,8 +108,8 @@ class VidLinkExtractor : Extractor() {
         )
     }
 
-    private fun selectFileSource(qualities: JSONObject?): String? {
-        if (qualities == null) return null
+    private fun fileSources(qualities: JSONObject?): List<String> {
+        if (qualities == null) return emptyList()
 
         return qualities.keys().asSequence()
             .mapNotNull { quality ->
@@ -117,8 +118,10 @@ class VidLinkExtractor : Extractor() {
                 val height = Regex("(\\d{3,4})").find(quality)?.groupValues?.get(1)?.toIntOrNull() ?: 0
                 height to url
             }
-            .maxByOrNull { it.first }
-            ?.second
+            .sortedByDescending { it.first }
+            .map { it.second }
+            .distinct()
+            .toList()
     }
 
     private fun encryptTmdbId(tmdbId: String): String {

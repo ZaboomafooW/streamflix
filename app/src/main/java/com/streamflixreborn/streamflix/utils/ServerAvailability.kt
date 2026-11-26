@@ -90,8 +90,14 @@ object ServerAvailability {
                                 return@launch
                             }
 
-                            if (bufferSlot.withPermit { playable(server.name, video) }) {
-                                val checked = server.copy().also { it.video = video }
+                            val sources = sequenceOf(video) + video.alternateFiles.asSequence().map { url ->
+                                video.copy(source = url, type = androidx.media3.common.MimeTypes.VIDEO_MP4, alternateFiles = emptyList())
+                            }
+                            val working = sources.firstOrNull { candidate ->
+                                bufferSlot.withPermit { playable(server.name, candidate) }
+                            }
+                            if (working != null) {
+                                val checked = server.copy().also { it.video = working }
                                 result.update { it.copy(servers = it.servers + checked) }
                             }
                         }
