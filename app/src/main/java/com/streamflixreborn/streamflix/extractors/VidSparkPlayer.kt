@@ -12,7 +12,6 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import kotlinx.coroutines.withTimeoutOrNull
 import okhttp3.HttpUrl.Companion.toHttpUrl
-import okhttp3.HttpUrl.Companion.toHttpUrlOrNull
 import okhttp3.OkHttpClient
 import okhttp3.Request
 import org.json.JSONObject
@@ -53,24 +52,29 @@ internal object VidSparkPlayer {
                         client.newCall(builder.build()).execute().use { response ->
                             if (!response.isSuccessful) throw IOException("VidSpark returned HTTP ${response.code}")
                             val json = JSONObject(response.body?.string() ?: throw IOException("Empty VidSpark response"))
-                            val source = json.optJSONArray("sources")?.optJSONObject(0)
-                                ?: throw IOException("VidSpark has no direct source for this title")
-                            val url = source.optString("url").toHttpUrlOrNull()
-                            if (url == null || !url.isHttps) throw IOException("Invalid VidSpark media URL")
-                            val tracks = source.optJSONArray("tracks")
-                            val subtitles = buildList {
-                                for (i in 0 until (tracks?.length() ?: 0)) {
-                                    val track = tracks?.optJSONObject(i) ?: continue
-                                    val file = track.optString("file").takeIf { it.isNotBlank() } ?: continue
-                                    val media = page.toHttpUrl().resolve(file) ?: continue
-                                    if (media.isHttps && track.optString("kind") != "thumbnails") {
-                                        add(Video.Subtitle(track.optString("label"), media.toString()))
+                            val sources = json.optJSONArray("sources")
+                            val videos = (0 until (sources?.length() ?: 0)).mapNotNull { index ->
+                                val source = sources?.optJSONObject(index) ?: return@mapNotNull null
+                                val url = page.toHttpUrl().resolve(source.optString("url").takeIf { it.isNotBlank() }
+                                    ?: return@mapNotNull null)?.takeIf { it.isHttps } ?: return@mapNotNull null
+                                val tracks = source.optJSONArray("tracks")
+                                val subtitles = buildList {
+                                    for (i in 0 until (tracks?.length() ?: 0)) {
+                                        val track = tracks?.optJSONObject(i) ?: continue
+                                        val file = track.optString("file").takeIf { it.isNotBlank() } ?: continue
+                                        val media = page.toHttpUrl().resolve(file) ?: continue
+                                        if (media.isHttps && track.optString("kind") != "thumbnails") {
+                                            add(Video.Subtitle(track.optString("label"), media.toString()))
+                                        }
                                     }
                                 }
-                            }
-                            result.complete(Video(source = url.toString(), subtitles = subtitles,
-                                headers = mapOf("Referer" to "$origin/", "Origin" to origin, "User-Agent" to agent),
-                                type = if (url.encodedPath.endsWith(".m3u8", true)) MimeTypes.APPLICATION_M3U8 else null))
+                                Video(source = url.toString(), subtitles = subtitles,
+                                    headers = mapOf("Referer" to "$origin/", "Origin" to origin, "User-Agent" to agent),
+                                    type = if (url.encodedPath.endsWith(".m3u8", true) ||
+                                        source.optString("type").equals("hls", true)) MimeTypes.APPLICATION_M3U8 else null)
+                            }.distinctBy { it.source }
+                            val first = videos.firstOrNull() ?: throw IOException("VidSpark has no direct source for this title")
+                            result.complete(first.copy(alternateSources = videos.drop(1)))
                         }
                     } catch (error: Exception) {
                         result.completeExceptionally(error)

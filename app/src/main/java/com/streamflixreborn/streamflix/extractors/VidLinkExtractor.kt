@@ -97,7 +97,9 @@ class VidLinkExtractor : Extractor() {
 
         Video(
             source = source,
-            alternateFiles = files.filter { it != source },
+            alternateSources = files.filter { it != source }.map {
+                Video(source = it, subtitles = subtitles, headers = headers, type = MimeTypes.VIDEO_MP4)
+            },
             subtitles = subtitles,
             headers = headers,
             type = when {

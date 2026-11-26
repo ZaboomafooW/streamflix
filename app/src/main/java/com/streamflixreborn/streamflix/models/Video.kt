@@ -12,7 +12,7 @@ data class Video(
     val extraBuffering: Boolean = false,
     val useServerSubtitleSetting: Boolean = false,
     val segmentToken: SegmentToken? = null,
-    val alternateFiles: List<String> = emptyList()
+    val alternateSources: List<Video> = emptyList()
 ) : Serializable {
 
     class SegmentToken(@Volatile var encodedQuery: String?) : Serializable
