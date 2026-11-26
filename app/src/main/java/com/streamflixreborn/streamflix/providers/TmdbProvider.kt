@@ -773,6 +773,10 @@ class TmdbProvider(override val language: String) : Provider {
             SpiderManArchive.server(videoType)?.let(servers::add)
         }
 
+        if (lang == "en" && videoType is Video.Type.Episode && videoType.tvShow.id == "10926") {
+            SonicXArchive.server(videoType)?.let(servers::add)
+        }
+
         when (lang) {
             "it" -> {
                 // Se la lingua è italiano, includiamo solo i server noti per l'italiano.
@@ -895,7 +899,15 @@ class TmdbProvider(override val language: String) : Provider {
                     val dynamicServers = coroutineScope {
                         val vidrockDeferred = async { discover("Vidrock") { VidrockExtractor().servers(videoType) } }
                         val primeSrcDeferred = async { discover("PrimeSrc") { PrimeSrcExtractor().servers(videoType) } }
-                        listOf(vidrockDeferred, primeSrcDeferred).awaitAll().flatten()
+                        val archive = async { discover("Internet Archive") { LinkedArchive.servers(videoType) } }
+                        val moflix = async { discover("Moflix") { MoflixExtractor().servers(videoType) } }
+                        val frembed = async { discover("Frembed") {
+                            FrembedExtractor(UserPreferences.getProviderCache(FrembedProvider, UserPreferences.PROVIDER_URL)).servers(videoType)
+                        } }
+                        val afterDark = async { discover("AfterDark") {
+                            AfterDarkExtractor(UserPreferences.getProviderCache(AfterDarkProvider, UserPreferences.PROVIDER_URL)).servers(videoType)
+                        } }
+                        listOf(vidrockDeferred, primeSrcDeferred, moflix, frembed, afterDark, archive).awaitAll().flatten()
                     }
                     servers.addAll(dynamicServers)
 
@@ -904,6 +916,10 @@ class TmdbProvider(override val language: String) : Provider {
                     servers.add(VidLinkExtractor().server(videoType))
                     servers.add(VidsrcRuExtractor().server(videoType))
                     servers.add(VidflixExtractor().server(videoType))
+                    servers.add(VidsrcToExtractor().server(videoType))
+                    servers.addAll(VideasyExtractor().servers(videoType, "en"))
+                    VideasyExtractor().server(videoType, "de")?.let(servers::add)
+                    if (videoType is Video.Type.Movie) servers.add(EinschaltenExtractor().server(videoType))
                     servers.addAll(VidzeeExtractor().servers(videoType))
                 } else {
                     // Preserve the existing global fallback set for non-English TMDb languages.

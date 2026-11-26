@@ -753,7 +753,7 @@ class KidFlixFragment : Fragment() {
             (showStatus ?: status).text = "Finding a playable source for ${title.name}…"
             val discovery = ServerAvailability.prefetch(provider, id, type, refresh = true)
             val first = discovery.first { it.finished || it.servers.isNotEmpty() }
-            val server = if (type is Video.Type.Episode && type.tvShow.id == "888") {
+            val server = if (type is Video.Type.Episode && type.tvShow.id in setOf("888", "10926")) {
                 // Give the English edition time to buffer if a dubbed source answers first.
                 val result = withTimeoutOrNull(15_000L) {
                     discovery.first { it.finished || it.servers.any { s -> s.name == "Internet Archive (English)" } }
