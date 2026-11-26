@@ -465,7 +465,7 @@ class KidFlixFragment : Fragment() {
         if (hidden.contains(title.key)) return
         request {
             if (title.shelf.movie) {
-                val m = TMDb3.Movies.details(title.id)
+                val m = TMDb3.Movies.details(title.id, listOf(TMDb3.Params.AppendToResponse.Movie.RELEASES_DATES))
                 val db = AppDatabase.getInstance(requireContext())
                 withContext(Dispatchers.IO) {
                     db.movieDao().save(Movie(id=m.id.toString(), title=m.title, overview=m.overview, released=m.releaseDate,
@@ -474,7 +474,7 @@ class KidFlixFragment : Fragment() {
                 currentMovie = title to m
                 moviePage(title, m)
             } else {
-                val tv = TMDb3.TvSeries.details(title.id,listOf(TMDb3.Params.AppendToResponse.Tv.EXTERNAL_IDS))
+                val tv = TMDb3.TvSeries.details(title.id, listOf(TMDb3.Params.AppendToResponse.Tv.EXTERNAL_IDS, TMDb3.Params.AppendToResponse.Tv.CONTENT_RATING))
                 val db = AppDatabase.getInstance(requireContext())
                 withContext(Dispatchers.IO) {
                     db.tvShowDao().save(TvShow(id=tv.id.toString(), title=tv.name, overview=tv.overview, released=tv.firstAirDate,
@@ -525,7 +525,11 @@ class KidFlixFragment : Fragment() {
 
     private fun moviePage(title: KidTitle, movie: TMDb3.Movie.Detail) {
         val (_, info) = hero(movie.title, movie.backdropPath ?: movie.posterPath)
-        info.addView(label(movie.releaseDate.orEmpty().take(4), 15f))
+        val releases = movie.releaseDates?.results.orEmpty().filter { it.iso3166 == "US" }
+            .flatMap { it.releaseDates }.filter { !it.certification.isNullOrBlank() }
+        val rating = (releases.firstOrNull { it.type == TMDb3.Movie.ReleaseType.THEATRICAL }
+            ?: releases.firstOrNull())?.certification ?: "US rating unavailable"
+        info.addView(label(listOfNotNull(movie.releaseDate?.take(4)?.ifBlank { null }, rating).joinToString(" · "), 15f))
         info.addView(label(movie.overview.orEmpty(), 16f).apply { maxLines = 5 })
         val notice = label("", 14f)
         showStatus = notice
@@ -549,7 +553,10 @@ class KidFlixFragment : Fragment() {
         val (layer, info) = hero(tv.name, tv.backdropPath ?: tv.posterPath)
         val hero = layer.getChildAt(0)
         val available = tv.seasons.filter { it.seasonNumber > 0 }.sortedBy { it.seasonNumber }
-        info.addView(label(listOfNotNull(tv.firstAirDate?.take(4), "${available.size} seasons").joinToString(" · "), 15f))
+        val rating = tv.contentRatings?.results.orEmpty()
+            .firstOrNull { it.iso3166 == "US" && it.rating.isNotBlank() }?.rating ?: "US rating unavailable"
+        val seasonCount = if (available.size == 1) "1 Season" else "${available.size} Seasons"
+        info.addView(label(listOfNotNull(tv.firstAirDate?.take(4)?.ifBlank { null }, seasonCount, rating).joinToString(" · "), 15f))
         val episodeTitle = label("", 21f)
         val synopsis = label(tv.overview, 16f).apply { maxLines = 4 }
         val heroStatus = label("", 14f)
