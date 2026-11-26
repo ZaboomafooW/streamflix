@@ -90,9 +90,7 @@ object ServerAvailability {
                                 return@launch
                             }
 
-                            val sources = sequenceOf(video) + video.alternateFiles.asSequence().map { url ->
-                                video.copy(source = url, type = androidx.media3.common.MimeTypes.VIDEO_MP4, alternateFiles = emptyList())
-                            }
+                            val sources = sequenceOf(video) + video.alternateSources.asSequence()
                             val working = sources.firstOrNull { candidate ->
                                 bufferSlot.withPermit { playable(server.name, candidate) }
                             }
