@@ -765,6 +765,10 @@ class TmdbProvider(override val language: String) : Provider {
 
         Log.d("TmdbProvider", "getServers: lang=$language, simplifiedLang=$lang")
 
+        if (videoType is Video.Type.Episode && videoType.tvShow.id == "106009") {
+            NumberblocksArchive.server(videoType.title)?.let(servers::add)
+        }
+
         when (lang) {
             "it" -> {
                 // Se la lingua è italiano, includiamo solo i server noti per l'italiano.
