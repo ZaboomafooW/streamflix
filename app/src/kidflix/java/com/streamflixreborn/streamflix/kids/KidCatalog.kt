@@ -218,7 +218,7 @@ internal object KidCatalog {
     private val generalNetworks = setOf("Disney", "Paramount", "Netflix", "HBO Max / Warner Bros.",
         "Peacock / Universal", "Prime Video", "Apple TV", "Hulu")
 
-    private suspend fun movie(id: Int, selection: Shelf?): KidTitle? {
+    suspend fun movie(id: Int, selection: Shelf?): KidTitle? {
         catalog.firstOrNull { it.shelf.movie && it.id == id && (selection == null || it.belongsTo(selection)) }?.let { return it }
         val info = TMDb3.Movies.details(id, listOf(TMDb3.Params.AppendToResponse.Movie.RELEASES_DATES), "en")
         val companies = info.productionCompanies.orEmpty()

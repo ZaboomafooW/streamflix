@@ -3,6 +3,8 @@ package com.streamflixreborn.streamflix.kids
 import kotlinx.coroutines.withTimeoutOrNull
 import kotlinx.coroutines.flow.first
 import com.streamflixreborn.streamflix.utils.ServerAvailability
+import androidx.core.widget.doAfterTextChanged
+import kotlinx.coroutines.delay
 import android.content.Context
 import android.graphics.Color
 import android.graphics.Typeface
@@ -101,11 +103,25 @@ class KidFlixFragment : Fragment() {
             destinations[entry] = item
             rail.addView(item)
         }
-        rail.addView(button("Search") { input("Search KidFlix", query) { if (it.isNotBlank()) open(null, it.trim()) } })
-        rail.addView(button("Settings") { settings() })
-
         val content = column().apply { setPadding(dp(14), dp(14), dp(14), dp(10)) }
         shell.addView(content, LinearLayout.LayoutParams(0, -1, 1f))
+        val toolbar = LinearLayout(requireContext()).apply { gravity = Gravity.CENTER_VERTICAL }
+        content.addView(toolbar)
+        searchField = EditText(requireContext()).apply {
+            setSingleLine()
+            hint = "Search KidFlix"
+            setTextColor(Color.WHITE)
+            setHintTextColor(Color.LTGRAY)
+            setText(query)
+            doAfterTextChanged {
+                if (!resettingSearch) {
+                    val term = it.toString().trim()
+                    if (term.isEmpty()) home() else open(null, term)
+                }
+            }
+        }
+        toolbar.addView(searchField, LinearLayout.LayoutParams(0, dp(48), 1f))
+        toolbar.addView(button("⚙") { settings() }.apply { contentDescription = "Settings" }, dp(56), dp(48))
         status = label("", 20f).apply { setPadding(0, 0, 0, dp(8)) }
         content.addView(status)
         body = column()
@@ -119,6 +135,9 @@ class KidFlixFragment : Fragment() {
     }
 
     private var destination = Destination.HOME
+    private lateinit var searchField: EditText
+    private var resettingSearch = false
+    private var channelMovies = false
     private var channel: String? = null
     private val destinations = mutableMapOf<Destination, Button>()
     private lateinit var scroll: ScrollView
@@ -183,6 +202,11 @@ class KidFlixFragment : Fragment() {
         job?.cancel()
         shelf = null
         query = ""
+        if (searchField.text.isNotEmpty()) {
+            resettingSearch = true
+            searchField.text.clear()
+            resettingSearch = false
+        }
         titles.clear()
         body.removeAllViews()
         scroll.scrollTo(0, 0)
@@ -201,8 +225,9 @@ class KidFlixFragment : Fragment() {
             homeExpansion = viewLifecycleOwner.lifecycleScope.launch { continueWatching(watching) }
             return
         }
-        if (destination == Destination.CHANNELS && channel == null) {
-            channelCards(catalog)
+        if (destination == Destination.CHANNELS) {
+            val brand = channel
+            if (brand == null) channelCards(catalog) else channelPage(brand, catalog)
             return
         }
         val rows = mutableMapOf<Shelf, LinearLayout>()
@@ -288,13 +313,74 @@ class KidFlixFragment : Fragment() {
         body.addView(HorizontalScrollView(requireContext()).apply { addView(row) })
     }
 
-    private fun channelName(shelf: Shelf) = if (shelf.brand == "Hulu / 20th Century") "Hulu" else shelf.brand
+    private fun channelName(shelf: Shelf) = channelGroup(shelf.brand)
+    private fun channelGroup(brand: String) = when (brand) {
+        "Fox Kids", "4Kids TV / FoxBox", "The CW4Kids / Toonzai" -> "Fox Kids / 4Kids TV"
+        "Disney", "Disney Junior / Playhouse Disney", "Disney XD", "Jetix", "ABC Kids / One Saturday Morning" -> "Disney"
+        "Nickelodeon", "Nick Jr.", "Nicktoons" -> "Nickelodeon"
+        "Cartoon Network", "Boomerang", "Cartoonito", "Toonami" -> "Cartoon Network"
+        "CBeebies", "CBBC" -> "BBC Kids"
+        "Hulu / 20th Century" -> "Hulu"
+        else -> brand
+    }
+
+    private fun channelPage(brand: String, catalog: List<KidTitle>) {
+        val sections = KidCatalog.shelves.filter { channelName(it) == brand }
+        val tabs = titleRow()
+        body.addView(tabs)
+        val grid = column()
+        body.addView(grid)
+        fun display(movies: Boolean) {
+            job?.cancel()
+            channelMovies = movies
+            for (i in 0 until tabs.childCount) tabs.getChildAt(i).isSelected = tabs.getChildAt(i).tag == movies
+            val items = catalog.filter { title -> title.shelf.movie == movies &&
+                (channelName(title.shelf) == brand || title.channels.any { channelGroup(it) == brand }) }.associateBy { it.key }.toMutableMap()
+            val pages = sections.filter { it.movie == movies && it.ids.isNotEmpty() }.associateWith { 1 }.toMutableMap()
+            fun draw() {
+                grid.removeAllViews()
+                titleGrid(grid, items.values.sortedWith(KidCatalog.newestFirst))
+                if (pages.isNotEmpty()) grid.addView(button("Load more") {
+                    val trigger = grid.getChildAt(grid.childCount - 1)
+                    trigger.isEnabled = false
+                    job = viewLifecycleOwner.lifecycleScope.launch {
+                        var failed = false
+                        for ((section, n) in pages.toMap()) {
+                            try {
+                                val result = KidCatalog.page(section, "", n)
+                                result.titles.filterNot { hidden.contains(it.key) }.forEach { items[it.key] = it }
+                                if (result.more) pages[section] = n + 1 else pages.remove(section)
+                            } catch (e: CancellationException) { throw e }
+                            catch (e: Exception) { failed = true }
+                        }
+                        status.text = if (failed) "$brand · Some titles could not load" else brand
+                        draw()
+                    }
+                })
+                if (items.isEmpty() && pages.isEmpty()) grid.addView(label("No visible titles", 16f))
+            }
+            draw()
+        }
+        val types = sections.map { it.movie }.distinct().sorted()
+        types.forEach { movie ->
+            tabs.addView(button(if (movie) "Movies" else "TV Shows") { display(movie) }.apply {
+                tag = movie
+                background = StateListDrawable().apply {
+                    addState(intArrayOf(android.R.attr.state_focused), tile(mint))
+                    addState(intArrayOf(android.R.attr.state_selected), tile(Color.rgb(34, 114, 109)))
+                    addState(intArrayOf(), tile(ink))
+                }
+                isSelected = movie == channelMovies
+            })
+        }
+        display(if (channelMovies in types) channelMovies else types.first())
+    }
 
     private fun channelCards(catalog: List<KidTitle>) {
         // The first title for each brand is its newest visible release.
         val newest = mutableMapOf<String, KidTitle>()
         for (title in catalog) {
-            for (brand in title.channels + channelName(title.shelf)) newest.getOrPut(brand) { title }
+            for (brand in title.channels.map(::channelGroup) + channelName(title.shelf)) newest.getOrPut(brand) { title }
         }
         val brands = KidCatalog.shelves.map(::channelName).distinct().sortedWith(
             compareByDescending<String> { it == "PBS KIDS" }.thenByDescending { newest[it]?.releaseDate.orEmpty() }.thenBy { it })
@@ -310,6 +396,7 @@ class KidFlixFragment : Fragment() {
                     tag = brand
                     contentDescription = brand
                     setOnClickListener {
+                        channelMovies = false
                         channel = brand
                         home()
                         body.requestFocus(View.FOCUS_DOWN)
@@ -342,7 +429,14 @@ class KidFlixFragment : Fragment() {
             !it.isWatched && (it.watchHistory?.lastPlaybackPositionMillis ?: 0L) > 0L
         }
         val episodes = withContext(Dispatchers.IO) { db.episodeDao().getPlaybackHistory() }
-        val watching = movies.mapNotNull { catalog["movie/${it.id}"] }.toMutableList()
+        val watching = mutableListOf<Pair<KidTitle, Long>>()
+        for (movie in movies) {
+            val title = catalog["movie/${movie.id}"] ?: try {
+                movie.id.toIntOrNull()?.let { KidCatalog.movie(it, null) }
+            } catch (e: CancellationException) { throw e }
+            catch (e: Exception) { null }
+            if (title != null) watching.add(title to (movie.watchHistory?.lastEngagementTimeUtcMillis ?: 0L))
+        }
         for ((id, history) in episodes.groupBy { it.tvShow?.id }) {
             if (id == null || hidden.contains("tv/$id")) continue
             val title = catalog["tv/$id"] ?: try {
@@ -350,8 +444,9 @@ class KidFlixFragment : Fragment() {
             } catch (e: CancellationException) { throw e }
             catch (e: Exception) { null }
             if (title == null) continue
+            val lastPlayed = history.maxOf { maxOf(it.watchHistory?.lastEngagementTimeUtcMillis ?: 0L, it.watchedDate?.timeInMillis ?: 0L) }
             if (history.any { !it.isWatched && it.watchHistory != null }) {
-                watching.add(title)
+                watching.add(title to lastPlayed)
                 continue
             }
             var latest = airedEpisodes.getInt(id, 0)
@@ -362,9 +457,9 @@ class KidFlixFragment : Fragment() {
                 } catch (e: CancellationException) { throw e }
                 catch (e: Exception) { if (latest == 0) continue }
             }
-            if (latest != 0 && history.none { it.id == latest.toString() && it.isWatched }) watching.add(title)
+            if (latest != 0 && history.none { it.id == latest.toString() && it.isWatched }) watching.add(title to lastPlayed)
         }
-        val visible = watching.filterNot { hidden.contains(it.key) }.sortedWith(KidCatalog.newestFirst)
+        val visible = watching.sortedByDescending { it.second }.map { it.first }.filterNot { hidden.contains(it.key) }
         if (visible.isEmpty()) return
         section.addView(label("Continue Watching", 20f).apply { setTypeface(null, Typeface.BOLD) })
         val row = titleRow()
@@ -409,10 +504,10 @@ class KidFlixFragment : Fragment() {
             page = 1
             render()
         } else {
-            load()
+            load(debounce = term.isNotBlank())
         }
     }
-    private fun load() {
+    private fun load(debounce: Boolean = false) {
         job?.cancel()
         render()
         if (UserPreferences.tmdbApiKey.isBlank() && BuildConfig.TMDB_API_KEY in listOf("null","")) {
@@ -422,6 +517,7 @@ class KidFlixFragment : Fragment() {
         status.text = "Loading…"
         job = viewLifecycleOwner.lifecycleScope.launch {
             try {
+                if (debounce) delay(300)
                 val result = KidCatalog.page(shelf,query,page + 1)
                 titles.addAll(result.titles)
                 page++
@@ -438,16 +534,21 @@ class KidFlixFragment : Fragment() {
         body.removeAllViews()
         val visible = titles.distinctBy { it.key }.filterNot { hidden.contains(it.key) }.sortedWith(KidCatalog.newestFirst)
         status.text = (shelf?.label ?: "Search · $query") + if (visible.isEmpty() && page > 0) " · No matching titles on this page" else ""
+        titleGrid(body, visible)
+        if (more) body.addView(button("Load more") { load() })
+    }
+
+    private fun titleGrid(parent: LinearLayout, visible: List<KidTitle>) {
         val columns = ((resources.configuration.screenWidthDp - 172) / 114).coerceIn(1, 6)
         visible.chunked(columns).forEach { batch ->
             val row = titleRow()
             batch.forEach { title ->
                 row.addView(card(title),dp(114),ViewGroup.LayoutParams.WRAP_CONTENT)
             }
-            body.addView(row)
+            parent.addView(row)
         }
-        if (more) body.addView(button("Load more") { load() })
     }
+
     private fun artwork(image: ImageView, url: String?) {
         if (url.isNullOrBlank()) return
         val context = image.context.applicationContext
