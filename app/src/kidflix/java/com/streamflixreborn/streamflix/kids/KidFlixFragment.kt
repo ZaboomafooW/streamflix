@@ -91,9 +91,11 @@ class KidFlixFragment : Fragment() {
         destinations.clear()
         for (entry in Destination.values()) {
             val item = button(entry.caption) {
-                destination = entry
-                channel = null
-                home()
+                if (anchors.isEmpty()) {
+                    channel = null
+                    home()
+                }
+                jumpTo(entry)
             }
             item.background = StateListDrawable().apply {
                 addState(intArrayOf(android.R.attr.state_focused), tile(mint))
@@ -124,8 +126,24 @@ class KidFlixFragment : Fragment() {
         toolbar.addView(button("⚙") { settings() }.apply { contentDescription = "Settings" }, dp(56), dp(48))
         status = label("", 20f).apply { setPadding(0, 0, 0, dp(8)) }
         content.addView(status)
+        browseHero = ImageView(requireContext()).apply {
+            scaleType = ImageView.ScaleType.FIT_CENTER
+            importantForAccessibility = View.IMPORTANT_FOR_ACCESSIBILITY_NO
+            setBackgroundColor(ink)
+            visibility = View.GONE
+        }
+        content.addView(browseHero, -1, dp((resources.configuration.screenHeightDp / 4).coerceIn(82, 180)))
         body = column()
-        scroll = ScrollView(requireContext()).apply { addView(body) }
+        scroll = ScrollView(requireContext()).apply {
+            addView(body)
+            setOnScrollChangeListener { _: View, _: Int, y: Int, _: Int, _: Int ->
+                if (anchors.isNotEmpty() && body.height > 0) {
+                    val entry = if (!canScrollVertically(1) && y > 0) Destination.CHANNELS
+                        else anchors.entries.lastOrNull { it.value.top <= y + dp(4) }?.key
+                    if (entry != null) highlight(entry)
+                }
+            }
+        }
         content.addView(scroll)
         return FrameLayout(requireContext()).apply { addView(shell) }
     }
@@ -134,14 +152,48 @@ class KidFlixFragment : Fragment() {
         HOME("Home"), SHOWS("TV Shows"), MOVIES("Movies"), CHANNELS("Channels")
     }
 
+    private lateinit var browseHero: ImageView
+    private var heroJob: Job? = null
+    private var heroKey: String? = null
+    private val backdrops = android.util.LruCache<String, String>(150)
+    private val channelArt = mutableMapOf<String, KidTitle>()
+    private val anchors = linkedMapOf<Destination, View>()
     private var destination = Destination.HOME
+
+    private fun markSection(entry: Destination) {
+        val heading = label(entry.caption, 22f).apply { setTypeface(null, Typeface.BOLD) }
+        body.addView(heading)
+        anchors[entry] = heading
+    }
+
+    private fun highlight(entry: Destination) {
+        destination = entry
+        destinations.forEach { (key, button) -> button.isSelected = key == entry }
+        status.text = entry.caption
+    }
+
+    private fun jumpTo(entry: Destination) {
+        val anchor = anchors[entry] ?: return
+        anchor.post {
+            if (anchors[entry] !== anchor) return@post
+            val start = body.indexOfChild(anchor)
+            val end = anchors[Destination.values().getOrNull(entry.ordinal + 1)]?.let(body::indexOfChild) ?: body.childCount
+            for (i in start + 1 until end) {
+                val first = body.getChildAt(i).getFocusables(View.FOCUS_FORWARD)
+                    .firstOrNull { it !is ScrollView && it !is HorizontalScrollView && it.isShown }
+                if (first?.requestFocus() == true) break
+            }
+            scroll.scrollTo(0, anchor.top)
+            highlight(entry)
+        }
+    }
     private lateinit var searchField: EditText
     private var resettingSearch = false
     private var channelMovies = false
     private var channel: String? = null
     private val destinations = mutableMapOf<Destination, Button>()
     private lateinit var scroll: ScrollView
-    private val canGoBack get() = shelf != null || query.isNotBlank() || destination != Destination.HOME
+    private val canGoBack get() = shelf != null || query.isNotBlank() || channel != null
 
     private var currentMovie: Pair<KidTitle, TMDb3.Movie.Detail>? = null
     private var homeExpansion: Job? = null
@@ -152,7 +204,20 @@ class KidFlixFragment : Fragment() {
     private var browseFocus: View? = null
     private lateinit var browseBack: OnBackPressedCallback
 
-    private val browseFocusListener = android.view.ViewTreeObserver.OnGlobalFocusChangeListener { _, _ ->
+    private val browseFocusListener = android.view.ViewTreeObserver.OnGlobalFocusChangeListener { _, focused ->
+        if (focused != null && body.hasFocus()) {
+            val title = when (val tag = focused.tag) {
+                is KidTitle -> tag
+                is String -> channelArt[tag]
+                else -> null
+            }
+            if (title != null) showBrowseHero(title)
+            var row: View = focused
+            while (row.parent is View && row.parent !== body) row = row.parent as View
+            if (row.parent === body) {
+                anchors.entries.lastOrNull { body.indexOfChild(it.value) <= body.indexOfChild(row) }?.let { highlight(it.key) }
+            }
+        }
         browseBack.isEnabled = currentShow != null || currentMovie != null || canGoBack || body.hasFocus()
     }
 
@@ -160,11 +225,20 @@ class KidFlixFragment : Fragment() {
         browseBack = object : OnBackPressedCallback(false) {
             override fun handleOnBackPressed() {
                 if (currentShow == null && currentMovie == null) {
+                    if (anchors.isNotEmpty()) {
+                        destinations[destination]?.requestFocus()
+                        return
+                    }
+                    val previousSection = destination
                     val previousChannel = channel.takeIf { shelf == null && query.isBlank() }
                     if (shelf == null && query.isBlank()) {
                         if (channel != null) channel = null else destination = Destination.HOME
                     }
                     home()
+                    if (previousChannel == null && previousSection != Destination.HOME && anchors.isNotEmpty()) {
+                        jumpTo(previousSection)
+                        return
+                    }
                     val target = previousChannel?.let { body.findViewWithTag<View>(it) } ?: destinations[destination]
                     target?.requestFocus()
                     return
@@ -196,6 +270,8 @@ class KidFlixFragment : Fragment() {
         browseFocus = null
         returnToHero = null
         destinations.clear()
+        clearBrowseHero()
+        anchors.clear()
         super.onDestroyView()
     }
     private fun home() {
@@ -207,6 +283,7 @@ class KidFlixFragment : Fragment() {
             searchField.text.clear()
             resettingSearch = false
         }
+        anchors.clear()
         titles.clear()
         body.removeAllViews()
         scroll.scrollTo(0, 0)
@@ -215,33 +292,28 @@ class KidFlixFragment : Fragment() {
         browseBack.isEnabled = canGoBack
         homeExpansion?.cancel()
         val catalog = KidCatalog.catalog.filterNot { hidden.contains(it.key) }.sortedWith(KidCatalog.newestFirst)
-        if (destination == Destination.HOME) {
-            val watching = column().apply { visibility = View.GONE }
-            body.addView(watching)
-            addShelf("Newest Releases", catalog.take(20))
-            for (genre in KidCatalog.homeGenres) {
-                addShelf(genre, catalog.filter { genre in it.genres })
-            }
-            homeExpansion = viewLifecycleOwner.lifecycleScope.launch { continueWatching(watching) }
+        channel?.let { brand ->
+            clearBrowseHero()
+            channelPage(brand, catalog)
             return
         }
-        if (destination == Destination.CHANNELS) {
-            val brand = channel
-            if (brand == null) channelCards(catalog) else channelPage(brand, catalog)
-            return
-        }
+        browseHero.visibility = View.VISIBLE
+        catalog.firstOrNull()?.let(::showBrowseHero)
+        markSection(Destination.HOME)
+        highlight(Destination.HOME)
+        val watching = column().apply { visibility = View.GONE }
+        body.addView(watching)
+        addShelf("Newest Releases", catalog.take(20))
+        for (genre in KidCatalog.homeGenres) addShelf(genre, catalog.filter { genre in it.genres })
+
         val rows = mutableMapOf<Shelf, LinearLayout>()
-        val sections = KidCatalog.shelves.filter {
-            when (destination) {
-                Destination.SHOWS -> !it.movie
-                Destination.MOVIES -> it.movie
-                Destination.CHANNELS -> channelName(it) == channel
-                Destination.HOME -> false
-            }
-        }.sortedWith(compareByDescending<Shelf> { it.brand == "PBS KIDS" }
+        val sections = KidCatalog.shelves.sortedWith(compareBy<Shelf> { it.movie }
+            .thenByDescending { it.brand == "PBS KIDS" }
             .thenByDescending { section -> catalog.firstOrNull { it.belongsTo(section) }?.releaseDate.orEmpty() }
             .thenBy { it.label })
         sections.forEach { section ->
+            val entry = if (section.movie) Destination.MOVIES else Destination.SHOWS
+            if (entry !in anchors) markSection(entry)
             val preview = catalog.filter { it.belongsTo(section) }
             if (preview.isNotEmpty() || section.ids.isNotEmpty()) {
                 val header = LinearLayout(requireContext()).apply {
@@ -249,7 +321,7 @@ class KidFlixFragment : Fragment() {
                     setPadding(0,dp(12),0,dp(6))
                 }
                 header.addView(TextView(requireContext()).apply {
-                    text = if (channel == null) section.brand else if (section.movie) "Movies" else "TV Shows"
+                    text = section.brand
                     textSize = 20f
                     setTextColor(Color.WHITE)
                     setTypeface(null,Typeface.BOLD)
@@ -266,8 +338,10 @@ class KidFlixFragment : Fragment() {
                 body.addView(button(section.label) { open(section, "") })
             }
         }
-        if (channel != null && body.childCount == 0) body.addView(label("No visible titles", 16f))
+        markSection(Destination.CHANNELS)
+        channelCards(catalog)
         homeExpansion = viewLifecycleOwner.lifecycleScope.launch {
+            launch { continueWatching(watching) }
             rows.forEach { (section, row) ->
                 launch {
                     KidCatalog.expand(section) { title ->
@@ -382,36 +456,38 @@ class KidFlixFragment : Fragment() {
         for (title in catalog) {
             for (brand in title.channels.map(::channelGroup) + channelName(title.shelf)) newest.getOrPut(brand) { title }
         }
+        channelArt.clear()
+        channelArt.putAll(newest)
         val brands = KidCatalog.shelves.map(::channelName).distinct().sortedWith(
             compareByDescending<String> { it == "PBS KIDS" }.thenByDescending { newest[it]?.releaseDate.orEmpty() }.thenBy { it })
-        val columns = ((resources.configuration.screenWidthDp - 172) / 170).coerceIn(1, 4)
-        for (batch in brands.chunked(columns)) {
-            val row = titleRow()
-            body.addView(row)
-            for (brand in batch) {
-                val tile = column().apply {
-                    background = focusBackground()
-                    isFocusable = true
-                    setPadding(dp(4), dp(4), dp(4), dp(4))
-                    tag = brand
-                    contentDescription = brand
-                    setOnClickListener {
-                        channelMovies = false
-                        channel = brand
-                        home()
-                        body.requestFocus(View.FOCUS_DOWN)
-                    }
+        val row = titleRow()
+        body.addView(HorizontalScrollView(requireContext()).apply { addView(row) })
+        for (brand in brands) {
+            val tile = column().apply {
+                background = focusBackground()
+                isFocusable = true
+                setPadding(dp(4), dp(4), dp(4), dp(4))
+                tag = brand
+                contentDescription = brand
+                setOnHoverListener { _, event ->
+                    if (event.actionMasked == android.view.MotionEvent.ACTION_HOVER_ENTER) newest[brand]?.let(::showBrowseHero)
+                    false
                 }
-                val image = ImageView(requireContext()).apply { scaleType = ImageView.ScaleType.FIT_CENTER }
-                tile.addView(image, -1, dp(84))
-                artwork(image, newest[brand]?.poster?.w500)
-                tile.addView(label(brand, 16f).apply {
-                    gravity = Gravity.CENTER
-                    setBackgroundColor(ink)
-                })
-                row.addView(tile, LinearLayout.LayoutParams(0, -2, 1f).apply { setMargins(dp(3), dp(3), dp(3), dp(3)) })
+                setOnClickListener {
+                    channelMovies = false
+                    channel = brand
+                    home()
+                    body.requestFocus(View.FOCUS_DOWN)
+                }
             }
-            repeat(columns - batch.size) { row.addView(View(requireContext()), LinearLayout.LayoutParams(0, 1, 1f)) }
+            val image = ImageView(requireContext()).apply { scaleType = ImageView.ScaleType.FIT_CENTER }
+            tile.addView(image, -1, dp(150))
+            artwork(image, newest[brand]?.poster?.w500)
+            tile.addView(label(brand, 16f).apply {
+                gravity = Gravity.CENTER
+                setBackgroundColor(ink)
+            })
+            row.addView(tile, LinearLayout.LayoutParams(dp(114), -2).apply { setMargins(dp(3), dp(3), dp(3), dp(3)) })
         }
     }
 
@@ -490,6 +566,8 @@ class KidFlixFragment : Fragment() {
             }.show()
     }
     private fun open(selection: Shelf?, term: String) {
+        clearBrowseHero()
+        anchors.clear()
         job?.cancel()
         homeExpansion?.cancel()
         scroll.scrollTo(0, 0)
@@ -549,6 +627,37 @@ class KidFlixFragment : Fragment() {
         }
     }
 
+    private fun clearBrowseHero() {
+        heroJob?.cancel()
+        heroKey = null
+        Glide.with(browseHero).clear(browseHero)
+        browseHero.visibility = View.GONE
+    }
+
+    private fun showBrowseHero(title: KidTitle) {
+        browseHero.visibility = View.VISIBLE
+        if (heroKey == title.key) return
+        heroKey = title.key
+        heroJob?.cancel()
+        Glide.with(browseHero).clear(browseHero)
+        heroJob = viewLifecycleOwner.lifecycleScope.launch {
+            delay(120)
+            val path = backdrops.get(title.key) ?: try {
+                val backdrop = if (title.shelf.movie) TMDb3.Movies.details(title.id).backdropPath
+                    else TMDb3.TvSeries.details(title.id).backdropPath
+                backdrop.orEmpty().also { backdrops.put(title.key, it) }
+            } catch (e: CancellationException) { throw e }
+            catch (e: Exception) { "" }
+            val url = if (path.isNotBlank()) "https://image.tmdb.org/t/p/w1280$path" else title.poster?.w500
+            if (!url.isNullOrBlank()) {
+                val image = try { KidArtwork.localCopy(browseHero.context.applicationContext, url) }
+                    catch (e: CancellationException) { throw e }
+                    catch (e: Exception) { url }
+                if (heroKey == title.key) Glide.with(browseHero).load(image).into(browseHero)
+            }
+        }
+    }
+
     private fun artwork(image: ImageView, url: String?) {
         if (url.isNullOrBlank()) return
         val context = image.context.applicationContext
@@ -574,6 +683,10 @@ class KidFlixFragment : Fragment() {
             setOnFocusChangeListener { _, focused ->
                 background = tile(if (focused) Color.rgb(34, 114, 109) else Color.TRANSPARENT)
             }
+            setOnHoverListener { _, event ->
+                if (event.actionMasked == android.view.MotionEvent.ACTION_HOVER_ENTER) showBrowseHero(title)
+                false
+            }
             setOnClickListener { select(title) }
             setOnLongClickListener {
                 job?.cancel()
@@ -582,9 +695,17 @@ class KidFlixFragment : Fragment() {
                 true
             }
         }
-        val image = ImageView(requireContext()).apply { scaleType = ImageView.ScaleType.CENTER_CROP }
+        val image = object : ImageView(requireContext()) {
+            private var requested = false
+            override fun onDraw(canvas: android.graphics.Canvas) {
+                super.onDraw(canvas)
+                if (!requested) {
+                    requested = true
+                    artwork(this, title.poster?.w500)
+                }
+            }
+        }.apply { scaleType = ImageView.ScaleType.CENTER_CROP }
         card.addView(image,dp(98),dp(138))
-        artwork(image, title.poster?.w500)
         card.addView(TextView(requireContext()).apply { text = title.name; maxLines = 2; gravity = Gravity.CENTER; setTextColor(Color.WHITE) })
         return card
     }
