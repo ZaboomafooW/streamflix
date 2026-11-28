@@ -31,36 +31,36 @@ internal object KidCatalog {
     private val specials = films("PBS KIDS")
     val shelves = listOf(pbs, specials, favorites,
         tv("Nickelodeon", 13, 35), films("Nickelodeon", 2348),
-        tv("Disney", 54, 44, 281), films("Pixar", 3),
+        tv("Disney", 54, 44, 281, 2739), films("Pixar", 3),
         Shelf("Pixar", false, "with_companies", setOf(3)),
         films("Disney", 2, 6125), tv("Paramount", 2076, 4330), films("Paramount", 4),
         Shelf("DreamWorks", false, "with_companies", setOf(521, 42141)), films("DreamWorks", 521),
-        tv("Netflix"), films("Netflix"),
-        tv("HBO Max / Warner Bros."), films("HBO Max / Warner Bros."),
-        tv("Peacock / Universal"), films("Peacock / Universal"),
-        tv("Prime Video"), films("Prime Video"),
-        tv("Apple TV"), films("Apple TV"),
-        tv("Hulu"), films("Hulu / 20th Century"),
-        tv("Fox Kids"),
-        tv("Cartoon Network"),
+        tv("Netflix", 213), films("Netflix", 127928),
+        tv("HBO Max / Warner Bros.", 49, 3186, 6783, 8304), films("HBO Max / Warner Bros.", 174, 2785),
+        tv("Peacock / Universal", 3353), films("Peacock / Universal", 33, 6704),
+        tv("Prime Video", 1024), films("Prime Video", 20580),
+        tv("Apple TV", 2552), films("Apple TV", 194232),
+        tv("Hulu", 453), films("Hulu / 20th Century", 25),
+        tv("Fox Kids", 2686),
+        tv("Cartoon Network", 56),
         tv("Kids' WB"),
         tv("4Kids TV / FoxBox"),
         tv("The CW4Kids / Toonzai"),
-        tv("Jetix"),
-        tv("ABC Kids / One Saturday Morning"),
-        tv("Disney XD"),
-        tv("Disney Junior / Playhouse Disney"),
-        tv("Nick Jr."),
-        tv("Nicktoons"),
+        tv("Jetix", 2445),
+        tv("ABC Kids / One Saturday Morning", 2854),
+        tv("Disney XD", 44),
+        tv("Disney Junior / Playhouse Disney", 281, 2991),
+        tv("Nick Jr.", 35),
+        tv("Nicktoons", 224),
         tv("Boomerang"),
-        tv("Discovery Kids / The Hub"),
+        tv("Discovery Kids / The Hub", 22, 2630),
         tv("Sprout / Universal Kids"),
         tv("Qubo"),
-        tv("CBeebies"),
-        tv("CBBC"),
-        tv("Teletoon"),
-        tv("YTV"),
-        tv("Treehouse TV"),
+        tv("CBeebies", 166),
+        tv("CBBC", 15),
+        tv("Teletoon", 83),
+        tv("YTV", 46),
+        tv("Treehouse TV", 216),
         tv("Cartoonito"),
         tv("Toonami"))
 
@@ -190,39 +190,59 @@ internal object KidCatalog {
     data class Page(val titles: List<KidTitle>, val more: Boolean)
 
     suspend fun page(shelf: Shelf?, query: String, page: Int): Page {
-        if (query.isBlank() && shelf != null && (shelf.movie || shelf.ids.isEmpty())) {
+        if (query.isBlank() && shelf != null && shelf.ids.isEmpty()) {
             return Page(catalog.filter { it.belongsTo(shelf) }, false)
         }
         val result = if (query.isNotBlank()) TMDb3.Search.multi(query, false, "en", page)
         else {
             requireNotNull(shelf)
-            val params = mapOf(shelf.field to shelf.ids.joinToString("|"), "page" to page.toString(),
-                "include_adult" to "false", "language" to "en", "sort_by" to "first_air_date.desc", "first_air_date.lte" to java.text.SimpleDateFormat("yyyy-MM-dd", java.util.Locale.US).format(java.util.Date()))
+            val date = if (shelf.movie) "primary_release_date" else "first_air_date"
+            val params = mutableMapOf(shelf.field to shelf.ids.joinToString("|"), "page" to page.toString(),
+                "include_adult" to "false", "language" to "en", "sort_by" to "$date.desc", "$date.lte" to java.text.SimpleDateFormat("yyyy-MM-dd", java.util.Locale.US).format(java.util.Date()))
+            if (shelf.movie) params["with_genres"] = "10751"
+            if (shelf.brand in generalNetworks && !shelf.movie) params["with_genres"] = "10762|10751"
             if (shelf.movie) TMDb3.Discover.movie(params) else TMDb3.Discover.tv(params)
         }
         val titles = coroutineScope {
-            result.results.map { item -> async { permits.withPermit { inspect(item) } } }.awaitAll()
+            result.results.map { item -> async { permits.withPermit { inspect(item, shelf) } } }.awaitAll()
         }.filterNotNull().filter { shelf == null || it.belongsTo(shelf) }
         return Page(titles.distinctBy { it.key }, page < result.totalPages && page < 500)
     }
 
-    private suspend fun inspect(item: TMDb3.MultiItem): KidTitle? = when (item) {
-        is TMDb3.Movie -> catalog.firstOrNull { it.shelf.movie && it.id == item.id }
-        is TMDb3.Tv -> show(item.id)
+    private suspend fun inspect(item: TMDb3.MultiItem, selection: Shelf?): KidTitle? = when (item) {
+        is TMDb3.Movie -> movie(item.id, selection)
+        is TMDb3.Tv -> show(item.id, selection)
         else -> null
     }
 
-    private fun trusted(movie: Boolean, companies: Set<Int>, networks: Set<Int>): Shelf? =
-        shelves.firstOrNull { shelf -> shelf.movie == movie && shelf.ids.any {
+    private val generalNetworks = setOf("Disney", "Paramount", "Netflix", "HBO Max / Warner Bros.",
+        "Peacock / Universal", "Prime Video", "Apple TV", "Hulu")
+
+    private suspend fun movie(id: Int, selection: Shelf?): KidTitle? {
+        catalog.firstOrNull { it.shelf.movie && it.id == id && (selection == null || it.belongsTo(selection)) }?.let { return it }
+        val info = TMDb3.Movies.details(id, listOf(TMDb3.Params.AppendToResponse.Movie.RELEASES_DATES), "en")
+        val companies = info.productionCompanies.orEmpty()
+        if (info.adult || info.video || info.genres.none { it.id == 10751 } ||
+            KidPolicy.excluded(info.title, info.overview, companies)) return null
+        val shelf = trusted(true, companies.map { it.id }.toSet(), emptySet(), selection) ?: return null
+        val ratings = info.releaseDates?.results.orEmpty().filter { it.iso3166 == "US" }
+            .flatMap { it.releaseDates }.mapNotNull { it.certification }
+        if (!KidPolicy.allowedRatings(ratings, true)) return null
+        return KidTitle(id, info.title, info.posterPath, shelf, info.releaseDate.orEmpty())
+    }
+
+    private fun trusted(movie: Boolean, companies: Set<Int>, networks: Set<Int>, selection: Shelf?): Shelf? =
+        (selection?.let { listOf(it) } ?: shelves).firstOrNull { shelf -> shelf.movie == movie && shelf.ids.any {
             it in (if (shelf.field == "with_companies") companies else networks)
         } }
 
-    suspend fun show(id: Int): KidTitle? {
+    suspend fun show(id: Int, selection: Shelf? = null): KidTitle? {
         val info = TMDb3.TvSeries.details(id, listOf(TMDb3.Params.AppendToResponse.Tv.CONTENT_RATING), "en")
         val companies = info.productionCompanies.orEmpty()
         if (info.adult || KidPolicy.excluded(info.name, info.overview, companies)) return null
-        val approved = catalog.firstOrNull { !it.shelf.movie && it.id == id }
-        val shelf = approved?.shelf ?: trusted(false, companies.map { it.id }.toSet(), info.networks.map { it.id }.toSet()) ?: return null
+        val approved = catalog.firstOrNull { !it.shelf.movie && it.id == id && (selection == null || it.belongsTo(selection)) }
+        val shelf = approved?.shelf ?: trusted(false, companies.map { it.id }.toSet(), info.networks.map { it.id }.toSet(), selection) ?: return null
+        if (approved == null && shelf.brand in generalNetworks && info.genres.none { it.id == 10751 || it.id == 10762 }) return null
         if (shelf != pbs && shelf != favorites && info.type != TMDb3.Tv.Type.SCRIPTED) return null
         val ratings = info.contentRatings?.results.orEmpty().filter { it.iso3166 == "US" }.map { it.rating }.filter { it.isNotBlank() }
         if (!KidPolicy.allowedRatings(ratings, movie = false, pbs = shelf == pbs, favorite = shelf == favorites)) return null

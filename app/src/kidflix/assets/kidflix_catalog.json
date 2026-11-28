@@ -3195,5 +3195,3874 @@
     "shelf": "Kids' WB Shows",
     "releaseDate": "1999-01-10",
     "poster": "/qAcF9tpWip7BGNad0NtUdt2ZWAz.jpg"
+  },
+  {
+    "id": 35,
+    "name": "The Simpsons Movie",
+    "poster": "/s3b8TZWwmkYc2KoJ5zk77qB6PzY.jpg",
+    "shelf": "Hulu / 20th Century Movies",
+    "releaseDate": "2007-07-25",
+    "genres": [
+      "Comedy"
+    ]
+  },
+  {
+    "id": 118,
+    "name": "Charlie and the Chocolate Factory",
+    "poster": "/iKP6wg3c6COUe8gYutoGG7qcPnO.jpg",
+    "shelf": "HBO Max / Warner Bros. Movies",
+    "releaseDate": "2005-07-13",
+    "genres": [
+      "Adventure",
+      "Comedy",
+      "Fantasy"
+    ]
+  },
+  {
+    "id": 411,
+    "name": "The Chronicles of Narnia: The Lion, the Witch and the Wardrobe",
+    "poster": "/iREd0rNCjYdf5Ar0vfaW32yrkm.jpg",
+    "shelf": "Disney Movies",
+    "releaseDate": "2005-12-07",
+    "genres": [
+      "Adventure",
+      "Fantasy"
+    ]
+  },
+  {
+    "id": 425,
+    "name": "Ice Age",
+    "poster": "/gLhHHZUzeseRXShoDyC4VqLgsNv.jpg",
+    "shelf": "Hulu / 20th Century Movies",
+    "releaseDate": "2002-03-14",
+    "genres": [
+      "Comedy",
+      "Adventure"
+    ]
+  },
+  {
+    "id": 533,
+    "name": "Wallace & Gromit: The Curse of the Were-Rabbit",
+    "poster": "/cMQ2lNd7sBe6PCf6zF5QxrKzbRG.jpg",
+    "shelf": "DreamWorks Movies",
+    "releaseDate": "2005-09-15",
+    "genres": [
+      "Adventure",
+      "Comedy"
+    ]
+  },
+  {
+    "id": 771,
+    "name": "Home Alone",
+    "poster": "/onTSipZ8R3bliBdKfPtsDuHTdlL.jpg",
+    "shelf": "Hulu / 20th Century Movies",
+    "releaseDate": "1990-11-16",
+    "genres": [
+      "Comedy"
+    ]
+  },
+  {
+    "id": 772,
+    "name": "Home Alone 2: Lost in New York",
+    "poster": "/uuitWHpJwxD1wruFl2nZHIb4UGN.jpg",
+    "shelf": "Hulu / 20th Century Movies",
+    "releaseDate": "1992-11-15",
+    "genres": [
+      "Comedy",
+      "Adventure"
+    ]
+  },
+  {
+    "id": 788,
+    "name": "Mrs. Doubtfire",
+    "poster": "/ualFkVe5zYDphGuJv37byW2Suim.jpg",
+    "shelf": "Hulu / 20th Century Movies",
+    "releaseDate": "1993-11-24",
+    "genres": [
+      "Comedy"
+    ]
+  },
+  {
+    "id": 888,
+    "name": "The Flintstones",
+    "poster": "/qbojLbbpSaNSerWa2moIrt0C8hy.jpg",
+    "shelf": "Peacock / Universal Movies",
+    "releaseDate": "1994-05-27",
+    "genres": [
+      "Fantasy",
+      "Comedy"
+    ]
+  },
+  {
+    "id": 1268,
+    "name": "Mr. Bean's Holiday",
+    "poster": "/bSSx9Sq6irWwN9NTQmoT9KE8kXn.jpg",
+    "shelf": "Peacock / Universal Movies",
+    "releaseDate": "2007-03-22",
+    "genres": [
+      "Comedy"
+    ]
+  },
+  {
+    "id": 1584,
+    "name": "The School of Rock",
+    "poster": "/zXLXaepIBvFVLU25DH3wv4IPSbe.jpg",
+    "shelf": "Paramount Movies",
+    "releaseDate": "2003-10-03",
+    "genres": [
+      "Comedy"
+    ]
+  },
+  {
+    "id": 1593,
+    "name": "Night at the Museum",
+    "poster": "/pDsAAYf6Zn0yiAGJ6lYGs6hoZ4E.jpg",
+    "shelf": "Hulu / 20th Century Movies",
+    "releaseDate": "2006-12-20",
+    "genres": [
+      "Fantasy",
+      "Comedy"
+    ]
+  },
+  {
+    "id": 1634,
+    "name": "Free Willy",
+    "poster": "/9iBgd9gi9ztWiVcYSG6zl8wDFBN.jpg",
+    "shelf": "HBO Max / Warner Bros. Movies",
+    "releaseDate": "1993-07-16",
+    "genres": [
+      "Adventure"
+    ]
+  },
+  {
+    "id": 2270,
+    "name": "Stardust",
+    "poster": "/le1gPiqeWrCj5FkjBtcF9clFmdX.jpg",
+    "shelf": "Paramount Movies",
+    "releaseDate": "2007-08-10",
+    "genres": [
+      "Adventure",
+      "Fantasy"
+    ]
+  },
+  {
+    "id": 2486,
+    "name": "Eragon",
+    "poster": "/mNu6QLUnKqPIjRA3pgEb5dkJye6.jpg",
+    "shelf": "Hulu / 20th Century Movies",
+    "releaseDate": "2006-12-14",
+    "genres": [
+      "Fantasy",
+      "Adventure"
+    ]
+  },
+  {
+    "id": 2698,
+    "name": "Evan Almighty",
+    "poster": "/blI1ioXbgJWOJ3PbcBuSV65Ebwu.jpg",
+    "shelf": "Peacock / Universal Movies",
+    "releaseDate": "2007-06-09",
+    "genres": [
+      "Fantasy",
+      "Comedy"
+    ]
+  },
+  {
+    "id": 2758,
+    "name": "Addams Family Values",
+    "poster": "/sdxT2VjVSx9DRicwnuECUdBHeE7.jpg",
+    "shelf": "Paramount Movies",
+    "releaseDate": "1993-11-19",
+    "genres": [
+      "Comedy",
+      "Fantasy"
+    ]
+  },
+  {
+    "id": 3050,
+    "name": "Doctor Dolittle",
+    "poster": "/tLrchGMIkdo1KamQJA6fwvDQEy0.jpg",
+    "shelf": "Hulu / 20th Century Movies",
+    "releaseDate": "1998-06-26",
+    "genres": [
+      "Comedy",
+      "Fantasy"
+    ]
+  },
+  {
+    "id": 3604,
+    "name": "Flash Gordon",
+    "poster": "/eTdEaRjtVnFbd5KVhxLRfbYW46e.jpg",
+    "shelf": "Peacock / Universal Movies",
+    "releaseDate": "1980-12-05",
+    "genres": [
+      "Science Fiction",
+      "Adventure"
+    ]
+  },
+  {
+    "id": 4978,
+    "name": "An American Tail",
+    "poster": "/51pLurrIQDhXZab4cv8lHP32UiR.jpg",
+    "shelf": "Peacock / Universal Movies",
+    "releaseDate": "1986-11-21",
+    "genres": [
+      "Adventure",
+      "Comedy"
+    ]
+  },
+  {
+    "id": 5123,
+    "name": "August Rush",
+    "poster": "/oA6ZeICPINiS6YtD5WZeBaGVmuT.jpg",
+    "shelf": "HBO Max / Warner Bros. Movies",
+    "releaseDate": "2007-11-21",
+    "genres": []
+  },
+  {
+    "id": 5559,
+    "name": "Bee Movie",
+    "poster": "/tX2mgKFUkzFMZingSVD4vioZNz2.jpg",
+    "shelf": "DreamWorks Movies",
+    "releaseDate": "2007-10-28",
+    "genres": [
+      "Adventure",
+      "Comedy"
+    ]
+  },
+  {
+    "id": 5683,
+    "name": "Pee-wee's Big Adventure",
+    "poster": "/414IUXc54mrhX88ZUQiRDLXn01i.jpg",
+    "shelf": "HBO Max / Warner Bros. Movies",
+    "releaseDate": "1985-07-26",
+    "genres": [
+      "Comedy",
+      "Adventure"
+    ]
+  },
+  {
+    "id": 6477,
+    "name": "Alvin and the Chipmunks",
+    "poster": "/3s3WvpKPXXeKAPketDDqiQTi20S.jpg",
+    "shelf": "Hulu / 20th Century Movies",
+    "releaseDate": "2007-12-13",
+    "genres": [
+      "Comedy",
+      "Fantasy"
+    ]
+  },
+  {
+    "id": 7443,
+    "name": "Chicken Run",
+    "poster": "/8XgmIsbpVamdhwcNVsYzohFZTtT.jpg",
+    "shelf": "DreamWorks Movies",
+    "releaseDate": "2000-06-23",
+    "genres": [
+      "Comedy"
+    ]
+  },
+  {
+    "id": 7450,
+    "name": "Titan A.E.",
+    "poster": "/el2iHk3LTJWfEnwrvcRkvWY501G.jpg",
+    "shelf": "Hulu / 20th Century Movies",
+    "releaseDate": "2000-06-16",
+    "genres": [
+      "Science Fiction",
+      "Adventure"
+    ]
+  },
+  {
+    "id": 7459,
+    "name": "Speed Racer",
+    "poster": "/rVNpkV6ksY1hqjkun1WCTxqyK9v.jpg",
+    "shelf": "HBO Max / Warner Bros. Movies",
+    "releaseDate": "2008-05-07",
+    "genres": [
+      "Adventure",
+      "Comedy"
+    ]
+  },
+  {
+    "id": 8355,
+    "name": "Ice Age: Dawn of the Dinosaurs",
+    "poster": "/cXOLaxcNjNAYmEx1trZxOTKhK3Q.jpg",
+    "shelf": "Hulu / 20th Century Movies",
+    "releaseDate": "2009-06-26",
+    "genres": [
+      "Comedy",
+      "Adventure"
+    ]
+  },
+  {
+    "id": 8839,
+    "name": "Casper",
+    "poster": "/2ah8fNJFZVU3vcXhU5xfAYi2eym.jpg",
+    "shelf": "Peacock / Universal Movies",
+    "releaseDate": "1995-05-26",
+    "genres": [
+      "Fantasy",
+      "Comedy"
+    ]
+  },
+  {
+    "id": 8871,
+    "name": "How the Grinch Stole Christmas",
+    "poster": "/1WZbbPApEivA421gCOluuzMMKCk.jpg",
+    "shelf": "Peacock / Universal Movies",
+    "releaseDate": "2000-11-17",
+    "genres": [
+      "Comedy",
+      "Fantasy"
+    ]
+  },
+  {
+    "id": 8920,
+    "name": "Garfield",
+    "poster": "/vqwTSWNLyH55g8kBT61s2DgNYEp.jpg",
+    "shelf": "Hulu / 20th Century Movies",
+    "releaseDate": "2004-06-10",
+    "genres": [
+      "Comedy"
+    ]
+  },
+  {
+    "id": 9016,
+    "name": "Treasure Planet",
+    "poster": "/kNhZkR3UNbXfvESQo7mJpOi4tGd.jpg",
+    "shelf": "Disney Movies",
+    "releaseDate": "2002-11-26",
+    "genres": [
+      "Science Fiction",
+      "Adventure",
+      "Fantasy"
+    ]
+  },
+  {
+    "id": 9023,
+    "name": "Spirit: Stallion of the Cimarron",
+    "poster": "/bBEkKDQFianNYwGWR7gJfPVakmG.jpg",
+    "shelf": "DreamWorks Movies",
+    "releaseDate": "2002-05-24",
+    "genres": [
+      "Adventure"
+    ]
+  },
+  {
+    "id": 9066,
+    "name": "The Brady Bunch Movie",
+    "poster": "/kbJfBJh5vEf5356Jlm6P37H48hD.jpg",
+    "shelf": "Paramount Movies",
+    "releaseDate": "1995-02-16",
+    "genres": [
+      "Comedy"
+    ]
+  },
+  {
+    "id": 9073,
+    "name": "Free Willy 2: The Adventure Home",
+    "poster": "/3wpug3W5rYBdqeAnhc1UeXLE5ZF.jpg",
+    "shelf": "HBO Max / Warner Bros. Movies",
+    "releaseDate": "1995-07-19",
+    "genres": [
+      "Adventure",
+      "Comedy"
+    ]
+  },
+  {
+    "id": 9279,
+    "name": "Jingle All the Way",
+    "poster": "/vhdLrQ3P2JxlxsTREUsr2nbtnjS.jpg",
+    "shelf": "Hulu / 20th Century Movies",
+    "releaseDate": "1996-11-21",
+    "genres": [
+      "Adventure",
+      "Comedy"
+    ]
+  },
+  {
+    "id": 9353,
+    "name": "Nacho Libre",
+    "poster": "/kh7B91bMl2lZ0mH9WhPfaNUIEQH.jpg",
+    "shelf": "Nickelodeon Movies",
+    "releaseDate": "2006-06-16",
+    "genres": [
+      "Comedy"
+    ]
+  },
+  {
+    "id": 9444,
+    "name": "Anastasia",
+    "poster": "/bppGWGA8zq1sRvTdDJnUzVW9GcH.jpg",
+    "shelf": "Hulu / 20th Century Movies",
+    "releaseDate": "1997-11-20",
+    "genres": [
+      "Fantasy",
+      "Adventure"
+    ]
+  },
+  {
+    "id": 9513,
+    "name": "Garfield: A Tail of Two Kitties",
+    "poster": "/O2j1bwErQ6bbBVZM5Vxg3Tsoir.jpg",
+    "shelf": "Hulu / 20th Century Movies",
+    "releaseDate": "2006-06-15",
+    "genres": [
+      "Comedy",
+      "Adventure"
+    ]
+  },
+  {
+    "id": 9598,
+    "name": "Babe",
+    "poster": "/zKuQMtnbVTz9DsOnOJmlW71v4qH.jpg",
+    "shelf": "Peacock / Universal Movies",
+    "releaseDate": "1995-07-18",
+    "genres": [
+      "Fantasy",
+      "Comedy"
+    ]
+  },
+  {
+    "id": 9641,
+    "name": "Cheaper by the Dozen 2",
+    "poster": "/wD68dEtcKuboxd8bhbqiTTxn6cX.jpg",
+    "shelf": "Hulu / 20th Century Movies",
+    "releaseDate": "2005-12-21",
+    "genres": [
+      "Comedy",
+      "Adventure"
+    ]
+  },
+  {
+    "id": 9714,
+    "name": "Home Alone 3",
+    "poster": "/6uOadrCfle0n2LOOxHbgWEdnrm2.jpg",
+    "shelf": "Hulu / 20th Century Movies",
+    "releaseDate": "1997-12-12",
+    "genres": [
+      "Comedy"
+    ]
+  },
+  {
+    "id": 9745,
+    "name": "Jack Frost",
+    "poster": "/tdSyQJe7vEDcH9kEVqzVcr0O9lS.jpg",
+    "shelf": "HBO Max / Warner Bros. Movies",
+    "releaseDate": "1998-11-15",
+    "genres": [
+      "Comedy",
+      "Fantasy"
+    ]
+  },
+  {
+    "id": 9820,
+    "name": "The Parent Trap",
+    "poster": "/p4dGmi8u9W0HHyVXcgWPoiFfKTF.jpg",
+    "shelf": "Disney Movies",
+    "releaseDate": "1998-07-28",
+    "genres": [
+      "Comedy"
+    ]
+  },
+  {
+    "id": 9837,
+    "name": "The Prince of Egypt",
+    "poster": "/2xUjYwL6Ol7TLJPPKs7sYW5PWLX.jpg",
+    "shelf": "DreamWorks Movies",
+    "releaseDate": "1998-12-16",
+    "genres": [
+      "Adventure"
+    ]
+  },
+  {
+    "id": 9906,
+    "name": "The Ant Bully",
+    "poster": "/oFuqX0inTvbA1XAFv2x3CQnI65m.jpg",
+    "shelf": "HBO Max / Warner Bros. Movies",
+    "releaseDate": "2006-07-28",
+    "genres": [
+      "Fantasy",
+      "Adventure",
+      "Comedy"
+    ]
+  },
+  {
+    "id": 9907,
+    "name": "Barnyard",
+    "poster": "/qB9jFInwUEb2VLhMeKQX17Vdrnp.jpg",
+    "shelf": "Nickelodeon Movies",
+    "releaseDate": "2006-08-04",
+    "genres": [
+      "Comedy"
+    ]
+  },
+  {
+    "id": 9975,
+    "name": "Curious George",
+    "poster": "/7SpokDLiRHON9H36GdlF7vWKOm6.jpg",
+    "shelf": "Peacock / Universal Movies",
+    "releaseDate": "2006-02-10",
+    "genres": [
+      "Adventure",
+      "Comedy"
+    ]
+  },
+  {
+    "id": 9986,
+    "name": "Charlotte's Web",
+    "poster": "/fU0IR5HF8KxQbZijuWKPTrY81Qv.jpg",
+    "shelf": "Nickelodeon Movies",
+    "releaseDate": "2006-12-07",
+    "genres": [
+      "Comedy",
+      "Fantasy"
+    ]
+  },
+  {
+    "id": 10380,
+    "name": "An American Tail: Fievel Goes West",
+    "poster": "/k4aLupAkHWwHiEDwvqsZFAnUYF.jpg",
+    "shelf": "Peacock / Universal Movies",
+    "releaseDate": "1991-11-21",
+    "genres": [
+      "Adventure",
+      "Comedy"
+    ]
+  },
+  {
+    "id": 10438,
+    "name": "Beethoven's 2nd",
+    "poster": "/biH5hW1BRfEr13oCizuAzpdBf2l.jpg",
+    "shelf": "Peacock / Universal Movies",
+    "releaseDate": "1993-12-14",
+    "genres": [
+      "Comedy"
+    ]
+  },
+  {
+    "id": 10501,
+    "name": "The Road to El Dorado",
+    "poster": "/tQuqhUBACMcGqCvliHxpJreBfXC.jpg",
+    "shelf": "DreamWorks Movies",
+    "releaseDate": "2000-03-31",
+    "genres": [
+      "Adventure",
+      "Comedy",
+      "Fantasy"
+    ]
+  },
+  {
+    "id": 10510,
+    "name": "Miracle on 34th Street",
+    "poster": "/l2xKK3BIS1N3U2PYApm8ohO1uK0.jpg",
+    "shelf": "Hulu / 20th Century Movies",
+    "releaseDate": "1994-11-18",
+    "genres": [
+      "Fantasy"
+    ]
+  },
+  {
+    "id": 10555,
+    "name": "Shark Tale",
+    "poster": "/r08DpyPyhXcJTfNZAICNGMzcQ8l.jpg",
+    "shelf": "DreamWorks Movies",
+    "releaseDate": "2004-09-20",
+    "genres": [
+      "Comedy"
+    ]
+  },
+  {
+    "id": 10588,
+    "name": "The Cat in the Hat",
+    "poster": "/uYYLz67e5xEQMsY858VSSCDsLU6.jpg",
+    "shelf": "Peacock / Universal Movies",
+    "releaseDate": "2003-11-21",
+    "genres": [
+      "Fantasy",
+      "Adventure",
+      "Comedy"
+    ]
+  },
+  {
+    "id": 10601,
+    "name": "Peter Pan",
+    "poster": "/6QdU3TZZrIvXFzoHOwafZAynFjB.jpg",
+    "shelf": "Peacock / Universal Movies",
+    "releaseDate": "2003-12-18",
+    "genres": [
+      "Adventure",
+      "Fantasy"
+    ]
+  },
+  {
+    "id": 10715,
+    "name": "Looney Tunes: Back in Action",
+    "poster": "/q0kntpdsHA0QdYjpQdNBqrVTdQq.jpg",
+    "shelf": "HBO Max / Warner Bros. Movies",
+    "releaseDate": "2003-11-14",
+    "genres": [
+      "Comedy"
+    ]
+  },
+  {
+    "id": 10735,
+    "name": "What a Girl Wants",
+    "poster": "/gGpMruX59KWNuAXgHpiAm8hiChw.jpg",
+    "shelf": "HBO Max / Warner Bros. Movies",
+    "releaseDate": "2003-03-27",
+    "genres": [
+      "Comedy"
+    ]
+  },
+  {
+    "id": 10808,
+    "name": "Dr. Dolittle 2",
+    "poster": "/asYjHXBoD44B6mLOcZtMfMV3hm1.jpg",
+    "shelf": "Hulu / 20th Century Movies",
+    "releaseDate": "2001-06-22",
+    "genres": [
+      "Comedy",
+      "Fantasy"
+    ]
+  },
+  {
+    "id": 10897,
+    "name": "The Little Rascals",
+    "poster": "/qI7PKX2JSw4yD2iQm3pyHvKir28.jpg",
+    "shelf": "Peacock / Universal Movies",
+    "releaseDate": "1994-08-05",
+    "genres": [
+      "Comedy"
+    ]
+  },
+  {
+    "id": 10992,
+    "name": "Cats & Dogs",
+    "poster": "/wUWoat7L4vvQburQ8pVEJhRG9L5.jpg",
+    "shelf": "HBO Max / Warner Bros. Movies",
+    "releaseDate": "2001-07-04",
+    "genres": [
+      "Comedy",
+      "Adventure",
+      "Fantasy"
+    ]
+  },
+  {
+    "id": 11007,
+    "name": "Cheaper by the Dozen",
+    "poster": "/afclGGoQslTYFTnyW1LRMtJMiBp.jpg",
+    "shelf": "Hulu / 20th Century Movies",
+    "releaseDate": "2003-12-24",
+    "genres": [
+      "Comedy"
+    ]
+  },
+  {
+    "id": 11011,
+    "name": "Ri¢hie Ri¢h",
+    "poster": "/qgGh5d0IHAZRlHIdFS3XWVygumR.jpg",
+    "shelf": "HBO Max / Warner Bros. Movies",
+    "releaseDate": "1994-12-19",
+    "genres": [
+      "Comedy"
+    ]
+  },
+  {
+    "id": 11212,
+    "name": "Baby's Day Out",
+    "poster": "/21U2jwl36hoTHsXB3fDuIQkcchu.jpg",
+    "shelf": "Hulu / 20th Century Movies",
+    "releaseDate": "1994-07-01",
+    "genres": [
+      "Comedy",
+      "Adventure"
+    ]
+  },
+  {
+    "id": 11236,
+    "name": "The Secret Garden",
+    "poster": "/zf6h5dJ7wVG7LqMO9dhHGHVejzj.jpg",
+    "shelf": "HBO Max / Warner Bros. Movies",
+    "releaseDate": "1993-08-13",
+    "genres": [
+      "Fantasy"
+    ]
+  },
+  {
+    "id": 11247,
+    "name": "A Cinderella Story",
+    "poster": "/ukwP7gDPWxj1R1dW5iN3mnxkL3D.jpg",
+    "shelf": "HBO Max / Warner Bros. Movies",
+    "releaseDate": "2004-07-16",
+    "genres": [
+      "Comedy"
+    ]
+  },
+  {
+    "id": 11260,
+    "name": "Meet Dave",
+    "poster": "/3Qfav5aVRcZmq854olMjJ795JJ2.jpg",
+    "shelf": "Hulu / 20th Century Movies",
+    "releaseDate": "2008-07-08",
+    "genres": [
+      "Comedy",
+      "Science Fiction",
+      "Adventure"
+    ]
+  },
+  {
+    "id": 11335,
+    "name": "Popeye",
+    "poster": "/hCCp4pESgYY6uTFARYf4UYV1BdU.jpg",
+    "shelf": "Paramount Movies",
+    "releaseDate": "1980-12-12",
+    "genres": [
+      "Adventure",
+      "Comedy"
+    ]
+  },
+  {
+    "id": 11359,
+    "name": "The Indian in the Cupboard",
+    "poster": "/ozQAmW85tTJu2dhRe3evzyY03Nb.jpg",
+    "shelf": "Paramount Movies",
+    "releaseDate": "1995-07-14",
+    "genres": [
+      "Adventure",
+      "Fantasy"
+    ]
+  },
+  {
+    "id": 11528,
+    "name": "The Sandlot",
+    "poster": "/7PYqz0viEuW8qTvuGinUMjDWMnj.jpg",
+    "shelf": "Hulu / 20th Century Movies",
+    "releaseDate": "1993-04-07",
+    "genres": [
+      "Comedy"
+    ]
+  },
+  {
+    "id": 11544,
+    "name": "Lilo & Stitch",
+    "poster": "/cFuLvQJPoZpuruAtN3rVnMmLIH8.jpg",
+    "shelf": "Disney Movies",
+    "releaseDate": "2002-06-21",
+    "genres": [
+      "Comedy",
+      "Science Fiction"
+    ]
+  },
+  {
+    "id": 11571,
+    "name": "Journey to the Center of the Earth",
+    "poster": "/nWn9MRFkC1M13hVf17mT0BfYKbg.jpg",
+    "shelf": "Hulu / 20th Century Movies",
+    "releaseDate": "1959-12-15",
+    "genres": [
+      "Adventure",
+      "Fantasy"
+    ]
+  },
+  {
+    "id": 11688,
+    "name": "The Emperor's New Groove",
+    "poster": "/wwbgkXQBEKtnyIJapk6gUgWkVw8.jpg",
+    "shelf": "Disney Movies",
+    "releaseDate": "2000-12-15",
+    "genres": [
+      "Adventure",
+      "Comedy",
+      "Fantasy"
+    ]
+  },
+  {
+    "id": 11774,
+    "name": "Lemony Snicket's A Series of Unfortunate Events",
+    "poster": "/r7S57FpBsCljWc9fBUo2Iy5XGew.jpg",
+    "shelf": "Nickelodeon Movies",
+    "releaseDate": "2004-12-16",
+    "genres": [
+      "Adventure",
+      "Comedy"
+    ]
+  },
+  {
+    "id": 11806,
+    "name": "Beethoven",
+    "poster": "/aSZYXOmQ9SW27gLdHU02PJQGBMH.jpg",
+    "shelf": "Peacock / Universal Movies",
+    "releaseDate": "1992-04-03",
+    "genres": [
+      "Comedy"
+    ]
+  },
+  {
+    "id": 12144,
+    "name": "The Land Before Time",
+    "poster": "/7phV1ETZnQrLsEeuk4hNeceEl25.jpg",
+    "shelf": "Peacock / Universal Movies",
+    "releaseDate": "1988-11-18",
+    "genres": [
+      "Adventure"
+    ]
+  },
+  {
+    "id": 12155,
+    "name": "Alice in Wonderland",
+    "poster": "/o0kre9wRCZz3jjSjaru7QU0UtFz.jpg",
+    "shelf": "Disney Movies",
+    "releaseDate": "2010-03-03",
+    "genres": [
+      "Fantasy",
+      "Adventure"
+    ]
+  },
+  {
+    "id": 12589,
+    "name": "Jimmy Neutron: Boy Genius",
+    "poster": "/pUwdquA6Bf3Gq8yT5iQL1Yq0jkl.jpg",
+    "shelf": "Nickelodeon Movies",
+    "releaseDate": "2001-12-14",
+    "genres": [
+      "Comedy",
+      "Adventure",
+      "Science Fiction"
+    ]
+  },
+  {
+    "id": 12610,
+    "name": "Osmosis Jones",
+    "poster": "/foZpSG88IQUCEBJE3unc5QzO6bQ.jpg",
+    "shelf": "HBO Max / Warner Bros. Movies",
+    "releaseDate": "2001-08-10",
+    "genres": [
+      "Adventure",
+      "Comedy",
+      "Science Fiction"
+    ]
+  },
+  {
+    "id": 12689,
+    "name": "Angus, Thongs and Perfect Snogging",
+    "poster": "/3WLMr49X84qGiFn1pkCyhS5SEBZ.jpg",
+    "shelf": "Nickelodeon Movies",
+    "releaseDate": "2008-07-25",
+    "genres": [
+      "Comedy"
+    ]
+  },
+  {
+    "id": 13061,
+    "name": "Your Friend the Rat",
+    "poster": "/sgjkYw2LLdsMzCuhKDZBYbhe7QB.jpg",
+    "shelf": "Pixar Movies",
+    "releaseDate": "2007-11-06",
+    "genres": [
+      "Comedy"
+    ]
+  },
+  {
+    "id": 13490,
+    "name": "Welcome Home Roscoe Jenkins",
+    "poster": "/1VzS2bkQHVcIxSeBJifOx65oxHK.jpg",
+    "shelf": "Peacock / Universal Movies",
+    "releaseDate": "2008-02-08",
+    "genres": [
+      "Comedy"
+    ]
+  },
+  {
+    "id": 13499,
+    "name": "Yours, Mine & Ours",
+    "poster": "/1SfsoUYXRRrfL31br8q4DlTYvKK.jpg",
+    "shelf": "Nickelodeon Movies",
+    "releaseDate": "2005-11-23",
+    "genres": [
+      "Comedy"
+    ]
+  },
+  {
+    "id": 13644,
+    "name": "All I Want For Christmas",
+    "poster": "/3Fcyjwyg7Qjp0qUKo4HfoC7JIf.jpg",
+    "shelf": "Paramount Movies",
+    "releaseDate": "1991-11-08",
+    "genres": [
+      "Comedy"
+    ]
+  },
+  {
+    "id": 13929,
+    "name": "Geri's Game",
+    "poster": "/8PdCk3T9EkcKniUviDogWFCXx28.jpg",
+    "shelf": "Pixar Movies",
+    "releaseDate": "1997-11-24",
+    "genres": [
+      "Comedy"
+    ]
+  },
+  {
+    "id": 13934,
+    "name": "Mater and the Ghostlight",
+    "poster": "/thZHluscCvT3SCzVckmFszOVVtM.jpg",
+    "shelf": "Pixar Movies",
+    "releaseDate": "2006-07-27",
+    "genres": [
+      "Comedy"
+    ]
+  },
+  {
+    "id": 13971,
+    "name": "Wild Child",
+    "poster": "/xwbFEPubG4wroLDZdmTWRGNnnWf.jpg",
+    "shelf": "Peacock / Universal Movies",
+    "releaseDate": "2008-08-15",
+    "genres": [
+      "Comedy"
+    ]
+  },
+  {
+    "id": 14317,
+    "name": "The Wild Thornberrys Movie",
+    "poster": "/nmWpcUQtWHC4kjVCygiFEDR1wCY.jpg",
+    "shelf": "Nickelodeon Movies",
+    "releaseDate": "2002-12-20",
+    "genres": [
+      "Comedy",
+      "Adventure"
+    ]
+  },
+  {
+    "id": 14817,
+    "name": "Good Burger",
+    "poster": "/imFLUF2TYkm13GpFYTKYF7T27sP.jpg",
+    "shelf": "Nickelodeon Movies",
+    "releaseDate": "1997-07-25",
+    "genres": [
+      "Comedy"
+    ]
+  },
+  {
+    "id": 15028,
+    "name": "Clockstoppers",
+    "poster": "/6XZJ58gStdLZV8uJyTRcA5bGNyi.jpg",
+    "shelf": "Nickelodeon Movies",
+    "releaseDate": "2002-03-29",
+    "genres": [
+      "Adventure",
+      "Science Fiction"
+    ]
+  },
+  {
+    "id": 15121,
+    "name": "The Sound of Music",
+    "poster": "/5qQTu2iGTiQ2UvyGp0beQAZ2rKx.jpg",
+    "shelf": "Hulu / 20th Century Movies",
+    "releaseDate": "1965-03-29",
+    "genres": []
+  },
+  {
+    "id": 15139,
+    "name": "The Pagemaster",
+    "poster": "/iIWUuCjN8VND7BDugvf45LveA6p.jpg",
+    "shelf": "Hulu / 20th Century Movies",
+    "releaseDate": "1994-11-23",
+    "genres": [
+      "Fantasy",
+      "Adventure"
+    ]
+  },
+  {
+    "id": 15189,
+    "name": "Hotel for Dogs",
+    "poster": "/xD2AssTeySNCamlGueai4yAZZfX.jpg",
+    "shelf": "Nickelodeon Movies",
+    "releaseDate": "2009-01-16",
+    "genres": [
+      "Comedy"
+    ]
+  },
+  {
+    "id": 15489,
+    "name": "Snow Day",
+    "poster": "/myTnHKy178rrd1oUG3GkEvc641G.jpg",
+    "shelf": "Nickelodeon Movies",
+    "releaseDate": "2000-02-11",
+    "genres": [
+      "Comedy",
+      "Adventure"
+    ]
+  },
+  {
+    "id": 15512,
+    "name": "Monsters vs Aliens",
+    "poster": "/hpHarddVj34j53T7NsoUGdKj4mP.jpg",
+    "shelf": "DreamWorks Movies",
+    "releaseDate": "2009-03-19",
+    "genres": [
+      "Adventure",
+      "Science Fiction"
+    ]
+  },
+  {
+    "id": 15648,
+    "name": "The Perfect Man",
+    "poster": "/sT4sCDXcqQBjAqyDaofkRmP0er5.jpg",
+    "shelf": "Peacock / Universal Movies",
+    "releaseDate": "2005-06-17",
+    "genres": [
+      "Comedy"
+    ]
+  },
+  {
+    "id": 16340,
+    "name": "Rugrats in Paris: The Movie",
+    "poster": "/grIL8mvfLznaWsv7EEEPhCpkH81.jpg",
+    "shelf": "Nickelodeon Movies",
+    "releaseDate": "2000-11-17",
+    "genres": [
+      "Adventure",
+      "Comedy"
+    ]
+  },
+  {
+    "id": 17710,
+    "name": "Hey Arnold! The Movie",
+    "poster": "/etxcq4qiFNi5p0q71APw8MNzPPT.jpg",
+    "shelf": "Nickelodeon Movies",
+    "releaseDate": "2002-06-28",
+    "genres": [
+      "Comedy",
+      "Adventure"
+    ]
+  },
+  {
+    "id": 17979,
+    "name": "A Christmas Carol",
+    "poster": "/xNwlAIdx1Ln28GRiQttUP9Gojy2.jpg",
+    "shelf": "Disney Movies",
+    "releaseDate": "2009-11-04",
+    "genres": [
+      "Fantasy"
+    ]
+  },
+  {
+    "id": 18360,
+    "name": "Night at the Museum: Battle of the Smithsonian",
+    "poster": "/l9yAQn6TyrA3gv5xZZkiMMoZsiw.jpg",
+    "shelf": "Hulu / 20th Century Movies",
+    "releaseDate": "2009-05-20",
+    "genres": [
+      "Adventure",
+      "Fantasy",
+      "Comedy"
+    ]
+  },
+  {
+    "id": 19101,
+    "name": "A Little Princess",
+    "poster": "/9V4bAVEskSNbEqjVI0YmeuB0n8I.jpg",
+    "shelf": "HBO Max / Warner Bros. Movies",
+    "releaseDate": "1995-05-10",
+    "genres": [
+      "Fantasy"
+    ]
+  },
+  {
+    "id": 19724,
+    "name": "Imagine That",
+    "poster": "/lyCTP5C3raH46hJNS9WfBSnWHsG.jpg",
+    "shelf": "Nickelodeon Movies",
+    "releaseDate": "2009-06-19",
+    "genres": [
+      "Comedy",
+      "Fantasy"
+    ]
+  },
+  {
+    "id": 20694,
+    "name": "Rugrats Go Wild",
+    "poster": "/hpVpXRNY2IsU0xvfXtYOxu0QDwc.jpg",
+    "shelf": "Nickelodeon Movies",
+    "releaseDate": "2003-06-13",
+    "genres": [
+      "Comedy",
+      "Adventure",
+      "Fantasy"
+    ]
+  },
+  {
+    "id": 21032,
+    "name": "Balto",
+    "poster": "/dCVcdb5oxDizqFLz0F7TE60NoC9.jpg",
+    "shelf": "Peacock / Universal Movies",
+    "releaseDate": "1995-12-22",
+    "genres": [
+      "Adventure"
+    ]
+  },
+  {
+    "id": 23398,
+    "name": "Alvin and the Chipmunks: The Squeakquel",
+    "poster": "/A2tgUeWadVJs1g6zOCZgKRs8uWC.jpg",
+    "shelf": "Hulu / 20th Century Movies",
+    "releaseDate": "2009-12-21",
+    "genres": [
+      "Comedy",
+      "Fantasy"
+    ]
+  },
+  {
+    "id": 24589,
+    "name": "Dug's Special Mission",
+    "poster": "/o0ydUDS80j9YTQ3JbUmD3CRPitd.jpg",
+    "shelf": "Pixar Movies",
+    "releaseDate": "2009-11-10",
+    "genres": [
+      "Comedy"
+    ]
+  },
+  {
+    "id": 38745,
+    "name": "Gulliver's Travels",
+    "poster": "/6NoEtuTwZ04luk5H2DpT5ivW7Mg.jpg",
+    "shelf": "Hulu / 20th Century Movies",
+    "releaseDate": "2010-12-23",
+    "genres": [
+      "Comedy",
+      "Adventure",
+      "Fantasy"
+    ]
+  },
+  {
+    "id": 39691,
+    "name": "Cats & Dogs: The Revenge of Kitty Galore",
+    "poster": "/syV2naEnz7wbakOOk7XanPX8MjL.jpg",
+    "shelf": "HBO Max / Warner Bros. Movies",
+    "releaseDate": "2010-07-29",
+    "genres": [
+      "Adventure",
+      "Comedy",
+      "Fantasy"
+    ]
+  },
+  {
+    "id": 41216,
+    "name": "Legend of the Guardians: The Owls of Ga'Hoole",
+    "poster": "/qweKCtPdnIP2uGp1PgWZyCV7gzj.jpg",
+    "shelf": "HBO Max / Warner Bros. Movies",
+    "releaseDate": "2010-07-10",
+    "genres": [
+      "Adventure",
+      "Fantasy"
+    ]
+  },
+  {
+    "id": 41515,
+    "name": "Yogi Bear",
+    "poster": "/5u6kGhqKVorNwcvz6zETWUPRmus.jpg",
+    "shelf": "HBO Max / Warner Bros. Movies",
+    "releaseDate": "2010-12-17",
+    "genres": [
+      "Comedy",
+      "Adventure"
+    ]
+  },
+  {
+    "id": 42246,
+    "name": "Tom and Jerry: The Fast and the Furry",
+    "poster": "/4pQhh5bU1KcUeXqPOteWsCkNZPK.jpg",
+    "shelf": "HBO Max / Warner Bros. Movies",
+    "releaseDate": "2005-09-03",
+    "genres": [
+      "Comedy"
+    ]
+  },
+  {
+    "id": 45752,
+    "name": "Scooby-Doo! Camp Scare",
+    "poster": "/zurVOCpOLwLTBknYlgcXHWE0xvu.jpg",
+    "shelf": "HBO Max / Warner Bros. Movies",
+    "releaseDate": "2010-09-14",
+    "genres": [
+      "Comedy"
+    ]
+  },
+  {
+    "id": 50359,
+    "name": "Hop",
+    "poster": "/2FrDmwXWjRE1zpNP288YncRt5RF.jpg",
+    "shelf": "Peacock / Universal Movies",
+    "releaseDate": "2011-03-30",
+    "genres": [
+      "Comedy"
+    ]
+  },
+  {
+    "id": 55301,
+    "name": "Alvin and the Chipmunks: Chipwrecked",
+    "poster": "/npOXWVoZyl8UrF2wtByHtfmsWSX.jpg",
+    "shelf": "Hulu / 20th Century Movies",
+    "releaseDate": "2011-12-14",
+    "genres": [
+      "Comedy",
+      "Fantasy"
+    ]
+  },
+  {
+    "id": 57800,
+    "name": "Ice Age: Continental Drift",
+    "poster": "/dfp1BZF7FxbBUyzHvMOI9t8NWDD.jpg",
+    "shelf": "Hulu / 20th Century Movies",
+    "releaseDate": "2012-06-27",
+    "genres": [
+      "Comedy",
+      "Adventure"
+    ]
+  },
+  {
+    "id": 58224,
+    "name": "Mr. Popper's Penguins",
+    "poster": "/jGwZ1QI5DaL7mHQ2ZsMV1p8xvPS.jpg",
+    "shelf": "Hulu / 20th Century Movies",
+    "releaseDate": "2011-06-17",
+    "genres": [
+      "Comedy"
+    ]
+  },
+  {
+    "id": 59387,
+    "name": "The Powerpuff Girls Movie",
+    "poster": "/yAFalW8UtdJg1z1gPjXx8C1sXZq.jpg",
+    "shelf": "HBO Max / Warner Bros. Movies",
+    "releaseDate": "2002-07-03",
+    "genres": []
+  },
+  {
+    "id": 74465,
+    "name": "We Bought a Zoo",
+    "poster": "/dcOvIqdsojUdAtWt1nPT9xS76Su.jpg",
+    "shelf": "Hulu / 20th Century Movies",
+    "releaseDate": "2011-11-26",
+    "genres": [
+      "Comedy"
+    ]
+  },
+  {
+    "id": 77887,
+    "name": "Hawaiian Vacation",
+    "poster": "/iLFYR0HRLmPfXzQdvGvlJhfwtH1.jpg",
+    "shelf": "Pixar Movies",
+    "releaseDate": "2011-06-16",
+    "genres": [
+      "Comedy"
+    ]
+  },
+  {
+    "id": 77950,
+    "name": "Turbo",
+    "poster": "/inTKQni4YW8syrfgnXHwzmNeSo4.jpg",
+    "shelf": "DreamWorks Movies",
+    "releaseDate": "2013-07-11",
+    "genres": []
+  },
+  {
+    "id": 80321,
+    "name": "Madagascar 3: Europe's Most Wanted",
+    "poster": "/ekraj4ksvIKeuvQVEevEJkuybZd.jpg",
+    "shelf": "DreamWorks Movies",
+    "releaseDate": "2012-06-06",
+    "genres": [
+      "Comedy",
+      "Adventure"
+    ]
+  },
+  {
+    "id": 82690,
+    "name": "Wreck-It Ralph",
+    "poster": "/zWoIgZ7mgmPkaZjG0102BSKFIqQ.jpg",
+    "shelf": "Disney Movies",
+    "releaseDate": "2012-11-01",
+    "genres": [
+      "Comedy",
+      "Adventure"
+    ]
+  },
+  {
+    "id": 102651,
+    "name": "Maleficent",
+    "poster": "/ik8PugpL41s137RAWEGTAWu0dPo.jpg",
+    "shelf": "Disney Movies",
+    "releaseDate": "2014-05-28",
+    "genres": [
+      "Fantasy",
+      "Adventure"
+    ]
+  },
+  {
+    "id": 150689,
+    "name": "Cinderella",
+    "poster": "/j91LJmcWo16CArFOoapsz84bwxb.jpg",
+    "shelf": "Disney Movies",
+    "releaseDate": "2015-03-06",
+    "genres": [
+      "Fantasy"
+    ]
+  },
+  {
+    "id": 158852,
+    "name": "Tomorrowland",
+    "poster": "/kziYpr5Nfw60P0My8aj1sgCEqed.jpg",
+    "shelf": "Disney Movies",
+    "releaseDate": "2015-05-19",
+    "genres": [
+      "Adventure",
+      "Science Fiction"
+    ]
+  },
+  {
+    "id": 177572,
+    "name": "Big Hero 6",
+    "poster": "/2mxS4wUimwlLmI1xp6QW6NSU361.jpg",
+    "shelf": "Disney Movies",
+    "releaseDate": "2014-10-24",
+    "genres": [
+      "Adventure",
+      "Comedy"
+    ]
+  },
+  {
+    "id": 181533,
+    "name": "Night at the Museum: Secret of the Tomb",
+    "poster": "/xwgy305K6qDs3D20xUO4OZu1HPY.jpg",
+    "shelf": "Hulu / 20th Century Movies",
+    "releaseDate": "2014-12-17",
+    "genres": [
+      "Adventure",
+      "Comedy",
+      "Fantasy"
+    ]
+  },
+  {
+    "id": 228161,
+    "name": "Home",
+    "poster": "/usFenYnk6mr8C62dB1MoAfSWMGR.jpg",
+    "shelf": "DreamWorks Movies",
+    "releaseDate": "2015-03-18",
+    "genres": [
+      "Fantasy",
+      "Comedy",
+      "Science Fiction"
+    ]
+  },
+  {
+    "id": 228165,
+    "name": "The SpongeBob Movie: Sponge Out of Water",
+    "poster": "/2WDmjUlSAPlA27i2OwEC7sRTFw3.jpg",
+    "shelf": "Nickelodeon Movies",
+    "releaseDate": "2015-01-28",
+    "genres": [
+      "Adventure",
+      "Comedy",
+      "Fantasy"
+    ]
+  },
+  {
+    "id": 241259,
+    "name": "Alice Through the Looking Glass",
+    "poster": "/kbGamUkYfgKIYIrU8kW5oc0NatZ.jpg",
+    "shelf": "Disney Movies",
+    "releaseDate": "2016-05-25",
+    "genres": [
+      "Adventure",
+      "Fantasy"
+    ]
+  },
+  {
+    "id": 256835,
+    "name": "Toy Story That Time Forgot",
+    "poster": "/kVOaFo8RaYQceHfTqbZGmV9R80q.jpg",
+    "shelf": "Pixar Movies",
+    "releaseDate": "2014-12-02",
+    "genres": [
+      "Adventure",
+      "Comedy"
+    ]
+  },
+  {
+    "id": 266647,
+    "name": "Pan",
+    "poster": "/w8i0mZR7MEL7c3bXSsuYg7VJsew.jpg",
+    "shelf": "HBO Max / Warner Bros. Movies",
+    "releaseDate": "2015-09-24",
+    "genres": [
+      "Fantasy",
+      "Adventure"
+    ]
+  },
+  {
+    "id": 268531,
+    "name": "Captain Underpants: The First Epic Movie",
+    "poster": "/vKSmaPct5OEeMoD8ue30RisHlKD.jpg",
+    "shelf": "DreamWorks Movies",
+    "releaseDate": "2017-06-01",
+    "genres": [
+      "Comedy",
+      "Science Fiction"
+    ]
+  },
+  {
+    "id": 270946,
+    "name": "Penguins of Madagascar",
+    "poster": "/dXbpNrPDZDMEbujFoOxmMNQVMHa.jpg",
+    "shelf": "DreamWorks Movies",
+    "releaseDate": "2014-11-22",
+    "genres": [
+      "Adventure",
+      "Comedy"
+    ]
+  },
+  {
+    "id": 278154,
+    "name": "Ice Age: Collision Course",
+    "poster": "/tFzUkdhPOForVrEfvxydXfPLrZR.jpg",
+    "shelf": "Hulu / 20th Century Movies",
+    "releaseDate": "2016-06-23",
+    "genres": [
+      "Adventure",
+      "Comedy",
+      "Science Fiction"
+    ]
+  },
+  {
+    "id": 278927,
+    "name": "The Jungle Book",
+    "poster": "/2Epx7F9X7DrFptn4seqn4mzBVks.jpg",
+    "shelf": "Disney Movies",
+    "releaseDate": "2016-04-07",
+    "genres": [
+      "Adventure",
+      "Fantasy"
+    ]
+  },
+  {
+    "id": 308531,
+    "name": "Teenage Mutant Ninja Turtles: Out of the Shadows",
+    "poster": "/euVaCiCWz3AALcQXHT6aUqdGUo6.jpg",
+    "shelf": "Nickelodeon Movies",
+    "releaseDate": "2016-05-30",
+    "genres": [
+      "Adventure",
+      "Comedy",
+      "Science Fiction"
+    ]
+  },
+  {
+    "id": 321612,
+    "name": "Beauty and the Beast",
+    "poster": "/hKegSKIDep2ewJWPUQD7u0KqFIp.jpg",
+    "shelf": "Disney Movies",
+    "releaseDate": "2017-03-16",
+    "genres": [
+      "Fantasy"
+    ]
+  },
+  {
+    "id": 332210,
+    "name": "Storks",
+    "poster": "/pwGolX8JmGJhhcUjO5SJt38Uk0m.jpg",
+    "shelf": "HBO Max / Warner Bros. Movies",
+    "releaseDate": "2016-09-22",
+    "genres": [
+      "Adventure",
+      "Comedy"
+    ]
+  },
+  {
+    "id": 370567,
+    "name": "Sherlock Gnomes",
+    "poster": "/wqnzpJR3PwS4doVkAkt9seSEpoX.jpg",
+    "shelf": "Paramount Movies",
+    "releaseDate": "2018-03-15",
+    "genres": [
+      "Comedy",
+      "Adventure"
+    ]
+  },
+  {
+    "id": 379686,
+    "name": "Space Jam: A New Legacy",
+    "poster": "/5bFK5d3mVTAvBCXi5NPWH0tYjKl.jpg",
+    "shelf": "HBO Max / Warner Bros. Movies",
+    "releaseDate": "2021-07-08",
+    "genres": [
+      "Comedy",
+      "Adventure",
+      "Science Fiction"
+    ]
+  },
+  {
+    "id": 399106,
+    "name": "Piper",
+    "poster": "/5fu2d809jepLwEpES7wggiECLoQ.jpg",
+    "shelf": "Pixar Movies",
+    "releaseDate": "2016-06-16",
+    "genres": []
+  },
+  {
+    "id": 400650,
+    "name": "Mary Poppins Returns",
+    "poster": "/uTVGku4LibMGyKgQvjBtv3OYfAX.jpg",
+    "shelf": "Disney Movies",
+    "releaseDate": "2018-12-13",
+    "genres": [
+      "Fantasy",
+      "Comedy"
+    ]
+  },
+  {
+    "id": 404368,
+    "name": "Ralph Breaks the Internet",
+    "poster": "/iVCrhBcpDaHGvv7CLYbK6PuXZo1.jpg",
+    "shelf": "Disney Movies",
+    "releaseDate": "2018-11-20",
+    "genres": [
+      "Comedy",
+      "Adventure",
+      "Science Fiction"
+    ]
+  },
+  {
+    "id": 410113,
+    "name": "The Loud House Movie",
+    "poster": "/mab5wPeGVjbMyYMzyzfdKKnG9cl.jpg",
+    "shelf": "Nickelodeon Movies",
+    "releaseDate": "2021-08-20",
+    "genres": [
+      "Comedy",
+      "Fantasy"
+    ]
+  },
+  {
+    "id": 420809,
+    "name": "Maleficent: Mistress of Evil",
+    "poster": "/vloNTScJ3w7jwNwtNGoG8DbTThv.jpg",
+    "shelf": "Disney Movies",
+    "releaseDate": "2019-10-16",
+    "genres": [
+      "Fantasy",
+      "Adventure"
+    ]
+  },
+  {
+    "id": 420817,
+    "name": "Aladdin",
+    "poster": "/ykUEbfpkf8d0w49pHh0AD2KrT52.jpg",
+    "shelf": "Disney Movies",
+    "releaseDate": "2019-05-22",
+    "genres": [
+      "Adventure",
+      "Fantasy"
+    ]
+  },
+  {
+    "id": 420818,
+    "name": "The Lion King",
+    "poster": "/dzBtMocZuJbjLOXvrl4zGYigDzh.jpg",
+    "shelf": "Disney Movies",
+    "releaseDate": "2019-07-12",
+    "genres": [
+      "Adventure"
+    ]
+  },
+  {
+    "id": 427561,
+    "name": "An American Girl Story: Maryellen 1955 - Extraordinary Christmas",
+    "poster": "/57NImulVLzvxOTLsON6gtnBof9v.jpg",
+    "shelf": "Prime Video Movies",
+    "releaseDate": "2016-11-25",
+    "genres": []
+  },
+  {
+    "id": 427564,
+    "name": "Scooby-Doo! Shaggy's Showdown",
+    "poster": "/rqw4Cis6dliACGzaejR5icXjA52.jpg",
+    "shelf": "HBO Max / Warner Bros. Movies",
+    "releaseDate": "2017-02-14",
+    "genres": [
+      "Comedy"
+    ]
+  },
+  {
+    "id": 447273,
+    "name": "Snow White",
+    "poster": "/oLxWocqheC8XbXbxqJ3x422j9PW.jpg",
+    "shelf": "Disney Movies",
+    "releaseDate": "2025-03-19",
+    "genres": [
+      "Fantasy"
+    ]
+  },
+  {
+    "id": 448119,
+    "name": "Dolittle",
+    "poster": "/3Nt3v1uzUgfSuVARD1AnI9g9Zl9.jpg",
+    "shelf": "Peacock / Universal Movies",
+    "releaseDate": "2020-01-02",
+    "genres": [
+      "Comedy",
+      "Fantasy",
+      "Adventure"
+    ]
+  },
+  {
+    "id": 454294,
+    "name": "The Kid Who Would Be King",
+    "poster": "/kBuvLX6zynQP0sjyqbXV4jNaZ4E.jpg",
+    "shelf": "Hulu / 20th Century Movies",
+    "releaseDate": "2019-01-16",
+    "genres": [
+      "Adventure",
+      "Fantasy"
+    ]
+  },
+  {
+    "id": 495504,
+    "name": "A History of Radness",
+    "poster": "/355ZMOeRNNHyjVVbBF4MN53rqta.jpg",
+    "shelf": "Prime Video Movies",
+    "releaseDate": "2015-06-26",
+    "genres": []
+  },
+  {
+    "id": 508947,
+    "name": "Turning Red",
+    "poster": "/qsdjk9oAKSQMWs0Vt5Pyfh6O4GZ.jpg",
+    "shelf": "Pixar Movies",
+    "releaseDate": "2022-03-10",
+    "genres": [
+      "Comedy",
+      "Fantasy"
+    ]
+  },
+  {
+    "id": 525946,
+    "name": "Troop Zero",
+    "poster": "/yr1RzTrVIfS5n9zvClUfAtZDyUn.jpg",
+    "shelf": "Prime Video Movies",
+    "releaseDate": "2019-02-01",
+    "genres": [
+      "Comedy"
+    ]
+  },
+  {
+    "id": 529203,
+    "name": "The Croods: A New Age",
+    "poster": "/tbVZ3Sq88dZaCANlUcewQuHQOaE.jpg",
+    "shelf": "DreamWorks Movies",
+    "releaseDate": "2020-11-25",
+    "genres": [
+      "Adventure",
+      "Fantasy",
+      "Comedy"
+    ]
+  },
+  {
+    "id": 531219,
+    "name": "Roald Dahl's The Witches",
+    "poster": "/betExZlgK0l7CZ9CsCBVcwO1OjL.jpg",
+    "shelf": "HBO Max / Warner Bros. Movies",
+    "releaseDate": "2020-10-26",
+    "genres": [
+      "Comedy",
+      "Fantasy"
+    ]
+  },
+  {
+    "id": 552524,
+    "name": "Lilo & Stitch",
+    "poster": "/ckQzKpQJO4ZQDCN5evdpKcfm7Ys.jpg",
+    "shelf": "Disney Movies",
+    "releaseDate": "2025-05-17",
+    "genres": [
+      "Science Fiction",
+      "Comedy"
+    ]
+  },
+  {
+    "id": 554241,
+    "name": "Playing with Fire",
+    "poster": "/nBLPIpReSatt1zcgVzSVzq5e581.jpg",
+    "shelf": "Nickelodeon Movies",
+    "releaseDate": "2019-11-08",
+    "genres": [
+      "Comedy"
+    ]
+  },
+  {
+    "id": 587807,
+    "name": "Tom & Jerry",
+    "poster": "/8XZI9QZ7Pm3fVkigWJPbrXCMzjq.jpg",
+    "shelf": "HBO Max / Warner Bros. Movies",
+    "releaseDate": "2021-02-10",
+    "genres": [
+      "Comedy"
+    ]
+  },
+  {
+    "id": 598331,
+    "name": "Rumble",
+    "poster": "/3eZRgjfFWTpejRvRKyKe1EKgt9s.jpg",
+    "shelf": "Paramount Movies",
+    "releaseDate": "2021-02-12",
+    "genres": [
+      "Comedy",
+      "Fantasy"
+    ]
+  },
+  {
+    "id": 598387,
+    "name": "The Tiger's Apprentice",
+    "poster": "/64ZktFMmTzsm47wdsaMOID0DzcY.jpg",
+    "shelf": "Paramount Movies",
+    "releaseDate": "2024-02-16",
+    "genres": [
+      "Fantasy"
+    ]
+  },
+  {
+    "id": 670328,
+    "name": "Dino Dana: The Movie",
+    "poster": "/ovrVAIXOuES7ZM90uFhrM9xoRW4.jpg",
+    "shelf": "Prime Video Movies",
+    "releaseDate": "2020-03-21",
+    "genres": [
+      "Adventure",
+      "Comedy",
+      "Fantasy"
+    ]
+  },
+  {
+    "id": 718789,
+    "name": "Lightyear",
+    "poster": "/ox4goZd956BxqJH6iLwhWPL9ct4.jpg",
+    "shelf": "Pixar Movies",
+    "releaseDate": "2022-06-15",
+    "genres": [
+      "Science Fiction",
+      "Adventure"
+    ]
+  },
+  {
+    "id": 762509,
+    "name": "Mufasa: The Lion King",
+    "poster": "/jbOSUAWMGzGL1L4EaUF8K6zYFo7.jpg",
+    "shelf": "Disney Movies",
+    "releaseDate": "2024-12-18",
+    "genres": [
+      "Adventure"
+    ]
+  },
+  {
+    "id": 774370,
+    "name": "Dog Man",
+    "poster": "/89wNiexZdvLQ41OQWIsQy4O6jAQ.jpg",
+    "shelf": "DreamWorks Movies",
+    "releaseDate": "2025-01-24",
+    "genres": [
+      "Comedy",
+      "Adventure"
+    ]
+  },
+  {
+    "id": 791155,
+    "name": "Secret Headquarters",
+    "poster": "/v6mvk0YC4o0PUdq82IbNRjIEEv3.jpg",
+    "shelf": "Paramount Movies",
+    "releaseDate": "2022-08-12",
+    "genres": [
+      "Comedy",
+      "Science Fiction"
+    ]
+  },
+  {
+    "id": 831815,
+    "name": "Saving Bikini Bottom: The Sandy Cheeks Movie",
+    "poster": "/30YnfZdMNIV7noWLdvmcJS0cbnQ.jpg",
+    "shelf": "Nickelodeon Movies",
+    "releaseDate": "2024-10-01",
+    "genres": [
+      "Comedy",
+      "Adventure"
+    ]
+  },
+  {
+    "id": 870360,
+    "name": "The Day the Earth Blew Up: A Looney Tunes Movie",
+    "poster": "/s2lB1kaYCdGSnZX5meQCiOR6HfX.jpg",
+    "shelf": "HBO Max / Warner Bros. Movies",
+    "releaseDate": "2024-08-01",
+    "genres": [
+      "Comedy",
+      "Adventure",
+      "Science Fiction"
+    ]
+  },
+  {
+    "id": 901362,
+    "name": "Trolls Band Together",
+    "poster": "/bkpPTZUdq31UGDovmszsg2CchiI.jpg",
+    "shelf": "DreamWorks Movies",
+    "releaseDate": "2023-10-12",
+    "genres": [
+      "Fantasy",
+      "Comedy",
+      "Adventure"
+    ]
+  },
+  {
+    "id": 926670,
+    "name": "Henry Danger: The Movie",
+    "poster": "/dFWj2rOGsqSIX1PHFghbCBgpMnk.jpg",
+    "shelf": "Nickelodeon Movies",
+    "releaseDate": "2025-01-17",
+    "genres": [
+      "Comedy",
+      "Science Fiction"
+    ]
+  },
+  {
+    "id": 950387,
+    "name": "A Minecraft Movie",
+    "poster": "/yFHHfHcUgGAxziP1C3lLt0q2T4s.jpg",
+    "shelf": "HBO Max / Warner Bros. Movies",
+    "releaseDate": "2025-03-31",
+    "genres": [
+      "Fantasy",
+      "Comedy",
+      "Adventure"
+    ]
+  },
+  {
+    "id": 991494,
+    "name": "The SpongeBob Movie: Search for SquarePants",
+    "poster": "/xJnOMMsFASxNiFnG7v3TNIQ3ife.jpg",
+    "shelf": "Nickelodeon Movies",
+    "releaseDate": "2025-12-16",
+    "genres": [
+      "Adventure",
+      "Comedy",
+      "Fantasy"
+    ]
+  },
+  {
+    "id": 1022787,
+    "name": "Elio",
+    "poster": "/7z8jDiTZZco9moIKpTUImFtTy7o.jpg",
+    "shelf": "Pixar Movies",
+    "releaseDate": "2025-06-18",
+    "genres": [
+      "Adventure",
+      "Science Fiction",
+      "Comedy"
+    ]
+  },
+  {
+    "id": 1076364,
+    "name": "Carl's Date",
+    "poster": "/wakoF2UgsEE3fGs5KpuwMWsaNr2.jpg",
+    "shelf": "Pixar Movies",
+    "releaseDate": "2023-06-15",
+    "genres": [
+      "Comedy"
+    ]
+  },
+  {
+    "id": 1084242,
+    "name": "Zootopia 2",
+    "poster": "/oJ7g2CifqpStmoYQyaLQgEU32qO.jpg",
+    "shelf": "Disney Movies",
+    "releaseDate": "2025-11-26",
+    "genres": [
+      "Adventure",
+      "Comedy"
+    ]
+  },
+  {
+    "id": 1084244,
+    "name": "Toy Story 5",
+    "poster": "/sfQtVlIHljToOwYjhe21KPGzZWK.jpg",
+    "shelf": "Pixar Movies",
+    "releaseDate": "2026-06-17",
+    "genres": [
+      "Comedy",
+      "Adventure"
+    ]
+  },
+  {
+    "id": 1087192,
+    "name": "How to Train Your Dragon",
+    "poster": "/53dsJ3oEnBhTBVMigWJ9tkA5bzJ.jpg",
+    "shelf": "DreamWorks Movies",
+    "releaseDate": "2025-06-06",
+    "genres": [
+      "Fantasy",
+      "Adventure"
+    ]
+  },
+  {
+    "id": 1108427,
+    "name": "Moana",
+    "poster": "/gaet1xQ2nxrG0V1Ep9T20ZMNEIC.jpg",
+    "shelf": "Disney Movies",
+    "releaseDate": "2026-07-08",
+    "genres": [
+      "Fantasy",
+      "Comedy",
+      "Adventure"
+    ]
+  },
+  {
+    "id": 1175942,
+    "name": "The Bad Guys 2",
+    "poster": "/26oSPnq0ct59l07QOXZKyzsiRtN.jpg",
+    "shelf": "DreamWorks Movies",
+    "releaseDate": "2025-07-24",
+    "genres": [
+      "Comedy",
+      "Adventure"
+    ]
+  },
+  {
+    "id": 1185806,
+    "name": "PAW Patrol: The Dino Movie",
+    "poster": "/cxXSF4aY5N2cOGwaga5OnpPFHzk.jpg",
+    "shelf": "Nickelodeon Movies",
+    "releaseDate": "2026-07-23",
+    "genres": [
+      "Adventure",
+      "Fantasy",
+      "Comedy"
+    ]
+  },
+  {
+    "id": 1204680,
+    "name": "Coyote vs. Acme",
+    "poster": "/kYDCl2y0VPvhT5eYWbMRInPoB03.jpg",
+    "shelf": "HBO Max / Warner Bros. Movies",
+    "releaseDate": "2026-08-20",
+    "genres": [
+      "Comedy",
+      "Adventure"
+    ]
+  },
+  {
+    "id": 1216512,
+    "name": "The Casagrandes Movie",
+    "poster": "/1ZHetsKD44xB63ZjTjqryC0CtoL.jpg",
+    "shelf": "Nickelodeon Movies",
+    "releaseDate": "2024-03-21",
+    "genres": [
+      "Comedy"
+    ]
+  },
+  {
+    "id": 1226863,
+    "name": "The Super Mario Galaxy Movie",
+    "poster": "/eJGWx219ZcEMVQJhAgMiqo8tYY.jpg",
+    "shelf": "Peacock / Universal Movies",
+    "releaseDate": "2026-04-01",
+    "genres": [
+      "Comedy",
+      "Adventure",
+      "Fantasy"
+    ]
+  },
+  {
+    "id": 1239146,
+    "name": "Woody Woodpecker Goes to Camp",
+    "poster": "/6hw6zvAsBSMyDxnk68XPpjZZyvz.jpg",
+    "shelf": "Peacock / Universal Movies",
+    "releaseDate": "2024-04-12",
+    "genres": [
+      "Comedy"
+    ]
+  },
+  {
+    "id": 1280768,
+    "name": "No Time to Spy: A Loud House Movie",
+    "poster": "/mh4Mk95u7fdY4D4t5kRGQpQbVFy.jpg",
+    "shelf": "Nickelodeon Movies",
+    "releaseDate": "2024-06-21",
+    "genres": [
+      "Adventure",
+      "Comedy"
+    ]
+  },
+  {
+    "id": 1287536,
+    "name": "Dora and the Search for Sol Dorado",
+    "poster": "/r3d6u2n7iPoWNsSWwlJJWrDblOH.jpg",
+    "shelf": "Nickelodeon Movies",
+    "releaseDate": "2025-07-02",
+    "genres": [
+      "Comedy",
+      "Adventure"
+    ]
+  },
+  {
+    "id": 1315772,
+    "name": "Minions & Monsters",
+    "poster": "/4LwvU9SZc8QQzW1X1FAPhNbXnEU.jpg",
+    "shelf": "Peacock / Universal Movies",
+    "releaseDate": "2026-06-24",
+    "genres": [
+      "Adventure",
+      "Comedy",
+      "Fantasy"
+    ]
+  },
+  {
+    "id": 1327819,
+    "name": "Hoppers",
+    "poster": "/xjtWQ2CL1mpmMNwuU5HeS4Iuwuu.jpg",
+    "shelf": "Pixar Movies",
+    "releaseDate": "2026-03-04",
+    "genres": [
+      "Adventure",
+      "Comedy",
+      "Science Fiction"
+    ]
+  },
+  {
+    "id": 1538497,
+    "name": "Hexed",
+    "poster": "/yykeYKbDBM9eUMJUucaaDo2mi1p.jpg",
+    "shelf": "Disney Movies",
+    "releaseDate": "2026-11-25",
+    "genres": [
+      "Fantasy"
+    ]
+  },
+  {
+    "id": 1559984,
+    "name": "My Weird School",
+    "poster": "/y0rRAxg4WBC91IKRAaGckQysrG0.jpg",
+    "shelf": "Nickelodeon Movies",
+    "releaseDate": "2025-12-30",
+    "genres": [
+      "Comedy",
+      "Science Fiction"
+    ]
+  },
+  {
+    "id": 3218,
+    "name": "Caillou",
+    "poster": "/86fn0dy8u6vVa2KahZEkc31msm4.jpg",
+    "shelf": "Teletoon Shows",
+    "releaseDate": "1997-09-15",
+    "genres": []
+  },
+  {
+    "id": 4887,
+    "name": "Barney & Friends",
+    "poster": "/ijt54PA1pZ2ae68ODBk3vfWSK0e.jpg",
+    "shelf": "PBS KIDS Shows",
+    "releaseDate": "1992-04-06",
+    "genres": [
+      "Comedy"
+    ]
+  },
+  {
+    "id": 32896,
+    "name": "The Cat in the Hat Knows a Lot About That!",
+    "poster": "/97qKiavvmvpYNBR8mhH5e5YVOTw.jpg",
+    "shelf": "Treehouse TV Shows",
+    "releaseDate": "2010-09-06",
+    "genres": []
+  },
+  {
+    "id": 1682,
+    "name": "Teletubbies",
+    "poster": "/sNaiGG5Wh8DBVep9fKb81fyAe7y.jpg",
+    "shelf": "PBS KIDS Shows",
+    "releaseDate": "1997-03-31",
+    "genres": []
+  },
+  {
+    "id": 8379,
+    "name": "Clifford the Big Red Dog",
+    "poster": "/8HG3AvWACybWOvQfJycuQem6B3a.jpg",
+    "shelf": "PBS KIDS Shows",
+    "releaseDate": "2000-09-04",
+    "genres": []
+  },
+  {
+    "id": 1812,
+    "name": "Peep and the Big Wide World",
+    "poster": "/h57yV94qcZcoGf3BNQQUtQa8wvi.jpg",
+    "shelf": "PBS KIDS Shows",
+    "releaseDate": "2004-04-12",
+    "genres": []
+  },
+  {
+    "id": 1585,
+    "name": "Dragon Tales",
+    "poster": "/pwAe79bXMfzjD4l4s2k1ZFXq8T2.jpg",
+    "shelf": "PBS KIDS Shows",
+    "releaseDate": "1999-09-06",
+    "genres": [
+      "Comedy"
+    ]
+  },
+  {
+    "id": 13605,
+    "name": "Jakers! The Adventures of Piggley Winks",
+    "poster": "/vJmdj1yZ5MY3repUubHK39cqUbt.jpg",
+    "shelf": "CBBC Shows",
+    "releaseDate": "2003-09-07",
+    "genres": [
+      "Comedy"
+    ]
+  },
+  {
+    "id": 34449,
+    "name": "Chloe's Closet",
+    "poster": "/235HoVZpiqSjCgQd9SHDODOP1I9.jpg",
+    "shelf": "PBS KIDS Shows",
+    "releaseDate": "2010-04-19",
+    "genres": [
+      "Comedy"
+    ]
+  },
+  {
+    "id": 3925,
+    "name": "Ghostwriter",
+    "poster": "/1enj0PMkMBUtRYbWZbfsmv7DUrO.jpg",
+    "shelf": "PBS KIDS Shows",
+    "releaseDate": "1992-10-03",
+    "genres": [
+      "Mysteries"
+    ]
+  },
+  {
+    "id": 103540,
+    "name": "Percy Jackson and the Olympians",
+    "poster": "/zofPiEpwCRYaezOncTlQwXebHFU.jpg",
+    "shelf": "Disney Shows",
+    "releaseDate": "2023-12-19",
+    "genres": [
+      "Adventure"
+    ]
+  },
+  {
+    "id": 61923,
+    "name": "Star vs. the Forces of Evil",
+    "poster": "/dKFL1AOdKNoazqZDg1zq2z69Lx1.jpg",
+    "shelf": "Disney XD Shows",
+    "releaseDate": "2015-01-18",
+    "genres": [
+      "Comedy",
+      "Adventure"
+    ]
+  },
+  {
+    "id": 21641,
+    "name": "Good Luck Charlie",
+    "poster": "/cyYwkXW1vd3YpiFVlb7y0hgIzuu.jpg",
+    "shelf": "Disney Shows",
+    "releaseDate": "2010-04-04",
+    "genres": [
+      "Comedy"
+    ]
+  },
+  {
+    "id": 80587,
+    "name": "Big City Greens",
+    "poster": "/buRk2Vrz8UhF5nZUOADSRZLEU1f.jpg",
+    "shelf": "Disney Shows",
+    "releaseDate": "2018-06-18",
+    "genres": [
+      "Comedy"
+    ]
+  },
+  {
+    "id": 4610,
+    "name": "Hannah Montana",
+    "poster": "/usJAQAA7s9lJGGOGehIZdzKPCke.jpg",
+    "shelf": "Disney Shows",
+    "releaseDate": "2006-03-24",
+    "genres": [
+      "Comedy"
+    ]
+  },
+  {
+    "id": 3498,
+    "name": "Wizards of Waverly Place",
+    "poster": "/spVI8Zns4Ep30zzxcoO7f7nwfck.jpg",
+    "shelf": "Disney Shows",
+    "releaseDate": "2007-10-12",
+    "genres": [
+      "Comedy"
+    ]
+  },
+  {
+    "id": 31499,
+    "name": "Fish Hooks",
+    "poster": "/sejbZwyIgotzTRH9BdYqMKgtgIp.jpg",
+    "shelf": "Disney Shows",
+    "releaseDate": "2010-09-03",
+    "genres": [
+      "Comedy"
+    ]
+  },
+  {
+    "id": 67175,
+    "name": "Elena of Avalor",
+    "poster": "/rnMgIX5Uc9S4r8WvZZByczz2kF7.jpg",
+    "shelf": "Disney Junior / Playhouse Disney Shows",
+    "releaseDate": "2016-07-22",
+    "genres": [
+      "Adventure"
+    ]
+  },
+  {
+    "id": 3527,
+    "name": "My Friends Tigger & Pooh",
+    "poster": "/pjFdWwr36A5ZO8K5W5NuPRS7Bil.jpg",
+    "shelf": "Disney Shows",
+    "releaseDate": "2007-05-12",
+    "genres": [
+      "Adventure",
+      "Mysteries"
+    ]
+  },
+  {
+    "id": 68665,
+    "name": "Big Hero 6 The Series",
+    "poster": "/ldG4xXImCPyv5U5gbRmlB8On842.jpg",
+    "shelf": "Disney XD Shows",
+    "releaseDate": "2017-11-20",
+    "genres": [
+      "Comedy",
+      "Adventure"
+    ]
+  },
+  {
+    "id": 2355,
+    "name": "Lilo & Stitch: The Series",
+    "poster": "/hmNpwSKZzStqO4bfOFeYNTn2B7.jpg",
+    "shelf": "Disney Shows",
+    "releaseDate": "2003-09-20",
+    "genres": [
+      "Comedy",
+      "Adventure"
+    ]
+  },
+  {
+    "id": 72027,
+    "name": "Raven's Home",
+    "poster": "/bEyovwWgUNML5ycWec1WhTU67yr.jpg",
+    "shelf": "Disney Shows",
+    "releaseDate": "2017-07-21",
+    "genres": [
+      "Comedy"
+    ]
+  },
+  {
+    "id": 34891,
+    "name": "Jake and the Never Land Pirates",
+    "poster": "/uet64gptwR7iDGc0laIRmYNtNH0.jpg",
+    "shelf": "Disney Junior / Playhouse Disney Shows",
+    "releaseDate": "2011-02-14",
+    "genres": [
+      "Adventure"
+    ]
+  },
+  {
+    "id": 72089,
+    "name": "Puppy Dog Pals",
+    "poster": "/Aa6Bo1lcuFxT3D1twy7DVX7pY03.jpg",
+    "shelf": "Disney Junior / Playhouse Disney Shows",
+    "releaseDate": "2017-04-14",
+    "genres": [
+      "Comedy"
+    ]
+  },
+  {
+    "id": 77410,
+    "name": "Muppet Babies",
+    "poster": "/mKO39v4anUjh73s9NIIRp8HKlqm.jpg",
+    "shelf": "Disney Junior / Playhouse Disney Shows",
+    "releaseDate": "2018-03-23",
+    "genres": [
+      "Comedy"
+    ]
+  },
+  {
+    "id": 10219,
+    "name": "Handy Manny",
+    "poster": "/7CCeh3UHSLedhi0wqz3dQmByaA6.jpg",
+    "shelf": "Disney Junior / Playhouse Disney Shows",
+    "releaseDate": "2006-09-16",
+    "genres": [
+      "Comedy"
+    ]
+  },
+  {
+    "id": 65417,
+    "name": "PJ Masks",
+    "poster": "/sl4flhzM3uJAxfgQ9ibfEGbmn5I.jpg",
+    "shelf": "Disney Junior / Playhouse Disney Shows",
+    "releaseDate": "2015-09-18",
+    "genres": [
+      "Adventure"
+    ]
+  },
+  {
+    "id": 34921,
+    "name": "The Wiggles",
+    "poster": "/e4O9IXM3ZmuDsrEICslrwqCl7MT.jpg",
+    "shelf": "Treehouse TV Shows",
+    "releaseDate": "1998-07-31",
+    "genres": []
+  },
+  {
+    "id": 70823,
+    "name": "Mickey and the Roadster Racers",
+    "poster": "/3D4275Ck9eXdMlXEQgNrOsikmMS.jpg",
+    "shelf": "Disney Junior / Playhouse Disney Shows",
+    "releaseDate": "2017-01-15",
+    "genres": [
+      "Comedy",
+      "Adventure"
+    ]
+  },
+  {
+    "id": 74323,
+    "name": "Vampirina",
+    "poster": "/18Mmri8vmBKbGbiymFPlSHlg71o.jpg",
+    "shelf": "Disney Junior / Playhouse Disney Shows",
+    "releaseDate": "2017-10-01",
+    "genres": [
+      "Comedy"
+    ]
+  },
+  {
+    "id": 127633,
+    "name": "Mickey Mouse Funhouse",
+    "poster": "/7NCVaHkcTLfG6pMoLOa6SKsbKtQ.jpg",
+    "shelf": "Disney Junior / Playhouse Disney Shows",
+    "releaseDate": "2021-08-20",
+    "genres": []
+  },
+  {
+    "id": 64752,
+    "name": "The Lion Guard",
+    "poster": "/AtDL8ZrOZxW1jakT2R3LcMdLvQD.jpg",
+    "shelf": "Disney Junior / Playhouse Disney Shows",
+    "releaseDate": "2016-01-15",
+    "genres": []
+  },
+  {
+    "id": 207,
+    "name": "Bear in the Big Blue House",
+    "poster": "/hww73tErgeSOQ6YlcKjey0smc8s.jpg",
+    "shelf": "Disney Junior / Playhouse Disney Shows",
+    "releaseDate": "1997-10-20",
+    "genres": []
+  },
+  {
+    "id": 61330,
+    "name": "Sheriff Callie's Wild West",
+    "poster": "/zKoVuDIkhFVjbhoGAi7vxUgrKRz.jpg",
+    "shelf": "Disney Junior / Playhouse Disney Shows",
+    "releaseDate": "2013-12-13",
+    "genres": []
+  },
+  {
+    "id": 82072,
+    "name": "Lily's Driftwood Bay",
+    "poster": "/bhI79VIKMigdSWpQZ8O7u9iXQzY.jpg",
+    "shelf": "Disney Junior / Playhouse Disney Shows",
+    "releaseDate": "2014-05-05",
+    "genres": []
+  },
+  {
+    "id": 59427,
+    "name": "Marvel's Avengers",
+    "poster": "/aVYPq7FSvsdNQOXVIFnndXJPCXn.jpg",
+    "shelf": "Disney XD Shows",
+    "releaseDate": "2013-05-26",
+    "genres": [
+      "Adventure"
+    ]
+  },
+  {
+    "id": 92788,
+    "name": "Marvel's Moon Girl and Devil Dinosaur",
+    "poster": "/1oFkjiF9fT2asKWjRiJtlbhu3hn.jpg",
+    "shelf": "Disney XD Shows",
+    "releaseDate": "2023-02-10",
+    "genres": [
+      "Adventure"
+    ]
+  },
+  {
+    "id": 33623,
+    "name": "The Avengers: Earth's Mightiest Heroes",
+    "poster": "/r1JDhMrqCOZKh7lc0vQlRYQ46cE.jpg",
+    "shelf": "Disney XD Shows",
+    "releaseDate": "2010-10-20",
+    "genres": [
+      "Adventure"
+    ]
+  },
+  {
+    "id": 79093,
+    "name": "Star Wars Resistance",
+    "poster": "/xul6SG8rar3wkHPY8YusUtxcdlZ.jpg",
+    "shelf": "Disney XD Shows",
+    "releaseDate": "2018-10-07",
+    "genres": [
+      "Adventure"
+    ]
+  },
+  {
+    "id": 63181,
+    "name": "Marvel's Guardians of the Galaxy",
+    "poster": "/oXwe3wVhdvvxiixL9UJf6PgBybZ.jpg",
+    "shelf": "Disney XD Shows",
+    "releaseDate": "2015-09-05",
+    "genres": [
+      "Adventure"
+    ]
+  },
+  {
+    "id": 90461,
+    "name": "Monsters at Work",
+    "poster": "/2gxgwhcuSmI5xtexb0t9zGj43FS.jpg",
+    "shelf": "Disney XD Shows",
+    "releaseDate": "2021-07-07",
+    "genres": [
+      "Comedy"
+    ]
+  },
+  {
+    "id": 67549,
+    "name": "Milo Murphy's Law",
+    "poster": "/cUoMoeOm2ALLtPrbP4WwEzj4lO3.jpg",
+    "shelf": "Disney XD Shows",
+    "releaseDate": "2016-10-03",
+    "genres": [
+      "Comedy"
+    ]
+  },
+  {
+    "id": 61119,
+    "name": "The 7D",
+    "poster": "/gCqDaSf4ZRi1iiw8dHcMlsFmL80.jpg",
+    "shelf": "Disney XD Shows",
+    "releaseDate": "2014-07-07",
+    "genres": [
+      "Comedy"
+    ]
+  },
+  {
+    "id": 17572,
+    "name": "Kick Buttowski: Suburban Daredevil",
+    "poster": "/fkkpMA6EBCxwVP7niDeJVlRACp3.jpg",
+    "shelf": "Disney XD Shows",
+    "releaseDate": "2010-02-13",
+    "genres": [
+      "Comedy",
+      "Adventure"
+    ]
+  },
+  {
+    "id": 38867,
+    "name": "Lab Rats",
+    "poster": "/lcQMvn9ZptPd3dxn0a17viRfi7Y.jpg",
+    "shelf": "Disney XD Shows",
+    "releaseDate": "2012-02-27",
+    "genres": [
+      "Comedy"
+    ]
+  },
+  {
+    "id": 68073,
+    "name": "The Loud House",
+    "poster": "/v0xMCeZIkgBUQtiije0IDc8ReHr.jpg",
+    "shelf": "Netflix Shows",
+    "releaseDate": "2016-05-02",
+    "genres": [
+      "Comedy"
+    ]
+  },
+  {
+    "id": 5371,
+    "name": "iCarly",
+    "poster": "/zswxst53aM8g2LysdVbtQNJAiKM.jpg",
+    "shelf": "Nickelodeon Shows",
+    "releaseDate": "2007-09-08",
+    "genres": [
+      "Comedy"
+    ]
+  },
+  {
+    "id": 61852,
+    "name": "Henry Danger",
+    "poster": "/f3TEP5SROTpL6e520ohhSNbUv1E.jpg",
+    "shelf": "Nickelodeon Shows",
+    "releaseDate": "2014-07-26",
+    "genres": [
+      "Comedy"
+    ]
+  },
+  {
+    "id": 64198,
+    "name": "Blaze and the Monster Machines",
+    "poster": "/5DzjYIdgoePjMlmS7RCyUYWhpIK.jpg",
+    "shelf": "Nickelodeon Shows",
+    "releaseDate": "2014-10-13",
+    "genres": [
+      "Comedy"
+    ]
+  },
+  {
+    "id": 2328,
+    "name": "Power Rangers",
+    "poster": "/qx3SJlAp2RK656TusqKx1qEqVMW.jpg",
+    "shelf": "Netflix Shows",
+    "releaseDate": "1993-08-28",
+    "genres": [
+      "Adventure"
+    ]
+  },
+  {
+    "id": 11982,
+    "name": "Max & Ruby",
+    "poster": "/bIiWnjewlhINR1bv1sRfBiIEn9a.jpg",
+    "shelf": "Treehouse TV Shows",
+    "releaseDate": "2002-09-15",
+    "genres": [
+      "Comedy"
+    ]
+  },
+  {
+    "id": 1848,
+    "name": "Winx Club",
+    "poster": "/iAEh0rhHfq0oPdsZbsCSNPRBHXW.jpg",
+    "shelf": "Nick Jr. Shows",
+    "releaseDate": "2004-01-28",
+    "genres": [
+      "Adventure"
+    ]
+  },
+  {
+    "id": 39107,
+    "name": "Bubble Guppies",
+    "poster": "/mxZOTFDGsvQ7YD2zxWrWVInqBxw.jpg",
+    "shelf": "Nick Jr. Shows",
+    "releaseDate": "2011-01-24",
+    "genres": []
+  },
+  {
+    "id": 1346,
+    "name": "Wow! Wow! Wubbzy!",
+    "poster": "/uaPYHkMe5vwOseuPAVgSUwnvgWN.jpg",
+    "shelf": "Nick Jr. Shows",
+    "releaseDate": "2006-08-21",
+    "genres": [
+      "Comedy"
+    ]
+  },
+  {
+    "id": 67098,
+    "name": "Shimmer and Shine",
+    "poster": "/2zym6tVGMYugPWUHGEYko7FwO3y.jpg",
+    "shelf": "Treehouse TV Shows",
+    "releaseDate": "2016-05-11",
+    "genres": []
+  },
+  {
+    "id": 96650,
+    "name": "The Adventures of Paddington",
+    "poster": "/8kueFMhO5zvrXgBtM8mdEOJRV2D.jpg",
+    "shelf": "Nick Jr. Shows",
+    "releaseDate": "2019-12-20",
+    "genres": []
+  },
+  {
+    "id": 214875,
+    "name": "Rubble & Crew",
+    "poster": "/5MA1tqT0yI57IlPBy0KRN6G2mhN.jpg",
+    "shelf": "Treehouse TV Shows",
+    "releaseDate": "2023-02-03",
+    "genres": []
+  },
+  {
+    "id": 14759,
+    "name": "Yo Gabba Gabba!",
+    "poster": "/h8UHNBBnJwdXVtMIA5OAxJoXWid.jpg",
+    "shelf": "Nick Jr. Shows",
+    "releaseDate": "2007-08-20",
+    "genres": []
+  },
+  {
+    "id": 73541,
+    "name": "Rusty Rivets",
+    "poster": "/c2yzJGmOMN0eIsowImAb7LuAOQ7.jpg",
+    "shelf": "Treehouse TV Shows",
+    "releaseDate": "2016-11-08",
+    "genres": [
+      "Comedy"
+    ]
+  },
+  {
+    "id": 1894,
+    "name": "LazyTown",
+    "poster": "/9bkxU7kTMLuhBOPnkAYXtCsqZj3.jpg",
+    "shelf": "Nick Jr. Shows",
+    "releaseDate": "2004-08-16",
+    "genres": [
+      "Comedy"
+    ]
+  },
+  {
+    "id": 10867,
+    "name": "Wonder Pets!",
+    "poster": "/6qCX45QJccnDdX6jHYkJHDst1o0.jpg",
+    "shelf": "Nick Jr. Shows",
+    "releaseDate": "2006-03-03",
+    "genres": []
+  },
+  {
+    "id": 85422,
+    "name": "Abby Hatcher",
+    "poster": "/eaICMIigEShZEcpp1StYuRg1gdw.jpg",
+    "shelf": "Nick Jr. Shows",
+    "releaseDate": "2018-12-31",
+    "genres": []
+  },
+  {
+    "id": 221230,
+    "name": "The Tiny Chef Show",
+    "poster": "/sCdQdmUbUmHgcuTBBXUVv8drvpn.jpg",
+    "shelf": "Nick Jr. Shows",
+    "releaseDate": "2022-09-09",
+    "genres": []
+  },
+  {
+    "id": 92885,
+    "name": "Blue's Clues & You!",
+    "poster": "/wXgrjyQTjTYaaS0iNcKWXl4UgSK.jpg",
+    "shelf": "Nick Jr. Shows",
+    "releaseDate": "2019-11-11",
+    "genres": [
+      "Comedy"
+    ]
+  },
+  {
+    "id": 95140,
+    "name": "Butterbean's Café",
+    "poster": "/4vLLNOurdv2IjQDxadEnd5texhT.jpg",
+    "shelf": "Nick Jr. Shows",
+    "releaseDate": "2018-11-12",
+    "genres": []
+  },
+  {
+    "id": 106143,
+    "name": "Deer Squad",
+    "poster": "/u9IySKhppEv62wQ6eN1Ve350vjW.jpg",
+    "shelf": "Nick Jr. Shows",
+    "releaseDate": "2020-07-15",
+    "genres": [
+      "Comedy"
+    ]
+  },
+  {
+    "id": 66135,
+    "name": "Julius Jr.",
+    "poster": "/wBQSC3FtPs6KXvmaZGHjgA19u2T.jpg",
+    "shelf": "Nick Jr. Shows",
+    "releaseDate": "2013-09-29",
+    "genres": []
+  },
+  {
+    "id": 62201,
+    "name": "Rabbids Invasion",
+    "poster": "/hOjv6MN6FzG4JMcD0NvEylIoLYq.jpg",
+    "shelf": "Nicktoons Shows",
+    "releaseDate": "2013-08-03",
+    "genres": [
+      "Comedy"
+    ]
+  },
+  {
+    "id": 1760,
+    "name": "As Told by Ginger",
+    "poster": "/l8BkBllw4hKOpbHxWRQSOC0lF4o.jpg",
+    "shelf": "Nicktoons Shows",
+    "releaseDate": "2000-10-25",
+    "genres": [
+      "Comedy"
+    ]
+  },
+  {
+    "id": 178,
+    "name": "My Life as a Teenage Robot",
+    "poster": "/fH1eFx0FgQ6EoGhitzvfvT1hgGV.jpg",
+    "shelf": "Nicktoons Shows",
+    "releaseDate": "2002-10-18",
+    "genres": [
+      "Comedy",
+      "Adventure"
+    ]
+  },
+  {
+    "id": 27318,
+    "name": "Breadwinners",
+    "poster": "/eOWAf4jeNPQX2JLMdJ3T1ad1kqR.jpg",
+    "shelf": "Nicktoons Shows",
+    "releaseDate": "2014-02-17",
+    "genres": [
+      "Comedy",
+      "Adventure"
+    ]
+  },
+  {
+    "id": 56402,
+    "name": "Monsuno",
+    "poster": "/pjzubEF1aG0lUDEacek8NUh2IFw.jpg",
+    "shelf": "Nicktoons Shows",
+    "releaseDate": "2012-02-23",
+    "genres": [
+      "Adventure"
+    ]
+  },
+  {
+    "id": 18828,
+    "name": "T.U.F.F. Puppy",
+    "poster": "/mzJSwX75Gjty8hZIEbqblPbEvkl.jpg",
+    "shelf": "Nicktoons Shows",
+    "releaseDate": "2010-10-02",
+    "genres": [
+      "Comedy",
+      "Adventure"
+    ]
+  },
+  {
+    "id": 10870,
+    "name": "Random! Cartoons",
+    "poster": "/qLUV22D6Quu2fMQRKIrkogmjV6P.jpg",
+    "shelf": "Nicktoons Shows",
+    "releaseDate": "2008-12-06",
+    "genres": [
+      "Comedy",
+      "Adventure",
+      "Mysteries"
+    ]
+  },
+  {
+    "id": 64931,
+    "name": "Pig Goat Banana Cricket",
+    "poster": "/7mnFD6gdUVwFzLGsNc11xdtezD5.jpg",
+    "shelf": "Nicktoons Shows",
+    "releaseDate": "2015-07-16",
+    "genres": [
+      "Comedy"
+    ]
+  },
+  {
+    "id": 6046,
+    "name": "El Tigre: The Adventures of Manny Rivera",
+    "poster": "/vHnqmtAoEN8vaA6O8fd0n95Qcru.jpg",
+    "shelf": "Nicktoons Shows",
+    "releaseDate": "2007-03-03",
+    "genres": [
+      "Comedy",
+      "Adventure"
+    ]
+  },
+  {
+    "id": 7330,
+    "name": "Iron Man: Armored Adventures",
+    "poster": "/kIJGgBwh37V2nfgnJFaN7zDIjdv.jpg",
+    "shelf": "Nicktoons Shows",
+    "releaseDate": "2009-04-24",
+    "genres": [
+      "Adventure"
+    ]
+  },
+  {
+    "id": 98240,
+    "name": "It's Pony",
+    "poster": "/fKbrywNuKgobP7pMDzjhvsTLfJU.jpg",
+    "shelf": "Nicktoons Shows",
+    "releaseDate": "2020-01-18",
+    "genres": [
+      "Comedy",
+      "Adventure"
+    ]
+  },
+  {
+    "id": 38693,
+    "name": "Ninjago: Masters of Spinjitzu",
+    "poster": "/wz6ZqlyndVpdRayZi1gbYHWcqFi.jpg",
+    "shelf": "Cartoon Network Shows",
+    "releaseDate": "2012-01-11",
+    "genres": [
+      "Comedy",
+      "Adventure"
+    ]
+  },
+  {
+    "id": 31132,
+    "name": "Regular Show",
+    "poster": "/mS5SLxMYcKfUxA0utBSR5MOAWWr.jpg",
+    "shelf": "Cartoon Network Shows",
+    "releaseDate": "2010-09-06",
+    "genres": [
+      "Comedy",
+      "Adventure"
+    ]
+  },
+  {
+    "id": 65763,
+    "name": "New Looney Tunes",
+    "poster": "/AdROLFTm3nSnqcmkhPabqdRuETZ.jpg",
+    "shelf": "Cartoon Network Shows",
+    "releaseDate": "2015-09-21",
+    "genres": [
+      "Comedy"
+    ]
+  },
+  {
+    "id": 33217,
+    "name": "Young Justice",
+    "poster": "/fn2wMnrPWIjDMnxIf0H89ZtDehK.jpg",
+    "shelf": "Cartoon Network Shows",
+    "releaseDate": "2010-11-26",
+    "genres": [
+      "Adventure"
+    ]
+  },
+  {
+    "id": 47480,
+    "name": "The Tom and Jerry Show",
+    "poster": "/41EWXLXTZO4MLb2BL28mWZuydyq.jpg",
+    "shelf": "Cartoon Network Shows",
+    "releaseDate": "2014-04-09",
+    "genres": [
+      "Comedy"
+    ]
+  },
+  {
+    "id": 3611,
+    "name": "Cow and Chicken",
+    "poster": "/1vsIbN9FOsr97vIAGLYpRu7ZiSq.jpg",
+    "shelf": "Cartoon Network Shows",
+    "releaseDate": "1997-09-16",
+    "genres": [
+      "Comedy"
+    ]
+  },
+  {
+    "id": 81665,
+    "name": "Summer Camp Island",
+    "poster": "/syipk7iIpV4DTvGuBuEqrVbAbaY.jpg",
+    "shelf": "HBO Max / Warner Bros. Shows",
+    "releaseDate": "2018-07-07",
+    "genres": [
+      "Comedy"
+    ]
+  },
+  {
+    "id": 897,
+    "name": "The Grim Adventures of Billy and Mandy",
+    "poster": "/kbFIKt6NGppNr7OOn288A8gBObs.jpg",
+    "shelf": "Cartoon Network Shows",
+    "releaseDate": "2001-08-24",
+    "genres": [
+      "Comedy"
+    ]
+  },
+  {
+    "id": 50035,
+    "name": "Clarence",
+    "poster": "/qZkAyOlDAxHtQreQE4ZzGfrSQl8.jpg",
+    "shelf": "Cartoon Network Shows",
+    "releaseDate": "2014-04-14",
+    "genres": [
+      "Comedy"
+    ]
+  },
+  {
+    "id": 47035,
+    "name": "Uncle Grandpa",
+    "poster": "/zLVOgigPMsd2hkwmcY5AqNhqgcn.jpg",
+    "shelf": "Cartoon Network Shows",
+    "releaseDate": "2013-09-02",
+    "genres": [
+      "Comedy"
+    ]
+  },
+  {
+    "id": 2405,
+    "name": "Johnny Bravo",
+    "poster": "/obbdeoOk8XSXzJrWGiBbaeMMSMl.jpg",
+    "shelf": "Cartoon Network Shows",
+    "releaseDate": "1997-07-07",
+    "genres": [
+      "Comedy"
+    ]
+  },
+  {
+    "id": 10938,
+    "name": "Bob the Builder",
+    "poster": "/jfIAxRMSLuMjczB0ezl8L9Ukzfi.jpg",
+    "shelf": "CBeebies Shows",
+    "releaseDate": "1999-04-12",
+    "genres": []
+  },
+  {
+    "id": 5200,
+    "name": "Fireman Sam",
+    "poster": "/sXsqaIOjemMuHxGu3XukIyVM7jN.jpg",
+    "shelf": "CBeebies Shows",
+    "releaseDate": "1987-11-17",
+    "genres": [
+      "Comedy"
+    ]
+  },
+  {
+    "id": 74280,
+    "name": "Hey Duggee",
+    "poster": "/qh05P3y8t7ALIp1g19kdOv6Con6.jpg",
+    "shelf": "CBeebies Shows",
+    "releaseDate": "2014-12-17",
+    "genres": [
+      "Comedy"
+    ]
+  },
+  {
+    "id": 69501,
+    "name": "Bing",
+    "poster": "/2p7S8pkFQsmZjSLaCZmCphdLaXz.jpg",
+    "shelf": "CBeebies Shows",
+    "releaseDate": "2014-06-09",
+    "genres": []
+  },
+  {
+    "id": 73574,
+    "name": "Go Jetters",
+    "poster": "/kvSAVAqbXagMmUUSPlmJbS9RXxo.jpg",
+    "shelf": "CBeebies Shows",
+    "releaseDate": "2015-10-26",
+    "genres": []
+  },
+  {
+    "id": 9262,
+    "name": "Pingu",
+    "poster": "/nLE7NR3EsEbv2NfG0bLIaOEhGfY.jpg",
+    "shelf": "CBeebies Shows",
+    "releaseDate": "1986-05-28",
+    "genres": [
+      "Comedy"
+    ]
+  },
+  {
+    "id": 73038,
+    "name": "Kate & Mim-Mim",
+    "poster": "/rAqsk9xf5GWoujZuMuWSFw4EZgF.jpg",
+    "shelf": "CBeebies Shows",
+    "releaseDate": "2014-08-04",
+    "genres": []
+  },
+  {
+    "id": 3048,
+    "name": "In the Night Garden",
+    "poster": "/d7jihWYBc2KyzhxYV9C1Iib6Kp0.jpg",
+    "shelf": "CBeebies Shows",
+    "releaseDate": "2007-03-19",
+    "genres": []
+  },
+  {
+    "id": 366,
+    "name": "Tweenies",
+    "poster": "/vY69uInloqhFSzihcxqwkJPuK39.jpg",
+    "shelf": "CBBC Shows",
+    "releaseDate": "1999-09-06",
+    "genres": []
+  },
+  {
+    "id": 101149,
+    "name": "Malory Towers",
+    "poster": "/zU5yHvPmAWFIdz0cbCAmw0ONYQU.jpg",
+    "shelf": "CBBC Shows",
+    "releaseDate": "2020-04-06",
+    "genres": []
+  },
+  {
+    "id": 58956,
+    "name": "Wolfblood",
+    "poster": "/rYFKm38ClVGVe6Bj3RUYf67Vc9E.jpg",
+    "shelf": "CBBC Shows",
+    "releaseDate": "2012-09-10",
+    "genres": [
+      "Mysteries"
+    ]
+  },
+  {
+    "id": 78036,
+    "name": "Creeped Out",
+    "poster": "/5TFYkGC8eSUlIz2TMqL4IKPUbBK.jpg",
+    "shelf": "CBBC Shows",
+    "releaseDate": "2017-10-31",
+    "genres": [
+      "Mysteries"
+    ]
+  },
+  {
+    "id": 9980,
+    "name": "The New Woody Woodpecker Show",
+    "poster": "/oizXc3SnlSWDqPMmfe4koUj4RRo.jpg",
+    "shelf": "YTV Shows",
+    "releaseDate": "1999-05-08",
+    "genres": [
+      "Comedy"
+    ]
+  },
+  {
+    "id": 8627,
+    "name": "The Spooktacular New Adventures of Casper",
+    "poster": "/qTeRUKzv41CPdFHTPRRB2IeZSOH.jpg",
+    "shelf": "Fox Kids Shows",
+    "releaseDate": "1996-02-24",
+    "genres": [
+      "Comedy"
+    ]
+  },
+  {
+    "id": 10126,
+    "name": "Taz-Mania",
+    "poster": "/ozqJKBZq3k7BjyAwv2A7V1Zv6Ba.jpg",
+    "shelf": "Fox Kids Shows",
+    "releaseDate": "1991-09-07",
+    "genres": [
+      "Comedy"
+    ]
+  },
+  {
+    "id": 1830,
+    "name": "Tiny Toon Adventures",
+    "poster": "/j9B9RmerM2b39s7xzW6g4vN5B1m.jpg",
+    "shelf": "Fox Kids Shows",
+    "releaseDate": "1990-09-14",
+    "genres": [
+      "Comedy"
+    ]
+  },
+  {
+    "id": 4288,
+    "name": "Beetlejuice",
+    "poster": "/6KZUc5WlukYvlixgNYJaFXzgdkv.jpg",
+    "shelf": "Fox Kids Shows",
+    "releaseDate": "1989-09-09",
+    "genres": [
+      "Comedy"
+    ]
+  },
+  {
+    "id": 3370,
+    "name": "Eek! The Cat",
+    "poster": "/scqjDAOkZiswdZwG5Z1C9LKyLwr.jpg",
+    "shelf": "YTV Shows",
+    "releaseDate": "1992-09-11",
+    "genres": []
+  },
+  {
+    "id": 5373,
+    "name": "Angela Anaconda",
+    "poster": "/dFp7Qupi4MGVsVvSozo4J9Ton9d.jpg",
+    "shelf": "Teletoon Shows",
+    "releaseDate": "1999-10-04",
+    "genres": [
+      "Comedy"
+    ]
+  },
+  {
+    "id": 11100,
+    "name": "Godzilla: The Series",
+    "poster": "/elcF4hnfQ4tx0lmW9tGKDsI3Vct.jpg",
+    "shelf": "Fox Kids Shows",
+    "releaseDate": "1998-09-12",
+    "genres": [
+      "Adventure"
+    ]
+  },
+  {
+    "id": 2136,
+    "name": "Big Bad BeetleBorgs",
+    "poster": "/aIHIj3VxKTlhdeclpnw1dT9581w.jpg",
+    "shelf": "Fox Kids Shows",
+    "releaseDate": "1996-09-07",
+    "genres": [
+      "Adventure"
+    ]
+  },
+  {
+    "id": 4335,
+    "name": "Ōban Star-Racers",
+    "poster": "/8rMCjbsHk9EYSoNCgjkCVdyJyYL.jpg",
+    "shelf": "Jetix Shows",
+    "releaseDate": "2006-06-05",
+    "genres": [
+      "Adventure"
+    ]
+  },
+  {
+    "id": 212989,
+    "name": "LEGO Ninjago: Dragons Rising",
+    "poster": "/5q3tfPVAcL9AlFcb8HXsOdHEtJR.jpg",
+    "shelf": "Netflix Shows",
+    "releaseDate": "2023-06-01",
+    "genres": [
+      "Adventure"
+    ]
+  },
+  {
+    "id": 82452,
+    "name": "Avatar: The Last Airbender",
+    "poster": "/lzZpWEaqzP0qVA5nkCc5ASbNcSy.jpg",
+    "shelf": "Netflix Shows",
+    "releaseDate": "2024-02-22",
+    "genres": [
+      "Adventure"
+    ]
+  },
+  {
+    "id": 63623,
+    "name": "Fuller House",
+    "poster": "/n4ZZB471d2UueUFEaOWnKetCxnY.jpg",
+    "shelf": "Netflix Shows",
+    "releaseDate": "2016-02-26",
+    "genres": [
+      "Comedy"
+    ]
+  },
+  {
+    "id": 78173,
+    "name": "Dragons: Race to the Edge",
+    "poster": "/y5sNfaTvWR3ObILyf9uV6deAcKT.jpg",
+    "shelf": "Netflix Shows",
+    "releaseDate": "2015-06-26",
+    "genres": [
+      "Adventure"
+    ]
+  },
+  {
+    "id": 64783,
+    "name": "Dawn of the Croods",
+    "poster": "/cyCAsMLGECvEAFDfKcxcWy7YTOW.jpg",
+    "shelf": "Netflix Shows",
+    "releaseDate": "2015-12-24",
+    "genres": [
+      "Comedy",
+      "Adventure"
+    ]
+  },
+  {
+    "id": 61751,
+    "name": "All Hail King Julien",
+    "poster": "/tsE6Dbx7aejDDmAy4DX55YxE8pT.jpg",
+    "shelf": "Netflix Shows",
+    "releaseDate": "2014-12-19",
+    "genres": [
+      "Comedy"
+    ]
+  },
+  {
+    "id": 66558,
+    "name": "Voltron: Legendary Defender",
+    "poster": "/yWAGNuPuUWJT9gIQmGdZiTGJWzh.jpg",
+    "shelf": "Netflix Shows",
+    "releaseDate": "2016-06-10",
+    "genres": [
+      "Adventure"
+    ]
+  },
+  {
+    "id": 87247,
+    "name": "Bakugan",
+    "poster": "/lg6QqCdvZOZM7EWf9zFJL12EsKv.jpg",
+    "shelf": "Teletoon Shows",
+    "releaseDate": "2018-12-23",
+    "genres": [
+      "Adventure"
+    ]
+  },
+  {
+    "id": 63157,
+    "name": "Turbo FAST",
+    "poster": "/c3SFrFRYNS0VIH0Cmb4onGAz5dd.jpg",
+    "shelf": "Netflix Shows",
+    "releaseDate": "2013-12-24",
+    "genres": [
+      "Comedy"
+    ]
+  },
+  {
+    "id": 129959,
+    "name": "Kung Fu Panda: The Dragon Knight",
+    "poster": "/7C9TKvU5dNyhvoG9kQvRFsg6vlA.jpg",
+    "shelf": "Netflix Shows",
+    "releaseDate": "2022-07-14",
+    "genres": [
+      "Comedy",
+      "Adventure"
+    ]
+  },
+  {
+    "id": 85077,
+    "name": "The Chosen",
+    "poster": "/nr0r7YTn1l84KLG1iCSO5ofHTvO.jpg",
+    "shelf": "Prime Video Shows",
+    "releaseDate": "2019-04-21",
+    "genres": [
+      "Adventure"
+    ]
+  },
+  {
+    "id": 225320,
+    "name": "LEGO DREAMZzz",
+    "poster": "/bksnhr6slfT2mIcCTglGYD3pI9A.jpg",
+    "shelf": "Prime Video Shows",
+    "releaseDate": "2023-05-15",
+    "genres": [
+      "Adventure"
+    ]
+  },
+  {
+    "id": 82235,
+    "name": "Pete the Cat",
+    "poster": "/eTug1KuDsrQ4jMIN6zaEnERfSnd.jpg",
+    "shelf": "Prime Video Shows",
+    "releaseDate": "2017-12-25",
+    "genres": []
+  },
+  {
+    "id": 62904,
+    "name": "Just Add Magic",
+    "poster": "/v7olj5StoSFVsgkBhOihDaR56eJ.jpg",
+    "shelf": "Prime Video Shows",
+    "releaseDate": "2016-01-15",
+    "genres": [
+      "Comedy",
+      "Mysteries"
+    ]
+  },
+  {
+    "id": 67459,
+    "name": "The Stinky & Dirty Show",
+    "poster": "/nepw7xPqA6oiwhyh5YfhU5byLzL.jpg",
+    "shelf": "Prime Video Shows",
+    "releaseDate": "2016-09-01",
+    "genres": [
+      "Comedy"
+    ]
+  },
+  {
+    "id": 75646,
+    "name": "If You Give a Mouse a Cookie",
+    "poster": "/8mcWOWpUyG36Jr68Rd6n6ypVd2q.jpg",
+    "shelf": "Prime Video Shows",
+    "releaseDate": "2015-11-05",
+    "genres": [
+      "Comedy"
+    ]
+  },
+  {
+    "id": 225361,
+    "name": "BAT-FAM",
+    "poster": "/8C34YTylNBt4DWM1a9oAAXqmTSr.jpg",
+    "shelf": "Prime Video Shows",
+    "releaseDate": "2025-11-10",
+    "genres": []
+  },
+  {
+    "id": 228103,
+    "name": "Angry Birds Mystery Island",
+    "poster": "/hCAtDMQx8cwwQZK7H7HGZhPu2GO.jpg",
+    "shelf": "Prime Video Shows",
+    "releaseDate": "2024-05-21",
+    "genres": [
+      "Comedy",
+      "Adventure",
+      "Mysteries"
+    ]
+  },
+  {
+    "id": 244563,
+    "name": "The Baxters",
+    "poster": "/gI7aAZGKigIGgyNvl2JT2CfKumg.jpg",
+    "shelf": "Prime Video Shows",
+    "releaseDate": "2024-03-27",
+    "genres": []
+  },
+  {
+    "id": 71986,
+    "name": "Danger & Eggs",
+    "poster": "/3ZugH9DMsxLzhdp81cXLCziQgVq.jpg",
+    "shelf": "Prime Video Shows",
+    "releaseDate": "2017-06-30",
+    "genres": []
+  },
+  {
+    "id": 106872,
+    "name": "Bandish Bandits",
+    "poster": "/ub1zXHPxqcKlFeUJMxdUq2LTDp7.jpg",
+    "shelf": "Prime Video Shows",
+    "releaseDate": "2020-08-02",
+    "genres": []
+  },
+  {
+    "id": 112148,
+    "name": "Doug Unplugs",
+    "poster": "/iIDiGOoeupsWvPDbi6qfikgjngm.jpg",
+    "shelf": "Apple TV Shows",
+    "releaseDate": "2020-11-13",
+    "genres": []
+  },
+  {
+    "id": 234800,
+    "name": "Curses!",
+    "poster": "/sB0pjty0yMjCXJG0X2I8zu8fM57.jpg",
+    "shelf": "Apple TV Shows",
+    "releaseDate": "2023-10-26",
+    "genres": [
+      "Adventure"
+    ]
+  },
+  {
+    "id": 226745,
+    "name": "Camp Snoopy",
+    "poster": "/vN5fuofxX5jvRnu6R3NhGipUhbI.jpg",
+    "shelf": "Apple TV Shows",
+    "releaseDate": "2024-06-13",
+    "genres": []
+  },
+  {
+    "id": 237853,
+    "name": "WondLa",
+    "poster": "/nacwwHnoCz1MX9tIrFTnnNqLmax.jpg",
+    "shelf": "Apple TV Shows",
+    "releaseDate": "2024-06-27",
+    "genres": []
+  },
+  {
+    "id": 217658,
+    "name": "Shape Island",
+    "poster": "/bJu8gM5eso8It2uPNbvGV7A95VN.jpg",
+    "shelf": "Apple TV Shows",
+    "releaseDate": "2023-01-19",
+    "genres": []
+  },
+  {
+    "id": 219056,
+    "name": "Frog and Toad",
+    "poster": "/jDWTTWNzieMiqNBVfXmTZG18J18.jpg",
+    "shelf": "Apple TV Shows",
+    "releaseDate": "2023-04-27",
+    "genres": []
+  },
+  {
+    "id": 91249,
+    "name": "Snoopy in Space: The Search for Life",
+    "poster": "/ssAYRDytRsA8S0TAYMrr8dJgrlT.jpg",
+    "shelf": "Apple TV Shows",
+    "releaseDate": "2019-11-01",
+    "genres": []
+  },
+  {
+    "id": 93520,
+    "name": "Ghostwriter",
+    "poster": "/cylPAXqLws5yM9oJa47MsHItBy8.jpg",
+    "shelf": "Apple TV Shows",
+    "releaseDate": "2019-11-01",
+    "genres": [
+      "Adventure"
+    ]
+  },
+  {
+    "id": 316832,
+    "name": "My Brother the Minotaur",
+    "poster": "/iKvNRK9ThYLgxkmalt2CrQyvEpQ.jpg",
+    "shelf": "Apple TV Shows",
+    "releaseDate": "2026-04-24",
+    "genres": []
+  },
+  {
+    "id": 93519,
+    "name": "Helpsters",
+    "poster": "/zqFCwSsAhxMx2LXwKcO4IO9V1Z4.jpg",
+    "shelf": "Apple TV Shows",
+    "releaseDate": "2019-11-01",
+    "genres": []
+  },
+  {
+    "id": 118534,
+    "name": "Jane",
+    "poster": "/9EuDaqFRui2nVqE4CixB7Umx9AO.jpg",
+    "shelf": "Apple TV Shows",
+    "releaseDate": "2023-04-13",
+    "genres": []
+  },
+  {
+    "id": 213359,
+    "name": "Circuit Breakers",
+    "poster": "/gmvaWodMFeFx4eIeb6AH6dTcWO1.jpg",
+    "shelf": "Apple TV Shows",
+    "releaseDate": "2022-11-10",
+    "genres": []
+  },
+  {
+    "id": 156746,
+    "name": "Pretzel and the Puppies",
+    "poster": "/2t1oBYR0JQpVi7SLeZ8UF536YuY.jpg",
+    "shelf": "Apple TV Shows",
+    "releaseDate": "2022-02-11",
+    "genres": []
+  },
+  {
+    "id": 274382,
+    "name": "Wonder Pets: In the City",
+    "poster": "/hgugRSvdi2zH1buV68d3Yj13Jwu.jpg",
+    "shelf": "Apple TV Shows",
+    "releaseDate": "2024-12-12",
+    "genres": []
+  },
+  {
+    "id": 205258,
+    "name": "Sago Mini Friends",
+    "poster": "/s2uZqYwQWEaJ71Pat7RYovhcIq9.jpg",
+    "shelf": "Apple TV Shows",
+    "releaseDate": "2022-09-15",
+    "genres": []
+  },
+  {
+    "id": 128071,
+    "name": "Jellystone!",
+    "poster": "/7SwSAG48QvvMy8jlAgm3LGt3VGq.jpg",
+    "shelf": "HBO Max / Warner Bros. Shows",
+    "releaseDate": "2021-07-29",
+    "genres": [
+      "Comedy"
+    ]
+  },
+  {
+    "id": 88367,
+    "name": "Scooby-Doo and Guess Who?",
+    "poster": "/g7vQXsELihik4oHJwqhL6WuTJ3j.jpg",
+    "shelf": "HBO Max / Warner Bros. Shows",
+    "releaseDate": "2019-06-27",
+    "genres": [
+      "Comedy",
+      "Mysteries"
+    ]
+  },
+  {
+    "id": 90808,
+    "name": "Gremlins: Secrets of the Mogwai",
+    "poster": "/fkkBQsWgRX7OFxzV0jtCM88a0Xq.jpg",
+    "shelf": "HBO Max / Warner Bros. Shows",
+    "releaseDate": "2023-05-23",
+    "genres": [
+      "Comedy"
+    ]
+  },
+  {
+    "id": 245328,
+    "name": "Margarita: Make Your Story Count",
+    "poster": "/scOdQ3JwM9N8RW0gzkBELfm4DzJ.jpg",
+    "shelf": "HBO Max / Warner Bros. Shows",
+    "releaseDate": "2024-09-02",
+    "genres": [
+      "Comedy"
+    ]
+  },
+  {
+    "id": 81190,
+    "name": "Esme & Roy",
+    "poster": "/6uEoKGUg6fzYpM4jh2EjauxvBM5.jpg",
+    "shelf": "Treehouse TV Shows",
+    "releaseDate": "2018-08-18",
+    "genres": []
+  },
+  {
+    "id": 139061,
+    "name": "Theodosia",
+    "poster": "/2tH2zDZIaKSRsSef55DGueNh4mI.jpg",
+    "shelf": "HBO Max / Warner Bros. Shows",
+    "releaseDate": "2022-03-10",
+    "genres": [
+      "Adventure",
+      "Mysteries"
+    ]
+  },
+  {
+    "id": 127445,
+    "name": "Tom and Jerry in New York",
+    "poster": "/bLVyhu8d9oIanVqVLCV0b1jqhzE.jpg",
+    "shelf": "HBO Max / Warner Bros. Shows",
+    "releaseDate": "2021-07-01",
+    "genres": [
+      "Comedy"
+    ]
+  },
+  {
+    "id": 91309,
+    "name": "The Fungies!",
+    "poster": "/ziqYvMMvQGSKQtPIkFmc41FU1nb.jpg",
+    "shelf": "HBO Max / Warner Bros. Shows",
+    "releaseDate": "2020-08-20",
+    "genres": [
+      "Comedy"
+    ]
+  },
+  {
+    "id": 131478,
+    "name": "Little Ellen",
+    "poster": "/avs0E7SmdKtmqdg4f5mILMnKIRY.jpg",
+    "shelf": "HBO Max / Warner Bros. Shows",
+    "releaseDate": "2021-09-13",
+    "genres": []
+  },
+  {
+    "id": 227101,
+    "name": "Mermicorno: Starfall",
+    "poster": "/abJuzZqjcROpNl2dMGIIPmLrSNS.jpg",
+    "shelf": "HBO Max / Warner Bros. Shows",
+    "releaseDate": "2025-01-30",
+    "genres": [
+      "Comedy",
+      "Adventure"
+    ]
+  },
+  {
+    "id": 155775,
+    "name": "Gordita Chronicles",
+    "poster": "/ppJa0vyJDvPXmSBP1x6NTQuirzI.jpg",
+    "shelf": "HBO Max / Warner Bros. Shows",
+    "releaseDate": "2022-06-23",
+    "genres": [
+      "Comedy"
+    ]
+  },
+  {
+    "id": 233003,
+    "name": "Bea's Block",
+    "poster": "/bkJOrZzGpy6rpZq0knp2a81ZSY1.jpg",
+    "shelf": "HBO Max / Warner Bros. Shows",
+    "releaseDate": "2024-02-15",
+    "genres": [
+      "Comedy"
+    ]
+  },
+  {
+    "id": 155773,
+    "name": "The Garcias",
+    "poster": "/sJutFYUrnZ9hmcL296ctCc9Rbvt.jpg",
+    "shelf": "HBO Max / Warner Bros. Shows",
+    "releaseDate": "2022-04-14",
+    "genres": []
+  },
+  {
+    "id": 224798,
+    "name": "Cuquin",
+    "poster": "/s8nNA9dRAttIMwA8NTgXp1mbmqE.jpg",
+    "shelf": "HBO Max / Warner Bros. Shows",
+    "releaseDate": "2023-04-24",
+    "genres": []
+  },
+  {
+    "id": 1458,
+    "name": "Franklin",
+    "poster": "/ep0ol2okz8IB8T0LxhfJMXvJ3Mk.jpg",
+    "shelf": "Treehouse TV Shows",
+    "releaseDate": "1997-11-03",
+    "genres": []
+  },
+  {
+    "id": 105313,
+    "name": "My Little Pony: Pony Life",
+    "poster": "/frfhYtzM5wVo0MfmEh7PaBlYPcR.jpg",
+    "shelf": "Treehouse TV Shows",
+    "releaseDate": "2020-06-21",
+    "genres": [
+      "Comedy"
+    ]
+  },
+  {
+    "id": 35225,
+    "name": "Harry and His Bucket Full of Dinosaurs",
+    "poster": "/1KjpHxUkf2bJZAHdfr4gCD2ysbZ.jpg",
+    "shelf": "Treehouse TV Shows",
+    "releaseDate": "2005-11-07",
+    "genres": [
+      "Comedy"
+    ]
+  },
+  {
+    "id": 46759,
+    "name": "My Big Big Friend",
+    "poster": "/36O35c7L3fPKD1FQiQm5EmLzU4y.jpg",
+    "shelf": "Treehouse TV Shows",
+    "releaseDate": "2010-08-09",
+    "genres": []
+  },
+  {
+    "id": 76605,
+    "name": "Top Wing",
+    "poster": "/6j7JKeuYkBgUWPuqCmqoLOLI7ug.jpg",
+    "shelf": "Treehouse TV Shows",
+    "releaseDate": "2017-11-06",
+    "genres": []
+  },
+  {
+    "id": 13287,
+    "name": "Miss Spider's Sunny Patch Friends",
+    "poster": "/3ULrcTbiy2VjRquYMUfWSoUNTua.jpg",
+    "shelf": "Treehouse TV Shows",
+    "releaseDate": "2004-09-07",
+    "genres": []
+  },
+  {
+    "id": 34109,
+    "name": "Bakugan Battle Brawlers",
+    "poster": "/tYSZCSW6wbHoS9aEijTv4xHgGbZ.jpg",
+    "shelf": "Teletoon Shows",
+    "releaseDate": "2007-04-05",
+    "genres": [
+      "Adventure"
+    ]
+  },
+  {
+    "id": 1769,
+    "name": "Johnny Test",
+    "poster": "/cGceNrHpUl3utUzE502xSY8l9ST.jpg",
+    "shelf": "Teletoon Shows",
+    "releaseDate": "2005-09-17",
+    "genres": [
+      "Comedy",
+      "Adventure"
+    ]
+  },
+  {
+    "id": 21781,
+    "name": "The Super Hero Squad Show",
+    "poster": "/3CdaaPZdU1Xv2c6hDaSVWhsXtuO.jpg",
+    "shelf": "Teletoon Shows",
+    "releaseDate": "2009-09-14",
+    "genres": [
+      "Comedy",
+      "Adventure"
+    ]
+  },
+  {
+    "id": 71388,
+    "name": "Rocket Monkeys",
+    "poster": "/h45r11rPNYJZEVugiyA2hEMT1rI.jpg",
+    "shelf": "Teletoon Shows",
+    "releaseDate": "2013-01-10",
+    "genres": [
+      "Comedy"
+    ]
+  },
+  {
+    "id": 88069,
+    "name": "Total DramaRama",
+    "poster": "/A9KAegh5542L8JktkwsZZrdekhe.jpg",
+    "shelf": "Teletoon Shows",
+    "releaseDate": "2018-09-01",
+    "genres": [
+      "Comedy"
+    ]
+  },
+  {
+    "id": 4355,
+    "name": "6teen",
+    "poster": "/w5xyIimhzKqM8Pgjp9fOqwgDIQL.jpg",
+    "shelf": "Teletoon Shows",
+    "releaseDate": "2004-11-07",
+    "genres": [
+      "Comedy"
+    ]
+  },
+  {
+    "id": 42307,
+    "name": "The High Fructose Adventures of Annoying Orange",
+    "poster": "/9a07S3C2OUdiVMP5jRIKitFYhIM.jpg",
+    "shelf": "Teletoon Shows",
+    "releaseDate": "2012-05-28",
+    "genres": [
+      "Adventure"
+    ]
+  },
+  {
+    "id": 55924,
+    "name": "Camp Lakebottom",
+    "poster": "/9REsyQIEnGwc1K6kDkZBXX5IfzT.jpg",
+    "shelf": "Teletoon Shows",
+    "releaseDate": "2013-07-04",
+    "genres": [
+      "Comedy"
+    ]
+  },
+  {
+    "id": 39518,
+    "name": "My Babysitter's a Vampire",
+    "poster": "/bBH0zyyMblIecCWgc4zDGT5KaNA.jpg",
+    "shelf": "Teletoon Shows",
+    "releaseDate": "2011-06-27",
+    "genres": [
+      "Comedy",
+      "Adventure",
+      "Mysteries"
+    ]
+  },
+  {
+    "id": 1763,
+    "name": "Braceface",
+    "poster": "/95K74OfPru4LPz7EJ5PAd6uhijz.jpg",
+    "shelf": "Teletoon Shows",
+    "releaseDate": "2001-06-02",
+    "genres": [
+      "Comedy"
+    ]
+  },
+  {
+    "id": 3548,
+    "name": "Roboroach",
+    "poster": "/63CbUKrHB5cJc7ldZ1eqfj3MsMr.jpg",
+    "shelf": "Teletoon Shows",
+    "releaseDate": "2002-01-08",
+    "genres": [
+      "Comedy"
+    ]
+  },
+  {
+    "id": 14076,
+    "name": "George of the Jungle",
+    "poster": "/j8Bh9getcnUEDVkBquTZLJ6VYhH.jpg",
+    "shelf": "Teletoon Shows",
+    "releaseDate": "2007-06-29",
+    "genres": [
+      "Comedy"
+    ]
+  },
+  {
+    "id": 6618,
+    "name": "Total Drama Island",
+    "poster": "/5H8n9dS2bypIAK4sUF3nCBk5tM7.jpg",
+    "shelf": "Teletoon Shows",
+    "releaseDate": "2007-07-08",
+    "genres": [
+      "Comedy"
+    ]
+  },
+  {
+    "id": 17463,
+    "name": "Kid vs. Kat",
+    "poster": "/gZoKC6Ltlia89f5Nrj4Or5duXPy.jpg",
+    "shelf": "YTV Shows",
+    "releaseDate": "2008-10-25",
+    "genres": [
+      "Comedy",
+      "Adventure"
+    ]
+  },
+  {
+    "id": 2400,
+    "name": "The Red Green Show",
+    "poster": "/rrDCC0WbGgSDB5pPU1HvllrygNh.jpg",
+    "shelf": "YTV Shows",
+    "releaseDate": "1991-09-25",
+    "genres": [
+      "Comedy"
+    ]
+  },
+  {
+    "id": 2913,
+    "name": "Are You Afraid of the Dark?",
+    "poster": "/hcVvglRh3l38IRhhtawlT2nUDY8.jpg",
+    "shelf": "YTV Shows",
+    "releaseDate": "1992-08-15",
+    "genres": [
+      "Mysteries"
+    ]
+  },
+  {
+    "id": 33965,
+    "name": "Littlest Pet Shop",
+    "poster": "/2D0O7iZuN0AKnEB4D7mw08DCL1n.jpg",
+    "shelf": "YTV Shows",
+    "releaseDate": "2012-11-10",
+    "genres": [
+      "Comedy"
+    ]
+  },
+  {
+    "id": 33793,
+    "name": "Babar and the Adventures of Badou",
+    "poster": "/t3SfPvInIboT35niE7Yyuej7KL5.jpg",
+    "shelf": "YTV Shows",
+    "releaseDate": "2010-11-22",
+    "genres": []
+  },
+  {
+    "id": 112945,
+    "name": "The Hardy Boys",
+    "poster": "/zO24XYR7pxsRHJJG9zzA5SRz48B.jpg",
+    "shelf": "YTV Shows",
+    "releaseDate": "2021-03-05",
+    "genres": [
+      "Mysteries"
+    ]
+  },
+  {
+    "id": 35097,
+    "name": "Almost Naked Animals",
+    "poster": "/g2syDt8t57eCmAZH22nTDfBaGKT.jpg",
+    "shelf": "YTV Shows",
+    "releaseDate": "2011-01-07",
+    "genres": [
+      "Comedy"
+    ]
+  },
+  {
+    "id": 70967,
+    "name": "Cloudy with a Chance of Meatballs",
+    "poster": "/q41n9xD3Gcrv4PyT8NsMGVOOUyh.jpg",
+    "shelf": "YTV Shows",
+    "releaseDate": "2017-02-20",
+    "genres": [
+      "Comedy",
+      "Adventure"
+    ]
+  },
+  {
+    "id": 39501,
+    "name": "Sidekick",
+    "poster": "/htsir4yQDr05oXL9LzMjCWbzqCg.jpg",
+    "shelf": "YTV Shows",
+    "releaseDate": "2010-09-11",
+    "genres": [
+      "Comedy"
+    ]
   }
 ]

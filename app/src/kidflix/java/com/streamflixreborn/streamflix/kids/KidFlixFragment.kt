@@ -11,6 +11,7 @@ import android.content.res.ColorStateList
 import android.graphics.drawable.StateListDrawable
 import androidx.activity.OnBackPressedCallback
 import android.os.Bundle
+import android.view.KeyEvent
 import android.view.Gravity
 import android.view.LayoutInflater
 import android.view.View
@@ -132,6 +133,10 @@ class KidFlixFragment : Fragment() {
     private var browseFocus: View? = null
     private lateinit var browseBack: OnBackPressedCallback
 
+    private val browseFocusListener = android.view.ViewTreeObserver.OnGlobalFocusChangeListener { _, _ ->
+        browseBack.isEnabled = currentShow != null || currentMovie != null || canGoBack || body.hasFocus()
+    }
+
     override fun onViewCreated(view: View, state: Bundle?) {
         browseBack = object : OnBackPressedCallback(false) {
             override fun handleOnBackPressed() {
@@ -158,6 +163,7 @@ class KidFlixFragment : Fragment() {
                 isEnabled = canGoBack
             }
         }
+        view.viewTreeObserver.addOnGlobalFocusChangeListener(browseFocusListener)
         requireActivity().onBackPressedDispatcher.addCallback(viewLifecycleOwner,browseBack)
         browseBack.isEnabled = canGoBack
         if (shelf != null || query.isNotBlank()) render() else home()
@@ -165,6 +171,7 @@ class KidFlixFragment : Fragment() {
         currentShow?.let { (title, tv) -> showPage(title, tv) }
     }
     override fun onDestroyView() {
+        view?.viewTreeObserver?.removeOnGlobalFocusChangeListener(browseFocusListener)
         job?.cancel()
         showStatus = null
         browseFocus = null
@@ -211,7 +218,7 @@ class KidFlixFragment : Fragment() {
             .thenBy { it.label })
         sections.forEach { section ->
             val preview = catalog.filter { it.belongsTo(section) }
-            if (preview.isNotEmpty()) {
+            if (preview.isNotEmpty() || section.ids.isNotEmpty()) {
                 val header = LinearLayout(requireContext()).apply {
                     gravity = Gravity.CENTER_VERTICAL
                     setPadding(0,dp(12),0,dp(6))
@@ -222,13 +229,13 @@ class KidFlixFragment : Fragment() {
                     setTextColor(Color.WHITE)
                     setTypeface(null,Typeface.BOLD)
                 },LinearLayout.LayoutParams(0,ViewGroup.LayoutParams.WRAP_CONTENT,1f))
-                header.addView(button("Browse all") { open(section, "") }.apply {
-                    contentDescription = "Browse all " + section.label
-                })
                 body.addView(header)
-                val row = LinearLayout(requireContext())
+                val row = titleRow()
                 rows[section] = row
-                preview.forEach { row.addView(card(it),dp(114),ViewGroup.LayoutParams.WRAP_CONTENT) }
+                preview.take(20).forEach { row.addView(card(it),dp(114),ViewGroup.LayoutParams.WRAP_CONTENT) }
+                row.addView(button("More") { open(section, "") }.apply {
+                    contentDescription = "More ${section.label}"
+                }, dp(114), ViewGroup.LayoutParams.WRAP_CONTENT)
                 body.addView(HorizontalScrollView(requireContext()).apply { addView(row) })
             } else if (KidCatalog.catalog.none { it.belongsTo(section) }) {
                 body.addView(button(section.label) { open(section, "") })
@@ -240,25 +247,43 @@ class KidFlixFragment : Fragment() {
                 launch {
                     KidCatalog.expand(section) { title ->
                         if (!hidden.contains(title.key)) {
-                            val old = (0 until row.childCount).firstOrNull { (row.getChildAt(it).tag as KidTitle).key == title.key }
+                            val old = (0 until row.childCount - 1).firstOrNull { (row.getChildAt(it).tag as KidTitle).key == title.key }
                             if (old != null) row.removeViewAt(old)
-                            val index = (0 until row.childCount).firstOrNull {
+                            val index = (0 until row.childCount - 1).firstOrNull {
                                 KidCatalog.newestFirst.compare(title, row.getChildAt(it).tag as KidTitle) < 0
-                            } ?: row.childCount
+                            } ?: (row.childCount - 1)
+                            if (index >= 20) return@expand
                             row.addView(card(title), index, LinearLayout.LayoutParams(dp(114), ViewGroup.LayoutParams.WRAP_CONTENT))
+                            if (row.childCount > 21) row.removeViewAt(20)
                         }
                     }
                 }
             }
         }
     }
+    private fun titleRow() = object : LinearLayout(requireContext()) {
+        override fun dispatchKeyEvent(event: KeyEvent): Boolean {
+            val step = when (event.keyCode) {
+                KeyEvent.KEYCODE_DPAD_LEFT -> -1
+                KeyEvent.KEYCODE_DPAD_RIGHT -> 1
+                else -> return super.dispatchKeyEvent(event)
+            }
+            val index = indexOfChild(focusedChild)
+            if (index < 0) return super.dispatchKeyEvent(event)
+            if (event.action == KeyEvent.ACTION_DOWN) {
+                getChildAt(index + step)?.takeIf { it.isFocusable && it.isShown }?.requestFocus()
+            }
+            return true
+        }
+    }
+
     private fun addShelf(name: String, items: List<KidTitle>) {
         if (items.isEmpty()) return
         body.addView(label(name, 20f).apply {
             setTypeface(null, Typeface.BOLD)
             setPadding(0, dp(12), 0, dp(6))
         })
-        val row = LinearLayout(requireContext())
+        val row = titleRow()
         items.forEach { row.addView(card(it), dp(114), -2) }
         body.addView(HorizontalScrollView(requireContext()).apply { addView(row) })
     }
@@ -275,7 +300,7 @@ class KidFlixFragment : Fragment() {
             compareByDescending<String> { it == "PBS KIDS" }.thenByDescending { newest[it]?.releaseDate.orEmpty() }.thenBy { it })
         val columns = ((resources.configuration.screenWidthDp - 172) / 170).coerceIn(1, 4)
         for (batch in brands.chunked(columns)) {
-            val row = LinearLayout(requireContext())
+            val row = titleRow()
             body.addView(row)
             for (brand in batch) {
                 val tile = column().apply {
@@ -342,7 +367,7 @@ class KidFlixFragment : Fragment() {
         val visible = watching.filterNot { hidden.contains(it.key) }.sortedWith(KidCatalog.newestFirst)
         if (visible.isEmpty()) return
         section.addView(label("Continue Watching", 20f).apply { setTypeface(null, Typeface.BOLD) })
-        val row = LinearLayout(requireContext())
+        val row = titleRow()
         visible.forEach { row.addView(card(it), dp(114), ViewGroup.LayoutParams.WRAP_CONTENT) }
         section.addView(HorizontalScrollView(requireContext()).apply { addView(row) })
         section.visibility = View.VISIBLE
@@ -370,6 +395,7 @@ class KidFlixFragment : Fragment() {
             }.show()
     }
     private fun open(selection: Shelf?, term: String) {
+        job?.cancel()
         homeExpansion?.cancel()
         scroll.scrollTo(0, 0)
         shelf = selection
@@ -379,7 +405,7 @@ class KidFlixFragment : Fragment() {
         more = false
         titles.clear()
         titles.addAll(KidCatalog.catalog.filter { (selection == null || it.belongsTo(selection)) && it.name.contains(term,true) })
-        if (selection != null && (selection.movie || selection.ids.isEmpty())) {
+        if (selection != null && selection.ids.isEmpty()) {
             page = 1
             render()
         } else {
@@ -414,7 +440,7 @@ class KidFlixFragment : Fragment() {
         status.text = (shelf?.label ?: "Search · $query") + if (visible.isEmpty() && page > 0) " · No matching titles on this page" else ""
         val columns = ((resources.configuration.screenWidthDp - 172) / 114).coerceIn(1, 6)
         visible.chunked(columns).forEach { batch ->
-            val row = LinearLayout(requireContext())
+            val row = titleRow()
             batch.forEach { title ->
                 row.addView(card(title),dp(114),ViewGroup.LayoutParams.WRAP_CONTENT)
             }

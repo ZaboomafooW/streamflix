@@ -9,7 +9,7 @@ internal object KidPolicy {
     private val missingRatings = setOf("", "NR", "NOT RATED", "UNRATED")
     private val excludedProducers = setOf(142470, 150378)
     private val brands = Regex(
-        """moonbug|cocomelon|blippi|meekah|little baby bum|morphle|gecko.s garage|go buster|oddbods|little angel|ryan.s (world|toys|mystery)|pocket.?watch|kids diana|like nastya|vlad (and|&) niki|a for adley|vlad and nikita|diana and roma|ninja kidz|hobbykids""",
+        """the asylum|vídeo brinquedo|video brinquedo|dingo pictures|spark plug entertainment|mockbuster|moonbug|cocomelon|blippi|meekah|little baby bum|morphle|gecko.s garage|go buster|oddbods|little angel|ryan.s (world|toys|mystery)|pocket.?watch|kids diana|like nastya|vlad (and|&) niki|a for adley|vlad and nikita|diana and roma|ninja kidz|hobbykids""",
         RegexOption.IGNORE_CASE
     )
     private val formats = Regex(
