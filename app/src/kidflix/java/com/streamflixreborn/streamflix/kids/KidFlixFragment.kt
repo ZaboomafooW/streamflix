@@ -5,6 +5,8 @@ import kotlinx.coroutines.flow.first
 import com.streamflixreborn.streamflix.utils.ServerAvailability
 import androidx.core.widget.doAfterTextChanged
 import kotlinx.coroutines.delay
+import androidx.recyclerview.widget.RecyclerView
+import androidx.recyclerview.widget.LinearLayoutManager
 import android.content.Context
 import android.graphics.Color
 import android.graphics.Typeface
@@ -126,17 +128,37 @@ class KidFlixFragment : Fragment() {
         toolbar.addView(button("⚙") { settings() }.apply { contentDescription = "Settings" }, dp(56), dp(48))
         status = label("", 20f).apply { setPadding(0, 0, 0, dp(8)) }
         content.addView(status)
+        val heroHeight = (resources.configuration.screenHeightDp / 3).coerceIn(128, 216)
+        heroPanel = FrameLayout(requireContext()).apply {
+            background = tile(ink)
+            clipToOutline = true
+            visibility = View.GONE
+        }
         browseHero = ImageView(requireContext()).apply {
             scaleType = ImageView.ScaleType.FIT_CENTER
             importantForAccessibility = View.IMPORTANT_FOR_ACCESSIBILITY_NO
-            setBackgroundColor(ink)
-            visibility = View.GONE
         }
-        content.addView(browseHero, -1, dp((resources.configuration.screenHeightDp / 4).coerceIn(82, 180)))
+        val artWidth = dp(heroHeight * 16 / 9)
+        heroPanel.addView(browseHero, FrameLayout.LayoutParams(artWidth, -1, Gravity.END))
+        heroPanel.addView(View(requireContext()).apply {
+            background = GradientDrawable(GradientDrawable.Orientation.LEFT_RIGHT, intArrayOf(ink, Color.TRANSPARENT))
+        }, FrameLayout.LayoutParams(dp(32), -1, Gravity.END).apply { marginEnd = artWidth - dp(32) })
+        val caption = column().apply { gravity = Gravity.CENTER_VERTICAL }
+        heroName = label("", 27f).apply { setTypeface(null, Typeface.BOLD); maxLines = 3 }
+        heroMeta = label("", 15f).apply { setTextColor(mint) }
+        caption.addView(heroName)
+        caption.addView(heroMeta)
+        heroPanel.addView(caption, FrameLayout.LayoutParams(-1, -1).apply {
+            marginStart = dp(20)
+            marginEnd = artWidth + dp(8)
+        })
+        content.addView(heroPanel, -1, dp(heroHeight))
         body = column()
         scroll = ScrollView(requireContext()).apply {
             addView(body)
+            body.addOnLayoutChangeListener { _, _, _, _, _, _, _, _, _ -> post { activateVisibleShelves() } }
             setOnScrollChangeListener { _: View, _: Int, y: Int, _: Int, _: Int ->
+                activateVisibleShelves()
                 if (anchors.isNotEmpty() && body.height > 0) {
                     val entry = if (!canScrollVertically(1) && y > 0) Destination.CHANNELS
                         else anchors.entries.lastOrNull { it.value.top <= y + dp(4) }?.key
@@ -152,10 +174,13 @@ class KidFlixFragment : Fragment() {
         HOME("Home"), SHOWS("TV Shows"), MOVIES("Movies"), CHANNELS("Channels")
     }
 
+    private lateinit var heroPanel: FrameLayout
+    private lateinit var heroName: TextView
+    private lateinit var heroMeta: TextView
     private lateinit var browseHero: ImageView
     private var heroJob: Job? = null
     private var heroKey: String? = null
-    private val backdrops = android.util.LruCache<String, String>(150)
+    private val backdrops get() = requireContext().getSharedPreferences("kidflix_backdrops", Context.MODE_PRIVATE)
     private val channelArt = mutableMapOf<String, KidTitle>()
     private val anchors = linkedMapOf<Destination, View>()
     private var destination = Destination.HOME
@@ -167,6 +192,7 @@ class KidFlixFragment : Fragment() {
     }
 
     private fun highlight(entry: Destination) {
+        if (destination == entry && status.text == entry.caption) return
         destination = entry
         destinations.forEach { (key, button) -> button.isSelected = key == entry }
         status.text = entry.caption
@@ -271,6 +297,7 @@ class KidFlixFragment : Fragment() {
         returnToHero = null
         destinations.clear()
         clearBrowseHero()
+        pendingShelves.clear()
         anchors.clear()
         super.onDestroyView()
     }
@@ -283,6 +310,7 @@ class KidFlixFragment : Fragment() {
             searchField.text.clear()
             resettingSearch = false
         }
+        pendingShelves.clear()
         anchors.clear()
         titles.clear()
         body.removeAllViews()
@@ -297,7 +325,7 @@ class KidFlixFragment : Fragment() {
             channelPage(brand, catalog)
             return
         }
-        browseHero.visibility = View.VISIBLE
+        heroPanel.visibility = View.VISIBLE
         catalog.firstOrNull()?.let(::showBrowseHero)
         markSection(Destination.HOME)
         highlight(Destination.HOME)
@@ -306,7 +334,7 @@ class KidFlixFragment : Fragment() {
         addShelf("Newest Releases", catalog.take(20))
         for (genre in KidCatalog.homeGenres) addShelf(genre, catalog.filter { genre in it.genres })
 
-        val rows = mutableMapOf<Shelf, LinearLayout>()
+
         val sections = KidCatalog.shelves.sortedWith(compareBy<Shelf> { it.movie }
             .thenByDescending { it.brand == "PBS KIDS" }
             .thenByDescending { section -> catalog.firstOrNull { it.belongsTo(section) }?.releaseDate.orEmpty() }
@@ -327,39 +355,88 @@ class KidFlixFragment : Fragment() {
                     setTypeface(null,Typeface.BOLD)
                 },LinearLayout.LayoutParams(0,ViewGroup.LayoutParams.WRAP_CONTENT,1f))
                 body.addView(header)
-                val row = titleRow()
-                rows[section] = row
-                preview.take(20).forEach { row.addView(card(it),dp(114),ViewGroup.LayoutParams.WRAP_CONTENT) }
-                row.addView(button("More") { open(section, "") }.apply {
-                    contentDescription = "More ${section.label}"
-                }, dp(114), ViewGroup.LayoutParams.WRAP_CONTENT)
-                body.addView(HorizontalScrollView(requireContext()).apply { addView(row) })
+                feedRow(preview.take(20), section)
             } else if (KidCatalog.catalog.none { it.belongsTo(section) }) {
                 body.addView(button(section.label) { open(section, "") })
             }
         }
         markSection(Destination.CHANNELS)
         channelCards(catalog)
-        homeExpansion = viewLifecycleOwner.lifecycleScope.launch {
-            launch { continueWatching(watching) }
-            rows.forEach { (section, row) ->
-                launch {
-                    KidCatalog.expand(section) { title ->
-                        if (!hidden.contains(title.key)) {
-                            val old = (0 until row.childCount - 1).firstOrNull { (row.getChildAt(it).tag as KidTitle).key == title.key }
-                            if (old != null) row.removeViewAt(old)
-                            val index = (0 until row.childCount - 1).firstOrNull {
-                                KidCatalog.newestFirst.compare(title, row.getChildAt(it).tag as KidTitle) < 0
-                            } ?: (row.childCount - 1)
-                            if (index >= 20) return@expand
-                            row.addView(card(title), index, LinearLayout.LayoutParams(dp(114), ViewGroup.LayoutParams.WRAP_CONTENT))
-                            if (row.childCount > 21) row.removeViewAt(20)
+        homeExpansion = viewLifecycleOwner.lifecycleScope.launch { continueWatching(watching) }
+    }
+
+    private fun feedRow(initial: List<KidTitle>, section: Shelf? = null) {
+        val items = initial.toMutableList()
+        val list = object : RecyclerView(requireContext()) {
+            override fun focusSearch(focused: View, direction: Int): View? {
+                val target = super.focusSearch(focused, direction)
+                if (direction == View.FOCUS_LEFT || direction == View.FOCUS_RIGHT) {
+                    if (target == null || findContainingItemView(target) == null) return focused
+                }
+                return target
+            }
+        }
+        val cards = object : RecyclerView.Adapter<RecyclerView.ViewHolder>() {
+            override fun getItemCount() = items.size + if (section == null) 0 else 1
+            override fun onCreateViewHolder(parent: ViewGroup, viewType: Int): RecyclerView.ViewHolder {
+                val frame = FrameLayout(requireContext()).apply {
+                    layoutParams = RecyclerView.LayoutParams(dp(114), -1)
+                }
+                return object : RecyclerView.ViewHolder(frame) {}
+            }
+            override fun onBindViewHolder(holder: RecyclerView.ViewHolder, position: Int) {
+                val frame = holder.itemView as FrameLayout
+                frame.removeAllViews()
+                val view = items.getOrNull(position)?.let(::card) ?: button("More") {
+                    open(section, "")
+                }.apply { contentDescription = "More ${section?.label}" }
+                frame.addView(view, -1, -2)
+            }
+        }
+        list.layoutManager = LinearLayoutManager(requireContext(), RecyclerView.HORIZONTAL, false)
+        list.isNestedScrollingEnabled = false
+        list.itemAnimator = null
+        list.setHasFixedSize(true)
+        // A fixed-size shelf can participate in TV focus before its cards are needed.
+        list.isFocusable = true
+        fun activate() {
+            if (list.adapter != null || !list.isAttachedToWindow) return
+            list.adapter = cards
+            if (list.isFocused) list.post { if (list.isFocused) list.getChildAt(0)?.requestFocus(View.FOCUS_FORWARD) }
+            if (section != null) viewLifecycleOwner.lifecycleScope.launch {
+                KidCatalog.expand(section) { title ->
+                    if (list.isAttachedToWindow && !hidden.contains(title.key) && items.none { it.key == title.key }) {
+                        val index = items.indexOfFirst { KidCatalog.newestFirst.compare(title, it) < 0 }
+                            .let { if (it < 0) items.size else it }
+                        if (index < 20) {
+                            items.add(index, title)
+                            cards.notifyItemInserted(index)
+                            if (items.size > 20) { items.removeAt(20); cards.notifyItemRemoved(20) }
                         }
                     }
                 }
             }
         }
+        list.setOnFocusChangeListener { _, focused -> if (focused) activate() }
+        pendingShelves[list] = ::activate
+        body.addView(list, -1, dp(190))
     }
+
+    private val pendingShelves = mutableMapOf<View, () -> Unit>()
+    private fun activateVisibleShelves() {
+        val top = scroll.scrollY - dp(190)
+        val bottom = scroll.scrollY + scroll.height + dp(190)
+        val iterator = pendingShelves.iterator()
+        while (iterator.hasNext()) {
+            val (row, activate) = iterator.next()
+            if (row.parent !== body) iterator.remove()
+            else if (row.height > 0 && row.bottom >= top && row.top <= bottom) {
+                iterator.remove()
+                activate()
+            }
+        }
+    }
+
     private fun titleRow() = object : LinearLayout(requireContext()) {
         override fun dispatchKeyEvent(event: KeyEvent): Boolean {
             val step = when (event.keyCode) {
@@ -382,9 +459,7 @@ class KidFlixFragment : Fragment() {
             setTypeface(null, Typeface.BOLD)
             setPadding(0, dp(12), 0, dp(6))
         })
-        val row = titleRow()
-        items.forEach { row.addView(card(it), dp(114), -2) }
-        body.addView(HorizontalScrollView(requireContext()).apply { addView(row) })
+        feedRow(items)
     }
 
     private fun channelName(shelf: Shelf) = channelGroup(shelf.brand)
@@ -567,6 +642,7 @@ class KidFlixFragment : Fragment() {
     }
     private fun open(selection: Shelf?, term: String) {
         clearBrowseHero()
+        pendingShelves.clear()
         anchors.clear()
         job?.cancel()
         homeExpansion?.cancel()
@@ -631,25 +707,28 @@ class KidFlixFragment : Fragment() {
         heroJob?.cancel()
         heroKey = null
         Glide.with(browseHero).clear(browseHero)
-        browseHero.visibility = View.GONE
+        heroPanel.visibility = View.GONE
     }
 
     private fun showBrowseHero(title: KidTitle) {
-        browseHero.visibility = View.VISIBLE
+        heroPanel.visibility = View.VISIBLE
         if (heroKey == title.key) return
         heroKey = title.key
         heroJob?.cancel()
-        Glide.with(browseHero).clear(browseHero)
         heroJob = viewLifecycleOwner.lifecycleScope.launch {
-            delay(120)
-            val path = backdrops.get(title.key) ?: try {
+            delay(180)
+            heroName.text = title.name
+            heroMeta.text = listOf(title.releaseDate.take(4), title.shelf.brand).filter { it.isNotBlank() }.joinToString(" · ")
+            val path = backdrops.getString(title.key, null) ?: try {
                 val backdrop = if (title.shelf.movie) TMDb3.Movies.details(title.id).backdropPath
                     else TMDb3.TvSeries.details(title.id).backdropPath
-                backdrop.orEmpty().also { backdrops.put(title.key, it) }
+                backdrop.orEmpty().also { backdrops.edit().putString(title.key, it).apply() }
             } catch (e: CancellationException) { throw e }
             catch (e: Exception) { "" }
             val url = if (path.isNotBlank()) "https://image.tmdb.org/t/p/w1280$path" else title.poster?.w500
-            if (!url.isNullOrBlank()) {
+            if (url.isNullOrBlank()) {
+                Glide.with(browseHero).clear(browseHero)
+            } else {
                 val image = try { KidArtwork.localCopy(browseHero.context.applicationContext, url) }
                     catch (e: CancellationException) { throw e }
                     catch (e: Exception) { url }
