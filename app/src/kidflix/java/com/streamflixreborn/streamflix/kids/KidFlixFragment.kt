@@ -107,8 +107,9 @@ class KidFlixFragment : Fragment() {
             destinations[entry] = item
             rail.addView(item)
         }
-        val content = column().apply { setPadding(dp(14), dp(14), dp(14), dp(10)) }
-        shell.addView(content, LinearLayout.LayoutParams(0, -1, 1f))
+        val stage = FrameLayout(requireContext())
+        shell.addView(stage, LinearLayout.LayoutParams(0, -1, 1f))
+        val content = column().apply { setPadding(dp(14), 0, dp(14), dp(10)) }
         val toolbar = LinearLayout(requireContext()).apply { gravity = Gravity.CENTER_VERTICAL }
         content.addView(toolbar)
         searchField = EditText(requireContext()).apply {
@@ -126,33 +127,37 @@ class KidFlixFragment : Fragment() {
         }
         toolbar.addView(searchField, LinearLayout.LayoutParams(0, dp(48), 1f))
         toolbar.addView(button("⚙") { settings() }.apply { contentDescription = "Settings" }, dp(56), dp(48))
-        status = label("", 20f).apply { setPadding(0, 0, 0, dp(8)) }
-        content.addView(status)
-        val heroHeight = (resources.configuration.screenHeightDp / 3).coerceIn(128, 216)
-        heroPanel = FrameLayout(requireContext()).apply {
-            background = tile(ink)
-            clipToOutline = true
-            visibility = View.GONE
-        }
+        val screenHeight = resources.configuration.screenHeightDp
+        val reserved = dp(screenHeight * 23 / 100)
+        val fade = dp(screenHeight / 6)
+        heroPanel = FrameLayout(requireContext()).apply { setBackgroundColor(ink) }
+        stage.addView(heroPanel, FrameLayout.LayoutParams(-1, reserved + fade))
         browseHero = ImageView(requireContext()).apply {
-            scaleType = ImageView.ScaleType.FIT_CENTER
+            scaleType = ImageView.ScaleType.CENTER_CROP
             importantForAccessibility = View.IMPORTANT_FOR_ACCESSIBILITY_NO
         }
-        val artWidth = dp(heroHeight * 16 / 9)
-        heroPanel.addView(browseHero, FrameLayout.LayoutParams(artWidth, -1, Gravity.END))
+        heroPanel.addView(browseHero, -1, -1)
         heroPanel.addView(View(requireContext()).apply {
-            background = GradientDrawable(GradientDrawable.Orientation.LEFT_RIGHT, intArrayOf(ink, Color.TRANSPARENT))
-        }, FrameLayout.LayoutParams(dp(32), -1, Gravity.END).apply { marginEnd = artWidth - dp(32) })
+            background = GradientDrawable(GradientDrawable.Orientation.LEFT_RIGHT,
+                intArrayOf(Color.argb(195, 18, 33, 54), Color.TRANSPARENT))
+        }, -1, -1)
+        heroPanel.addView(View(requireContext()).apply {
+            background = GradientDrawable(GradientDrawable.Orientation.TOP_BOTTOM,
+                intArrayOf(Color.TRANSPARENT, Color.rgb(19, 38, 66)))
+        }, FrameLayout.LayoutParams(-1, fade, Gravity.BOTTOM))
+        stage.addView(content, -1, -1)
         val caption = column().apply { gravity = Gravity.CENTER_VERTICAL }
-        heroName = label("", 27f).apply { setTypeface(null, Typeface.BOLD); maxLines = 3 }
-        heroMeta = label("", 15f).apply { setTextColor(mint) }
+        heroName = label("", 24f).apply {
+            setTypeface(null, Typeface.BOLD)
+            setSingleLine()
+            ellipsize = android.text.TextUtils.TruncateAt.END
+        }
+        heroMeta = label("", 14f).apply { setTextColor(mint) }
         caption.addView(heroName)
         caption.addView(heroMeta)
-        heroPanel.addView(caption, FrameLayout.LayoutParams(-1, -1).apply {
-            marginStart = dp(20)
-            marginEnd = artWidth + dp(8)
-        })
-        content.addView(heroPanel, -1, dp(heroHeight))
+        content.addView(caption, -1, (reserved - dp(48)).coerceAtLeast(dp(45)))
+        status = label("", 18f)
+        content.addView(status)
         body = column()
         scroll = ScrollView(requireContext()).apply {
             addView(body)
@@ -707,7 +712,8 @@ class KidFlixFragment : Fragment() {
         heroJob?.cancel()
         heroKey = null
         Glide.with(browseHero).clear(browseHero)
-        heroPanel.visibility = View.GONE
+        heroName.text = ""
+        heroMeta.text = ""
     }
 
     private fun showBrowseHero(title: KidTitle) {
@@ -717,6 +723,7 @@ class KidFlixFragment : Fragment() {
         heroJob?.cancel()
         heroJob = viewLifecycleOwner.lifecycleScope.launch {
             delay(180)
+            browseHero.scaleType = ImageView.ScaleType.CENTER_CROP
             heroName.text = title.name
             heroMeta.text = listOf(title.releaseDate.take(4), title.shelf.brand).filter { it.isNotBlank() }.joinToString(" · ")
             val path = backdrops.getString(title.key, null) ?: try {
@@ -732,7 +739,10 @@ class KidFlixFragment : Fragment() {
                 val image = try { KidArtwork.localCopy(browseHero.context.applicationContext, url) }
                     catch (e: CancellationException) { throw e }
                     catch (e: Exception) { url }
-                if (heroKey == title.key) Glide.with(browseHero).load(image).into(browseHero)
+                if (heroKey == title.key) {
+                    browseHero.scaleType = if (path.isBlank()) ImageView.ScaleType.FIT_END else ImageView.ScaleType.CENTER_CROP
+                    Glide.with(browseHero).load(image).into(browseHero)
+                }
             }
         }
     }
