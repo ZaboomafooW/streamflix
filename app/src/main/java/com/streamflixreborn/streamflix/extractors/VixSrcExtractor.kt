@@ -62,7 +62,17 @@ class VixSrcExtractor : Extractor() {
             throw e
         }
         
-        var currentEmbedPath = apiResponse.src.trimStart('/')
+        fun embedPath(src: String): String {
+            if (apiPath.substringBefore('?').startsWith("api/tv/127635/")) {
+                val encoded = android.net.Uri.parse(src).getQueryParameter("t")
+                val title = encoded?.let { runCatching { Base64.decode(it, Base64.DEFAULT).toString(Charsets.UTF_8) }.getOrNull() }
+                if (title?.contains("Meet Spidey", ignoreCase = true) == true) {
+                    throw java.io.IOException("VixSrc returned the Meet Spidey shorts for the main series")
+                }
+            }
+            return src.trimStart('/')
+        }
+        var currentEmbedPath = embedPath(apiResponse.src)
         Log.i("VixSrcDebug", "Embed path from API: $currentEmbedPath")
         
         val source = try {
@@ -72,7 +82,7 @@ class VixSrcExtractor : Extractor() {
             if (isGone) {
                 Log.w("VixSrcDebug", "410 Gone detected, retrying API call...")
                 val retryApiResponse = service.getSourceApi(apiPath)
-                currentEmbedPath = retryApiResponse.src.trimStart('/')
+                currentEmbedPath = embedPath(retryApiResponse.src)
                 service.getSource(currentEmbedPath)
             } else throw e
         }
